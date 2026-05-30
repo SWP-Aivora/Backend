@@ -67,4 +67,13 @@ public class JobController : ControllerBase
         var result = await _jobService.PublishJobAsync(clientId, id);
         return Ok(ApiResponseFactory.SuccessResponse(result, "Job published successfully", HttpContext.TraceIdentifier));
     }
+
+    [HttpPost("{id}/cancel")]
+    [Authorize(Policy = JwtExtensions.ClientPolicy)]
+    public async Task<IActionResult> CancelJob(Guid id, [FromBody] string? reason)
+    {
+        var clientId = this.GetUserId();
+        var result = await _jobService.CancelJobAsync(clientId, id, reason);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Job cancelled successfully", HttpContext.TraceIdentifier));
+    }
 }

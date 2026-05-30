@@ -116,6 +116,20 @@ public class Service : IService
         return await GetJobByIdAsync(job.Id);
     }
 
+    public async Task<Response.JobResponse> CancelJobAsync(Guid clientId, Guid jobId, string? reason)
+    {
+        var job = await _dbContext.JobPosts.FirstOrDefaultAsync(j => j.Id == jobId && j.ClientId == clientId);
+        if (job == null) throw new NotFoundException("Job not found or access denied.");
+        if (job.Status != JobStatus.DRAFT && job.Status != JobStatus.OPEN) 
+            throw new ValidationException("Cannot cancel job in its current status.");
+
+        job.Status = JobStatus.CANCELLED;
+        // Optionally store reason in a separate field or log
+        
+        await _dbContext.SaveChangesAsync();
+        return await GetJobByIdAsync(job.Id);
+    }
+
     public async Task<Aivora.Services.Base.Response.PageResult<Response.JobResponse>> GetJobsAsync(Aivora.Services.Base.Request.PageRequest pageRequest, Guid? categoryId = null)
     {
         var query = _dbContext.JobPosts
