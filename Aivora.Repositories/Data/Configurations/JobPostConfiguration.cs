@@ -13,7 +13,7 @@ public class JobPostConfiguration : IEntityTypeConfiguration<JobPost>
 
         builder.Property(x => x.Title).IsRequired().HasMaxLength(255);
         builder.Property(x => x.OriginalDescription).IsRequired();
-        builder.Property(x => x.FinalDescription).IsRequired();
+        builder.Property(x => x.FinalDescription).IsRequired(false);
         builder.Property(x => x.BusinessDomain).HasMaxLength(100);
         builder.Property(x => x.ExpectedOutcome).HasMaxLength(2000);
         builder.Property(x => x.Currency).IsRequired().HasMaxLength(10);
