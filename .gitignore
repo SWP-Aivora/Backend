@@ -32,3 +32,6 @@ docs/superpowers/
 
 # Secrets
 .env
+
+# Local documentation
+docs/architecture/
