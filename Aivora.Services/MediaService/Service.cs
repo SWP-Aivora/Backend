@@ -42,7 +42,7 @@ public class Service : IService
             Url = uploadResult.SecureUrl.ToString(),
             PublicId = uploadResult.PublicId,
             Format = uploadResult.Format,
-            Bytes = uploadResult.Length
+            Bytes = uploadResult.Bytes
         };
     }
 
@@ -66,7 +66,7 @@ public class Service : IService
             Url = uploadResult.SecureUrl.ToString(),
             PublicId = uploadResult.PublicId,
             Format = uploadResult.Format,
-            Bytes = uploadResult.Length
+            Bytes = uploadResult.Bytes
         };
     }
 
