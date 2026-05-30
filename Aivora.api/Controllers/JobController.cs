@@ -12,10 +12,14 @@ namespace Aivora.api.Controllers;
 public class JobController : ControllerBase
 {
     private readonly IService _jobService;
+    private readonly Aivora.Services.RecommendationService.IService _recommendationService;
 
-    public JobController(IService jobService)
+    public JobController(
+        IService jobService, 
+        Aivora.Services.RecommendationService.IService recommendationService)
     {
         _jobService = jobService;
+        _recommendationService = recommendationService;
     }
 
     [HttpGet]
@@ -75,5 +79,23 @@ public class JobController : ControllerBase
         var clientId = this.GetUserId();
         var result = await _jobService.CancelJobAsync(clientId, id, reason);
         return Ok(ApiResponseFactory.SuccessResponse(result, "Job cancelled successfully", HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("{id}/recommendations/generate")]
+    [Authorize(Policy = JwtExtensions.ClientPolicy)]
+    public async Task<IActionResult> GenerateRecommendations(Guid id)
+    {
+        var clientId = this.GetUserId();
+        var result = await _recommendationService.GenerateRecommendationsAsync(clientId, id);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Expert recommendations generated", HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("{id}/recommendations")]
+    [Authorize(Policy = JwtExtensions.ClientPolicy)]
+    public async Task<IActionResult> GetRecommendations(Guid id)
+    {
+        var clientId = this.GetUserId();
+        var result = await _recommendationService.GetRecommendationsAsync(clientId, id);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Expert recommendations retrieved", HttpContext.TraceIdentifier));
     }
 }
