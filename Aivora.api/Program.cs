@@ -5,6 +5,7 @@ using Aivora.Repositories.Data.Interceptors;
 using Aivora.Services.Options;
 using Aivora.Services.JwtService;
 using Microsoft.EntityFrameworkCore;
+using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -47,7 +48,8 @@ builder.Services.AddScoped<Aivora.Services.FinancialLedger.IFinancialLedger, Aiv
 
 builder.Services.AddSignalR();
 builder.Services.AddControllers();
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+
+// Native OpenAPI Configuration (.NET 10)
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
@@ -58,6 +60,7 @@ app.UseMiddleware<ExceptionMiddleware>();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    app.MapScalarApiReference(); // Accessible at /scalar/v1
 }
 
 app.UseHttpsRedirection();
