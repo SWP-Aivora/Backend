@@ -86,4 +86,21 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHub<Aivora.api.Hubs.ChatHub>("/api/v1/chat");
 
+// Seed the database
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    try
+    {
+        var context = services.GetRequiredService<AivoraDbContext>();
+        context.Database.EnsureCreated(); // Use this for dev; for prod, migrations are better
+        await Aivora.Repositories.Data.SeedData.Initialize(context);
+    }
+    catch (Exception ex)
+    {
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred seeding the DB.");
+    }
+}
+
 app.Run();
