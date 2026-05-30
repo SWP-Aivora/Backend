@@ -13,8 +13,8 @@ public class Response
         public string? FinalDescription { get; set; }
         public Guid ClientId { get; set; }
         public string ClientName { get; set; } = null!;
-        public Guid CategoryId { get; set; }
-        public string CategoryName { get; set; } = null!;
+        public Guid? CategoryId { get; set; }
+        public string? CategoryName { get; set; }
         public BudgetType BudgetType { get; set; }
         public decimal? BudgetMin { get; set; }
         public decimal? BudgetMax { get; set; }

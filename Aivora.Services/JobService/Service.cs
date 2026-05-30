@@ -162,7 +162,7 @@ public class Service : IService
             ClientId = job.ClientId,
             ClientName = job.Client.FullName,
             CategoryId = job.CategoryId,
-            CategoryName = job.Category.Name,
+            CategoryName = job.Category?.Name,
             BudgetType = job.BudgetType,
             BudgetMin = job.BudgetMin,
             BudgetMax = job.BudgetMax,
