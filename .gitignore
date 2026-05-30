@@ -20,3 +20,8 @@ riderModule.iml
 .DS_Store
 Thumbs.db
 
+# Project Docs (Local only)
+Database.md
+TODO.md
+
+
