@@ -2,6 +2,7 @@ using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.Exceptions;
+using Aivora.Services.FinancialLedger;
 using Microsoft.EntityFrameworkCore;
 
 namespace Aivora.Services.DisputeService;
@@ -9,10 +10,12 @@ namespace Aivora.Services.DisputeService;
 public class Service : IService
 {
     private readonly AivoraDbContext _dbContext;
+    private readonly IFinancialLedger _ledger;
 
-    public Service(AivoraDbContext dbContext)
+    public Service(AivoraDbContext dbContext, IFinancialLedger ledger)
     {
         _dbContext = dbContext;
+        _ledger = ledger;
     }
 
     public async Task<Response.DisputeResponse> OpenDisputeAsync(Guid userId, Request.OpenDisputeRequest request)
@@ -69,13 +72,12 @@ public class Service : IService
             .Include(d => d.Milestone)
             .Include(d => d.Opener)
             .Include(d => d.Admin)
-            .Include(d => d.Milestone.Project.Expert) // To get against user name
+            .Include(d => d.Milestone.Project.Expert)
             .Include(d => d.Milestone.Project.Client)
             .FirstOrDefaultAsync(d => d.Id == disputeId);
 
         if (dispute == null) throw new NotFoundException("Dispute not found.");
         
-        // Basic auth check (participating users or admin)
         var user = await _dbContext.Users.FindAsync(userId);
         if (user!.Role != UserRole.ADMIN && dispute.OpenedBy != userId && dispute.AgainstUserId != userId)
             throw new UnauthorizedException("You are not authorized to view this dispute.");
@@ -139,7 +141,6 @@ public class Service : IService
         var responses = new List<Response.DisputeResponse>();
         foreach (var d in items)
         {
-            // Simplified mapping for list
             responses.Add(new Response.DisputeResponse
             {
                 Id = d.Id,
@@ -217,50 +218,27 @@ public class Service : IService
             dispute.ResolvedAt = DateTimeOffset.UtcNow;
             dispute.AdminId = adminId;
 
-            var payment = dispute.Payment;
             var project = dispute.Project;
             var milestone = dispute.Milestone;
 
             switch (request.ResolutionType)
             {
                 case DisputeResolutionType.RELEASE_TO_EXPERT:
-                    payment.Status = PaymentStatus.RELEASED;
+                    await _ledger.ReleaseFundsAsync(milestone.Id, dispute.Payment.Amount, $"Dispute resolved: Release to expert. Ref: {dispute.Id}");
                     milestone.Status = MilestoneStatus.PAID;
-                    // Logic to update expert wallet (simplified here, should call WalletService)
-                    var expertWallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == project.ExpertId);
-                    var clientWallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == project.ClientId);
-                    
-                    clientWallet!.HeldBalance -= payment.Amount;
-                    expertWallet!.AvailableBalance += payment.Amount;
-                    expertWallet!.TotalEarned += payment.Amount;
                     break;
 
                 case DisputeResolutionType.REFUND_TO_CLIENT:
-                    payment.Status = PaymentStatus.REFUNDED;
+                    await _ledger.RefundFundsAsync(milestone.Id, dispute.Payment.Amount, $"Dispute resolved: Refund to client. Ref: {dispute.Id}");
                     milestone.Status = MilestoneStatus.REFUNDED;
-                    var cWallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == project.ClientId);
-                    cWallet!.HeldBalance -= payment.Amount;
-                    cWallet!.AvailableBalance += payment.Amount;
                     break;
 
                 case DisputeResolutionType.SPLIT_PAYMENT:
-                    if (request.ReleaseAmount + request.RefundAmount != payment.Amount)
-                        throw new ValidationException("Total split amounts must equal payment amount.");
-                    
-                    payment.Status = PaymentStatus.RELEASED; // Or a custom status like PARTIALLY_RELEASED
+                    await _ledger.SplitFundsAsync(milestone.Id, request.ReleaseAmount ?? 0, request.RefundAmount ?? 0, $"Dispute resolved: Split payment. Ref: {dispute.Id}");
                     milestone.Status = MilestoneStatus.PAID;
-
-                    var eWallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == project.ExpertId);
-                    var clWallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == project.ClientId);
-
-                    clWallet!.HeldBalance -= payment.Amount;
-                    clWallet!.AvailableBalance += request.RefundAmount ?? 0;
-                    eWallet!.AvailableBalance += request.ReleaseAmount ?? 0;
-                    eWallet!.TotalEarned += request.ReleaseAmount ?? 0;
                     break;
             }
 
-            // Check if all milestones are paid/refunded to complete project
             var allFinished = await _dbContext.Milestones
                 .Where(m => m.ProjectId == project.Id && m.Id != milestone.Id)
                 .AllAsync(m => m.Status == MilestoneStatus.PAID || m.Status == MilestoneStatus.REFUNDED);

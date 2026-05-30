@@ -2,6 +2,7 @@ using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.MilestoneService;
+using Aivora.Services.FinancialLedger;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Moq;
@@ -39,7 +40,8 @@ public class MilestoneServiceTests
         dbContext.Milestones.Add(milestone);
         await dbContext.SaveChangesAsync();
 
-        var service = new Service(dbContext);
+        var ledger = new FinancialLedger(dbContext);
+        var service = new Service(dbContext, ledger);
 
         // Act
         var result = await service.FundMilestoneAsync(clientId, milestoneId);
@@ -79,7 +81,8 @@ public class MilestoneServiceTests
         dbContext.Payments.Add(payment);
         await dbContext.SaveChangesAsync();
 
-        var service = new Service(dbContext);
+        var ledger = new FinancialLedger(dbContext);
+        var service = new Service(dbContext, ledger);
 
         // Act
         var result = await service.ApproveMilestoneAsync(clientId, milestoneId);

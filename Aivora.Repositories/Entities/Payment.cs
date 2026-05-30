@@ -12,6 +12,7 @@ public class Payment : AuditableBaseEntity
     public decimal Amount { get; set; }
     public string Currency { get; set; } = "AICOIN";
     public PaymentStatus Status { get; set; } = PaymentStatus.PENDING;
+    public string? Description { get; set; }
     public DateTimeOffset? HeldAt { get; set; }
     public DateTimeOffset? ReleasedAt { get; set; }
     public DateTimeOffset? RefundedAt { get; set; }

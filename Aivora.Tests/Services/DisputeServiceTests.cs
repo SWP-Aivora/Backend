@@ -2,6 +2,7 @@ using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.DisputeService;
+using Aivora.Services.FinancialLedger;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Moq;
@@ -42,7 +43,8 @@ public class DisputeServiceTests
         dbContext.Payments.Add(payment);
         await dbContext.SaveChangesAsync();
 
-        var service = new Service(dbContext);
+        var ledger = new FinancialLedger(dbContext);
+        var service = new Service(dbContext, ledger);
         var request = new Request.OpenDisputeRequest { MilestoneId = milestoneId, Reason = "Poor quality" };
 
         // Act
@@ -91,7 +93,8 @@ public class DisputeServiceTests
         dbContext.Disputes.Add(dispute);
         await dbContext.SaveChangesAsync();
 
-        var service = new Service(dbContext);
+        var ledger = new FinancialLedger(dbContext);
+        var service = new Service(dbContext, ledger);
         var resolveRequest = new Request.ResolveDisputeRequest 
         { 
             ResolutionType = DisputeResolutionType.REFUND_TO_CLIENT,

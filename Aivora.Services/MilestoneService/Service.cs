@@ -2,6 +2,7 @@ using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.Exceptions;
+using Aivora.Services.FinancialLedger;
 using Microsoft.EntityFrameworkCore;
 
 namespace Aivora.Services.MilestoneService;
@@ -9,10 +10,12 @@ namespace Aivora.Services.MilestoneService;
 public class Service : IService
 {
     private readonly AivoraDbContext _dbContext;
+    private readonly IFinancialLedger _ledger;
 
-    public Service(AivoraDbContext dbContext)
+    public Service(AivoraDbContext dbContext, IFinancialLedger ledger)
     {
         _dbContext = dbContext;
+        _ledger = ledger;
     }
 
     public async Task<Response.MilestoneResponse> GetMilestoneByIdAsync(Guid userId, Guid milestoneId)
@@ -89,53 +92,14 @@ public class Service : IService
         if (milestone.Status != MilestoneStatus.CREATED)
             throw new ValidationException("Milestone is already funded or processed.");
 
-        var clientWallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
-        if (clientWallet == null) throw new NotFoundException("Client wallet not found.");
-
-        if (clientWallet.AvailableBalance < milestone.Amount)
-            throw new ValidationException("Insufficient balance to fund this milestone.");
-
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
-            // 1. Update Wallet
-            clientWallet.AvailableBalance -= milestone.Amount;
-            clientWallet.HeldBalance += milestone.Amount;
+            await _ledger.EscrowFundsAsync(userId, milestoneId, milestone.Amount, $"Funding milestone: {milestone.Title}");
 
-            // 2. Create Payment
-            var payment = new Payment
-            {
-                ProjectId = milestone.ProjectId,
-                MilestoneId = milestone.Id,
-                PayerId = userId,
-                PayeeId = milestone.Project.ExpertId,
-                Amount = milestone.Amount,
-                Currency = milestone.Currency,
-                Status = PaymentStatus.HELD,
-                HeldAt = DateTimeOffset.UtcNow
-            };
-            _dbContext.Payments.Add(payment);
-
-            // 3. Create Wallet Transaction for record
-            var walletTx = new WalletTransaction
-            {
-                WalletId = clientWallet.Id,
-                UserId = userId,
-                Amount = milestone.Amount,
-                Type = WalletTransactionType.ESCROW_HOLD,
-                Direction = TransactionDirection.DEBIT,
-                Description = $"Funded milestone: {milestone.Title}",
-                BalanceBefore = clientWallet.AvailableBalance + milestone.Amount, // Current balance was already updated above
-                BalanceAfter = clientWallet.AvailableBalance,
-                PaymentId = payment.Id
-            };
-            _dbContext.WalletTransactions.Add(walletTx);
-
-            // 4. Update Milestone
             milestone.Status = MilestoneStatus.FUNDED;
             milestone.FundedAt = DateTimeOffset.UtcNow;
 
-            // 5. Update Project Status if needed
             if (milestone.Project.Status == ProjectStatus.PENDING_PAYMENT)
             {
                 milestone.Project.Status = ProjectStatus.ACTIVE;
@@ -144,6 +108,9 @@ public class Service : IService
 
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
+
+            var clientWallet = await _dbContext.Wallets.FirstAsync(w => w.UserId == userId);
+            var payment = await _dbContext.Payments.FirstAsync(p => p.MilestoneId == milestoneId && p.Status == PaymentStatus.HELD);
 
             return new Response.FundResultResponse
             {
@@ -186,59 +153,15 @@ public class Service : IService
         if (milestone.Status != MilestoneStatus.SUBMITTED)
             throw new ValidationException("Milestone must be in SUBMITTED status to be approved.");
 
-        var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestoneId && p.Status == PaymentStatus.HELD);
-        if (payment == null) throw new NotFoundException("Held payment for this milestone not found.");
-
-        var clientWallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
-        var expertWallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == milestone.Project.ExpertId);
-        
-        if (clientWallet == null || expertWallet == null) throw new NotFoundException("Wallet not found.");
-
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
-            // 1. Update Wallets
-            clientWallet.HeldBalance -= milestone.Amount;
-            expertWallet.AvailableBalance += milestone.Amount;
-            expertWallet.TotalEarned += milestone.Amount;
+            await _ledger.ReleaseFundsAsync(milestoneId, milestone.Amount, $"Payment released for milestone: {milestone.Title}");
 
-            // 2. Update Payment
-            payment.Status = PaymentStatus.RELEASED;
-            payment.ReleasedAt = DateTimeOffset.UtcNow;
-
-            // 3. Create Wallet Transactions
-            _dbContext.WalletTransactions.Add(new WalletTransaction
-            {
-                WalletId = clientWallet.Id,
-                UserId = userId,
-                Amount = milestone.Amount,
-                Type = WalletTransactionType.PAYMENT_RELEASE,
-                Direction = TransactionDirection.DEBIT,
-                Description = $"Payment released for milestone: {milestone.Title}",
-                BalanceBefore = clientWallet.HeldBalance + milestone.Amount,
-                BalanceAfter = clientWallet.HeldBalance,
-                PaymentId = payment.Id
-            });
-
-            _dbContext.WalletTransactions.Add(new WalletTransaction
-            {
-                WalletId = expertWallet.Id,
-                UserId = expertWallet.UserId,
-                Amount = milestone.Amount,
-                Type = WalletTransactionType.PAYMENT_RELEASE,
-                Direction = TransactionDirection.CREDIT,
-                Description = $"Payment received for milestone: {milestone.Title}",
-                BalanceBefore = expertWallet.AvailableBalance - milestone.Amount,
-                BalanceAfter = expertWallet.AvailableBalance,
-                PaymentId = payment.Id
-            });
-
-            // 4. Update Milestone
             milestone.Status = MilestoneStatus.PAID;
             milestone.ApprovedAt = DateTimeOffset.UtcNow;
             milestone.PaidAt = DateTimeOffset.UtcNow;
 
-            // 5. Update Project Status if all milestones paid
             if (milestone.Project.Milestones.All(m => m.Status == MilestoneStatus.PAID))
             {
                 milestone.Project.Status = ProjectStatus.COMPLETED;
@@ -269,7 +192,6 @@ public class Service : IService
             throw new ValidationException("Milestone must be SUBMITTED to request revision.");
 
         milestone.Status = MilestoneStatus.REVISION_REQUESTED;
-        // Optionally update latest deliverable status if we add that logic
         
         await _dbContext.SaveChangesAsync();
         return MapToResponse(milestone);
@@ -297,7 +219,6 @@ public class Service : IService
             milestone.Status = MilestoneStatus.DISPUTED;
             milestone.Project.Status = ProjectStatus.DISPUTED;
 
-            // Create Dispute entity
             var dispute = new Dispute
             {
                 ProjectId = milestone.ProjectId,
