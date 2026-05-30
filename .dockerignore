@@ -1,0 +1,13 @@
+**/.dockerignore
+**/.git
+**/.gitignore
+**/.vs
+**/.vscode
+**/bin
+**/obj
+Dockerfile
+docker-compose.yml
+README.md
+API_CONTRACT.md
+Database.md
+TODO.md
