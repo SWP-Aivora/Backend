@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using Aivora.Repositories.Enums;
+using Aivora.Services.Exceptions;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Aivora.api.Extensions;
@@ -9,10 +11,17 @@ public static class ControllerExtensions
     {
         var userIdClaim = controller.User.FindFirst(ClaimTypes.NameIdentifier);
         if (userIdClaim == null)
-        {
-            throw new UnauthorizedAccessException("User ID claim not found.");
-        }
+            throw new UnauthorizedException("User ID not found in token.");
 
         return Guid.Parse(userIdClaim.Value);
+    }
+
+    public static UserRole GetUserRole(this ControllerBase controller)
+    {
+        var roleClaim = controller.User.FindFirst(ClaimTypes.Role);
+        if (roleClaim == null)
+            throw new UnauthorizedException("User role not found in token.");
+
+        return Enum.Parse<UserRole>(roleClaim.Value, true);
     }
 }

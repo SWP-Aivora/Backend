@@ -30,24 +30,6 @@ public class ProposalController : ControllerBase
         return Ok(ApiResponseFactory.SuccessResponse(result, "Proposal retrieved successfully", HttpContext.TraceIdentifier));
     }
 
-    [HttpPost]
-    [Authorize(Policy = JwtExtensions.ExpertPolicy)]
-    public async Task<IActionResult> SubmitProposal([FromBody] Aivora.Services.ProposalService.Request.CreateProposalRequest request)
-    {
-        var expertId = this.GetUserId();
-        var result = await _proposalService.CreateProposalAsync(expertId, request);
-        return Ok(ApiResponseFactory.SuccessResponse(result, "Proposal submitted successfully", HttpContext.TraceIdentifier));
-    }
-
-    [HttpGet("job/{jobId}")]
-    [Authorize(Policy = JwtExtensions.ClientPolicy)]
-    public async Task<IActionResult> GetProposalsByJob(Guid jobId)
-    {
-        var userId = this.GetUserId();
-        var result = await _proposalService.GetProposalsByJobIdAsync(userId, jobId);
-        return Ok(ApiResponseFactory.SuccessResponse(result, "Proposals retrieved successfully", HttpContext.TraceIdentifier));
-    }
-
     [HttpGet("me")]
     [Authorize(Policy = JwtExtensions.ExpertPolicy)]
     public async Task<IActionResult> GetMyProposals()
@@ -55,6 +37,33 @@ public class ProposalController : ControllerBase
         var expertId = this.GetUserId();
         var result = await _proposalService.GetExpertProposalsAsync(expertId);
         return Ok(ApiResponseFactory.SuccessResponse(result, "My proposals retrieved successfully", HttpContext.TraceIdentifier));
+    }
+
+    [HttpPut("{id}/shortlist")]
+    [Authorize(Policy = JwtExtensions.ClientPolicy)]
+    public async Task<IActionResult> ShortlistProposal(Guid id)
+    {
+        var userId = this.GetUserId();
+        var result = await _proposalService.UpdateProposalStatusAsync(userId, id, Aivora.Repositories.Enums.ProposalStatus.SHORTLISTED);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Proposal shortlisted", HttpContext.TraceIdentifier));
+    }
+
+    [HttpPut("{id}/reject")]
+    [Authorize(Policy = JwtExtensions.ClientPolicy)]
+    public async Task<IActionResult> RejectProposal(Guid id)
+    {
+        var userId = this.GetUserId();
+        var result = await _proposalService.UpdateProposalStatusAsync(userId, id, Aivora.Repositories.Enums.ProposalStatus.REJECTED);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Proposal rejected", HttpContext.TraceIdentifier));
+    }
+
+    [HttpPut("{id}/withdraw")]
+    [Authorize(Policy = JwtExtensions.ExpertPolicy)]
+    public async Task<IActionResult> WithdrawProposal(Guid id)
+    {
+        var userId = this.GetUserId();
+        var result = await _proposalService.UpdateProposalStatusAsync(userId, id, Aivora.Repositories.Enums.ProposalStatus.WITHDRAWN);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Proposal withdrawn", HttpContext.TraceIdentifier));
     }
 
     [HttpPut("{id}/accept")]

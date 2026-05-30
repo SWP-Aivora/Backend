@@ -13,13 +13,16 @@ public class JobController : ControllerBase
 {
     private readonly IService _jobService;
     private readonly Aivora.Services.RecommendationService.IService _recommendationService;
+    private readonly Aivora.Services.ProposalService.IService _proposalService;
 
     public JobController(
         IService jobService, 
-        Aivora.Services.RecommendationService.IService recommendationService)
+        Aivora.Services.RecommendationService.IService recommendationService,
+        Aivora.Services.ProposalService.IService proposalService)
     {
         _jobService = jobService;
         _recommendationService = recommendationService;
+        _proposalService = proposalService;
     }
 
     [HttpGet]
@@ -97,5 +100,26 @@ public class JobController : ControllerBase
         var clientId = this.GetUserId();
         var result = await _recommendationService.GetRecommendationsAsync(clientId, id);
         return Ok(ApiResponseFactory.SuccessResponse(result, "Expert recommendations retrieved", HttpContext.TraceIdentifier));
+    }
+
+    // --- Nested Proposal Endpoints ---
+
+    [HttpGet("{id}/proposals")]
+    [Authorize(Policy = JwtExtensions.ClientPolicy)]
+    public async Task<IActionResult> GetProposalsByJob(Guid id)
+    {
+        var userId = this.GetUserId();
+        var result = await _proposalService.GetProposalsByJobIdAsync(userId, id);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Proposals retrieved successfully", HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("{id}/proposals")]
+    [Authorize(Policy = JwtExtensions.ExpertPolicy)]
+    public async Task<IActionResult> SubmitProposal(Guid id, [FromBody] Aivora.Services.ProposalService.Request.CreateProposalRequest request)
+    {
+        request.JobId = id; // Ensure jobId from path is used
+        var expertId = this.GetUserId();
+        var result = await _proposalService.CreateProposalAsync(expertId, request);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Proposal submitted successfully", HttpContext.TraceIdentifier));
     }
 }
