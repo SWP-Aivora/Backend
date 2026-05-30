@@ -1,3 +1,4 @@
+using Aivora.api.Extensions;
 using Aivora.api.Middlewares;
 using Aivora.Repositories.Data;
 using Aivora.Repositories.Data.Interceptors;
@@ -20,10 +21,14 @@ builder.Services.AddDbContext<AivoraDbContext>((sp, options) => {
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("JwtOptions"));
 
 // Register Services
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddJwtServices(builder.Configuration);
+
 builder.Services.AddScoped<IJwtService, Service>();
 builder.Services.AddScoped<Aivora.Services.IdentityService.IService, Aivora.Services.IdentityService.Service>();
 builder.Services.AddScoped<Aivora.Services.CategoryService.IService, Aivora.Services.CategoryService.Service>();
 builder.Services.AddScoped<Aivora.Services.SkillService.IService, Aivora.Services.SkillService.Service>();
+builder.Services.AddScoped<Aivora.Services.ProfileService.IService, Aivora.Services.ProfileService.Service>();
 
 builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
@@ -41,6 +46,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();

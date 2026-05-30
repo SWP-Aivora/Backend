@@ -1,0 +1,10 @@
+namespace Aivora.Services.ProfileService;
+
+public interface IService
+{
+    Task<Response.ClientProfileResponse> GetClientProfileAsync(Guid userId);
+    Task<Response.ClientProfileResponse> UpdateClientProfileAsync(Guid userId, Request.UpdateClientProfileRequest request);
+    
+    Task<Response.ExpertProfileResponse> GetExpertProfileAsync(Guid userId);
+    Task<Response.ExpertProfileResponse> UpdateExpertProfileAsync(Guid userId, Request.UpdateExpertProfileRequest request);
+}
