@@ -1,8 +1,9 @@
+using Aivora.Repositories.Abstractions;
 using Aivora.Repositories.Enums;
 
 namespace Aivora.Repositories.Entities;
 
-public class AIJobSuggestion : BaseEntity
+public class AIJobSuggestion : AuditableBaseEntity
 {
     public Guid? JobId { get; set; }
     public Guid ClientId { get; set; }
@@ -26,3 +27,4 @@ public class AIJobSuggestion : BaseEntity
     public virtual User Client { get; set; } = null!;
     public virtual JobPost? Job { get; set; }
 }
+

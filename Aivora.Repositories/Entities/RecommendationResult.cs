@@ -1,6 +1,7 @@
+using Aivora.Repositories.Abstractions;
 namespace Aivora.Repositories.Entities;
 
-public class RecommendationResult : BaseEntity
+public class RecommendationResult : AuditableBaseEntity
 {
     public Guid JobId { get; set; }
     public Guid ExpertId { get; set; }
@@ -17,3 +18,4 @@ public class RecommendationResult : BaseEntity
     public virtual JobPost Job { get; set; } = null!;
     public virtual User Expert { get; set; } = null!;
 }
+

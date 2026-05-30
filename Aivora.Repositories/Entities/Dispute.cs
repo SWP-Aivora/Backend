@@ -1,8 +1,9 @@
+using Aivora.Repositories.Abstractions;
 using Aivora.Repositories.Enums;
 
 namespace Aivora.Repositories.Entities;
 
-public class Dispute : BaseEntity
+public class Dispute : AuditableBaseEntity
 {
     public Guid ProjectId { get; set; }
     public Guid MilestoneId { get; set; }
@@ -24,3 +25,4 @@ public class Dispute : BaseEntity
     public virtual User Opener { get; set; } = null!;
     public virtual User? Admin { get; set; }
 }
+

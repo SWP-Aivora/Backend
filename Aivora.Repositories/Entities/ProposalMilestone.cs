@@ -1,6 +1,7 @@
+using Aivora.Repositories.Abstractions;
 namespace Aivora.Repositories.Entities;
 
-public class ProposalMilestone : BaseEntity
+public class ProposalMilestone : AuditableBaseEntity
 {
     public Guid ProposalId { get; set; }
     public string Title { get; set; } = null!;
@@ -13,3 +14,4 @@ public class ProposalMilestone : BaseEntity
     // Navigation Properties
     public virtual Proposal Proposal { get; set; } = null!;
 }
+

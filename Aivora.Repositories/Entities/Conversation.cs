@@ -1,6 +1,7 @@
+using Aivora.Repositories.Abstractions;
 namespace Aivora.Repositories.Entities;
 
-public class Conversation : BaseEntity
+public class Conversation : AuditableBaseEntity
 {
     public Guid? ProjectId { get; set; }
     public Guid? JobId { get; set; }
@@ -14,3 +15,4 @@ public class Conversation : BaseEntity
     public virtual User Expert { get; set; } = null!;
     public virtual ICollection<Message> Messages { get; set; } = new List<Message>();
 }
+

@@ -1,8 +1,9 @@
+using Aivora.Repositories.Abstractions;
 using Aivora.Repositories.Enums;
 
 namespace Aivora.Repositories.Entities;
 
-public class Project : BaseEntity
+public class Project : AuditableBaseEntity
 {
     public Guid JobId { get; set; }
     public Guid AcceptedProposalId { get; set; }
@@ -25,3 +26,4 @@ public class Project : BaseEntity
     public virtual User Expert { get; set; } = null!;
     public virtual ICollection<Milestone> Milestones { get; set; } = new List<Milestone>();
 }
+

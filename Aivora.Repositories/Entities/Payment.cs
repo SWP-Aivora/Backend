@@ -1,8 +1,9 @@
+using Aivora.Repositories.Abstractions;
 using Aivora.Repositories.Enums;
 
 namespace Aivora.Repositories.Entities;
 
-public class Payment : BaseEntity
+public class Payment : AuditableBaseEntity
 {
     public Guid ProjectId { get; set; }
     public Guid MilestoneId { get; set; }
@@ -22,3 +23,4 @@ public class Payment : BaseEntity
     public virtual User Payer { get; set; } = null!;
     public virtual User Payee { get; set; } = null!;
 }
+

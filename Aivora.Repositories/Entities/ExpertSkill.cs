@@ -1,8 +1,9 @@
+using Aivora.Repositories.Abstractions;
 using Aivora.Repositories.Enums;
 
 namespace Aivora.Repositories.Entities;
 
-public class ExpertSkill : BaseEntity
+public class ExpertSkill : AuditableBaseEntity
 {
     public Guid ExpertId { get; set; }
     public Guid SkillId { get; set; }
@@ -13,3 +14,4 @@ public class ExpertSkill : BaseEntity
     public virtual ExpertProfile Expert { get; set; } = null!;
     public virtual Skill Skill { get; set; } = null!;
 }
+

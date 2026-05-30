@@ -1,8 +1,9 @@
+using Aivora.Repositories.Abstractions;
 using Aivora.Repositories.Enums;
 
 namespace Aivora.Repositories.Entities;
 
-public class WalletTransaction : BaseEntity
+public class WalletTransaction : AuditableBaseEntity
 {
     public Guid WalletId { get; set; }
     public Guid? PaymentId { get; set; }
@@ -19,3 +20,4 @@ public class WalletTransaction : BaseEntity
     public virtual Payment? Payment { get; set; }
     public virtual User User { get; set; } = null!;
 }
+

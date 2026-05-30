@@ -1,6 +1,7 @@
+using Aivora.Repositories.Abstractions;
 namespace Aivora.Repositories.Entities;
 
-public class Category : BaseEntity
+public class Category : AuditableBaseEntity
 {
     public string Name { get; set; } = null!;
     public string? Description { get; set; }
@@ -11,3 +12,4 @@ public class Category : BaseEntity
     public virtual ICollection<Category> SubCategories { get; set; } = new List<Category>();
     public virtual ICollection<Skill> Skills { get; set; } = new List<Skill>();
 }
+

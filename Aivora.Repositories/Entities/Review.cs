@@ -1,6 +1,7 @@
+using Aivora.Repositories.Abstractions;
 namespace Aivora.Repositories.Entities;
 
-public class Review : BaseEntity
+public class Review : AuditableBaseEntity
 {
     public Guid ProjectId { get; set; }
     public Guid ReviewerId { get; set; }
@@ -17,3 +18,4 @@ public class Review : BaseEntity
     public virtual User Reviewer { get; set; } = null!;
     public virtual User Reviewee { get; set; } = null!;
 }
+

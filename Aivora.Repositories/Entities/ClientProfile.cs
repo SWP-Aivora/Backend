@@ -1,6 +1,7 @@
+using Aivora.Repositories.Abstractions;
 namespace Aivora.Repositories.Entities;
 
-public class ClientProfile : BaseEntity
+public class ClientProfile : AuditableBaseEntity
 {
     public Guid UserId { get; set; }
     public string? CompanyName { get; set; }
@@ -12,3 +13,4 @@ public class ClientProfile : BaseEntity
     // Navigation Properties
     public virtual User User { get; set; } = null!;
 }
+

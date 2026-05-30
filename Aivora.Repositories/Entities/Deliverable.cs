@@ -1,8 +1,9 @@
+using Aivora.Repositories.Abstractions;
 using Aivora.Repositories.Enums;
 
 namespace Aivora.Repositories.Entities;
 
-public class Deliverable : BaseEntity
+public class Deliverable : AuditableBaseEntity
 {
     public Guid MilestoneId { get; set; }
     public Guid ExpertId { get; set; }
@@ -19,3 +20,4 @@ public class Deliverable : BaseEntity
     public virtual Milestone Milestone { get; set; } = null!;
     public virtual User Expert { get; set; } = null!;
 }
+

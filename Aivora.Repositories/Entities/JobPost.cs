@@ -1,8 +1,9 @@
+using Aivora.Repositories.Abstractions;
 using Aivora.Repositories.Enums;
 
 namespace Aivora.Repositories.Entities;
 
-public class JobPost : BaseEntity
+public class JobPost : AuditableBaseEntity
 {
     public Guid ClientId { get; set; }
     public Guid? CategoryId { get; set; }
@@ -29,3 +30,4 @@ public class JobPost : BaseEntity
     public virtual ICollection<Proposal> Proposals { get; set; } = new List<Proposal>();
     public virtual ICollection<RecommendationResult> RecommendationResults { get; set; } = new List<RecommendationResult>();
 }
+

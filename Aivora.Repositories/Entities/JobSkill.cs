@@ -1,6 +1,7 @@
+using Aivora.Repositories.Abstractions;
 namespace Aivora.Repositories.Entities;
 
-public class JobSkill : BaseEntity
+public class JobSkill : AuditableBaseEntity
 {
     public Guid JobId { get; set; }
     public Guid SkillId { get; set; }
@@ -10,3 +11,4 @@ public class JobSkill : BaseEntity
     public virtual JobPost Job { get; set; } = null!;
     public virtual Skill Skill { get; set; } = null!;
 }
+

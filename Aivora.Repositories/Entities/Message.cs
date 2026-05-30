@@ -1,6 +1,7 @@
+using Aivora.Repositories.Abstractions;
 namespace Aivora.Repositories.Entities;
 
-public class Message : BaseEntity
+public class Message : AuditableBaseEntity
 {
     public Guid ConversationId { get; set; }
     public Guid SenderId { get; set; }
@@ -13,3 +14,4 @@ public class Message : BaseEntity
     public virtual Conversation Conversation { get; set; } = null!;
     public virtual User Sender { get; set; } = null!;
 }
+

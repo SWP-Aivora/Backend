@@ -1,6 +1,7 @@
+using Aivora.Repositories.Abstractions;
 namespace Aivora.Repositories.Entities;
 
-public class Wallet : BaseEntity
+public class Wallet : AuditableBaseEntity
 {
     public Guid UserId { get; set; }
     public decimal AvailableBalance { get; set; } = 0;
@@ -11,3 +12,4 @@ public class Wallet : BaseEntity
     // Navigation Properties
     public virtual User User { get; set; } = null!;
 }
+

@@ -1,6 +1,7 @@
+using Aivora.Repositories.Abstractions;
 namespace Aivora.Repositories.Entities;
 
-public class DisputeEvidence : BaseEntity
+public class DisputeEvidence : AuditableBaseEntity
 {
     public Guid DisputeId { get; set; }
     public Guid SubmittedBy { get; set; }
@@ -11,3 +12,4 @@ public class DisputeEvidence : BaseEntity
     public virtual Dispute Dispute { get; set; } = null!;
     public virtual User SubmittedByUser { get; set; } = null!;
 }
+

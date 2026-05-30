@@ -1,8 +1,9 @@
+using Aivora.Repositories.Abstractions;
 using Aivora.Repositories.Enums;
 
 namespace Aivora.Repositories.Entities;
 
-public class User : BaseEntity
+public class User : AuditableBaseEntity
 {
     public string Email { get; set; } = null!;
     public string PasswordHash { get; set; } = null!;
@@ -18,3 +19,4 @@ public class User : BaseEntity
     public virtual ExpertProfile? ExpertProfile { get; set; }
     public virtual Wallet? Wallet { get; set; }
 }
+
