@@ -175,6 +175,152 @@ public class Service : IService
         }
     }
 
+    public async Task<Response.MilestoneResponse> ApproveMilestoneAsync(Guid userId, Guid milestoneId)
+    {
+        var milestone = await _dbContext.Milestones
+            .Include(m => m.Project).ThenInclude(p => p.Milestones)
+            .FirstOrDefaultAsync(m => m.Id == milestoneId);
+
+        if (milestone == null) throw new NotFoundException("Milestone not found.");
+        if (milestone.Project.ClientId != userId) throw new UnauthorizedException("Only the client can approve milestones.");
+        if (milestone.Status != MilestoneStatus.SUBMITTED)
+            throw new ValidationException("Milestone must be in SUBMITTED status to be approved.");
+
+        var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestoneId && p.Status == PaymentStatus.HELD);
+        if (payment == null) throw new NotFoundException("Held payment for this milestone not found.");
+
+        var clientWallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
+        var expertWallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == milestone.Project.ExpertId);
+        
+        if (clientWallet == null || expertWallet == null) throw new NotFoundException("Wallet not found.");
+
+        using var transaction = await _dbContext.Database.BeginTransactionAsync();
+        try
+        {
+            // 1. Update Wallets
+            clientWallet.HeldBalance -= milestone.Amount;
+            expertWallet.AvailableBalance += milestone.Amount;
+            expertWallet.TotalEarned += milestone.Amount;
+
+            // 2. Update Payment
+            payment.Status = PaymentStatus.RELEASED;
+            payment.ReleasedAt = DateTimeOffset.UtcNow;
+
+            // 3. Create Wallet Transactions
+            _dbContext.WalletTransactions.Add(new WalletTransaction
+            {
+                WalletId = clientWallet.Id,
+                UserId = userId,
+                Amount = milestone.Amount,
+                Type = WalletTransactionType.PAYMENT_RELEASE,
+                Direction = TransactionDirection.DEBIT,
+                Description = $"Payment released for milestone: {milestone.Title}",
+                BalanceBefore = clientWallet.HeldBalance + milestone.Amount,
+                BalanceAfter = clientWallet.HeldBalance,
+                PaymentId = payment.Id
+            });
+
+            _dbContext.WalletTransactions.Add(new WalletTransaction
+            {
+                WalletId = expertWallet.Id,
+                UserId = expertWallet.UserId,
+                Amount = milestone.Amount,
+                Type = WalletTransactionType.PAYMENT_RELEASE,
+                Direction = TransactionDirection.CREDIT,
+                Description = $"Payment received for milestone: {milestone.Title}",
+                BalanceBefore = expertWallet.AvailableBalance - milestone.Amount,
+                BalanceAfter = expertWallet.AvailableBalance,
+                PaymentId = payment.Id
+            });
+
+            // 4. Update Milestone
+            milestone.Status = MilestoneStatus.PAID;
+            milestone.ApprovedAt = DateTimeOffset.UtcNow;
+            milestone.PaidAt = DateTimeOffset.UtcNow;
+
+            // 5. Update Project Status if all milestones paid
+            if (milestone.Project.Milestones.All(m => m.Status == MilestoneStatus.PAID))
+            {
+                milestone.Project.Status = ProjectStatus.COMPLETED;
+                milestone.Project.CompletedAt = DateTimeOffset.UtcNow;
+            }
+
+            await _dbContext.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            return MapToResponse(milestone);
+        }
+        catch (Exception)
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
+    }
+
+    public async Task<Response.MilestoneResponse> RequestRevisionAsync(Guid userId, Guid milestoneId, string reason)
+    {
+        var milestone = await _dbContext.Milestones
+            .Include(m => m.Project)
+            .FirstOrDefaultAsync(m => m.Id == milestoneId);
+
+        if (milestone == null) throw new NotFoundException("Milestone not found.");
+        if (milestone.Project.ClientId != userId) throw new UnauthorizedException("Only the client can request revisions.");
+        if (milestone.Status != MilestoneStatus.SUBMITTED)
+            throw new ValidationException("Milestone must be SUBMITTED to request revision.");
+
+        milestone.Status = MilestoneStatus.REVISION_REQUESTED;
+        // Optionally update latest deliverable status if we add that logic
+        
+        await _dbContext.SaveChangesAsync();
+        return MapToResponse(milestone);
+    }
+
+    public async Task<bool> OpenDisputeAsync(Guid userId, Guid milestoneId, string reason)
+    {
+        var milestone = await _dbContext.Milestones
+            .Include(m => m.Project)
+            .FirstOrDefaultAsync(m => m.Id == milestoneId);
+
+        if (milestone == null) throw new NotFoundException("Milestone not found.");
+        if (milestone.Project.ClientId != userId && milestone.Project.ExpertId != userId)
+            throw new UnauthorizedException("Access denied.");
+
+        var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestoneId && p.Status == PaymentStatus.HELD);
+        if (payment == null) throw new ValidationException("Cannot open dispute for non-funded milestone.");
+
+        using var transaction = await _dbContext.Database.BeginTransactionAsync();
+        try
+        {
+            payment.Status = PaymentStatus.FROZEN;
+            payment.FrozenAt = DateTimeOffset.UtcNow;
+
+            milestone.Status = MilestoneStatus.DISPUTED;
+            milestone.Project.Status = ProjectStatus.DISPUTED;
+
+            // Create Dispute entity
+            var dispute = new Dispute
+            {
+                ProjectId = milestone.ProjectId,
+                MilestoneId = milestoneId,
+                PaymentId = payment.Id,
+                OpenedBy = userId,
+                AgainstUserId = (userId == milestone.Project.ClientId) ? milestone.Project.ExpertId : milestone.Project.ClientId,
+                Reason = reason,
+                Status = DisputeStatus.OPEN
+            };
+            _dbContext.Disputes.Add(dispute);
+
+            await _dbContext.SaveChangesAsync();
+            await transaction.CommitAsync();
+            return true;
+        }
+        catch (Exception)
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
+    }
+
     private static Response.MilestoneResponse MapToResponse(Milestone m)
     {
         return new Response.MilestoneResponse

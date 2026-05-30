@@ -12,10 +12,14 @@ namespace Aivora.api.Controllers;
 public class MilestoneController : ControllerBase
 {
     private readonly IService _milestoneService;
+    private readonly Aivora.Services.DeliverableService.IService _deliverableService;
 
-    public MilestoneController(IService milestoneService)
+    public MilestoneController(
+        IService milestoneService, 
+        Aivora.Services.DeliverableService.IService deliverableService)
     {
         _milestoneService = milestoneService;
+        _deliverableService = deliverableService;
     }
 
     [HttpGet("{id}")]
@@ -42,5 +46,50 @@ public class MilestoneController : ControllerBase
         var userId = this.GetUserId();
         var result = await _milestoneService.FundMilestoneAsync(userId, id);
         return Ok(ApiResponseFactory.SuccessResponse(result, "Milestone funded successfully", HttpContext.TraceIdentifier));
+    }
+
+    [HttpPut("{id}/approve")]
+    [Authorize(Policy = JwtExtensions.ClientPolicy)]
+    public async Task<IActionResult> ApproveMilestone(Guid id)
+    {
+        var userId = this.GetUserId();
+        var result = await _milestoneService.ApproveMilestoneAsync(userId, id);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Milestone approved and payment released", HttpContext.TraceIdentifier));
+    }
+
+    [HttpPut("{id}/request-revision")]
+    [Authorize(Policy = JwtExtensions.ClientPolicy)]
+    public async Task<IActionResult> RequestRevision(Guid id, [FromBody] string reason)
+    {
+        var userId = this.GetUserId();
+        var result = await _milestoneService.RequestRevisionAsync(userId, id, reason);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Revision requested", HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("{id}/dispute")]
+    public async Task<IActionResult> OpenDispute(Guid id, [FromBody] string reason)
+    {
+        var userId = this.GetUserId();
+        await _milestoneService.OpenDisputeAsync(userId, id, reason);
+        return Ok(ApiResponseFactory.SuccessResponse(null, "Dispute opened", HttpContext.TraceIdentifier));
+    }
+
+    // --- Deliverable Endpoints ---
+
+    [HttpGet("{id}/deliverables")]
+    public async Task<IActionResult> GetDeliverables(Guid id)
+    {
+        var userId = this.GetUserId();
+        var result = await _deliverableService.GetDeliverablesByMilestoneAsync(userId, id);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Deliverables retrieved successfully", HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("{id}/deliverables")]
+    [Authorize(Policy = JwtExtensions.ExpertPolicy)]
+    public async Task<IActionResult> SubmitDeliverable(Guid id, [FromBody] Aivora.Services.DeliverableService.Request.SubmitDeliverableRequest request)
+    {
+        var expertId = this.GetUserId();
+        var result = await _deliverableService.SubmitDeliverableAsync(expertId, id, request);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Deliverable submitted successfully", HttpContext.TraceIdentifier));
     }
 }
