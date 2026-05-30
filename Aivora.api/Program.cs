@@ -19,12 +19,14 @@ builder.Services.AddDbContext<AivoraDbContext>((sp, options) => {
 
 // Configure Options
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("JwtOptions"));
+builder.Services.Configure<CloudinaryOptions>(builder.Configuration.GetSection("CloudinaryOptions"));
 
 // Register Services
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddJwtServices(builder.Configuration);
 
 builder.Services.AddScoped<IJwtService, Service>();
+builder.Services.AddScoped<Aivora.Services.MediaService.IService, Aivora.Services.MediaService.Service>();
 builder.Services.AddScoped<Aivora.Services.IdentityService.IService, Aivora.Services.IdentityService.Service>();
 builder.Services.AddScoped<Aivora.Services.CategoryService.IService, Aivora.Services.CategoryService.Service>();
 builder.Services.AddScoped<Aivora.Services.SkillService.IService, Aivora.Services.SkillService.Service>();
