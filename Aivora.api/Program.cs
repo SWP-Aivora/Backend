@@ -42,6 +42,7 @@ builder.Services.AddScoped<Aivora.Services.DeliverableService.IService, Aivora.S
 builder.Services.AddScoped<Aivora.Services.WalletService.IService, Aivora.Services.WalletService.Service>();
 builder.Services.AddScoped<Aivora.Services.ReviewService.IService, Aivora.Services.ReviewService.Service>();
 builder.Services.AddScoped<Aivora.Services.MessageService.IService, Aivora.Services.MessageService.Service>();
+builder.Services.AddScoped<Aivora.Services.DisputeService.IService, Aivora.Services.DisputeService.Service>();
 
 builder.Services.AddSignalR();
 builder.Services.AddControllers();
