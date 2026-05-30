@@ -22,6 +22,8 @@ builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("JwtOpti
 // Register Services
 builder.Services.AddScoped<IJwtService, Service>();
 builder.Services.AddScoped<Aivora.Services.IdentityService.IService, Aivora.Services.IdentityService.Service>();
+builder.Services.AddScoped<Aivora.Services.CategoryService.IService, Aivora.Services.CategoryService.Service>();
+builder.Services.AddScoped<Aivora.Services.SkillService.IService, Aivora.Services.SkillService.Service>();
 
 builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
