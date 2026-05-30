@@ -78,4 +78,50 @@ public class Service : IService
             CategoryId = skill.CategoryId
         };
     }
+
+    public async Task<Response.ExpertSkillResponse> AddExpertSkillAsync(Guid userId, Request.AddExpertSkillRequest request)
+    {
+        var expert = await _dbContext.ExpertProfiles.FirstOrDefaultAsync(p => p.UserId == userId);
+        if (expert == null) throw new NotFoundException("Expert profile not found.");
+
+        var skill = await _dbContext.Skills.FindAsync(request.SkillId);
+        if (skill == null) throw new NotFoundException("Skill not found.");
+
+        var exists = await _dbContext.ExpertSkills.AnyAsync(es => es.ExpertId == expert.Id && es.SkillId == request.SkillId);
+        if (exists) throw new ValidationException("Expert already has this skill.");
+
+        var expertSkill = new ExpertSkill
+        {
+            ExpertId = expert.Id,
+            SkillId = request.SkillId,
+            Level = request.Level,
+            YearsExperience = request.YearsExperience
+        };
+
+        _dbContext.ExpertSkills.Add(expertSkill);
+        await _dbContext.SaveChangesAsync();
+
+        return new Response.ExpertSkillResponse
+        {
+            Id = expertSkill.Id,
+            ExpertId = expertSkill.ExpertId,
+            SkillId = expertSkill.SkillId,
+            SkillName = skill.Name,
+            Level = expertSkill.Level.ToString(),
+            YearsExperience = expertSkill.YearsExperience
+        };
+    }
+
+    public async Task<bool> RemoveExpertSkillAsync(Guid userId, Guid skillId)
+    {
+        var expert = await _dbContext.ExpertProfiles.FirstOrDefaultAsync(p => p.UserId == userId);
+        if (expert == null) throw new NotFoundException("Expert profile not found.");
+
+        var expertSkill = await _dbContext.ExpertSkills.FirstOrDefaultAsync(es => es.ExpertId == expert.Id && es.SkillId == skillId);
+        if (expertSkill == null) throw new NotFoundException("Expert does not have this skill.");
+
+        _dbContext.ExpertSkills.Remove(expertSkill);
+        await _dbContext.SaveChangesAsync();
+        return true;
+    }
 }

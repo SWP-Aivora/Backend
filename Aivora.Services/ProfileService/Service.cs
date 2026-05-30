@@ -99,4 +99,55 @@ public class Service : IService
             SuccessRate = profile.SuccessRate
         };
     }
+
+    public async Task<IdentityService.Response.UserResponse> UpdateUserAsync(Guid userId, Request.UpdateUserRequest request)
+    {
+        var user = await _dbContext.Users.FindAsync(userId);
+        if (user == null) throw new NotFoundException("User not found.");
+
+        if (request.FullName != null) user.FullName = request.FullName;
+        if (request.AvatarUrl != null) user.AvatarUrl = request.AvatarUrl;
+        if (request.Phone != null) user.Phone = request.Phone;
+
+        await _dbContext.SaveChangesAsync();
+
+        return new IdentityService.Response.UserResponse
+        {
+            Id = user.Id,
+            Email = user.Email,
+            FullName = user.FullName,
+            AvatarUrl = user.AvatarUrl,
+            Phone = user.Phone,
+            Role = user.Role.ToString(),
+            Status = user.Status.ToString(),
+            LastLoginAt = user.LastLoginAt
+        };
+    }
+
+    public async Task<Response.ExpertProfileResponse> GetPublicExpertProfileAsync(Guid expertId)
+    {
+        // expertId here is the UserId or the ProfileId? The contract says expertId. 
+        // In our case ExpertProfile PK is its own GUID, but often we use UserId.
+        // Let's assume expertId is the ExpertProfile ID for now, or check by UserId if not found.
+        var profile = await _dbContext.ExpertProfiles.FindAsync(expertId);
+        if (profile == null)
+        {
+            profile = await _dbContext.ExpertProfiles.FirstOrDefaultAsync(p => p.UserId == expertId);
+        }
+        
+        if (profile == null) throw new NotFoundException("Expert profile not found.");
+
+        return new Response.ExpertProfileResponse
+        {
+            UserId = profile.UserId,
+            Title = profile.Title,
+            Bio = profile.Bio,
+            HourlyRate = profile.HourlyRate,
+            ExperienceYears = profile.ExperienceYears,
+            AvailabilityStatus = profile.AvailabilityStatus,
+            RatingAvg = profile.RatingAvg,
+            CompletedProjects = profile.CompletedProjects,
+            SuccessRate = profile.SuccessRate
+        };
+    }
 }

@@ -127,4 +127,22 @@ public class Service : IService
             Role = user.Role.ToString()
         };
     }
+
+    public async Task<Response.UserResponse> GetCurrentUserAsync(Guid userId)
+    {
+        var user = await _dbContext.Users.FindAsync(userId);
+        if (user == null) throw new NotFoundException("User not found.");
+
+        return new Response.UserResponse
+        {
+            Id = user.Id,
+            Email = user.Email,
+            FullName = user.FullName,
+            AvatarUrl = user.AvatarUrl,
+            Phone = user.Phone,
+            Role = user.Role.ToString(),
+            Status = user.Status.ToString(),
+            LastLoginAt = user.LastLoginAt
+        };
+    }
 }

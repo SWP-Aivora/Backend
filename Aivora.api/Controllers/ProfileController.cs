@@ -53,4 +53,12 @@ public class ProfileController : ControllerBase
         var result = await _profileService.UpdateExpertProfileAsync(userId, request);
         return Ok(ApiResponseFactory.SuccessResponse(result, "Expert profile updated successfully", HttpContext.TraceIdentifier));
     }
+
+    [HttpGet("expert/{expertId}")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetExpertPublic(Guid expertId)
+    {
+        var result = await _profileService.GetPublicExpertProfileAsync(expertId);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Expert public profile retrieved successfully", HttpContext.TraceIdentifier));
+    }
 }

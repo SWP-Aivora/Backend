@@ -1,5 +1,7 @@
+using Aivora.api.Extensions;
 using Aivora.Services.IdentityService;
 using Aivora.Services.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Aivora.api.Controllers;
@@ -34,5 +36,14 @@ public class AuthController : ControllerBase
     {
         var result = await _identityService.RefreshTokenAsync(request);
         return Ok(ApiResponseFactory.SuccessResponse(result, "Token refreshed successfully", HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("me")]
+    [Authorize]
+    public async Task<IActionResult> GetMe()
+    {
+        var userId = this.GetUserId();
+        var result = await _identityService.GetCurrentUserAsync(userId);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "User data retrieved successfully", HttpContext.TraceIdentifier));
     }
 }

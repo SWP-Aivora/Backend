@@ -21,4 +21,11 @@ public class Request
         public int ExperienceYears { get; set; }
         public AvailabilityStatus AvailabilityStatus { get; set; }
     }
+
+    public class UpdateUserRequest
+    {
+        public string? FullName { get; set; }
+        public string? AvatarUrl { get; set; }
+        public string? Phone { get; set; }
+    }
 }
