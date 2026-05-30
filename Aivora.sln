@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aivora.api", "Aivora.api\Aivora.api.csproj", "{60689344-B1E0-44C5-BDAF-52389BCAD327}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aivora.Repositories", "Aivora.Repositories\Aivora.Repositories.csproj", "{986B154F-EBC0-43AA-BEE9-879053D4568C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aivora.Services", "Aivora.Services\Aivora.Services.csproj", "{5A6EF669-FC80-41E4-BC7C-D4CA656B7309}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{60689344-B1E0-44C5-BDAF-52389BCAD327}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{60689344-B1E0-44C5-BDAF-52389BCAD327}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{60689344-B1E0-44C5-BDAF-52389BCAD327}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{60689344-B1E0-44C5-BDAF-52389BCAD327}.Release|Any CPU.Build.0 = Release|Any CPU
+		{986B154F-EBC0-43AA-BEE9-879053D4568C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{986B154F-EBC0-43AA-BEE9-879053D4568C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{986B154F-EBC0-43AA-BEE9-879053D4568C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{986B154F-EBC0-43AA-BEE9-879053D4568C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5A6EF669-FC80-41E4-BC7C-D4CA656B7309}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5A6EF669-FC80-41E4-BC7C-D4CA656B7309}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5A6EF669-FC80-41E4-BC7C-D4CA656B7309}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5A6EF669-FC80-41E4-BC7C-D4CA656B7309}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
