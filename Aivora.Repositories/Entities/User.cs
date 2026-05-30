@@ -13,6 +13,8 @@ public class User : AuditableBaseEntity
     public UserRole Role { get; set; }
     public UserStatus Status { get; set; } = UserStatus.ACTIVE;
     public DateTimeOffset? LastLoginAt { get; set; }
+    public string? RefreshToken { get; set; }
+    public DateTimeOffset? RefreshTokenExpiryTime { get; set; }
 
     // Navigation Properties
     public virtual ClientProfile? ClientProfile { get; set; }

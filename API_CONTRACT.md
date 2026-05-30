@@ -87,12 +87,12 @@ Use ISO-8601.
 
 ### 2.6 Currency
 
-Default currency is `USD`.
+Default currency is `AICOIN`.
 
 ```json
 {
   "amount": 500.0,
-  "currency": "USD"
+  "currency": "AICOIN"
 }
 ```
 
@@ -325,15 +325,15 @@ Public endpoint.
 ```json
 {
   "success": true,
+  "message": "Account created successfully",
   "data": {
-    "id": "uuid",
+    "accessToken": "jwt-access-token",
+    "refreshToken": "refresh-token-string",
+    "userId": "uuid",
     "email": "client@test.com",
-    "fullName": "Demo Client",
-    "role": "CLIENT",
-    "status": "ACTIVE",
-    "createdAt": "2026-05-23T10:30:00Z"
+    "role": "CLIENT"
   },
-  "message": "Account created successfully"
+  "timestampUtc": "2026-05-30T10:00:00Z"
 }
 ```
 
@@ -361,19 +361,15 @@ Public endpoint.
 ```json
 {
   "success": true,
+  "message": "Login successful",
   "data": {
     "accessToken": "jwt-access-token",
-    "refreshToken": "jwt-refresh-token",
-    "expiresIn": 3600,
-    "user": {
-      "id": "uuid",
-      "email": "client@test.com",
-      "fullName": "Demo Client",
-      "role": "CLIENT",
-      "status": "ACTIVE"
-    }
+    "refreshToken": "refresh-token-string",
+    "userId": "uuid",
+    "email": "client@test.com",
+    "role": "CLIENT"
   },
-  "message": "Login successful"
+  "timestampUtc": "2026-05-30T10:00:00Z"
 }
 ```
 

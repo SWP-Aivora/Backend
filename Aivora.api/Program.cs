@@ -1,5 +1,7 @@
 using Aivora.Repositories.Data;
 using Aivora.Repositories.Data.Interceptors;
+using Aivora.Services.Options;
+using Aivora.Services.JwtService;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -12,6 +14,13 @@ builder.Services.AddDbContext<AivoraDbContext>((sp, options) => {
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"))
            .AddInterceptors(interceptor);
 });
+
+// Configure Options
+builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("JwtOptions"));
+
+// Register Services
+builder.Services.AddScoped<IJwtService, Service>();
+builder.Services.AddScoped<Aivora.Services.IdentityService.IService, Aivora.Services.IdentityService.Service>();
 
 builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi

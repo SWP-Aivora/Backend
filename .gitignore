@@ -5,3 +5,18 @@ riderModule.iml
 /_ReSharper.Caches/.idea/
 *.user
 *.suo
+
+# IDEs
+.idea/
+.vs/
+.vscode/
+
+# Build results
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
