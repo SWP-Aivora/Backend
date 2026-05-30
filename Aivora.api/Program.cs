@@ -19,7 +19,7 @@ builder.Services.AddDbContext<AivoraDbContext>((sp, options) => {
 });
 
 // Configure Options
-builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("JwtOptions"));
+builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("JwtSettings"));
 builder.Services.Configure<CloudinaryOptions>(builder.Configuration.GetSection("CloudinaryOptions"));
 
 // Register Services

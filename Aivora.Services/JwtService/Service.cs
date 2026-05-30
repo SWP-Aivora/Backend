@@ -26,13 +26,13 @@ public class Service : IJwtService
             new Claim(ClaimTypes.Role, role)
         };
 
-        var secretKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtOption.SecretKey));
+        var secretKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtOption.Secret));
         var signinCredentials = new SigningCredentials(secretKey, SecurityAlgorithms.HmacSha256);
         var tokenOptions = new JwtSecurityToken(
             issuer: _jwtOption.Issuer,
             audience: _jwtOption.Audience,
             claims: claims,
-            expires: DateTime.UtcNow.AddMinutes(_jwtOption.ExpireMinutes),
+            expires: DateTime.UtcNow.AddMinutes(_jwtOption.ExpiryInMinutes),
             signingCredentials: signinCredentials
         );
 
