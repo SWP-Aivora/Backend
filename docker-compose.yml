@@ -8,7 +8,13 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
-      - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=aivora;Username=postgres;Password=postgrespw
+      - ConnectionStrings__DefaultConnection=${CONNECTION_STRING}
+      - JwtSettings__Secret=${JWT_SECRET}
+      - JwtSettings__Issuer=${JWT_ISSUER}
+      - JwtSettings__Audience=${JWT_AUDIENCE}
+      - CloudinaryOptions__CloudName=${CLOUDINARY_CLOUD_NAME}
+      - CloudinaryOptions__ApiKey=${CLOUDINARY_API_KEY}
+      - CloudinaryOptions__ApiSecret=${CLOUDINARY_API_SECRET}
     depends_on:
       db:
         condition: service_healthy
