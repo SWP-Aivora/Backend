@@ -11,7 +11,8 @@ public class ExpertProfile : AuditableBaseEntity
     public decimal? HourlyRate { get; set; }
     public int ExperienceYears { get; set; }
     public AvailabilityStatus AvailabilityStatus { get; set; } = AvailabilityStatus.AVAILABLE;
-    public decimal RatingAvg { get; set; }
+    public decimal Rating { get; set; }
+    public int TotalReviews { get; set; }
     public int CompletedProjects { get; set; }
     public decimal SuccessRate { get; set; }
     public int? ResponseTimeMinutes { get; set; }

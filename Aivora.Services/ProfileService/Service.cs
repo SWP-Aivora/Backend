@@ -26,7 +26,9 @@ public class Service : IService
             Industry = profile.Industry,
             CompanySize = profile.CompanySize,
             Website = profile.Website,
-            Description = profile.Description
+            Description = profile.Description,
+            Rating = profile.Rating,
+            TotalReviews = profile.TotalReviews
         };
     }
 
@@ -50,7 +52,9 @@ public class Service : IService
             Industry = profile.Industry,
             CompanySize = profile.CompanySize,
             Website = profile.Website,
-            Description = profile.Description
+            Description = profile.Description,
+            Rating = profile.Rating,
+            TotalReviews = profile.TotalReviews
         };
     }
 
@@ -67,7 +71,8 @@ public class Service : IService
             HourlyRate = profile.HourlyRate,
             ExperienceYears = profile.ExperienceYears,
             AvailabilityStatus = profile.AvailabilityStatus,
-            RatingAvg = profile.RatingAvg,
+            Rating = profile.Rating,
+            TotalReviews = profile.TotalReviews,
             CompletedProjects = profile.CompletedProjects,
             SuccessRate = profile.SuccessRate
         };
@@ -94,7 +99,8 @@ public class Service : IService
             HourlyRate = profile.HourlyRate,
             ExperienceYears = profile.ExperienceYears,
             AvailabilityStatus = profile.AvailabilityStatus,
-            RatingAvg = profile.RatingAvg,
+            Rating = profile.Rating,
+            TotalReviews = profile.TotalReviews,
             CompletedProjects = profile.CompletedProjects,
             SuccessRate = profile.SuccessRate
         };
@@ -145,7 +151,8 @@ public class Service : IService
             HourlyRate = profile.HourlyRate,
             ExperienceYears = profile.ExperienceYears,
             AvailabilityStatus = profile.AvailabilityStatus,
-            RatingAvg = profile.RatingAvg,
+            Rating = profile.Rating,
+            TotalReviews = profile.TotalReviews,
             CompletedProjects = profile.CompletedProjects,
             SuccessRate = profile.SuccessRate
         };

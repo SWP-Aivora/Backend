@@ -45,20 +45,20 @@ public class Service : IService
         {
             var matchedSkillsCount = expert.ExpertSkills.Count(es => requiredSkillIds.Contains(es.SkillId));
             var skillScore = (decimal)matchedSkillsCount / Math.Max(1, requiredSkillIds.Count) * 50; // Max 50 points
-            var ratingScore = expert.RatingAvg * 2; // Max 10 points (if rating is 5) - Wait, rating is 0-5, let's say max 20 points
-            var completionScore = Math.Min( expert.CompletedProjects, 20); // Max 20 points
+            var ratingScore = expert.Rating * 4; 
+            var completionScore = Math.Min( expert.CompletedProjects, 10); 
 
-            var totalScore = skillScore + (expert.RatingAvg * 4) + (Math.Min(expert.CompletedProjects, 10)); 
+            var totalScore = skillScore + ratingScore + completionScore; 
 
             var rec = new RecommendationResult
             {
                 JobId = jobId,
                 ExpertId = expert.UserId,
                 SkillScore = skillScore,
-                RatingScore = expert.RatingAvg * 4,
-                CompletionScore = Math.Min(expert.CompletedProjects, 10),
+                RatingScore = ratingScore,
+                CompletionScore = completionScore,
                 TotalScore = totalScore,
-                Explanation = $"Expert matches {matchedSkillsCount} out of {requiredSkillIds.Count} required skills. Average rating is {expert.RatingAvg}."
+                Explanation = $"Expert matches {matchedSkillsCount} out of {requiredSkillIds.Count} required skills. Average rating is {expert.Rating}."
             };
 
             recommendations.Add(rec);
@@ -91,7 +91,7 @@ public class Service : IService
                 RatingScore = r.RatingScore,
                 CompletionScore = r.CompletionScore,
                 Explanation = r.Explanation,
-                RatingAvg = r.Expert.ExpertProfile.RatingAvg,
+                Rating = r.Expert.ExpertProfile.Rating,
                 CompletedProjects = r.Expert.ExpertProfile.CompletedProjects
             })
             .ToListAsync();

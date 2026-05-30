@@ -12,6 +12,8 @@ public class Response
         public string? CompanySize { get; set; }
         public string? Website { get; set; }
         public string? Description { get; set; }
+        public decimal Rating { get; set; }
+        public int TotalReviews { get; set; }
     }
 
     public class ExpertProfileResponse
@@ -22,7 +24,8 @@ public class Response
         public decimal? HourlyRate { get; set; }
         public int ExperienceYears { get; set; }
         public AvailabilityStatus AvailabilityStatus { get; set; }
-        public decimal RatingAvg { get; set; }
+        public decimal Rating { get; set; }
+        public int TotalReviews { get; set; }
         public int CompletedProjects { get; set; }
         public decimal SuccessRate { get; set; }
     }
