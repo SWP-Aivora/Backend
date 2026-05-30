@@ -29,3 +29,6 @@ API_CONTRACT.md
 
 # Superpower Docs
 docs/superpowers/
+
+# Secrets
+.env
