@@ -13,10 +13,14 @@ namespace Aivora.api.Controllers;
 public class ProjectController : ControllerBase
 {
     private readonly IService _projectService;
+    private readonly Aivora.Services.MilestoneService.IService _milestoneService;
 
-    public ProjectController(IService projectService)
+    public ProjectController(
+        IService projectService, 
+        Aivora.Services.MilestoneService.IService milestoneService)
     {
         _projectService = projectService;
+        _milestoneService = milestoneService;
     }
 
     [HttpGet]
@@ -43,5 +47,14 @@ public class ProjectController : ControllerBase
         var userId = this.GetUserId();
         var result = await _projectService.CancelProjectAsync(userId, id, reason);
         return Ok(ApiResponseFactory.SuccessResponse(result, "Project cancelled successfully", HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("{id}/milestones")]
+    [Authorize(Policy = JwtExtensions.ClientPolicy)]
+    public async Task<IActionResult> CreateMilestone(Guid id, [FromBody] Aivora.Services.MilestoneService.Request.CreateMilestoneRequest request)
+    {
+        var userId = this.GetUserId();
+        var result = await _milestoneService.CreateMilestoneAsync(userId, id, request);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Milestone created successfully", HttpContext.TraceIdentifier));
     }
 }
