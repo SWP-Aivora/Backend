@@ -21,4 +21,6 @@ RUN dotnet publish "Aivora.api.csproj" -c Release -o /app/publish /p:UseAppHost=
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
+ENV DOTNET_USE_FILE_WATCHER=false
+ENV DOTNET_RUNNING_IN_CONTAINER=true
 ENTRYPOINT ["dotnet", "Aivora.api.dll"]
