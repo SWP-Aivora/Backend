@@ -12,10 +12,30 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddSingleton<AuditableEntityInterceptor>();
 
-builder.Services.AddDbContext<AivoraDbContext>((sp, options) => {
+// builder.Services.AddDbContext<AivoraDbContext>((sp, options) => {
+//     var interceptor = sp.GetRequiredService<AuditableEntityInterceptor>();
+//     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"))
+//            .AddInterceptors(interceptor);
+// });
+
+builder.Services.AddDbContext<AivoraDbContext>((sp, options) =>
+{
     var interceptor = sp.GetRequiredService<AuditableEntityInterceptor>();
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"))
-           .AddInterceptors(interceptor);
+
+    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+
+    Console.WriteLine("===== DB CONNECTION STRING DEBUG =====");
+    Console.WriteLine(connectionString ?? "NULL");
+    Console.WriteLine("======================================");
+
+    if (string.IsNullOrWhiteSpace(connectionString))
+    {
+        throw new InvalidOperationException(
+            "Connection string 'DefaultConnection' is missing or empty.");
+    }
+
+    options.UseNpgsql(connectionString)
+        .AddInterceptors(interceptor);
 });
 
 // CORS Configuration
@@ -24,7 +44,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowSpecificOrigin",
         policy =>
         {
-            policy.WithOrigins("http://localhost:5173")
+            policy.WithOrigins("http://localhost:5173", "https://aivora-pi.vercel.app")
                   .AllowAnyHeader()
                   .AllowAnyMethod()
                   .AllowCredentials();
