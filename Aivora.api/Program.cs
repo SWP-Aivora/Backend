@@ -93,7 +93,7 @@ using (var scope = app.Services.CreateScope())
     try
     {
         var context = services.GetRequiredService<AivoraDbContext>();
-        context.Database.EnsureCreated(); // Use this for dev; for prod, migrations are better
+        context.Database.Migrate(); // Apply pending migrations
         await Aivora.Repositories.Data.SeedData.Initialize(context);
     }
     catch (Exception ex)

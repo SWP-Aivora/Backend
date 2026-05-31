@@ -36,7 +36,6 @@ public class FinancialLedger : IFinancialLedger
             Amount = amount,
             Currency = wallet.Currency,
             Status = PaymentStatus.HELD,
-            Description = description,
             HeldAt = DateTimeOffset.UtcNow
         };
 
