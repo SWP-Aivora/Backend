@@ -7,11 +7,30 @@ namespace Aivora.Repositories.Data;
 
 public static class SeedData
 {
-    public static async Task Initialize(AivoraDbContext context)
+    public static async Task Initialize(AivoraDbContext context, bool forceReset = false)
     {
         if (context.Users.Any())
         {
-            return; // DB has been seeded
+            if (!forceReset)
+            {
+                return; // DB has been seeded, không làm gì
+            }
+
+            // Force reset: xóa hết data theo thứ tự FK dependency (child → parent)
+            context.Reviews.RemoveRange(context.Reviews);
+            context.Deliverables.RemoveRange(context.Deliverables);
+            context.Milestones.RemoveRange(context.Milestones);
+            context.Projects.RemoveRange(context.Projects);
+            context.Proposals.RemoveRange(context.Proposals);
+            context.JobPosts.RemoveRange(context.JobPosts);
+            context.ExpertSkills.RemoveRange(context.ExpertSkills);
+            context.Skills.RemoveRange(context.Skills);
+            context.Categories.RemoveRange(context.Categories);
+            context.ExpertProfiles.RemoveRange(context.ExpertProfiles);
+            context.ClientProfiles.RemoveRange(context.ClientProfiles);
+            context.Wallets.RemoveRange(context.Wallets);
+            context.Users.RemoveRange(context.Users);
+            await context.SaveChangesAsync();
         }
 
         // ── 1. Users & Wallets ──────────────────────────────────────
@@ -66,13 +85,17 @@ public static class SeedData
         context.Skills.AddRange(skillPython, skillRAG, skillLangChain, skillReact, skillSQL);
         await context.SaveChangesAsync();
 
+        var seniorAIProfile = context.ExpertProfiles.First(p => p.UserId == expertSeniorAI.Id);
+        var fullstackProfile = context.ExpertProfiles.First(p => p.UserId == expertFullstack.Id);
+        var dataScientistProfile = context.ExpertProfiles.First(p => p.UserId == expertDataScientist.Id);
+
         context.ExpertSkills.AddRange(
-            new ExpertSkill { ExpertId = expertSeniorAI.Id, SkillId = skillPython.Id, Level = SkillLevel.EXPERT },
-            new ExpertSkill { ExpertId = expertSeniorAI.Id, SkillId = skillRAG.Id, Level = SkillLevel.EXPERT },
-            new ExpertSkill { ExpertId = expertFullstack.Id, SkillId = skillReact.Id, Level = SkillLevel.ADVANCED },
-            new ExpertSkill { ExpertId = expertFullstack.Id, SkillId = skillPython.Id, Level = SkillLevel.INTERMEDIATE },
-            new ExpertSkill { ExpertId = expertDataScientist.Id, SkillId = skillSQL.Id, Level = SkillLevel.EXPERT },
-            new ExpertSkill { ExpertId = expertDataScientist.Id, SkillId = skillPython.Id, Level = SkillLevel.ADVANCED }
+            new ExpertSkill { ExpertId = seniorAIProfile.Id, SkillId = skillPython.Id, Level = SkillLevel.EXPERT },
+            new ExpertSkill { ExpertId = seniorAIProfile.Id, SkillId = skillRAG.Id, Level = SkillLevel.EXPERT },
+            new ExpertSkill { ExpertId = fullstackProfile.Id, SkillId = skillReact.Id, Level = SkillLevel.ADVANCED },
+            new ExpertSkill { ExpertId = fullstackProfile.Id, SkillId = skillPython.Id, Level = SkillLevel.INTERMEDIATE },
+            new ExpertSkill { ExpertId = dataScientistProfile.Id, SkillId = skillSQL.Id, Level = SkillLevel.EXPERT },
+            new ExpertSkill { ExpertId = dataScientistProfile.Id, SkillId = skillPython.Id, Level = SkillLevel.ADVANCED }
         );
         await context.SaveChangesAsync();
 

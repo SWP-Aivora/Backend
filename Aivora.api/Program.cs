@@ -157,8 +157,15 @@ using (var scope = app.Services.CreateScope())
     try
     {
         var context = services.GetRequiredService<AivoraDbContext>();
-        context.Database.Migrate(); // Apply pending migrations
-        await Aivora.Repositories.Data.SeedData.Initialize(context);
+        context.Database.Migrate();
+
+        var forceReset = builder.Configuration.GetValue<bool>("SeedForceReset");
+        if (forceReset)
+        {
+            var logger = services.GetRequiredService<ILogger<Program>>();
+            logger.LogWarning("⚠️  SeedForceReset=true — sẽ xóa hết data cũ và seed lại!");
+        }
+        await Aivora.Repositories.Data.SeedData.Initialize(context, forceReset);
     }
     catch (Exception ex)
     {
