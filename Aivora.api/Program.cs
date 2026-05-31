@@ -19,73 +19,48 @@ builder.Services.AddSingleton<AuditableEntityInterceptor>();
 // });
 
 // ── Validate required configuration ────────────────────────────
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-if (string.IsNullOrWhiteSpace(connectionString))
+var requiredConfig = new Dictionary<string, string>
 {
-    throw new InvalidOperationException(
-        "Required configuration 'ConnectionStrings:DefaultConnection' is missing. " +
-        "Set it via CONNECTION_STRING env var in .env file.");
+    ["ConnectionStrings:DefaultConnection"] = "CONNECTION_STRING",
+    ["JwtSettings:Secret"] = "JWT_SECRET",
+    ["JwtSettings:Issuer"] = "JWT_ISSUER",
+    ["JwtSettings:Audience"] = "JWT_AUDIENCE",
+    ["JwtSettings:ExpiryInMinutes"] = "JWT_EXPIRY_IN_MINUTES",
+    ["CloudinaryOptions:CloudName"] = "CLOUDINARY_CLOUD_NAME",
+    ["CloudinaryOptions:ApiKey"] = "CLOUDINARY_API_KEY",
+    ["CloudinaryOptions:ApiSecret"] = "CLOUDINARY_API_SECRET",
+};
+
+var missing = new List<string>();
+foreach (var (configKey, envVar) in requiredConfig)
+{
+    if (!builder.Configuration.GetSection(configKey).Exists()
+        || string.IsNullOrWhiteSpace(builder.Configuration[configKey]))
+    {
+        missing.Add($"  • {configKey}  —  set env var '{envVar}'");
+    }
 }
 
-var jwtSecret = builder.Configuration["JwtSettings:Secret"];
-if (string.IsNullOrWhiteSpace(jwtSecret) || jwtSecret == "JWT_SECRET_PLACEHOLDER")
+if (missing.Count > 0)
 {
     throw new InvalidOperationException(
-        "Required configuration 'JwtSettings:Secret' is missing. " +
-        "Set it via JWT_SECRET env var in .env file.");
+        $"Missing {missing.Count} required configuration value(s):\n"
+        + string.Join("\n", missing));
 }
 
-var jwtIssuer = builder.Configuration["JwtSettings:Issuer"];
-if (string.IsNullOrWhiteSpace(jwtIssuer) || jwtIssuer == "JWT_ISSUER_PLACEHOLDER")
+// Reject obviously unsafe defaults
+if (string.IsNullOrWhiteSpace(builder.Configuration["JwtSettings:Secret"])
+    || builder.Configuration["JwtSettings:Secret"]!.Length < 32)
 {
     throw new InvalidOperationException(
-        "Required configuration 'JwtSettings:Issuer' is missing. " +
-        "Set it via JWT_ISSUER env var in .env file.");
-}
-
-var jwtAudience = builder.Configuration["JwtSettings:Audience"];
-if (string.IsNullOrWhiteSpace(jwtAudience) || jwtAudience == "JWT_AUDIENCE_PLACEHOLDER")
-{
-    throw new InvalidOperationException(
-        "Required configuration 'JwtSettings:Audience' is missing. " +
-        "Set it via JWT_AUDIENCE env var in .env file.");
-}
-
-var jwtExpiry = builder.Configuration["JwtSettings:ExpiryInMinutes"];
-if (string.IsNullOrWhiteSpace(jwtExpiry) || jwtExpiry == "0" || !int.TryParse(jwtExpiry, out var expiryMin) || expiryMin <= 0)
-{
-    throw new InvalidOperationException(
-        "Required configuration 'JwtSettings:ExpiryInMinutes' is missing or invalid. " +
-        "Set it via JWT_EXPIRY_IN_MINUTES env var in .env file.");
-}
-
-var cloudinaryCloudName = builder.Configuration["CloudinaryOptions:CloudName"];
-if (string.IsNullOrWhiteSpace(cloudinaryCloudName) || cloudinaryCloudName == "CLOUDINARY_CLOUD_NAME_PLACEHOLDER")
-{
-    throw new InvalidOperationException(
-        "Required configuration 'CloudinaryOptions:CloudName' is missing. " +
-        "Set it via CLOUDINARY_CLOUD_NAME env var in .env file.");
-}
-
-var cloudinaryApiKey = builder.Configuration["CloudinaryOptions:ApiKey"];
-if (string.IsNullOrWhiteSpace(cloudinaryApiKey) || cloudinaryApiKey == "CLOUDINARY_API_KEY_PLACEHOLDER")
-{
-    throw new InvalidOperationException(
-        "Required configuration 'CloudinaryOptions:ApiKey' is missing. " +
-        "Set it via CLOUDINARY_API_KEY env var in .env file.");
-}
-
-var cloudinaryApiSecret = builder.Configuration["CloudinaryOptions:ApiSecret"];
-if (string.IsNullOrWhiteSpace(cloudinaryApiSecret) || cloudinaryApiSecret == "CLOUDINARY_API_SECRET_PLACEHOLDER")
-{
-    throw new InvalidOperationException(
-        "Required configuration 'CloudinaryOptions:ApiSecret' is missing. " +
-        "Set it via CLOUDINARY_API_SECRET env var in .env file.");
+        "JwtSettings:Secret must be at least 32 characters long.");
 }
 
 // ── Register services ──────────────────────────────────────────
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")!;
+
 Console.WriteLine("===== DB CONNECTION STRING DEBUG =====");
-Console.WriteLine(connectionString ?? "NULL");
+Console.WriteLine(connectionString);
 Console.WriteLine("======================================");
 
 builder.Services.AddDbContext<AivoraDbContext>((sp, options) =>
