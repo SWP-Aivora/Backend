@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: aivora-backend
+    env: docker
+    plan: free
+    region: singapore # Hoặc region bạn đang dùng
+    dockerContext: Backend
+    dockerfilePath: Dockerfile
+    healthCheckPath: /api/v1/jobs # Đường dẫn kiểm tra sức khỏe
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: CONNECTION_STRING
+        fromDatabase:
+          name: aivora-db
+          property: connectionString
+      - key: JWT_SECRET
+        sync: false # Bạn sẽ cấu hình trên giao diện Render một lần
+      - key: JWT_ISSUER
+        value: AivoraApi
+      - key: JWT_AUDIENCE
+        value: AivoraClient
+      - key: JWT_EXPIRY_IN_MINUTES
+        value: 1440
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+
+databases:
+  - name: aivora-db
+    plan: free
+    region: singapore
+    databaseName: aivora
+    user: postgres
