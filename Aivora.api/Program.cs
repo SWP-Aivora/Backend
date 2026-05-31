@@ -157,23 +157,41 @@ app.MapHub<Aivora.api.Hubs.ChatHub>("/api/v1/chat");
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
+    var logger = services.GetRequiredService<ILogger<Program>>();
+    var context = services.GetRequiredService<AivoraDbContext>();
+    
     try
     {
-        var context = services.GetRequiredService<AivoraDbContext>();
+        // Thử migrate bình thường
         context.Database.Migrate();
-
+        
         var forceReset = builder.Configuration.GetValue<bool>("SeedForceReset");
         if (forceReset)
         {
-            var logger = services.GetRequiredService<ILogger<Program>>();
-            logger.LogWarning("⚠️  SeedForceReset=true — sẽ xóa hết data cũ và seed lại!");
+            logger.LogWarning("⚠️ SeedForceReset=true — sẽ xóa hết data cũ và seed lại!");
         }
         await Aivora.Repositories.Data.SeedData.Initialize(context, forceReset);
     }
     catch (Exception ex)
     {
-        var logger = services.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "An error occurred seeding the DB.");
+        logger.LogError(ex, "❌ Lỗi khi Migrate hoặc Seed DB. Thử khôi phục bằng cách Reset DB...");
+        
+        try
+        {
+            // Nếu lỗi nặng (xung đột schema), xóa sạch và làm lại từ đầu
+            await context.Database.EnsureDeletedAsync();
+            logger.LogWarning("♻️ Đã xóa Database cũ.");
+            
+            await context.Database.MigrateAsync();
+            logger.LogInformation("✅ Đã khởi tạo lại Schema mới.");
+            
+            await Aivora.Repositories.Data.SeedData.Initialize(context, forceReset: true);
+            logger.LogInformation("✅ Đã Seed lại dữ liệu mặc định.");
+        }
+        catch (Exception criticalEx)
+        {
+            logger.LogCritical(criticalEx, "🔥 KHÔNG THỂ KHÔI PHỤC DATABASE! Ứng dụng có thể hoạt động không ổn định.");
+        }
     }
 }
 
