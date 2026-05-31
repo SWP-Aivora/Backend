@@ -38,3 +38,6 @@ CLAUDE.md
 
 # Local documentation
 docs/architecture/
+
+# Build logs
+build_log.txt
