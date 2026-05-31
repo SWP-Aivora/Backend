@@ -10,17 +10,25 @@ public class AivoraDbContextFactory : IDesignTimeDbContextFactory<AivoraDbContex
 {
     public AivoraDbContext CreateDbContext(string[] args)
     {
+        var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production";
+
         IConfigurationRoot configuration = new ConfigurationBuilder()
             .SetBasePath(Directory.GetCurrentDirectory())
-            .AddJsonFile("appsettings.json")
+            .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
+            .AddJsonFile($"appsettings.{environment}.json", optional: true, reloadOnChange: false)
+            .AddEnvironmentVariables()
             .Build();
 
         var builder = new DbContextOptionsBuilder<AivoraDbContext>();
         var connectionString = configuration.GetConnectionString("DefaultConnection");
 
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException("Connection string 'DefaultConnection' is missing or empty.");
+        }
+
         builder.UseNpgsql(connectionString);
 
-        // We don't necessarily need the interceptor for migrations, but we can add it if needed
         return new AivoraDbContext(builder.Options);
     }
 }
