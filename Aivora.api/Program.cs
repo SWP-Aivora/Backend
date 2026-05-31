@@ -21,14 +21,14 @@ builder.Services.AddSingleton<AuditableEntityInterceptor>();
 // ── Validate required configuration ────────────────────────────
 var requiredConfig = new Dictionary<string, string>
 {
-    ["ConnectionStrings:DefaultConnection"] = "CONNECTION_STRING",
-    ["JwtSettings:Secret"] = "JWT_SECRET",
-    ["JwtSettings:Issuer"] = "JWT_ISSUER",
-    ["JwtSettings:Audience"] = "JWT_AUDIENCE",
-    ["JwtSettings:ExpiryInMinutes"] = "JWT_EXPIRY_IN_MINUTES",
-    ["CloudinaryOptions:CloudName"] = "CLOUDINARY_CLOUD_NAME",
-    ["CloudinaryOptions:ApiKey"] = "CLOUDINARY_API_KEY",
-    ["CloudinaryOptions:ApiSecret"] = "CLOUDINARY_API_SECRET",
+    ["ConnectionStrings:DefaultConnection"] = "ConnectionStrings__DefaultConnection",
+    ["JwtSettings:Secret"] = "JwtSettings__Secret",
+    ["JwtSettings:Issuer"] = "JwtSettings__Issuer",
+    ["JwtSettings:Audience"] = "JwtSettings__Audience",
+    ["JwtSettings:ExpiryInMinutes"] = "JwtSettings__ExpiryInMinutes",
+    ["CloudinaryOptions:CloudName"] = "CloudinaryOptions__CloudName",
+    ["CloudinaryOptions:ApiKey"] = "CloudinaryOptions__ApiKey",
+    ["CloudinaryOptions:ApiSecret"] = "CloudinaryOptions__ApiSecret",
 };
 
 var missing = new List<string>();
