@@ -9,14 +9,9 @@ public static class SeedData
 {
     public static async Task Initialize(AivoraDbContext context, bool forceReset = false)
     {
-        if (context.Users.Any())
+        // 1. Kiểm tra Reset nếu cần
+        if (forceReset)
         {
-            if (!forceReset)
-            {
-                return; // DB has been seeded, không làm gì
-            }
-
-            // Force reset: xóa hết data theo thứ tự FK dependency (child → parent)
             context.Reviews.RemoveRange(context.Reviews);
             context.Deliverables.RemoveRange(context.Deliverables);
             context.Milestones.RemoveRange(context.Milestones);
@@ -31,6 +26,12 @@ public static class SeedData
             context.Wallets.RemoveRange(context.Wallets);
             context.Users.RemoveRange(context.Users);
             await context.SaveChangesAsync();
+        }
+
+        // 2. Chế độ an toàn: Chỉ seed nếu chưa có User nào
+        if (await context.Users.AnyAsync())
+        {
+            return;
         }
 
         // ── 1. Users & Wallets ──────────────────────────────────────
@@ -51,7 +52,7 @@ public static class SeedData
         context.Users.AddRange(users);
         await context.SaveChangesAsync();
 
-        var wallets = users.Select(u => new Wallet { UserId = u.Id, AvailableBalance = (u.Role == UserRole.CLIENT ? 10000m : 0m) }).ToList();
+        var wallets = users.Select(u => new Wallet { UserId = u.Id, AvailableBalance = (u.Role == UserRole.CLIENT ? 10000m : 0m), Currency = "AICOIN" }).ToList();
         context.Wallets.AddRange(wallets);
         await context.SaveChangesAsync();
 
@@ -75,13 +76,15 @@ public static class SeedData
         var catData = new Category { Name = "Data Science & Analytics" };
         var catWeb = new Category { Name = "Web & AI Integration" };
 
+        context.Categories.AddRange(catChatbot, catData, catWeb);
+        await context.SaveChangesAsync();
+
         var skillPython = new Skill { Name = "Python", CategoryId = catData.Id };
         var skillRAG = new Skill { Name = "RAG", CategoryId = catChatbot.Id };
         var skillLangChain = new Skill { Name = "LangChain", CategoryId = catChatbot.Id };
         var skillReact = new Skill { Name = "React", CategoryId = catWeb.Id };
         var skillSQL = new Skill { Name = "SQL", CategoryId = catData.Id };
 
-        context.Categories.AddRange(catChatbot, catData, catWeb);
         context.Skills.AddRange(skillPython, skillRAG, skillLangChain, skillReact, skillSQL);
         await context.SaveChangesAsync();
 
@@ -108,7 +111,8 @@ public static class SeedData
             FinalDescription = "We need an intelligent chatbot that can answer user questions based on our knowledge base.",
             Status = JobStatus.OPEN,
             BudgetMin = 2000,
-            BudgetMax = 5000
+            BudgetMax = 5000,
+            Currency = "AICOIN"
         };
         context.JobPosts.Add(jobChatbot);
         await context.SaveChangesAsync();
@@ -127,7 +131,8 @@ public static class SeedData
             OriginalDescription = "Build a product recommendation engine for our e-commerce platform.",
             Status = JobStatus.IN_PROGRESS,
             BudgetMin = 3000,
-            BudgetMax = 8000
+            BudgetMax = 8000,
+            Currency = "AICOIN"
         };
         context.JobPosts.Add(jobInProgress);
         await context.SaveChangesAsync();
@@ -152,6 +157,7 @@ public static class SeedData
             Title = jobInProgress.Title,
             Status = ProjectStatus.ACTIVE
         };
+        projectInProgress.Currency = "AICOIN";
         context.Projects.Add(projectInProgress);
         await context.SaveChangesAsync();
 
@@ -178,7 +184,8 @@ public static class SeedData
             OriginalDescription = "Analyze our Q2 sales data and produce a comprehensive report.",
             Status = JobStatus.COMPLETED,
             BudgetMin = 500,
-            BudgetMax = 1000
+            BudgetMax = 1000,
+            Currency = "AICOIN"
         };
         context.JobPosts.Add(jobCompleted);
         await context.SaveChangesAsync();
@@ -202,7 +209,8 @@ public static class SeedData
             ExpertId = expertDataScientist.Id,
             Title = jobCompleted.Title,
             Status = ProjectStatus.COMPLETED,
-            CompletedAt = DateTime.UtcNow.AddDays(-2)
+            CompletedAt = DateTime.UtcNow.AddDays(-2),
+            Currency = "AICOIN"
         };
         context.Projects.Add(projectCompleted);
         await context.SaveChangesAsync();
