@@ -32,28 +32,40 @@ var requiredConfig = new Dictionary<string, string>
 };
 
 var missing = new List<string>();
+var placeholders = new List<string>();
+
 foreach (var (configKey, envVar) in requiredConfig)
 {
-    if (!builder.Configuration.GetSection(configKey).Exists()
-        || string.IsNullOrWhiteSpace(builder.Configuration[configKey]))
+    var value = builder.Configuration[configKey];
+
+    if (string.IsNullOrWhiteSpace(value))
     {
         missing.Add($"  • {configKey}  —  set env var '{envVar}'");
     }
+    else if (HasPlaceholder(value))
+    {
+        placeholders.Add($"  • {configKey}  —  current value is a placeholder, set real value via '{envVar}'");
+    }
 }
 
-if (missing.Count > 0)
+if (missing.Count > 0 || placeholders.Count > 0)
 {
-    throw new InvalidOperationException(
-        $"Missing {missing.Count} required configuration value(s):\n"
-        + string.Join("\n", missing));
+    var allErrors = new List<string>();
+    allErrors.AddRange(missing);
+    allErrors.AddRange(placeholders);
+    var message = $"Missing {missing.Count} and {placeholders.Count} placeholder configuration value(s):\n"
+        + string.Join("\n", allErrors);
+
+    throw new InvalidOperationException(message);
 }
 
-// Reject obviously unsafe defaults
-if (string.IsNullOrWhiteSpace(builder.Configuration["JwtSettings:Secret"])
-    || builder.Configuration["JwtSettings:Secret"]!.Length < 32)
+static bool HasPlaceholder(string? value)
 {
-    throw new InvalidOperationException(
-        "JwtSettings:Secret must be at least 32 characters long.");
+    if (string.IsNullOrWhiteSpace(value)) return true;
+
+    return value.Contains("__SET", StringComparison.OrdinalIgnoreCase)
+           || value.Contains("CHANGE_ME", StringComparison.OrdinalIgnoreCase)
+           || value.Contains("PLACEHOLDER", StringComparison.OrdinalIgnoreCase);
 }
 
 // ── Register services ──────────────────────────────────────────
