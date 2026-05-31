@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Aivora.Repositories.Data.Migrations
 {
     [DbContext(typeof(AivoraDbContext))]
-    [Migration("20260530144718_AddRefreshTokenFieldsToUser")]
-    partial class AddRefreshTokenFieldsToUser
+    [Migration("20260531075908_Initial")]
+    partial class Initial
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -158,6 +158,13 @@ namespace Aivora.Repositories.Data.Migrations
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
+
+                    b.Property<decimal>("Rating")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int>("TotalReviews")
+                        .HasColumnType("integer");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -416,7 +423,7 @@ namespace Aivora.Repositories.Data.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
-                    b.Property<decimal>("RatingAvg")
+                    b.Property<decimal>("Rating")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
@@ -430,6 +437,9 @@ namespace Aivora.Repositories.Data.Migrations
                     b.Property<string>("Title")
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
+
+                    b.Property<int>("TotalReviews")
+                        .HasColumnType("integer");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -526,12 +536,11 @@ namespace Aivora.Repositories.Data.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
-                    b.Property<string>("ExperienceLevel")
+                    b.Property<int?>("ExperienceLevel")
                         .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                        .HasColumnType("integer");
 
                     b.Property<string>("FinalDescription")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")

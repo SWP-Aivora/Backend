@@ -743,9 +743,6 @@ namespace Aivora.Repositories.Data.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)");
 
-                    b.Property<string>("Description")
-                        .HasColumnType("text");
-
                     b.Property<DateTimeOffset?>("FrozenAt")
                         .HasColumnType("timestamp with time zone");
 

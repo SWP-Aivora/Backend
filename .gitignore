@@ -41,3 +41,6 @@ docs/architecture/
 
 # Build logs
 build_log.txt
+
+# Environment-specific settings (contains secrets)
+appsettings.Development.json

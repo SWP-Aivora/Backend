@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Aivora.Repositories.Data.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialCreate : Migration
+    public partial class Initial : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -47,6 +47,8 @@ namespace Aivora.Repositories.Data.Migrations
                     Role = table.Column<string>(type: "text", nullable: false),
                     Status = table.Column<string>(type: "text", nullable: false),
                     LastLoginAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    RefreshToken = table.Column<string>(type: "text", nullable: true),
+                    RefreshTokenExpiryTime = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
                     IsDeleted = table.Column<bool>(type: "boolean", nullable: false),
                     CreatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
                     UpdatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true)
@@ -89,6 +91,8 @@ namespace Aivora.Repositories.Data.Migrations
                     CompanySize = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
                     Website = table.Column<string>(type: "character varying(2048)", maxLength: 2048, nullable: true),
                     Description = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
+                    Rating = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
+                    TotalReviews = table.Column<int>(type: "integer", nullable: false),
                     IsDeleted = table.Column<bool>(type: "boolean", nullable: false),
                     CreatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
                     UpdatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true)
@@ -115,7 +119,8 @@ namespace Aivora.Repositories.Data.Migrations
                     HourlyRate = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: true),
                     ExperienceYears = table.Column<int>(type: "integer", nullable: false),
                     AvailabilityStatus = table.Column<string>(type: "text", nullable: false),
-                    RatingAvg = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
+                    Rating = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
+                    TotalReviews = table.Column<int>(type: "integer", nullable: false),
                     CompletedProjects = table.Column<int>(type: "integer", nullable: false),
                     SuccessRate = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
                     ResponseTimeMinutes = table.Column<int>(type: "integer", nullable: true),
@@ -143,7 +148,7 @@ namespace Aivora.Repositories.Data.Migrations
                     CategoryId = table.Column<Guid>(type: "uuid", nullable: true),
                     Title = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
                     OriginalDescription = table.Column<string>(type: "text", nullable: false),
-                    FinalDescription = table.Column<string>(type: "text", nullable: false),
+                    FinalDescription = table.Column<string>(type: "text", nullable: true),
                     BusinessDomain = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
                     ExpectedOutcome = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
                     BudgetType = table.Column<string>(type: "text", nullable: false),
@@ -152,7 +157,7 @@ namespace Aivora.Repositories.Data.Migrations
                     Currency = table.Column<string>(type: "character varying(10)", maxLength: 10, nullable: false),
                     TimelineDays = table.Column<int>(type: "integer", nullable: true),
                     Deadline = table.Column<DateOnly>(type: "date", nullable: true),
-                    ExperienceLevel = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
+                    ExperienceLevel = table.Column<int>(type: "integer", maxLength: 50, nullable: true),
                     Status = table.Column<string>(type: "text", nullable: false),
                     Visibility = table.Column<string>(type: "text", nullable: false),
                     PublishedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),

@@ -9,16 +9,15 @@ public static class SeedData
 {
     public static async Task Initialize(AivoraDbContext context)
     {
-        // Look for any users.
         if (context.Users.Any())
         {
-            return;   // DB has been seeded
+            return; // DB has been seeded
         }
 
-        // --- Users & Wallets ---
+        // ── 1. Users & Wallets ──────────────────────────────────────
         var admin1 = new User { Email = "admin@aivora.com", PasswordHash = BCryptNet.HashPassword("123456"), FullName = "Platform Admin", Role = UserRole.ADMIN, Status = UserStatus.ACTIVE };
         var admin2 = new User { Email = "Ahihi@gmail.com", PasswordHash = BCryptNet.HashPassword("Ahihi123"), FullName = "Ahihi Admin", Role = UserRole.ADMIN, Status = UserStatus.ACTIVE };
-        
+
         var clientStartup = new User { Email = "client.startup@demo.com", PasswordHash = BCryptNet.HashPassword("123456"), FullName = "TechNova Solutions", Role = UserRole.CLIENT, Status = UserStatus.ACTIVE };
         var clientEcommerce = new User { Email = "client.ecommerce@demo.com", PasswordHash = BCryptNet.HashPassword("123456"), FullName = "Glamour Boutique", Role = UserRole.CLIENT, Status = UserStatus.ACTIVE };
         var clientResearch = new User { Email = "client.research@demo.com", PasswordHash = BCryptNet.HashPassword("123456"), FullName = "John Doe", Role = UserRole.CLIENT, Status = UserStatus.ACTIVE };
@@ -35,8 +34,9 @@ public static class SeedData
 
         var wallets = users.Select(u => new Wallet { UserId = u.Id, AvailableBalance = (u.Role == UserRole.CLIENT ? 10000m : 0m) }).ToList();
         context.Wallets.AddRange(wallets);
+        await context.SaveChangesAsync();
 
-        // --- Profiles ---
+        // ── 2. Profiles ─────────────────────────────────────────────
         context.ClientProfiles.AddRange(
             new ClientProfile { UserId = clientStartup.Id, CompanyName = "TechNova Solutions" },
             new ClientProfile { UserId = clientEcommerce.Id, CompanyName = "Glamour Boutique" },
@@ -49,20 +49,22 @@ public static class SeedData
             new ExpertProfile { UserId = expertAutomation.Id, Title = "Automation Specialist", Bio = "Automating business processes.", HourlyRate = 80 },
             new ExpertProfile { UserId = expertJuniorAI.Id, Title = "AI Developer", Bio = "Eager to build great AI products.", HourlyRate = 50 }
         );
+        await context.SaveChangesAsync();
 
-        // --- Taxonomy ---
+        // ── 3. Taxonomy ─────────────────────────────────────────────
         var catChatbot = new Category { Name = "AI Chatbots" };
         var catData = new Category { Name = "Data Science & Analytics" };
         var catWeb = new Category { Name = "Web & AI Integration" };
-        
+
         var skillPython = new Skill { Name = "Python", CategoryId = catData.Id };
         var skillRAG = new Skill { Name = "RAG", CategoryId = catChatbot.Id };
         var skillLangChain = new Skill { Name = "LangChain", CategoryId = catChatbot.Id };
         var skillReact = new Skill { Name = "React", CategoryId = catWeb.Id };
         var skillSQL = new Skill { Name = "SQL", CategoryId = catData.Id };
-        
+
         context.Categories.AddRange(catChatbot, catData, catWeb);
         context.Skills.AddRange(skillPython, skillRAG, skillLangChain, skillReact, skillSQL);
+        await context.SaveChangesAsync();
 
         context.ExpertSkills.AddRange(
             new ExpertSkill { ExpertId = expertSeniorAI.Id, SkillId = skillPython.Id, Level = SkillLevel.EXPERT },
@@ -72,53 +74,124 @@ public static class SeedData
             new ExpertSkill { ExpertId = expertDataScientist.Id, SkillId = skillSQL.Id, Level = SkillLevel.EXPERT },
             new ExpertSkill { ExpertId = expertDataScientist.Id, SkillId = skillPython.Id, Level = SkillLevel.ADVANCED }
         );
-        
-        // --- Job 1: Open for Bidding ---
-        var jobChatbot = new JobPost 
-        { 
-            ClientId = clientStartup.Id, 
+        await context.SaveChangesAsync();
+
+        // ── 4. Job 1: Open for Bidding ──────────────────────────────
+        var jobChatbot = new JobPost
+        {
+            ClientId = clientStartup.Id,
             Title = "Build a Customer Support Chatbot for a SaaS Product",
+            OriginalDescription = "We need an intelligent chatbot that can answer user questions based on our knowledge base.",
             FinalDescription = "We need an intelligent chatbot that can answer user questions based on our knowledge base.",
             Status = JobStatus.OPEN,
             BudgetMin = 2000,
             BudgetMax = 5000
         };
         context.JobPosts.Add(jobChatbot);
+        await context.SaveChangesAsync();
+
         context.Proposals.AddRange(
-            new Proposal { JobId = jobChatbot.Id, ExpertId = expertSeniorAI.Id, CoverLetter = "I have extensive experience...", ProposedBudget = 4500 },
-            new Proposal { JobId = jobChatbot.Id, ExpertId = expertFullstack.Id, CoverLetter = "I can build and integrate this...", ProposedBudget = 3000 }
+            new Proposal { JobId = jobChatbot.Id, ExpertId = expertSeniorAI.Id, CoverLetter = "I have extensive experience building chatbots with RAG and LangChain.", ProposedBudget = 4500 },
+            new Proposal { JobId = jobChatbot.Id, ExpertId = expertFullstack.Id, CoverLetter = "I can build and integrate this chatbot into your existing platform.", ProposedBudget = 3000 }
         );
+        await context.SaveChangesAsync();
 
-        // --- Job 2: In Progress ---
-        var jobInProgress = new JobPost { ClientId = clientEcommerce.Id, Title = "E-commerce Product Recommendation Engine", Status = JobStatus.IN_PROGRESS, BudgetMin = 3000, BudgetMax = 8000 };
-        var proposalAccepted = new Proposal { JobId = jobInProgress.Id, ExpertId = expertSeniorAI.Id, Status = ProposalStatus.ACCEPTED, CoverLetter = "...", ProposedBudget = 6000 };
-        var projectInProgress = new Project { Job = jobInProgress, AcceptedProposal = proposalAccepted, ClientId = clientEcommerce.Id, ExpertId = expertSeniorAI.Id, Status = ProjectStatus.ACTIVE };
-        
-        var m1_paid = new Milestone { Project = projectInProgress, Title = "Data Analysis & Model Design", Amount = 1500, Status = MilestoneStatus.PAID, FundedAt = DateTime.UtcNow.AddDays(-10), ApprovedAt=DateTime.UtcNow.AddDays(-5) };
-        var m2_submitted = new Milestone { Project = projectInProgress, Title = "Backend API Implementation", Amount = 3000, Status = MilestoneStatus.SUBMITTED, FundedAt = DateTime.UtcNow.AddDays(-4)};
-        var m3_pending = new Milestone { Project = projectInProgress, Title = "Frontend Integration & Testing", Amount = 1500, Status = MilestoneStatus.CREATED };
-
+        // ── 5. Job 2: In Progress ───────────────────────────────────
+        var jobInProgress = new JobPost
+        {
+            ClientId = clientEcommerce.Id,
+            Title = "E-commerce Product Recommendation Engine",
+            OriginalDescription = "Build a product recommendation engine for our e-commerce platform.",
+            Status = JobStatus.IN_PROGRESS,
+            BudgetMin = 3000,
+            BudgetMax = 8000
+        };
         context.JobPosts.Add(jobInProgress);
-        context.Proposals.Add(proposalAccepted);
-        context.Projects.Add(projectInProgress);
-        context.Milestones.AddRange(m1_paid, m2_submitted, m3_pending);
-        context.Deliverables.Add(new Deliverable { Milestone = m2_submitted, ExpertId = expertSeniorAI.Id, Description = "API endpoints are ready for review."});
+        await context.SaveChangesAsync();
 
-        // --- Job 3: Completed ---
-        var jobCompleted = new JobPost { ClientId = clientResearch.Id, Title = "Analyze Sales Data for Q2 Report", Status = JobStatus.COMPLETED, BudgetMin=500, BudgetMax=1000 };
-        var proposalCompleted = new Proposal { JobId = jobCompleted.Id, ExpertId = expertDataScientist.Id, Status = ProposalStatus.ACCEPTED, ProposedBudget=800 };
-        var projectCompleted = new Project { Job = jobCompleted, AcceptedProposal = proposalCompleted, ClientId = clientResearch.Id, ExpertId = expertDataScientist.Id, Status = ProjectStatus.COMPLETED, CompletedAt = DateTime.UtcNow.AddDays(-2) };
-        var m_completed = new Milestone { Project = projectCompleted, Title = "Full Analysis and Report", Amount = 800, Status = MilestoneStatus.PAID };
-        
+        var proposalAccepted = new Proposal
+        {
+            JobId = jobInProgress.Id,
+            ExpertId = expertSeniorAI.Id,
+            Status = ProposalStatus.ACCEPTED,
+            CoverLetter = "I have extensive experience building recommendation systems.",
+            ProposedBudget = 6000
+        };
+        context.Proposals.Add(proposalAccepted);
+        await context.SaveChangesAsync();
+
+        var projectInProgress = new Project
+        {
+            JobId = jobInProgress.Id,
+            AcceptedProposalId = proposalAccepted.Id,
+            ClientId = clientEcommerce.Id,
+            ExpertId = expertSeniorAI.Id,
+            Title = jobInProgress.Title,
+            Status = ProjectStatus.ACTIVE
+        };
+        context.Projects.Add(projectInProgress);
+        await context.SaveChangesAsync();
+
+        var m1_paid = new Milestone { ProjectId = projectInProgress.Id, Title = "Data Analysis & Model Design", Amount = 1500, Status = MilestoneStatus.PAID, FundedAt = DateTime.UtcNow.AddDays(-10), ApprovedAt = DateTime.UtcNow.AddDays(-5) };
+        var m2_submitted = new Milestone { ProjectId = projectInProgress.Id, Title = "Backend API Implementation", Amount = 3000, Status = MilestoneStatus.SUBMITTED, FundedAt = DateTime.UtcNow.AddDays(-4) };
+        var m3_pending = new Milestone { ProjectId = projectInProgress.Id, Title = "Frontend Integration & Testing", Amount = 1500, Status = MilestoneStatus.CREATED };
+        context.Milestones.AddRange(m1_paid, m2_submitted, m3_pending);
+        await context.SaveChangesAsync();
+
+        context.Deliverables.Add(new Deliverable
+        {
+            MilestoneId = m2_submitted.Id,
+            ExpertId = expertSeniorAI.Id,
+            Description = "API endpoints are ready for review.",
+            Status = DeliverableStatus.SUBMITTED
+        });
+        await context.SaveChangesAsync();
+
+        // ── 6. Job 3: Completed ─────────────────────────────────────
+        var jobCompleted = new JobPost
+        {
+            ClientId = clientResearch.Id,
+            Title = "Analyze Sales Data for Q2 Report",
+            OriginalDescription = "Analyze our Q2 sales data and produce a comprehensive report.",
+            Status = JobStatus.COMPLETED,
+            BudgetMin = 500,
+            BudgetMax = 1000
+        };
         context.JobPosts.Add(jobCompleted);
+        await context.SaveChangesAsync();
+
+        var proposalCompleted = new Proposal
+        {
+            JobId = jobCompleted.Id,
+            ExpertId = expertDataScientist.Id,
+            Status = ProposalStatus.ACCEPTED,
+            CoverLetter = "I can deliver a thorough analysis.",
+            ProposedBudget = 800
+        };
         context.Proposals.Add(proposalCompleted);
+        await context.SaveChangesAsync();
+
+        var projectCompleted = new Project
+        {
+            JobId = jobCompleted.Id,
+            AcceptedProposalId = proposalCompleted.Id,
+            ClientId = clientResearch.Id,
+            ExpertId = expertDataScientist.Id,
+            Title = jobCompleted.Title,
+            Status = ProjectStatus.COMPLETED,
+            CompletedAt = DateTime.UtcNow.AddDays(-2)
+        };
         context.Projects.Add(projectCompleted);
+        await context.SaveChangesAsync();
+
+        var m_completed = new Milestone { ProjectId = projectCompleted.Id, Title = "Full Analysis and Report", Amount = 800, Status = MilestoneStatus.PAID };
         context.Milestones.Add(m_completed);
+        await context.SaveChangesAsync();
+
         context.Reviews.AddRange(
-            new Review { Project = projectCompleted, ReviewerId = clientResearch.Id, RevieweeId = expertDataScientist.Id, Rating = 5, Comment = "Excellent work, very thorough analysis!" },
-            new Review { Project = projectCompleted, ReviewerId = expertDataScientist.Id, RevieweeId = clientResearch.Id, Rating = 5, Comment = "Great client, very clear requirements." }
+            new Review { ProjectId = projectCompleted.Id, ReviewerId = clientResearch.Id, RevieweeId = expertDataScientist.Id, Rating = 5, Comment = "Excellent work, very thorough analysis!" },
+            new Review { ProjectId = projectCompleted.Id, ReviewerId = expertDataScientist.Id, RevieweeId = clientResearch.Id, Rating = 5, Comment = "Great client, very clear requirements." }
         );
-        
         await context.SaveChangesAsync();
     }
 }
