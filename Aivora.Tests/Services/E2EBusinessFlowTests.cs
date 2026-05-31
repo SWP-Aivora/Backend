@@ -2,7 +2,7 @@ using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.Exceptions;
-using Aivora.Services.FinancialLedger;
+using Aivora.Services.Treasury;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
@@ -135,8 +135,8 @@ public class E2EBusinessFlowTests
         var milestone = project.Milestones.First();
         milestone.Status.Should().Be(MilestoneStatus.CREATED);
 
-        var ledger = new FinancialLedger(dbContext);
-        var milestoneService = new Aivora.Services.MilestoneService.Service(dbContext, ledger);
+        var treasury = new Treasury(dbContext, null!);
+        var milestoneService = new Aivora.Services.MilestoneService.Service(dbContext, treasury);
 
         // Client funds milestone
         var fundResult = await milestoneService.FundMilestoneAsync(clientId, milestone.Id);
@@ -259,9 +259,9 @@ public class E2EBusinessFlowTests
         var clientWallet = new Wallet { UserId = clientId, AvailableBalance = 1000, HeldBalance = 0, Currency = "AICOIN" };
         var expertWallet = new Wallet { UserId = expertId, AvailableBalance = 0, Currency = "AICOIN" };
 
-        var project = new Project { Id = Guid.NewGuid(), ClientId = clientId, ExpertId = expertId, Title = "E2E Alternative", Status = ProjectStatus.ACTIVE };
-        var milestone = new Milestone { Id = Guid.NewGuid(), ProjectId = project.Id, Amount = 500, Status = MilestoneStatus.FUNDED, Title = "Milestone 1" };
-        var payment = new Payment { Id = Guid.NewGuid(), MilestoneId = milestone.Id, ProjectId = project.Id, PayerId = clientId, PayeeId = expertId, Amount = 500, Status = PaymentStatus.HELD };
+        var project = new Project { Id = Guid.NewGuid(), ClientId = clientId, ExpertId = expertId, Title = "E2E Alternative", Status = ProjectStatus.ACTIVE, Currency = "AICOIN" };
+        var milestone = new Milestone { Id = Guid.NewGuid(), ProjectId = project.Id, Amount = 500, Status = MilestoneStatus.FUNDED, Title = "Milestone 1", Currency = "AICOIN" };
+        var payment = new Payment { Id = Guid.NewGuid(), MilestoneId = milestone.Id, ProjectId = project.Id, PayerId = clientId, PayeeId = expertId, Amount = 500, Status = PaymentStatus.HELD, Currency = "AICOIN" };
 
         dbContext.Users.AddRange(clientUser, expertUser, adminUser);
         dbContext.Wallets.AddRange(clientWallet, expertWallet);
@@ -270,17 +270,17 @@ public class E2EBusinessFlowTests
         dbContext.Payments.Add(payment);
         await dbContext.SaveChangesAsync();
 
-        var ledger = new FinancialLedger(dbContext);
-        var milestoneService = new Aivora.Services.MilestoneService.Service(dbContext, ledger);
+        var treasury = new Treasury(dbContext, null!);
+        var milestoneService = new Aivora.Services.MilestoneService.Service(dbContext, treasury);
         var reviewService = new Aivora.Services.ReviewService.Service(dbContext);
-        var disputeService = new Aivora.Services.DisputeService.Service(dbContext, ledger);
+        var disputeService = new Aivora.Services.DisputeService.Service(dbContext, new Aivora.Services.FinancialLedger.FinancialLedger(dbContext));
 
         // ----------------------------------------------------
         // Negative Test 1: Release payment before deliverable approval (Milestone is FUNDED, not SUBMITTED)
         // ----------------------------------------------------
         Func<Task> releaseBeforeApproval = async () => await milestoneService.ApproveMilestoneAsync(clientId, milestone.Id);
         await releaseBeforeApproval.Should().ThrowAsync<ValidationException>()
-            .WithMessage("Milestone must be in SUBMITTED status to be approved.");
+            .WithMessage("Milestone must be in SUBMITTED status to be released.");
 
         // ----------------------------------------------------
         // Negative Test 2: Review before project is completed

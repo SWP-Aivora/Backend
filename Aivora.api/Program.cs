@@ -122,6 +122,7 @@ builder.Services.AddScoped<Aivora.Services.ReviewService.IService, Aivora.Servic
 builder.Services.AddScoped<Aivora.Services.MessageService.IService, Aivora.Services.MessageService.Service>();
 builder.Services.AddScoped<Aivora.Services.DisputeService.IService, Aivora.Services.DisputeService.Service>();
 builder.Services.AddScoped<Aivora.Services.FinancialLedger.IFinancialLedger, Aivora.Services.FinancialLedger.FinancialLedger>();
+builder.Services.AddScoped<Aivora.Services.Treasury.ITreasury, Aivora.Services.Treasury.Treasury>();
 
 builder.Services.AddSignalR();
 builder.Services.AddControllers();

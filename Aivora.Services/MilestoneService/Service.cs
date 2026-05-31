@@ -2,7 +2,7 @@ using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.Exceptions;
-using Aivora.Services.FinancialLedger;
+using Aivora.Services.Treasury;
 using Microsoft.EntityFrameworkCore;
 
 namespace Aivora.Services.MilestoneService;
@@ -10,12 +10,12 @@ namespace Aivora.Services.MilestoneService;
 public class Service : IService
 {
     private readonly AivoraDbContext _dbContext;
-    private readonly IFinancialLedger _ledger;
+    private readonly ITreasury _treasury;
 
-    public Service(AivoraDbContext dbContext, IFinancialLedger ledger)
+    public Service(AivoraDbContext dbContext, ITreasury treasury)
     {
         _dbContext = dbContext;
-        _ledger = ledger;
+        _treasury = treasury;
     }
 
     public async Task<Response.MilestoneResponse> GetMilestoneByIdAsync(Guid userId, Guid milestoneId)
@@ -83,101 +83,45 @@ public class Service : IService
 
     public async Task<Response.FundResultResponse> FundMilestoneAsync(Guid userId, Guid milestoneId)
     {
-        var milestone = await _dbContext.Milestones
-            .Include(m => m.Project)
-            .FirstOrDefaultAsync(m => m.Id == milestoneId);
+        // Sử dụng Treasury để xử lý logic phức tạp
+        await _treasury.FundMilestoneAsync(userId, milestoneId);
 
-        if (milestone == null) throw new NotFoundException("Milestone not found.");
-        if (milestone.Project.ClientId != userId) throw new UnauthorizedException("Only the client can fund milestones.");
-        if (milestone.Status != MilestoneStatus.CREATED)
-            throw new ValidationException("Milestone is already funded or processed.");
+        // Lấy lại dữ liệu sau khi Treasury xử lý xong để trả về cho UI
+        var milestone = await _dbContext.Milestones.FirstAsync(m => m.Id == milestoneId);
+        var clientWallet = await _dbContext.Wallets.FirstAsync(w => w.UserId == userId);
+        var payment = await _dbContext.Payments.FirstAsync(p => p.MilestoneId == milestoneId && p.Status == PaymentStatus.HELD);
 
-        using var transaction = await _dbContext.Database.BeginTransactionAsync();
-        try
+        return new Response.FundResultResponse
         {
-            await _ledger.EscrowFundsAsync(userId, milestoneId, milestone.Amount, $"Funding milestone: {milestone.Title}");
-
-            milestone.Status = MilestoneStatus.FUNDED;
-            milestone.FundedAt = DateTimeOffset.UtcNow;
-
-            if (milestone.Project.Status == ProjectStatus.PENDING_PAYMENT)
+            Milestone = MapToResponse(milestone),
+            Payment = new Response.PaymentInfo
             {
-                milestone.Project.Status = ProjectStatus.ACTIVE;
-                milestone.Project.StartDate = DateOnly.FromDateTime(DateTime.UtcNow);
+                Id = payment.Id,
+                ProjectId = payment.ProjectId,
+                MilestoneId = payment.MilestoneId,
+                PayerId = payment.PayerId,
+                PayeeId = payment.PayeeId,
+                Amount = payment.Amount,
+                Currency = payment.Currency,
+                Status = payment.Status.ToString(),
+                HeldAt = payment.HeldAt
+            },
+            Wallet = new Response.WalletInfo
+            {
+                AvailableBalance = clientWallet.AvailableBalance,
+                HeldBalance = clientWallet.HeldBalance,
+                Currency = clientWallet.Currency
             }
-
-            await _dbContext.SaveChangesAsync();
-            await transaction.CommitAsync();
-
-            var clientWallet = await _dbContext.Wallets.FirstAsync(w => w.UserId == userId);
-            var payment = await _dbContext.Payments.FirstAsync(p => p.MilestoneId == milestoneId && p.Status == PaymentStatus.HELD);
-
-            return new Response.FundResultResponse
-            {
-                Milestone = MapToResponse(milestone),
-                Payment = new Response.PaymentInfo
-                {
-                    Id = payment.Id,
-                    ProjectId = payment.ProjectId,
-                    MilestoneId = payment.MilestoneId,
-                    PayerId = payment.PayerId,
-                    PayeeId = payment.PayeeId,
-                    Amount = payment.Amount,
-                    Currency = payment.Currency,
-                    Status = payment.Status.ToString(),
-                    HeldAt = payment.HeldAt
-                },
-                Wallet = new Response.WalletInfo
-                {
-                    AvailableBalance = clientWallet.AvailableBalance,
-                    HeldBalance = clientWallet.HeldBalance,
-                    Currency = clientWallet.Currency
-                }
-            };
-        }
-        catch (Exception)
-        {
-            await transaction.RollbackAsync();
-            throw;
-        }
+        };
     }
 
     public async Task<Response.MilestoneResponse> ApproveMilestoneAsync(Guid userId, Guid milestoneId)
     {
-        var milestone = await _dbContext.Milestones
-            .Include(m => m.Project).ThenInclude(p => p.Milestones)
-            .FirstOrDefaultAsync(m => m.Id == milestoneId);
+        // Sử dụng Treasury để giải ngân
+        await _treasury.ReleaseMilestoneAsync(userId, milestoneId);
 
-        if (milestone == null) throw new NotFoundException("Milestone not found.");
-        if (milestone.Project.ClientId != userId) throw new UnauthorizedException("Only the client can approve milestones.");
-        if (milestone.Status != MilestoneStatus.SUBMITTED)
-            throw new ValidationException("Milestone must be in SUBMITTED status to be approved.");
-
-        using var transaction = await _dbContext.Database.BeginTransactionAsync();
-        try
-        {
-            await _ledger.ReleaseFundsAsync(milestoneId, milestone.Amount, $"Payment released for milestone: {milestone.Title}");
-
-            milestone.Status = MilestoneStatus.PAID;
-            milestone.ApprovedAt = DateTimeOffset.UtcNow;
-            milestone.PaidAt = DateTimeOffset.UtcNow;
-
-            if (milestone.Project.Milestones.All(m => m.Status == MilestoneStatus.PAID))
-            {
-                milestone.Project.Status = ProjectStatus.COMPLETED;
-                milestone.Project.CompletedAt = DateTimeOffset.UtcNow;
-            }
-
-            await _dbContext.SaveChangesAsync();
-            await transaction.CommitAsync();
-
-            return MapToResponse(milestone);
-        }
-        catch (Exception)
-        {
-            await transaction.RollbackAsync();
-            throw;
-        }
+        var milestone = await _dbContext.Milestones.FirstAsync(m => m.Id == milestoneId);
+        return MapToResponse(milestone);
     }
 
     public async Task<Response.MilestoneResponse> RequestRevisionAsync(Guid userId, Guid milestoneId, string reason)
@@ -199,6 +143,8 @@ public class Service : IService
 
     public async Task<bool> OpenDisputeAsync(Guid userId, Guid milestoneId, string reason)
     {
+        // Logic Dispute tạm thời giữ nguyên vì nó cần tạo bản ghi Dispute mới, 
+        // nhưng trạng thái Payment và Milestone sẽ được quản lý bởi Treasury trong bước giải quyết tranh chấp sau này.
         var milestone = await _dbContext.Milestones
             .Include(m => m.Project)
             .FirstOrDefaultAsync(m => m.Id == milestoneId);

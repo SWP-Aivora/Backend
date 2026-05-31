@@ -2,7 +2,7 @@ using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.MilestoneService;
-using Aivora.Services.FinancialLedger;
+using Aivora.Services.Treasury;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Moq;
@@ -32,16 +32,16 @@ public class MilestoneServiceTests
         var milestoneId = Guid.NewGuid();
 
         var wallet = new Wallet { UserId = clientId, AvailableBalance = 1000, Currency = "AICOIN" };
-        var project = new Project { Id = projectId, ClientId = clientId, ExpertId = expertId, Title = "Test Project", Status = ProjectStatus.PENDING_PAYMENT };
-        var milestone = new Milestone { Id = milestoneId, ProjectId = projectId, Amount = 300, Status = MilestoneStatus.CREATED, Title = "Milestone 1" };
+        var project = new Project { Id = projectId, ClientId = clientId, ExpertId = expertId, Title = "Test Project", Status = ProjectStatus.PENDING_PAYMENT, Currency = "AICOIN" };
+        var milestone = new Milestone { Id = milestoneId, ProjectId = projectId, Amount = 300, Status = MilestoneStatus.CREATED, Title = "Milestone 1", Currency = "AICOIN" };
 
         dbContext.Wallets.Add(wallet);
         dbContext.Projects.Add(project);
         dbContext.Milestones.Add(milestone);
         await dbContext.SaveChangesAsync();
 
-        var ledger = new FinancialLedger(dbContext);
-        var service = new Service(dbContext, ledger);
+        var treasury = new Treasury(dbContext, null!);
+        var service = new Service(dbContext, treasury);
 
         // Act
         var result = await service.FundMilestoneAsync(clientId, milestoneId);
@@ -71,9 +71,9 @@ public class MilestoneServiceTests
 
         var clientWallet = new Wallet { UserId = clientId, AvailableBalance = 700, HeldBalance = 300, Currency = "AICOIN" };
         var expertWallet = new Wallet { UserId = expertId, AvailableBalance = 0, TotalEarned = 0, Currency = "AICOIN" };
-        var project = new Project { Id = projectId, ClientId = clientId, ExpertId = expertId, Title = "Test Project", Status = ProjectStatus.ACTIVE };
-        var milestone = new Milestone { Id = milestoneId, ProjectId = projectId, Amount = 300, Status = MilestoneStatus.SUBMITTED, Title = "Milestone 1" };
-        var payment = new Payment { MilestoneId = milestoneId, ProjectId = projectId, PayerId = clientId, PayeeId = expertId, Amount = 300, Status = PaymentStatus.HELD };
+        var project = new Project { Id = projectId, ClientId = clientId, ExpertId = expertId, Title = "Test Project", Status = ProjectStatus.ACTIVE, Currency = "AICOIN" };
+        var milestone = new Milestone { Id = milestoneId, ProjectId = projectId, Amount = 300, Status = MilestoneStatus.SUBMITTED, Title = "Milestone 1", Currency = "AICOIN" };
+        var payment = new Payment { MilestoneId = milestoneId, ProjectId = projectId, PayerId = clientId, PayeeId = expertId, Amount = 300, Status = PaymentStatus.HELD, Currency = "AICOIN" };
 
         dbContext.Wallets.AddRange(clientWallet, expertWallet);
         dbContext.Projects.Add(project);
@@ -81,8 +81,8 @@ public class MilestoneServiceTests
         dbContext.Payments.Add(payment);
         await dbContext.SaveChangesAsync();
 
-        var ledger = new FinancialLedger(dbContext);
-        var service = new Service(dbContext, ledger);
+        var treasury = new Treasury(dbContext, null!);
+        var service = new Service(dbContext, treasury);
 
         // Act
         var result = await service.ApproveMilestoneAsync(clientId, milestoneId);
