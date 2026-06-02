@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Architecture Review - Aivora</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true, theme: 'neutral' });
+    </script>
+    <style>
+        .card { background-color: white; padding: 1.5rem; border-radius: 0.5rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); margin-bottom: 2rem; border: 1px solid #e5e7eb; }
+        .badge { padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: bold; text-transform: uppercase; }
+        .badge-strong { background-color: #dcfce7; color: #166534; }
+        .badge-worth { background-color: #dbeafe; color: #1e40af; }
+        .badge-speculative { background-color: #f3f4f6; color: #374151; }
+        .section-title { font-size: 1.5rem; font-bold: 700; margin-bottom: 1rem; color: #1f2937; }
+    </style>
+</head>
+<body style="background-color: #f9fafb; color: #111827; padding: 2rem; max-width: 64rem; margin: 0 auto; font-family: ui-sans-serif, system-ui, sans-serif;">
+    <header style="margin-bottom: 3rem;">
+        <h1 style="font-size: 2.25rem; font-weight: 800; margin-bottom: 0.5rem;">Architecture Review: Aivora</h1>
+        <p style="color: #4b5563;">Deepening opportunities for the AITasker backend.</p>
+    </header>
+
+    <section>
+        <h2 class="section-title">Deepening Candidates</h2>
+
+        <!-- Candidate 1 -->
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
+                <h3 style="font-size: 1.25rem; font-weight: 700;">Candidate 1: The Contract Lifecycle Module</h3>
+                <span class="badge badge-strong">Strong</span>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem;">
+                <div>
+                    <p style="margin-bottom: 0.5rem;"><strong>Files:</strong> <code>HiringWorkflowService</code>, <code>JobService</code>, <code>ProposalService</code>, <code>ProjectService</code></p>
+                    <p style="margin-bottom: 1rem;"><strong>Problem:</strong> The transition from a job post to an active project is conceptually fragmented. Status updates for <code>Job</code>, <code>Proposal</code>, and <code>Project</code> are manually orchestrated in shallow services. Callers have to jump between many small modules to understand the contract state.</p>
+                    <p style="margin-bottom: 1rem;"><strong>Solution:</strong> Consolidate the lifecycle transitions into a deep <strong>Contract</strong> or <strong>Hiring</strong> module. The interface should accept an action (e.g., <code>AcceptProposal(proposalId)</code>) and handle the entire transactional state change internally.</p>
+                    <p><strong>Benefits:</strong> High <strong>Locality</strong> for contract invariants. Higher <strong>Leverage</strong> for controllers. The interface becomes the primary test surface for the entire workflow.</p>
+                </div>
+                <div>
+                    <div class="mermaid">
+                    graph TD
+                        subgraph Before: Fragmented
+                            A[JobService] -->|Update| J[Job]
+                            B[ProposalService] -->|Update| P[Proposal]
+                            C[ProjectService] -->|Create| PR[Project]
+                            D[WorkflowService] -.->|Orchestrate| A
+                            D -.->|Orchestrate| B
+                            D -.->|Orchestrate| C
+                        end
+                    </div>
+                    <div class="mermaid">
+                    graph TD
+                        subgraph After: Deep Lifecycle
+                            U[Hiring Module] -->|Atomic Transition| J[Job]
+                            U -->|Atomic Transition| P[Proposal]
+                            U -->|Atomic Transition| PR[Project]
+                            K[Caller] -->|AcceptProposal| U
+                        end
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Candidate 2 -->
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
+                <h3 style="font-size: 1.25rem; font-weight: 700;">Candidate 2: The Unified Treasury Module</h3>
+                <span class="badge badge-strong">Strong</span>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem;">
+                <div>
+                    <p style="margin-bottom: 0.5rem;"><strong>Files:</strong> <code>Treasury</code>, <code>FinancialLedger</code>, <code>DisputeService</code>, <code>MilestoneService</code></p>
+                    <p style="margin-bottom: 1rem;"><strong>Problem:</strong> Financial logic is split across a <strong>shallow seam</strong>. <code>Treasury</code> coordinates while <code>FinancialLedger</code> does math, but both are coupled to project entities. Worse, <code>DisputeService</code> and <code>MilestoneService</code> manually freeze/unfreeze payments, leaking financial invariants.</p>
+                    <p style="margin-bottom: 1rem;"><strong>Solution:</strong> Merge <code>Treasury</code> and <code>FinancialLedger</code> into a single deep <strong>Treasury</strong> module. It should own the <strong>Payment</strong> lifecycle completely. Other services (Dispute, Milestone) should only signal intent (e.g., <code>LockFundsForDispute(milestoneId)</code>) rather than mutating statuses directly.</p>
+                    <p><strong>Benefits:</strong> Eliminates leaky financial seams. Concentrates "money math" bugs in one place. Provides massive leverage to any service touching escrow.</p>
+                </div>
+                <div>
+                    <div class="mermaid">
+                    graph LR
+                        subgraph Before: Leaky
+                            DS[DisputeService] -->|Status=FROZEN| PAY[Payment]
+                            TS[Treasury] -->|Escrow| FL[Ledger]
+                            FL -->|Math| PAY
+                        end
+                    </div>
+                    <div class="mermaid">
+                    graph LR
+                        subgraph After: Deep Treasury
+                            DS[DisputeService] -->|Freeze| UT[Treasury]
+                            UT -->|Atomic| PAY[Payment]
+                            UT -->|Math & Status| PAY
+                        end
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Candidate 3 -->
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
+                <h3 style="font-size: 1.25rem; font-weight: 700;">Candidate 3: Rich Entity Status Control</h3>
+                <span class="badge badge-worth">Worth exploring</span>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem;">
+                <div>
+                    <p style="margin-bottom: 0.5rem;"><strong>Files:</strong> <code>JobPost.cs</code>, <code>Milestone.cs</code>, <code>Project.cs</code></p>
+                    <p style="margin-bottom: 1rem;"><strong>Problem:</strong> Entities are anemic. Status transitions (e.g., <code>DRAFT -> OPEN</code>) are validated in services, making services shallow and scattering business rules. The deletion test reveals that if we deleted these service checks, the invariants would be lost.</p>
+                    <p style="margin-bottom: 1rem;"><strong>Solution:</strong> Move status transition logic and validation into the entities themselves (e.g., <code>job.Publish()</code>). Services then become simple orchestrators of persistence, rather than owners of business logic.</p>
+                    <p><strong>Benefits:</strong> Higher <strong>Depth</strong> for the domain model. Invariants are protected at the source. Understanding a status lifecycle only requires reading the entity.</p>
+                </div>
+                <div>
+                    <div class="mermaid">
+                    graph TD
+                        subgraph Before: Anemic
+                            S[JobService] -->|Check Status| J[Job]
+                            S -->|Set Status| J
+                        end
+                    </div>
+                    <div class="mermaid">
+                    graph TD
+                        subgraph After: Rich Domain
+                            S[JobService] -->|job.Publish| J[Job]
+                            subgraph Job Entity
+                                P[Publish Method] -->|Validate & Set| ST[Status]
+                            end
+                        end
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section style="margin-top: 3rem; background-color: #1f2937; color: white; padding: 2rem; border-radius: 0.5rem;">
+        <h2 style="font-size: 1.875rem; font-weight: 700; margin-bottom: 1rem;">Top Recommendation</h2>
+        <p style="font-size: 1.25rem; margin-bottom: 1rem;"><strong>Candidate 2: The Unified Treasury Module</strong></p>
+        <p style="margin-bottom: 1.5rem;">The most critical friction in Aivora is the risk of inconsistent financial states. By merging <code>Treasury</code> and <code>FinancialLedger</code> into a single, deep module and forcing all other services through its interface, we ensure that money movements, payment statuses, and transaction logs are always in sync. This provides the highest <strong>Leverage</strong> and <strong>Locality</strong> for the project's most sensitive logic.</p>
+    </section>
+</body>
+</html>

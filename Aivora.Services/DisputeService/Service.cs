@@ -50,7 +50,9 @@ public class Service : IService
 
             milestone.Status = MilestoneStatus.DISPUTED;
             milestone.Project.Status = ProjectStatus.DISPUTED;
-            payment.Status = PaymentStatus.FROZEN;
+            
+            // Centralized payment state management via Treasury
+            await _treasury.FreezeFundsAsync(milestone.Id, $"Dispute opened: {request.Reason}");
 
             _dbContext.Disputes.Add(dispute);
             await _dbContext.SaveChangesAsync();

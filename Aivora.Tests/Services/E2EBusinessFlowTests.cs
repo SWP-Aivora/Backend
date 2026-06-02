@@ -3,6 +3,7 @@ using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.Exceptions;
 using Aivora.Services.Treasury;
+using Microsoft.Extensions.Logging;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Moq;
@@ -136,8 +137,8 @@ public class E2EBusinessFlowTests
         var milestone = project.Milestones.First();
         milestone.Status.Should().Be(MilestoneStatus.CREATED);
 
-        var ledger = new Aivora.Services.FinancialLedger.FinancialLedger(dbContext);
-        var treasury = new Treasury(dbContext, ledger, null!);
+        // Finance setup
+        var treasury = new Treasury(dbContext, Mock.Of<ILogger<Treasury>>());
         var milestoneService = new Aivora.Services.MilestoneService.Service(dbContext, treasury);
 
         // Client funds milestone
@@ -353,8 +354,8 @@ public class E2EBusinessFlowTests
         // ----------------------------------------------------
         // 4. Client Funds Milestone (Escrow)
         // ----------------------------------------------------
-        var ledger = new Aivora.Services.FinancialLedger.FinancialLedger(dbContext);
-        var treasury = new Treasury(dbContext, ledger, null!);
+        // Finance setup
+        var treasury = new Treasury(dbContext, Mock.Of<ILogger<Treasury>>());
         var milestoneService = new Aivora.Services.MilestoneService.Service(dbContext, treasury);
         var milestone = await dbContext.Milestones.FirstAsync(m => m.ProjectId == projectId);
         
@@ -404,8 +405,8 @@ public class E2EBusinessFlowTests
         dbContext.Payments.Add(payment);
         await dbContext.SaveChangesAsync();
 
-        var ledger = new Aivora.Services.FinancialLedger.FinancialLedger(dbContext);
-        var treasury = new Treasury(dbContext, ledger, null!);
+        // Finance setup
+        var treasury = new Treasury(dbContext, Mock.Of<ILogger<Treasury>>());
         var milestoneService = new Aivora.Services.MilestoneService.Service(dbContext, treasury);
         var reviewService = new Aivora.Services.ReviewService.Service(dbContext);
         var disputeService = new Aivora.Services.DisputeService.Service(dbContext, treasury);

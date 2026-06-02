@@ -2,7 +2,7 @@ using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.DisputeService;
-using Aivora.Services.FinancialLedger;
+using Microsoft.Extensions.Logging;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Moq;
@@ -43,8 +43,7 @@ public class DisputeServiceTests
         dbContext.Payments.Add(payment);
         await dbContext.SaveChangesAsync();
 
-        var ledger = new FinancialLedger(dbContext);
-        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, ledger, null!);
+        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>());
         var service = new Service(dbContext, treasury);
         var request = new Request.OpenDisputeRequest { MilestoneId = milestoneId, Reason = "Poor quality" };
 
@@ -94,8 +93,7 @@ public class DisputeServiceTests
         dbContext.Disputes.Add(dispute);
         await dbContext.SaveChangesAsync();
 
-        var ledger = new FinancialLedger(dbContext);
-        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, ledger, null!);
+        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>());
         var service = new Service(dbContext, treasury);
         var resolveRequest = new Request.ResolveDisputeRequest 
         { 

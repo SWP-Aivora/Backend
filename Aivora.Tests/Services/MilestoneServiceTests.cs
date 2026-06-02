@@ -3,6 +3,7 @@ using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.MilestoneService;
 using Aivora.Services.Treasury;
+using Microsoft.Extensions.Logging;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Moq;
@@ -40,8 +41,8 @@ public class MilestoneServiceTests
         dbContext.Milestones.Add(milestone);
         await dbContext.SaveChangesAsync();
 
-        var ledger = new Aivora.Services.FinancialLedger.FinancialLedger(dbContext);
-        var treasury = new Treasury(dbContext, ledger, null!);
+        // Finance setup
+        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>());
         var service = new Service(dbContext, treasury);
 
         // Act
@@ -82,8 +83,8 @@ public class MilestoneServiceTests
         dbContext.Payments.Add(payment);
         await dbContext.SaveChangesAsync();
 
-        var ledger = new Aivora.Services.FinancialLedger.FinancialLedger(dbContext);
-        var treasury = new Treasury(dbContext, ledger, null!);
+        // Finance setup
+        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>());
         var service = new Service(dbContext, treasury);
 
         // Act

@@ -1,5 +1,3 @@
-using Aivora.Services.Base;
-
 namespace Aivora.Services.Treasury;
 
 /// <summary>
@@ -22,10 +20,20 @@ public interface ITreasury
     /// <summary>
     /// Hoàn tiền từ Escrow lại cho Client.
     /// </summary>
-    Task RefundMilestoneAsync(Guid clientId, Guid milestoneId, decimal amount, string reason);
+    Task RefundMilestoneAsync(Guid adminId, Guid milestoneId, decimal amount, string reason);
 
     /// <summary>
     /// Phân chia tiền ký quỹ khi có tranh chấp (Dispute).
     /// </summary>
     Task SplitMilestoneFundsAsync(Guid milestoneId, decimal releaseToExpertAmount, decimal refundToClientAmount, string reason);
+
+    /// <summary>
+    /// Đóng băng tiền ký quỹ (ví dụ: khi có tranh chấp).
+    /// </summary>
+    Task FreezeFundsAsync(Guid milestoneId, string reason);
+
+    /// <summary>
+    /// Giải phóng trạng thái đóng băng cho tiền ký quỹ.
+    /// </summary>
+    Task UnfreezeFundsAsync(Guid milestoneId, string reason);
 }
