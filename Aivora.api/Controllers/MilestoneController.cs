@@ -13,13 +13,16 @@ public class MilestoneController : ControllerBase
 {
     private readonly IService _milestoneService;
     private readonly Aivora.Services.DeliverableService.IService _deliverableService;
+    private readonly Aivora.Services.DisputeService.IService _disputeService;
 
     public MilestoneController(
         IService milestoneService, 
-        Aivora.Services.DeliverableService.IService deliverableService)
+        Aivora.Services.DeliverableService.IService deliverableService,
+        Aivora.Services.DisputeService.IService disputeService)
     {
         _milestoneService = milestoneService;
         _deliverableService = deliverableService;
+        _disputeService = disputeService;
     }
 
     [HttpGet("{id}")]
@@ -70,8 +73,14 @@ public class MilestoneController : ControllerBase
     public async Task<IActionResult> OpenDispute(Guid id, [FromBody] string reason)
     {
         var userId = this.GetUserId();
-        await _milestoneService.OpenDisputeAsync(userId, id, reason);
-        return Ok(ApiResponseFactory.SuccessResponse(null, "Dispute opened", HttpContext.TraceIdentifier));
+        var request = new Aivora.Services.DisputeService.Request.OpenDisputeRequest
+        {
+            MilestoneId = id,
+            Reason = reason,
+            Description = "Dispute opened via milestone shortcut."
+        };
+        var result = await _disputeService.OpenDisputeAsync(userId, request);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Dispute opened successfully", HttpContext.TraceIdentifier));
     }
 
     // --- Deliverable Endpoints ---

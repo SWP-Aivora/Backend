@@ -28,6 +28,16 @@ public class Response
         public JobVisibility Visibility { get; set; }
         public DateTimeOffset CreatedAt { get; set; }
         public List<SkillInfo> Skills { get; set; } = new();
+        public List<JobMilestoneResponse> Milestones { get; set; } = new();
+    }
+
+    public class JobMilestoneResponse
+    {
+        public Guid Id { get; set; }
+        public string Title { get; set; } = null!;
+        public string? Description { get; set; }
+        public decimal Amount { get; set; }
+        public int OrderIndex { get; set; }
     }
 
     public class SkillInfo

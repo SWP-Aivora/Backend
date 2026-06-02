@@ -143,46 +143,6 @@ public class Service : IService
         return MapToResponse(milestone);
     }
 
-    public async Task<bool> OpenDisputeAsync(Guid userId, Guid milestoneId, string reason)
-    {
-        var milestone = await _dbContext.Milestones
-            .Include(m => m.Project)
-            .FirstOrDefaultAsync(m => m.Id == milestoneId);
-
-        if (milestone == null) throw new NotFoundException("Milestone not found.");
-        if (milestone.Project.ClientId != userId && milestone.Project.ExpertId != userId)
-            throw new UnauthorizedException("Access denied.");
-
-        using var transaction = await _dbContext.Database.BeginTransactionAsync();
-        try
-        {
-            // Centralized management via Treasury
-            await _treasury.FreezeFundsAsync(milestoneId, $"Dispute opened from MilestoneService: {reason}");
-            
-            milestone.Status = MilestoneStatus.DISPUTED;
-
-            var dispute = new Dispute
-            {
-                ProjectId = milestone.ProjectId,
-                MilestoneId = milestoneId,
-                OpenedBy = userId,
-                AgainstUserId = (userId == milestone.Project.ClientId) ? milestone.Project.ExpertId : milestone.Project.ClientId,
-                Reason = reason,
-                Status = DisputeStatus.OPEN
-            };
-            _dbContext.Disputes.Add(dispute);
-
-            await _dbContext.SaveChangesAsync();
-            await transaction.CommitAsync();
-            return true;
-        }
-        catch (Exception)
-        {
-            await transaction.RollbackAsync();
-            throw;
-        }
-    }
-
     private static Response.MilestoneResponse MapToResponse(Milestone m)
     {
         return new Response.MilestoneResponse

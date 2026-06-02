@@ -27,6 +27,7 @@ public class JobPost : AuditableBaseEntity
     public virtual User Client { get; set; } = null!;
     public virtual Category? Category { get; set; }
     public virtual ICollection<JobSkill> JobSkills { get; set; } = new List<JobSkill>();
+    public virtual ICollection<JobPostMilestone> Milestones { get; set; } = new List<JobPostMilestone>();
     public virtual ICollection<Proposal> Proposals { get; set; } = new List<Proposal>();
     public virtual ICollection<RecommendationResult> RecommendationResults { get; set; } = new List<RecommendationResult>();
 }

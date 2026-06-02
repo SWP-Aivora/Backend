@@ -146,7 +146,15 @@ public class Service : IService
                 TimelineDays = suggestion.SuggestedTimelineDays,
                 ExperienceLevel = suggestion.SuggestedExperienceLevel,
                 Visibility = JobVisibility.PRIVATE,
-                SkillIds = request.SelectedSkillIds ?? new List<Guid>()
+                SkillIds = request.SelectedSkillIds ?? new List<Guid>(),
+                Milestones = DeserializeList<Response.SuggestedMilestone>(suggestion.SuggestedMilestonesJson)
+                    .Select((m, index) => new JobService.Request.CreateJobMilestoneRequest
+                    {
+                        Title = m.Title,
+                        Description = m.Description,
+                        Amount = m.Amount,
+                        OrderIndex = index
+                    }).ToList()
             };
 
             var jobResponse = await _jobService.CreateJobAsync(clientId, createJobRequest);

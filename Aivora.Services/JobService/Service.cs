@@ -21,6 +21,7 @@ public class Service : IService
             .Include(j => j.Client)
             .Include(j => j.Category)
             .Include(j => j.JobSkills).ThenInclude(js => js.Skill)
+            .Include(j => j.Milestones)
             .FirstOrDefaultAsync(j => j.Id == id);
 
         if (job == null) throw new NotFoundException("Job not found.");
@@ -47,7 +48,14 @@ public class Service : IService
             Deadline = request.Deadline,
             ExperienceLevel = request.ExperienceLevel,
             Visibility = request.Visibility,
-            Status = JobStatus.DRAFT
+            Status = JobStatus.DRAFT,
+            Milestones = request.Milestones.Select(m => new JobPostMilestone
+            {
+                Title = m.Title,
+                Description = m.Description,
+                Amount = m.Amount,
+                OrderIndex = m.OrderIndex
+            }).ToList()
         };
 
         if (request.SkillIds.Any())
@@ -198,7 +206,15 @@ public class Service : IService
             {
                 Id = js.SkillId,
                 Name = js.Skill.Name
-            }).ToList()
+            }).ToList(),
+            Milestones = job.Milestones?.Select(m => new Response.JobMilestoneResponse
+            {
+                Id = m.Id,
+                Title = m.Title,
+                Description = m.Description,
+                Amount = m.Amount,
+                OrderIndex = m.OrderIndex
+            }).OrderBy(m => m.OrderIndex).ToList() ?? new List<Response.JobMilestoneResponse>()
         };
     }
 

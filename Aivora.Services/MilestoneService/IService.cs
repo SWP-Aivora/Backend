@@ -8,5 +8,4 @@ public interface IService
     Task<Response.FundResultResponse> FundMilestoneAsync(Guid userId, Guid milestoneId);
     Task<Response.MilestoneResponse> ApproveMilestoneAsync(Guid userId, Guid milestoneId);
     Task<Response.MilestoneResponse> RequestRevisionAsync(Guid userId, Guid milestoneId, string reason);
-    Task<bool> OpenDisputeAsync(Guid userId, Guid milestoneId, string reason);
 }

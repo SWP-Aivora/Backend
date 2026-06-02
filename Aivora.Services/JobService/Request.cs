@@ -21,6 +21,15 @@ public class Request
         public SkillLevel? ExperienceLevel { get; set; }
         public JobVisibility Visibility { get; set; }
         public List<Guid> SkillIds { get; set; } = new();
+        public List<CreateJobMilestoneRequest> Milestones { get; set; } = new();
+    }
+
+    public class CreateJobMilestoneRequest
+    {
+        public string Title { get; set; } = null!;
+        public string? Description { get; set; }
+        public decimal Amount { get; set; }
+        public int OrderIndex { get; set; }
     }
 
     public class UpdateJobRequest
