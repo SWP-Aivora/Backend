@@ -33,19 +33,21 @@ public class Service : IService
         var job = new JobPost
         {
             ClientId = clientId,
-            Title = request.Title,
+            Title = NormalizeRequired(request.Title, "Untitled job", 255),
             OriginalDescription = request.OriginalDescription,
             FinalDescription = request.FinalDescription,
+            BusinessDomain = NormalizeLimited(request.BusinessDomain, 100),
+            ExpectedOutcome = NormalizeLimited(request.ExpectedOutcome, 2000),
             CategoryId = request.CategoryId,
             BudgetType = request.BudgetType,
             BudgetMin = request.BudgetMin,
             BudgetMax = request.BudgetMax,
+            Currency = NormalizeCurrency(request.Currency),
             TimelineDays = request.TimelineDays,
             Deadline = request.Deadline,
             ExperienceLevel = request.ExperienceLevel,
             Visibility = request.Visibility,
-            Status = JobStatus.DRAFT,
-            Currency = "AICOIN"
+            Status = JobStatus.DRAFT
         };
 
         if (request.SkillIds.Any())
@@ -69,12 +71,15 @@ public class Service : IService
         if (job.Status != JobStatus.DRAFT && job.Status != JobStatus.OPEN) 
             throw new ValidationException("Cannot update job in its current status.");
 
-        if (request.Title != null) job.Title = request.Title;
+        if (request.Title != null) job.Title = NormalizeRequired(request.Title, job.Title, 255);
         if (request.FinalDescription != null) job.FinalDescription = request.FinalDescription;
+        if (request.BusinessDomain != null) job.BusinessDomain = NormalizeLimited(request.BusinessDomain, 100);
+        if (request.ExpectedOutcome != null) job.ExpectedOutcome = NormalizeLimited(request.ExpectedOutcome, 2000);
         if (request.CategoryId.HasValue) job.CategoryId = request.CategoryId.Value;
         if (request.BudgetType.HasValue) job.BudgetType = request.BudgetType.Value;
         if (request.BudgetMin.HasValue) job.BudgetMin = request.BudgetMin.Value;
         if (request.BudgetMax.HasValue) job.BudgetMax = request.BudgetMax.Value;
+        if (request.Currency != null && !string.IsNullOrWhiteSpace(request.Currency)) job.Currency = NormalizeCurrency(request.Currency);
         if (request.TimelineDays.HasValue) job.TimelineDays = request.TimelineDays.Value;
         if (request.Deadline.HasValue) job.Deadline = request.Deadline.Value;
         if (request.ExperienceLevel.HasValue) job.ExperienceLevel = request.ExperienceLevel.Value;
@@ -173,6 +178,8 @@ public class Service : IService
             Title = job.Title,
             OriginalDescription = job.OriginalDescription,
             FinalDescription = job.FinalDescription,
+            BusinessDomain = job.BusinessDomain,
+            ExpectedOutcome = job.ExpectedOutcome,
             ClientId = job.ClientId,
             ClientName = job.Client.FullName,
             CategoryId = job.CategoryId,
@@ -193,5 +200,38 @@ public class Service : IService
                 Name = js.Skill.Name
             }).ToList()
         };
+    }
+
+    private static string NormalizeCurrency(string? currency)
+    {
+        if (string.IsNullOrWhiteSpace(currency))
+        {
+            return "AICOIN";
+        }
+
+        var normalized = currency.Trim().ToUpperInvariant();
+        if (normalized.Length > 10)
+        {
+            throw new ValidationException("Currency must be 10 characters or fewer.");
+        }
+
+        return normalized;
+    }
+
+    private static string? NormalizeLimited(string? value, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var normalized = value.Trim();
+        return normalized.Length <= maxLength ? normalized : normalized[..maxLength];
+    }
+
+    private static string NormalizeRequired(string? value, string fallback, int maxLength)
+    {
+        var normalized = string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
+        return normalized.Length <= maxLength ? normalized : normalized[..maxLength];
     }
 }

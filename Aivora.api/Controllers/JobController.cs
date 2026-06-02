@@ -90,7 +90,7 @@ public class JobController : ControllerBase
     {
         var clientId = this.GetUserId();
         var result = await _recommendationService.GenerateRecommendationsAsync(clientId, id);
-        return Ok(ApiResponseFactory.SuccessResponse(result, "Expert recommendations generated", HttpContext.TraceIdentifier));
+        return StatusCode(StatusCodes.Status201Created, ApiResponseFactory.SuccessResponse(result, "Expert recommendations generated", HttpContext.TraceIdentifier));
     }
 
     [HttpGet("{id}/recommendations")]

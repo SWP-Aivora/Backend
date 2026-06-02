@@ -35,11 +35,20 @@ namespace Aivora.Repositories.Data.Migrations
                     b.Property<string>("ClarifyingQuestionsJson")
                         .HasColumnType("text");
 
+                    b.Property<string>("ClarifyingAnswersJson")
+                        .HasColumnType("text");
+
                     b.Property<Guid>("ClientId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("AICOIN");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
@@ -50,6 +59,10 @@ namespace Aivora.Repositories.Data.Migrations
                     b.Property<string>("RawInput")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
                     b.Property<string>("RiskWarningsJson")
                         .HasColumnType("text");
@@ -66,7 +79,23 @@ namespace Aivora.Repositories.Data.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
+                    b.Property<string>("SuggestedBudgetType")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasDefaultValue("FIXED");
+
+                    b.Property<string>("SuggestedBusinessDomain")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
                     b.Property<string>("SuggestedDescription")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SuggestedExpectedOutcome")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("SuggestedExperienceLevel")
                         .HasColumnType("text");
 
                     b.Property<string>("SuggestedMilestonesJson")

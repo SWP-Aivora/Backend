@@ -5,6 +5,7 @@ using Aivora.Repositories.Data.Interceptors;
 using Aivora.Services.Options;
 using Aivora.Services.JwtService;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -98,6 +99,7 @@ builder.Services.AddCors(options =>
 // Configure Options
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("JwtSettings"));
 builder.Services.Configure<CloudinaryOptions>(builder.Configuration.GetSection("CloudinaryOptions"));
+builder.Services.Configure<AIProviderOptions>(builder.Configuration.GetSection("AIProvider"));
 
 // Register Services
 builder.Services.AddHttpContextAccessor();
@@ -112,6 +114,43 @@ builder.Services.AddScoped<Aivora.Services.ProfileService.IService, Aivora.Servi
 builder.Services.AddScoped<Aivora.Services.JobService.IService, Aivora.Services.JobService.Service>();
 builder.Services.AddScoped<Aivora.Services.ProposalService.IService, Aivora.Services.ProposalService.Service>();
 builder.Services.AddScoped<Aivora.Services.HiringWorkflowService.IService, Aivora.Services.HiringWorkflowService.Service>();
+builder.Services.AddScoped<Aivora.Services.AIJobAssistantService.Prompting.AIJobSuggestionPromptBuilder>();
+builder.Services.AddScoped<Aivora.Services.AIJobAssistantService.Prompting.AIJobRefinementPromptBuilder>();
+builder.Services.AddScoped<Aivora.Services.AIJobAssistantService.Prompting.AIServiceDescriptionPromptBuilder>();
+builder.Services.AddScoped<Aivora.Services.AIJobAssistantService.Parsing.AIJobSuggestionParser>();
+builder.Services.AddScoped<Aivora.Services.AIJobAssistantService.Parsing.AIJobRefinementParser>();
+builder.Services.AddScoped<Aivora.Services.AIJobAssistantService.Parsing.AIServiceDescriptionParser>();
+builder.Services.AddScoped<Aivora.Services.AIJobAssistantService.Providers.MockAIJobSuggestionProvider>();
+builder.Services.AddScoped<Aivora.Services.AIJobAssistantService.Providers.MockAIJobRefinementProvider>();
+builder.Services.AddScoped<Aivora.Services.AIJobAssistantService.Providers.MockAIServiceDescriptionProvider>();
+builder.Services.AddHttpClient<Aivora.Services.AIJobAssistantService.Providers.GeminiProviderClient>();
+builder.Services.AddScoped<Aivora.Services.AIJobAssistantService.Providers.GeminiAIJobSuggestionProvider>();
+builder.Services.AddScoped<Aivora.Services.AIJobAssistantService.Providers.GeminiAIJobRefinementProvider>();
+builder.Services.AddScoped<Aivora.Services.AIJobAssistantService.Providers.GeminiAIServiceDescriptionProvider>();
+builder.Services.AddScoped<Aivora.Services.AIJobAssistantService.IAIJobSuggestionProvider>(sp =>
+{
+    var options = sp.GetRequiredService<IOptions<AIProviderOptions>>().Value;
+    return string.Equals(options.Provider, "Gemini", StringComparison.OrdinalIgnoreCase)
+           && !string.IsNullOrWhiteSpace(options.ApiKey)
+        ? sp.GetRequiredService<Aivora.Services.AIJobAssistantService.Providers.GeminiAIJobSuggestionProvider>()
+        : sp.GetRequiredService<Aivora.Services.AIJobAssistantService.Providers.MockAIJobSuggestionProvider>();
+});
+builder.Services.AddScoped<Aivora.Services.AIJobAssistantService.IAIJobRefinementProvider>(sp =>
+{
+    var options = sp.GetRequiredService<IOptions<AIProviderOptions>>().Value;
+    return string.Equals(options.Provider, "Gemini", StringComparison.OrdinalIgnoreCase)
+           && !string.IsNullOrWhiteSpace(options.ApiKey)
+        ? sp.GetRequiredService<Aivora.Services.AIJobAssistantService.Providers.GeminiAIJobRefinementProvider>()
+        : sp.GetRequiredService<Aivora.Services.AIJobAssistantService.Providers.MockAIJobRefinementProvider>();
+});
+builder.Services.AddScoped<Aivora.Services.AIJobAssistantService.IAIServiceDescriptionProvider>(sp =>
+{
+    var options = sp.GetRequiredService<IOptions<AIProviderOptions>>().Value;
+    return string.Equals(options.Provider, "Gemini", StringComparison.OrdinalIgnoreCase)
+           && !string.IsNullOrWhiteSpace(options.ApiKey)
+        ? sp.GetRequiredService<Aivora.Services.AIJobAssistantService.Providers.GeminiAIServiceDescriptionProvider>()
+        : sp.GetRequiredService<Aivora.Services.AIJobAssistantService.Providers.MockAIServiceDescriptionProvider>();
+});
 builder.Services.AddScoped<Aivora.Services.AIJobAssistantService.IService, Aivora.Services.AIJobAssistantService.Service>();
 builder.Services.AddScoped<Aivora.Services.RecommendationService.IService, Aivora.Services.RecommendationService.Service>();
 builder.Services.AddScoped<Aivora.Services.ProjectService.IService, Aivora.Services.ProjectService.Service>();
