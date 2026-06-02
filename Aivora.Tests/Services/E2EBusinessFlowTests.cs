@@ -5,6 +5,7 @@ using Aivora.Services.Exceptions;
 using Aivora.Services.Treasury;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Moq;
 using Xunit;
 
 namespace Aivora.Tests.Services;
@@ -239,6 +240,137 @@ public class E2EBusinessFlowTests
         var finalClientProfile = await dbContext.ClientProfiles.FirstAsync(p => p.UserId == clientId);
         finalClientProfile.Rating.Should().Be(5);
         finalClientProfile.TotalReviews.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task E2E_AIJobAssistant_To_ProjectCompletion_Succeeds()
+    {
+        // ----------------------------------------------------
+        // Arrange
+        // ----------------------------------------------------
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+
+        var clientUser = new User { Id = clientId, FullName = "AI Client", Role = UserRole.CLIENT, Email = "ai@client.com", PasswordHash = "x" };
+        var expertUser = new User { Id = expertId, FullName = "AI Expert", Role = UserRole.EXPERT, Email = "ai@expert.com", PasswordHash = "x" };
+        var clientWallet = new Wallet { UserId = clientId, AvailableBalance = 5000, Currency = "AICOIN" };
+        var expertWallet = new Wallet { UserId = expertId, AvailableBalance = 0, Currency = "AICOIN" };
+
+        var category = new Category { Id = Guid.NewGuid(), Name = "AI Automation" };
+        var skill = new Skill { Id = Guid.NewGuid(), Name = "LLM" };
+
+        dbContext.Users.AddRange(clientUser, expertUser);
+        dbContext.Wallets.AddRange(clientWallet, expertWallet);
+        dbContext.Categories.Add(category);
+        dbContext.Skills.Add(skill);
+        await dbContext.SaveChangesAsync();
+
+        // Mocks for AI Service
+        var jobService = new Aivora.Services.JobService.Service(dbContext);
+        var suggestionProviderMock = new Mock<Aivora.Services.AIJobAssistantService.IAIJobSuggestionProvider>();
+        var refinementProviderMock = new Mock<Aivora.Services.AIJobAssistantService.IAIJobRefinementProvider>();
+        var serviceDescriptionProviderMock = new Mock<Aivora.Services.AIJobAssistantService.IAIServiceDescriptionProvider>();
+
+        var aiService = new Aivora.Services.AIJobAssistantService.Service(
+            dbContext,
+            jobService,
+            suggestionProviderMock.Object,
+            refinementProviderMock.Object,
+            serviceDescriptionProviderMock.Object);
+
+        // ----------------------------------------------------
+        // 1. Client generates AI Suggestion
+        // ----------------------------------------------------
+        var aiDraft = new Aivora.Services.AIJobAssistantService.AIJobSuggestionDraft
+        {
+            SuggestedTitle = "AI Agent Development",
+            SuggestedDescription = "Build an autonomous agent",
+            BusinessDomain = "Tech",
+            ExpectedOutcome = "Automated workflows",
+            BudgetType = BudgetType.FIXED,
+            Currency = "AICOIN",
+            SuggestedBudgetMin = 1000,
+            SuggestedBudgetMax = 1500,
+            SuggestedTimelineDays = 7,
+            ExperienceLevel = SkillLevel.EXPERT,
+            SuggestedSkills = new List<string> { "LLM" },
+            SuggestedMilestones = new List<Aivora.Services.AIJobAssistantService.Response.SuggestedMilestone>
+            {
+                new() { Title = "Prototype", Amount = 1200, DueDays = 7 }
+            },
+            AIModel = "Gemini-E2E"
+        };
+
+        suggestionProviderMock
+            .Setup(x => x.GenerateSuggestionAsync(It.IsAny<Aivora.Services.AIJobAssistantService.Request.GenerateSuggestionRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(aiDraft);
+
+        var suggestionResult = await aiService.GenerateSuggestionAsync(clientId, new Aivora.Services.AIJobAssistantService.Request.GenerateSuggestionRequest { RawInput = "Build agent" });
+        suggestionResult.Status.Should().Be(AIJobSuggestionStatus.GENERATED.ToString());
+
+        // ----------------------------------------------------
+        // 2. Client accepts suggestion -> Draft Job Created
+        // ----------------------------------------------------
+        var acceptResult = await aiService.AcceptSuggestionAsync(clientId, suggestionResult.Id, new Aivora.Services.AIJobAssistantService.Request.AcceptSuggestionRequest { CategoryId = category.Id });
+        var jobId = acceptResult.Job.Id;
+        acceptResult.Job.Status.Should().Be(JobStatus.DRAFT);
+        
+        // Verify structured fields mapped correctly
+        var jobInDb = await dbContext.JobPosts.FindAsync(jobId);
+        jobInDb!.BusinessDomain.Should().Be("Tech");
+        jobInDb.ExpectedOutcome.Should().Be("Automated workflows");
+
+        // Publish Job
+        await jobService.PublishJobAsync(clientId, jobId);
+
+        // ----------------------------------------------------
+        // 3. Expert applies and Client accepts -> Project
+        // ----------------------------------------------------
+        var proposal = new Proposal
+        {
+            Id = Guid.NewGuid(),
+            JobId = jobId,
+            ExpertId = expertId,
+            CoverLetter = "I can do this",
+            ProposedBudget = 1200,
+            ProposedTimelineDays = 7,
+            Status = ProposalStatus.SUBMITTED,
+            Currency = "AICOIN",
+            Milestones = new List<ProposalMilestone>
+            {
+                new() { Title = "Prototype", Amount = 1200, DueDays = 7, OrderIndex = 1 }
+            }
+        };
+        dbContext.Proposals.Add(proposal);
+        await dbContext.SaveChangesAsync();
+
+        var hiringService = new Aivora.Services.HiringWorkflowService.Service(dbContext);
+        var hireResult = await hiringService.AcceptProposalAsync(clientId, proposal.Id);
+        var projectId = hireResult.ProjectId;
+
+        // ----------------------------------------------------
+        // 4. Client Funds Milestone (Escrow)
+        // ----------------------------------------------------
+        var treasury = new Treasury(dbContext, null!);
+        var milestoneService = new Aivora.Services.MilestoneService.Service(dbContext, treasury);
+        var milestone = await dbContext.Milestones.FirstAsync(m => m.ProjectId == projectId);
+        
+        await milestoneService.FundMilestoneAsync(clientId, milestone.Id);
+
+        // ----------------------------------------------------
+        // 5. Expert Submits and Client Approves -> Payment Released
+        // ----------------------------------------------------
+        var deliverableService = new Aivora.Services.DeliverableService.Service(dbContext);
+        await deliverableService.SubmitDeliverableAsync(expertId, milestone.Id, new Aivora.Services.DeliverableService.Request.SubmitDeliverableRequest { Description = "Done" });
+        await milestoneService.ApproveMilestoneAsync(clientId, milestone.Id);
+
+        // Assert Final state
+        var finalExpertWallet = await dbContext.Wallets.FirstAsync(w => w.UserId == expertId);
+        finalExpertWallet.AvailableBalance.Should().Be(1200);
+        
+        var finalProject = await dbContext.Projects.FindAsync(projectId);
+        finalProject!.Status.Should().Be(ProjectStatus.COMPLETED);
     }
 
     [Fact]

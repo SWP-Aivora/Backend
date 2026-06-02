@@ -207,6 +207,13 @@ public class AIJobAssistantServiceTests
         result.Suggestion.BudgetType.Should().Be(BudgetType.HOURLY);
         result.Suggestion.Currency.Should().Be("USD");
         result.Suggestion.ClarifyingAnswers.Should().Contain("Use Stripe");
+
+        var saved = await dbContext.AIJobSuggestions.FindAsync(suggestion.Id);
+        saved!.SuggestedBudgetMin.Should().Be(2000);
+        saved.SuggestedTimelineDays.Should().Be(30);
+        saved.SuggestedExperienceLevel.Should().Be(SkillLevel.EXPERT);
+        saved.SuggestedBudgetType.Should().Be(BudgetType.HOURLY);
+        saved.Currency.Should().Be("USD");
     }
 
     [Fact]

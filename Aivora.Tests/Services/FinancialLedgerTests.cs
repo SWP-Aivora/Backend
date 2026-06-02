@@ -87,4 +87,34 @@ public class FinancialLedgerTests
         var updatedPayment = await dbContext.Payments.FindAsync(payment.Id);
         updatedPayment!.Status.Should().Be(PaymentStatus.RELEASED);
     }
+
+    [Fact]
+    public async Task EscrowFundsAsync_ThrowsWhenBalanceIsInsufficient()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var userId = Guid.NewGuid();
+        var milestoneId = Guid.NewGuid();
+        var wallet = new Wallet { UserId = userId, AvailableBalance = 100, HeldBalance = 0, Currency = "AICOIN" };
+        var project = new Project { Id = Guid.NewGuid(), ClientId = userId, ExpertId = Guid.NewGuid(), Title = "P1" };
+        var milestone = new Milestone { Id = milestoneId, ProjectId = project.Id, Amount = 400, Title = "M1" };
+
+        dbContext.Wallets.Add(wallet);
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestone);
+        await dbContext.SaveChangesAsync();
+
+        var ledger = new FinancialLedger(dbContext);
+
+        // Act
+        Func<Task> act = async () => await ledger.EscrowFundsAsync(userId, milestoneId, 400, "Should fail");
+
+        // Assert
+        await act.Should().ThrowAsync<Aivora.Services.Exceptions.ValidationException>()
+            .WithMessage("Insufficient balance.");
+        
+        var walletInDb = await dbContext.Wallets.FirstAsync(w => w.UserId == userId);
+        walletInDb.AvailableBalance.Should().Be(100);
+        walletInDb.HeldBalance.Should().Be(0);
+    }
 }
