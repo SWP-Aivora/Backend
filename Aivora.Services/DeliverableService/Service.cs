@@ -2,6 +2,7 @@ using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.Exceptions;
+using Aivora.Services.Treasury;
 using Microsoft.EntityFrameworkCore;
 
 namespace Aivora.Services.DeliverableService;
@@ -9,10 +10,12 @@ namespace Aivora.Services.DeliverableService;
 public class Service : IService
 {
     private readonly AivoraDbContext _dbContext;
+    private readonly ITreasury _treasury;
 
-    public Service(AivoraDbContext dbContext)
+    public Service(AivoraDbContext dbContext, ITreasury treasury)
     {
         _dbContext = dbContext;
+        _treasury = treasury;
     }
 
     public async Task<Response.DeliverableResponse> SubmitDeliverableAsync(Guid expertId, Guid milestoneId, Request.SubmitDeliverableRequest request)
@@ -56,12 +59,9 @@ public class Service : IService
             milestone.Status = MilestoneStatus.SUBMITTED;
             milestone.SubmittedAt = DateTimeOffset.UtcNow;
 
-            if (milestone.Project.Status == ProjectStatus.ACTIVE)
-            {
-                milestone.Project.Status = ProjectStatus.IN_REVIEW; // Optional, based on contract might vary
-            }
-
             await _dbContext.SaveChangesAsync();
+            await _treasury.SyncProjectStatusAsync(milestone.ProjectId);
+            
             await transaction.CommitAsync();
 
             return MapToResponse(deliverable);

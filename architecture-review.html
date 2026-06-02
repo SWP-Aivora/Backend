@@ -3,141 +3,192 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Architecture Review - Aivora</title>
+    <title>Architecture Review - Aivora Backend</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="module">
         import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
-        mermaid.initialize({ startOnLoad: true, theme: 'neutral' });
+        mermaid.initialize({ startOnLoad: true });
     </script>
     <style>
-        .card { background-color: white; padding: 1.5rem; border-radius: 0.5rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); margin-bottom: 2rem; border: 1px solid #e5e7eb; }
-        .badge { padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: bold; text-transform: uppercase; }
-        .badge-strong { background-color: #dcfce7; color: #166534; }
-        .badge-worth { background-color: #dbeafe; color: #1e40af; }
-        .badge-speculative { background-color: #f3f4f6; color: #374151; }
-        .section-title { font-size: 1.5rem; font-bold: 700; margin-bottom: 1rem; color: #1f2937; }
+        .mermaid { background: white; padding: 1rem; border-radius: 0.5rem; }
     </style>
 </head>
-<body style="background-color: #f9fafb; color: #111827; padding: 2rem; max-width: 64rem; margin: 0 auto; font-family: ui-sans-serif, system-ui, sans-serif;">
-    <header style="margin-bottom: 3rem;">
-        <h1 style="font-size: 2.25rem; font-weight: 800; margin-bottom: 0.5rem;">Architecture Review: Aivora</h1>
-        <p style="color: #4b5563;">Deepening opportunities for the AITasker backend.</p>
-    </header>
+<body class="bg-gray-50 text-gray-900 font-sans leading-normal">
+    <div class="max-w-6xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+        <header class="mb-12 border-b border-gray-200 pb-8">
+            <h1 class="text-4xl font-extrabold text-gray-900 mb-4 tracking-tight">Architecture Review: Aivora Backend</h1>
+            <p class="text-xl text-gray-600">Identifying and resolving architectural friction through deep modules and locality.</p>
+        </header>
 
-    <section>
-        <h2 class="section-title">Deepening Candidates</h2>
+        <!-- Candidate 1: Unified Project Lifecycle -->
+        <section class="mb-16">
+            <div class="bg-white shadow-xl rounded-2xl overflow-hidden border border-gray-100 transition-all hover:shadow-2xl">
+                <div class="p-8">
+                    <div class="flex items-center justify-between mb-6">
+                        <h2 class="text-2xl font-bold text-gray-900">1. Unified Project Lifecycle</h2>
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-green-100 text-green-800 ring-1 ring-inset ring-green-600/20">Strong Recommendation</span>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                        <div>
+                            <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Problem</h3>
+                            <p class="text-gray-700">Project status transitions are fragmented across 6+ services. <code>Treasury</code> owns completion logic but incorrectly ignores <code>REFUNDED</code> milestones, causing projects to hang in <code>ACTIVE</code> status. Callers must manually coordinate multiple state changes, leading to brittle invariants.</p>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Solution</h3>
+                            <p class="text-gray-700">Consolidate all project/milestone state transitions into a single <strong>Deep Module</strong> (Deep Treasury). This module will expose high-leverage methods like <code>FinalizeMilestoneSettlement</code> that handle status, payments, and project completion atomically.</p>
+                        </div>
+                    </div>
 
-        <!-- Candidate 1 -->
-        <div class="card">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
-                <h3 style="font-size: 1.25rem; font-weight: 700;">Candidate 1: The Contract Lifecycle Module</h3>
-                <span class="badge badge-strong">Strong</span>
-            </div>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem;">
-                <div>
-                    <p style="margin-bottom: 0.5rem;"><strong>Files:</strong> <code>HiringWorkflowService</code>, <code>JobService</code>, <code>ProposalService</code>, <code>ProjectService</code></p>
-                    <p style="margin-bottom: 1rem;"><strong>Problem:</strong> The transition from a job post to an active project is conceptually fragmented. Status updates for <code>Job</code>, <code>Proposal</code>, and <code>Project</code> are manually orchestrated in shallow services. Callers have to jump between many small modules to understand the contract state.</p>
-                    <p style="margin-bottom: 1rem;"><strong>Solution:</strong> Consolidate the lifecycle transitions into a deep <strong>Contract</strong> or <strong>Hiring</strong> module. The interface should accept an action (e.g., <code>AcceptProposal(proposalId)</code>) and handle the entire transactional state change internally.</p>
-                    <p><strong>Benefits:</strong> High <strong>Locality</strong> for contract invariants. Higher <strong>Leverage</strong> for controllers. The interface becomes the primary test surface for the entire workflow.</p>
-                </div>
-                <div>
-                    <div class="mermaid">
-                    graph TD
-                        subgraph Before: Fragmented
-                            A[JobService] -->|Update| J[Job]
-                            B[ProposalService] -->|Update| P[Proposal]
-                            C[ProjectService] -->|Create| PR[Project]
-                            D[WorkflowService] -.->|Orchestrate| A
-                            D -.->|Orchestrate| B
-                            D -.->|Orchestrate| C
-                        end
-                    </div>
-                    <div class="mermaid">
-                    graph TD
-                        subgraph After: Deep Lifecycle
-                            U[Hiring Module] -->|Atomic Transition| J[Job]
-                            U -->|Atomic Transition| P[Proposal]
-                            U -->|Atomic Transition| PR[Project]
-                            K[Caller] -->|AcceptProposal| U
-                        end
-                    </div>
-                </div>
-            </div>
-        </div>
+                    <div class="bg-gray-50 p-6 rounded-xl border border-gray-200 mb-6">
+                        <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">Before / After Comparison</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div class="mermaid">
+graph TD
+    subgraph "Before: Fragmented Lifecycle"
+        T[Treasury]
+        DS[DisputeService]
+        MS[MilestoneService]
+        DLS[DeliverableService]
+        PS[ProjectService]
+        
+        T -- "Sets COMPLETED (Buggy)" --> P[Project]
+        DS -- "Sets DISPUTED" --> P
+        MS -- "Sets REVISION" --> P
+        DLS -- "Sets IN_REVIEW" --> P
+        PS -- "Sets CANCELLED" --> P
+    end
+                            </div>
+                            <div class="mermaid">
+graph TD
+    subgraph "After: Deep Lifecycle Module"
+        Service[Controllers / Workflow Services]
+        DeepM["Deep Project Module (Treasury)"]
+        P[Project Entity]
 
-        <!-- Candidate 2 -->
-        <div class="card">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
-                <h3 style="font-size: 1.25rem; font-weight: 700;">Candidate 2: The Unified Treasury Module</h3>
-                <span class="badge badge-strong">Strong</span>
-            </div>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem;">
-                <div>
-                    <p style="margin-bottom: 0.5rem;"><strong>Files:</strong> <code>Treasury</code>, <code>FinancialLedger</code>, <code>DisputeService</code>, <code>MilestoneService</code></p>
-                    <p style="margin-bottom: 1rem;"><strong>Problem:</strong> Financial logic is split across a <strong>shallow seam</strong>. <code>Treasury</code> coordinates while <code>FinancialLedger</code> does math, but both are coupled to project entities. Worse, <code>DisputeService</code> and <code>MilestoneService</code> manually freeze/unfreeze payments, leaking financial invariants.</p>
-                    <p style="margin-bottom: 1rem;"><strong>Solution:</strong> Merge <code>Treasury</code> and <code>FinancialLedger</code> into a single deep <strong>Treasury</strong> module. It should own the <strong>Payment</strong> lifecycle completely. Other services (Dispute, Milestone) should only signal intent (e.g., <code>LockFundsForDispute(milestoneId)</code>) rather than mutating statuses directly.</p>
-                    <p><strong>Benefits:</strong> Eliminates leaky financial seams. Concentrates "money math" bugs in one place. Provides massive leverage to any service touching escrow.</p>
-                </div>
-                <div>
-                    <div class="mermaid">
-                    graph LR
-                        subgraph Before: Leaky
-                            DS[DisputeService] -->|Status=FROZEN| PAY[Payment]
-                            TS[Treasury] -->|Escrow| FL[Ledger]
-                            FL -->|Math| PAY
-                        end
+        Service -- "Single Command" --> DeepM
+        DeepM -- "Atomic State Update" --> P
+    end
+                            </div>
+                        </div>
                     </div>
-                    <div class="mermaid">
-                    graph LR
-                        subgraph After: Deep Treasury
-                            DS[DisputeService] -->|Freeze| UT[Treasury]
-                            UT -->|Atomic| PAY[Payment]
-                            UT -->|Math & Status| PAY
-                        end
-                    </div>
-                </div>
-            </div>
-        </div>
 
-        <!-- Candidate 3 -->
-        <div class="card">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
-                <h3 style="font-size: 1.25rem; font-weight: 700;">Candidate 3: Rich Entity Status Control</h3>
-                <span class="badge badge-worth">Worth exploring</span>
-            </div>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem;">
-                <div>
-                    <p style="margin-bottom: 0.5rem;"><strong>Files:</strong> <code>JobPost.cs</code>, <code>Milestone.cs</code>, <code>Project.cs</code></p>
-                    <p style="margin-bottom: 1rem;"><strong>Problem:</strong> Entities are anemic. Status transitions (e.g., <code>DRAFT -> OPEN</code>) are validated in services, making services shallow and scattering business rules. The deletion test reveals that if we deleted these service checks, the invariants would be lost.</p>
-                    <p style="margin-bottom: 1rem;"><strong>Solution:</strong> Move status transition logic and validation into the entities themselves (e.g., <code>job.Publish()</code>). Services then become simple orchestrators of persistence, rather than owners of business logic.</p>
-                    <p><strong>Benefits:</strong> Higher <strong>Depth</strong> for the domain model. Invariants are protected at the source. Understanding a status lifecycle only requires reading the entity.</p>
-                </div>
-                <div>
-                    <div class="mermaid">
-                    graph TD
-                        subgraph Before: Anemic
-                            S[JobService] -->|Check Status| J[Job]
-                            S -->|Set Status| J
-                        end
-                    </div>
-                    <div class="mermaid">
-                    graph TD
-                        subgraph After: Rich Domain
-                            S[JobService] -->|job.Publish| J[Job]
-                            subgraph Job Entity
-                                P[Publish Method] -->|Validate & Set| ST[Status]
-                            end
-                        end
+                    <div class="flex items-start bg-blue-50 p-4 rounded-lg">
+                        <svg class="h-6 w-6 text-blue-600 mr-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <p class="text-blue-700"><strong>Benefits:</strong> High <strong>Locality</strong> for project completion logic. Callers get <strong>Leverage</strong> by not needing to know how to resolve a project status.</p>
                     </div>
                 </div>
+                <div class="bg-gray-50 px-8 py-4 border-t border-gray-100">
+                    <span class="text-sm text-gray-500 font-mono">Affected: Treasury.cs, MilestoneService.cs, DisputeService.cs</span>
+                </div>
             </div>
-        </div>
-    </section>
+        </section>
 
-    <section style="margin-top: 3rem; background-color: #1f2937; color: white; padding: 2rem; border-radius: 0.5rem;">
-        <h2 style="font-size: 1.875rem; font-weight: 700; margin-bottom: 1rem;">Top Recommendation</h2>
-        <p style="font-size: 1.25rem; margin-bottom: 1rem;"><strong>Candidate 2: The Unified Treasury Module</strong></p>
-        <p style="margin-bottom: 1.5rem;">The most critical friction in Aivora is the risk of inconsistent financial states. By merging <code>Treasury</code> and <code>FinancialLedger</code> into a single, deep module and forcing all other services through its interface, we ensure that money movements, payment statuses, and transaction logs are always in sync. This provides the highest <strong>Leverage</strong> and <strong>Locality</strong> for the project's most sensitive logic.</p>
-    </section>
+        <!-- Candidate 2: Dispute Consolidation -->
+        <section class="mb-16">
+            <div class="bg-white shadow-xl rounded-2xl overflow-hidden border border-gray-100 transition-all hover:shadow-2xl">
+                <div class="p-8">
+                    <div class="flex items-center justify-between mb-6">
+                        <h2 class="text-2xl font-bold text-gray-900">2. Dispute Consolidation</h2>
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-yellow-100 text-yellow-800 ring-1 ring-inset ring-yellow-600/20">Worth Exploring</span>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                        <div>
+                            <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Problem</h3>
+                            <p class="text-gray-700"><code>OpenDisputeAsync</code> is implemented twice (in <code>MilestoneService</code> and <code>DisputeService</code>) with different logic. <code>MilestoneService</code> manually freezes funds, while <code>DisputeService</code> uses <code>Treasury</code>, creating an inconsistent audit trail.</p>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Solution</h3>
+                            <p class="text-gray-700">Collapse the duplicated logic into a single <strong>Deep Dispute Module</strong>. Move the payment freezing logic exclusively into <code>Treasury</code> and ensure the <code>DisputeService</code> is the sole authority for dispute lifecycle state transitions.</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 p-6 rounded-xl border border-gray-200 mb-6 text-center">
+                        <div class="inline-block p-4 bg-white rounded-lg shadow-sm border border-gray-200 mb-4">
+                            <span class="text-red-600 font-bold block mb-1">SHALLOW WRAPPERS</span>
+                            <div class="flex space-x-4 items-center">
+                                <div class="px-3 py-1 bg-red-50 border border-red-200 rounded text-xs text-red-700">MilestoneService</div>
+                                <div class="px-3 py-1 bg-red-50 border border-red-200 rounded text-xs text-red-700">DisputeService</div>
+                                <div class="text-gray-400">→</div>
+                                <div class="px-3 py-1 bg-gray-50 border border-gray-200 rounded text-xs text-gray-500 italic">Duplicated Fund Freezing</div>
+                            </div>
+                        </div>
+                        <div class="text-gray-400 mb-4">⬇️</div>
+                        <div class="inline-block p-4 bg-white rounded-lg shadow-sm border border-green-200">
+                            <span class="text-green-600 font-bold block mb-1">DEEP SETTLEMENT MODULE</span>
+                            <div class="px-6 py-2 bg-green-50 border border-green-200 rounded text-sm text-green-700 font-mono">Treasury.FreezeFundsAsync(milestoneId)</div>
+                        </div>
+                    </div>
+
+                    <div class="flex items-start bg-blue-50 p-4 rounded-lg">
+                        <svg class="h-6 w-6 text-blue-600 mr-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <p class="text-blue-700"><strong>Benefits:</strong> Guaranteed <strong>Idempotency</strong> for fund freezing. Unified audit logs for financial holds.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Candidate 3: AI-to-Job Integrity -->
+        <section class="mb-16">
+            <div class="bg-white shadow-xl rounded-2xl overflow-hidden border border-gray-100 transition-all hover:shadow-2xl">
+                <div class="p-8">
+                    <div class="flex items-center justify-between mb-6">
+                        <h2 class="text-2xl font-bold text-gray-900">3. AI-to-Job Integrity</h2>
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-gray-100 text-gray-800 ring-1 ring-inset ring-gray-600/20">Speculative</span>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                        <div>
+                            <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Problem</h3>
+                            <p class="text-gray-700">AI suggests professional milestones, but <code>AcceptSuggestionAsync</code> drops them because the <code>JobPost</code> entity doesn't support milestones. This is a <strong>Leaky Seam</strong> where domain data evaporates between stages.</p>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Solution</h3>
+                            <p class="text-gray-700">Enhance <code>JobPost</code> to support "Plan Milestones" (Draft Milestones). Modify <code>AcceptSuggestionAsync</code> to persist these, ensuring the AI-driven planning phase actually informs the downstream proposal process.</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 p-6 rounded-xl border border-gray-200">
+                        <div class="flex items-center justify-center space-x-8">
+                            <div class="text-center">
+                                <div class="w-16 h-16 bg-purple-100 rounded-lg flex items-center justify-center mb-2 mx-auto">🤖</div>
+                                <span class="text-xs font-bold text-purple-700">AI Assistant</span>
+                            </div>
+                            <div class="h-px bg-gray-300 w-16 relative">
+                                <span class="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] text-gray-400">Milestones</span>
+                                <div class="absolute right-0 -top-1 w-2 h-2 border-t-2 border-r-2 border-gray-300 rotate-45"></div>
+                            </div>
+                            <div class="text-center relative">
+                                <div class="w-16 h-16 bg-red-50 rounded-lg flex items-center justify-center mb-2 mx-auto border-2 border-dashed border-red-200">📄</div>
+                                <span class="text-xs font-bold text-red-700">Anemic JobPost</span>
+                                <div class="absolute -top-1 -right-1 w-6 h-6 bg-red-600 text-white rounded-full flex items-center justify-center text-xs font-bold">!</div>
+                            </div>
+                        </div>
+                        <p class="mt-4 text-center text-xs text-gray-500 italic">Complexity is lost in the pass-through between AI and Job domains.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="mt-12 p-8 bg-gray-900 rounded-3xl text-white shadow-2xl overflow-hidden relative">
+            <div class="absolute top-0 right-0 p-8 opacity-10">
+                <svg class="w-32 h-32" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L1 21h22L12 2zm0 3.45l8.15 14.1H3.85L12 5.45zM11 10v4h2v-4h-2zm0 6v2h2v-2h-2z"/></svg>
+            </div>
+            <h2 class="text-3xl font-extrabold mb-6">Top Recommendation</h2>
+            <div class="flex flex-col md:flex-row md:items-center gap-6">
+                <div class="bg-green-500 text-gray-900 px-6 py-4 rounded-2xl font-bold text-center">
+                    Unified Project Lifecycle
+                </div>
+                <p class="text-gray-300 text-lg">
+                    Consolidating the fragmented status transitions in <strong>Treasury</strong> provides the highest architectural ROI. It fixes a known bug (project completion) and removes the cognitive load of coordinating 6 different services for a single concept.
+                </p>
+            </div>
+        </section>
+    </div>
 </body>
 </html>

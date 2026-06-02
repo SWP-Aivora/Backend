@@ -138,13 +138,13 @@ public class Service : IService
         milestone.Status = MilestoneStatus.REVISION_REQUESTED;
         
         await _dbContext.SaveChangesAsync();
+        await _treasury.SyncProjectStatusAsync(milestone.ProjectId);
+
         return MapToResponse(milestone);
     }
 
     public async Task<bool> OpenDisputeAsync(Guid userId, Guid milestoneId, string reason)
     {
-        // Logic Dispute tạm thời giữ nguyên vì nó cần tạo bản ghi Dispute mới, 
-        // nhưng trạng thái Payment và Milestone sẽ được quản lý bởi Treasury trong bước giải quyết tranh chấp sau này.
         var milestone = await _dbContext.Milestones
             .Include(m => m.Project)
             .FirstOrDefaultAsync(m => m.Id == milestoneId);
@@ -153,23 +153,18 @@ public class Service : IService
         if (milestone.Project.ClientId != userId && milestone.Project.ExpertId != userId)
             throw new UnauthorizedException("Access denied.");
 
-        var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestoneId && p.Status == PaymentStatus.HELD);
-        if (payment == null) throw new ValidationException("Cannot open dispute for non-funded milestone.");
-
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
-            payment.Status = PaymentStatus.FROZEN;
-            payment.FrozenAt = DateTimeOffset.UtcNow;
-
+            // Centralized management via Treasury
+            await _treasury.FreezeFundsAsync(milestoneId, $"Dispute opened from MilestoneService: {reason}");
+            
             milestone.Status = MilestoneStatus.DISPUTED;
-            milestone.Project.Status = ProjectStatus.DISPUTED;
 
             var dispute = new Dispute
             {
                 ProjectId = milestone.ProjectId,
                 MilestoneId = milestoneId,
-                PaymentId = payment.Id,
                 OpenedBy = userId,
                 AgainstUserId = (userId == milestone.Project.ClientId) ? milestone.Project.ExpertId : milestone.Project.ClientId,
                 Reason = reason,

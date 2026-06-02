@@ -158,7 +158,7 @@ public class E2EBusinessFlowTests
         // ----------------------------------------------------
         // 4. E2E Step 4.1 — Expert Submits Deliverable (QAnh)
         // ----------------------------------------------------
-        var deliverableService = new Aivora.Services.DeliverableService.Service(dbContext);
+        var deliverableService = new Aivora.Services.DeliverableService.Service(dbContext, treasury);
         var submitDeliverableReq = new Aivora.Services.DeliverableService.Request.SubmitDeliverableRequest
         {
             Description = "Chatbot MVP completed with FAQ, product recommendation, and admin prompt config.",
@@ -202,7 +202,7 @@ public class E2EBusinessFlowTests
         completedProject.CompletedAt.Should().NotBeNull();
 
         var completedJob = await dbContext.JobPosts.FindAsync(publishedJob.Id);
-        completedJob!.Status.Should().Be(JobStatus.IN_PROGRESS);
+        completedJob!.Status.Should().Be(JobStatus.COMPLETED);
 
         // ----------------------------------------------------
         // 7. E2E Step 4.6 & 4.7 — Client & Expert Leave Reviews
@@ -364,7 +364,7 @@ public class E2EBusinessFlowTests
         // ----------------------------------------------------
         // 5. Expert Submits and Client Approves -> Payment Released
         // ----------------------------------------------------
-        var deliverableService = new Aivora.Services.DeliverableService.Service(dbContext);
+        var deliverableService = new Aivora.Services.DeliverableService.Service(dbContext, treasury);
         await deliverableService.SubmitDeliverableAsync(expertId, milestone.Id, new Aivora.Services.DeliverableService.Request.SubmitDeliverableRequest { Description = "Done" });
         await milestoneService.ApproveMilestoneAsync(clientId, milestone.Id);
 

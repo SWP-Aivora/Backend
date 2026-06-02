@@ -36,4 +36,15 @@ public interface ITreasury
     /// Giải phóng trạng thái đóng băng cho tiền ký quỹ.
     /// </summary>
     Task UnfreezeFundsAsync(Guid milestoneId, string reason);
+
+    /// <summary>
+    /// Đồng bộ trạng thái Project dựa trên trạng thái các Milestone.
+    /// Giải quyết bug 'hanging project' bằng cách tính cả Milestone đã REFUNDED.
+    /// </summary>
+    Task SyncProjectStatusAsync(Guid projectId);
+
+    /// <summary>
+    /// Chuyển Project sang trạng thái DISPUTED.
+    /// </summary>
+    Task MarkProjectDisputedAsync(Guid projectId);
 }

@@ -149,13 +149,9 @@ public class Treasury : ITreasury
             milestone.ApprovedAt = DateTimeOffset.UtcNow;
             milestone.PaidAt = DateTimeOffset.UtcNow;
 
-            if (milestone.Project.Milestones.All(m => m.Status == MilestoneStatus.PAID))
-            {
-                milestone.Project.Status = ProjectStatus.COMPLETED;
-                milestone.Project.CompletedAt = DateTimeOffset.UtcNow;
-            }
-
             await _dbContext.SaveChangesAsync();
+            await SyncProjectStatusAsync(milestone.ProjectId);
+            
             await transaction.CommitAsync();
 
             _logger.LogInformation("✅ Funds released for Milestone {MilestoneId}", milestoneId);
@@ -207,6 +203,8 @@ public class Treasury : ITreasury
             milestone.Status = MilestoneStatus.REFUNDED;
             
             await _dbContext.SaveChangesAsync();
+            await SyncProjectStatusAsync(milestone.ProjectId);
+
             await transaction.CommitAsync();
             
             _logger.LogInformation("✅ Refunded {Amount} for Milestone {MilestoneId}", amount, milestoneId);
@@ -275,6 +273,8 @@ public class Treasury : ITreasury
             milestone.Status = releaseToExpertAmount > 0 ? MilestoneStatus.PAID : MilestoneStatus.REFUNDED;
 
             await _dbContext.SaveChangesAsync();
+            await SyncProjectStatusAsync(milestone.ProjectId);
+
             await transaction.CommitAsync();
         }
         catch (Exception ex)
@@ -295,6 +295,8 @@ public class Treasury : ITreasury
         payment.UpdatedAt = DateTimeOffset.UtcNow;
         
         await _dbContext.SaveChangesAsync();
+        await MarkProjectDisputedAsync(payment.ProjectId);
+
         _logger.LogInformation("❄️ Funds frozen for Milestone {MilestoneId}. Reason: {Reason}", milestoneId, reason);
     }
 
@@ -308,7 +310,58 @@ public class Treasury : ITreasury
         payment.UpdatedAt = DateTimeOffset.UtcNow;
 
         await _dbContext.SaveChangesAsync();
+        await SyncProjectStatusAsync(payment.ProjectId);
+
         _logger.LogInformation("🔥 Funds unfrozen for Milestone {MilestoneId}. Reason: {Reason}", milestoneId, reason);
+    }
+
+    public async Task SyncProjectStatusAsync(Guid projectId)
+    {
+        var project = await _dbContext.Projects
+            .Include(p => p.Milestones)
+            .Include(p => p.Job)
+            .FirstOrDefaultAsync(p => p.Id == projectId);
+
+        if (project == null) return;
+
+        // Terminal milestones are PAID or REFUNDED
+        var allSettled = project.Milestones.All(m => m.Status == MilestoneStatus.PAID || m.Status == MilestoneStatus.REFUNDED);
+        
+        if (allSettled && project.Milestones.Any())
+        {
+            project.Status = ProjectStatus.COMPLETED;
+            project.CompletedAt = DateTimeOffset.UtcNow;
+            
+            // Sync Job status
+            if (project.Job != null)
+            {
+                project.Job.Status = JobStatus.COMPLETED;
+                project.Job.UpdatedAt = DateTimeOffset.UtcNow;
+            }
+
+            _logger.LogInformation("🏆 Project {ProjectId} marked as COMPLETED because all milestones are settled.", projectId);
+        }
+        else if (project.Milestones.Any(m => m.Status == MilestoneStatus.DISPUTED))
+        {
+            project.Status = ProjectStatus.DISPUTED;
+        }
+        else if (project.Milestones.Any(m => m.Status == MilestoneStatus.FUNDED || m.Status == MilestoneStatus.SUBMITTED || m.Status == MilestoneStatus.REVISION_REQUESTED))
+        {
+            project.Status = ProjectStatus.ACTIVE;
+        }
+
+        await _dbContext.SaveChangesAsync();
+    }
+
+    public async Task MarkProjectDisputedAsync(Guid projectId)
+    {
+        var project = await _dbContext.Projects.FindAsync(projectId);
+        if (project != null && project.Status != ProjectStatus.DISPUTED)
+        {
+            project.Status = ProjectStatus.DISPUTED;
+            await _dbContext.SaveChangesAsync();
+            _logger.LogWarning("⚠️ Project {ProjectId} status set to DISPUTED.", projectId);
+        }
     }
 
     private async Task<Milestone> GetMilestoneWithProjectAsync(Guid milestoneId)
