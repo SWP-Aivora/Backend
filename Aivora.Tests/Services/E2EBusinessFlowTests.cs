@@ -136,7 +136,8 @@ public class E2EBusinessFlowTests
         var milestone = project.Milestones.First();
         milestone.Status.Should().Be(MilestoneStatus.CREATED);
 
-        var treasury = new Treasury(dbContext, null!);
+        var ledger = new Aivora.Services.FinancialLedger.FinancialLedger(dbContext);
+        var treasury = new Treasury(dbContext, ledger, null!);
         var milestoneService = new Aivora.Services.MilestoneService.Service(dbContext, treasury);
 
         // Client funds milestone
@@ -352,7 +353,8 @@ public class E2EBusinessFlowTests
         // ----------------------------------------------------
         // 4. Client Funds Milestone (Escrow)
         // ----------------------------------------------------
-        var treasury = new Treasury(dbContext, null!);
+        var ledger = new Aivora.Services.FinancialLedger.FinancialLedger(dbContext);
+        var treasury = new Treasury(dbContext, ledger, null!);
         var milestoneService = new Aivora.Services.MilestoneService.Service(dbContext, treasury);
         var milestone = await dbContext.Milestones.FirstAsync(m => m.ProjectId == projectId);
         
@@ -402,10 +404,11 @@ public class E2EBusinessFlowTests
         dbContext.Payments.Add(payment);
         await dbContext.SaveChangesAsync();
 
-        var treasury = new Treasury(dbContext, null!);
+        var ledger = new Aivora.Services.FinancialLedger.FinancialLedger(dbContext);
+        var treasury = new Treasury(dbContext, ledger, null!);
         var milestoneService = new Aivora.Services.MilestoneService.Service(dbContext, treasury);
         var reviewService = new Aivora.Services.ReviewService.Service(dbContext);
-        var disputeService = new Aivora.Services.DisputeService.Service(dbContext, new Aivora.Services.FinancialLedger.FinancialLedger(dbContext));
+        var disputeService = new Aivora.Services.DisputeService.Service(dbContext, treasury);
 
         // ----------------------------------------------------
         // Negative Test 1: Release payment before deliverable approval (Milestone is FUNDED, not SUBMITTED)

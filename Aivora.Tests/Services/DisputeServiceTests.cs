@@ -44,7 +44,8 @@ public class DisputeServiceTests
         await dbContext.SaveChangesAsync();
 
         var ledger = new FinancialLedger(dbContext);
-        var service = new Service(dbContext, ledger);
+        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, ledger, null!);
+        var service = new Service(dbContext, treasury);
         var request = new Request.OpenDisputeRequest { MilestoneId = milestoneId, Reason = "Poor quality" };
 
         // Act
@@ -94,7 +95,8 @@ public class DisputeServiceTests
         await dbContext.SaveChangesAsync();
 
         var ledger = new FinancialLedger(dbContext);
-        var service = new Service(dbContext, ledger);
+        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, ledger, null!);
+        var service = new Service(dbContext, treasury);
         var resolveRequest = new Request.ResolveDisputeRequest 
         { 
             ResolutionType = DisputeResolutionType.REFUND_TO_CLIENT,

@@ -40,7 +40,8 @@ public class MilestoneServiceTests
         dbContext.Milestones.Add(milestone);
         await dbContext.SaveChangesAsync();
 
-        var treasury = new Treasury(dbContext, null!);
+        var ledger = new Aivora.Services.FinancialLedger.FinancialLedger(dbContext);
+        var treasury = new Treasury(dbContext, ledger, null!);
         var service = new Service(dbContext, treasury);
 
         // Act
@@ -81,7 +82,8 @@ public class MilestoneServiceTests
         dbContext.Payments.Add(payment);
         await dbContext.SaveChangesAsync();
 
-        var treasury = new Treasury(dbContext, null!);
+        var ledger = new Aivora.Services.FinancialLedger.FinancialLedger(dbContext);
+        var treasury = new Treasury(dbContext, ledger, null!);
         var service = new Service(dbContext, treasury);
 
         // Act

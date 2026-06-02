@@ -2,7 +2,7 @@ using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.Exceptions;
-using Aivora.Services.FinancialLedger;
+using Aivora.Services.Treasury;
 using Microsoft.EntityFrameworkCore;
 
 namespace Aivora.Services.DisputeService;
@@ -10,12 +10,12 @@ namespace Aivora.Services.DisputeService;
 public class Service : IService
 {
     private readonly AivoraDbContext _dbContext;
-    private readonly IFinancialLedger _ledger;
+    private readonly ITreasury _treasury;
 
-    public Service(AivoraDbContext dbContext, IFinancialLedger ledger)
+    public Service(AivoraDbContext dbContext, ITreasury treasury)
     {
         _dbContext = dbContext;
-        _ledger = ledger;
+        _treasury = treasury;
     }
 
     public async Task<Response.DisputeResponse> OpenDisputeAsync(Guid userId, Request.OpenDisputeRequest request)
@@ -224,27 +224,17 @@ public class Service : IService
             switch (request.ResolutionType)
             {
                 case DisputeResolutionType.RELEASE_TO_EXPERT:
-                    await _ledger.ReleaseFundsAsync(milestone.Id, dispute.Payment.Amount, $"Dispute resolved: Release to expert. Ref: {dispute.Id}");
-                    milestone.Status = MilestoneStatus.PAID;
+                    await _treasury.ReleaseMilestoneAsync(milestone.Project.ClientId, milestone.Id);
                     break;
 
                 case DisputeResolutionType.REFUND_TO_CLIENT:
-                    await _ledger.RefundFundsAsync(milestone.Id, dispute.Payment.Amount, $"Dispute resolved: Refund to client. Ref: {dispute.Id}");
-                    milestone.Status = MilestoneStatus.REFUNDED;
+                    await _treasury.RefundMilestoneAsync(adminId, milestone.Id, dispute.Payment.Amount, $"Dispute resolved: Refund to client. Ref: {dispute.Id}");
                     break;
 
                 case DisputeResolutionType.SPLIT_PAYMENT:
-                    await _ledger.SplitFundsAsync(milestone.Id, request.ReleaseAmount ?? 0, request.RefundAmount ?? 0, $"Dispute resolved: Split payment. Ref: {dispute.Id}");
-                    milestone.Status = MilestoneStatus.PAID;
+                    await _treasury.SplitMilestoneFundsAsync(milestone.Id, request.ReleaseAmount ?? 0, request.RefundAmount ?? 0, $"Dispute resolved: Split payment. Ref: {dispute.Id}");
                     break;
             }
-
-            var allFinished = await _dbContext.Milestones
-                .Where(m => m.ProjectId == project.Id && m.Id != milestone.Id)
-                .AllAsync(m => m.Status == MilestoneStatus.PAID || m.Status == MilestoneStatus.REFUNDED);
-            
-            if (allFinished) project.Status = ProjectStatus.COMPLETED;
-            else project.Status = ProjectStatus.ACTIVE;
 
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
