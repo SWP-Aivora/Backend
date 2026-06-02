@@ -11,6 +11,8 @@ public class Response
         public string Title { get; set; } = null!;
         public string OriginalDescription { get; set; } = null!;
         public string? FinalDescription { get; set; }
+        public string? BusinessDomain { get; set; }
+        public string? ExpectedOutcome { get; set; }
         public Guid ClientId { get; set; }
         public string ClientName { get; set; } = null!;
         public Guid? CategoryId { get; set; }
