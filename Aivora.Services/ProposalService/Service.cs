@@ -34,6 +34,8 @@ public class Service : IService
         if (job == null) throw new NotFoundException("Job not found.");
         if (job.Status != JobStatus.OPEN) throw new ValidationException("Job is no longer open for proposals.");
 
+        if (job.ClientId == expertId) throw new ValidationException("You cannot submit a proposal to your own job.");
+
         var existingProposal = await _dbContext.Proposals.AnyAsync(p => p.JobId == request.JobId && p.ExpertId == expertId);
         if (existingProposal) throw new ValidationException("You have already submitted a proposal for this job.");
 

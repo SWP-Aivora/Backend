@@ -26,6 +26,11 @@ public class Service : IService
             throw new UnauthorizedException("Invalid email or password.");
         }
 
+        if (user.Status == UserStatus.SUSPENDED)
+        {
+            throw new UnauthorizedException("Your account has been suspended. Please contact support.");
+        }
+
         var accessToken = _jwtService.GenerateAccessToken(user, user.Role.ToString());
         var refreshToken = _jwtService.GenerateRefreshToken();
 
@@ -109,6 +114,11 @@ public class Service : IService
         if (user == null || user.RefreshTokenExpiryTime <= DateTimeOffset.UtcNow)
         {
             throw new UnauthorizedException("Invalid or expired refresh token.");
+        }
+
+        if (user.Status == UserStatus.SUSPENDED)
+        {
+            throw new UnauthorizedException("Your account has been suspended. Please contact support.");
         }
 
         var accessToken = _jwtService.GenerateAccessToken(user, user.Role.ToString());
