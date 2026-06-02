@@ -116,8 +116,8 @@ public class E2EBusinessFlowTests
         await dbContext.SaveChangesAsync();
 
         // Client accepts the proposal
-        var hiringWorkflowService = new Aivora.Services.HiringWorkflowService.Service(dbContext);
-        var hiringResult = await hiringWorkflowService.AcceptProposalAsync(clientId, proposalId);
+        var hiringService = new Aivora.Services.HiringService.HiringService(dbContext);
+        var hiringResult = await hiringService.AcceptProposalAsync(clientId, proposalId);
 
         hiringResult.Status.Should().Be(ProjectStatus.PENDING_PAYMENT.ToString());
         
@@ -347,7 +347,7 @@ public class E2EBusinessFlowTests
         dbContext.Proposals.Add(proposal);
         await dbContext.SaveChangesAsync();
 
-        var hiringService = new Aivora.Services.HiringWorkflowService.Service(dbContext);
+        var hiringService = new Aivora.Services.HiringService.HiringService(dbContext);
         var hireResult = await hiringService.AcceptProposalAsync(clientId, proposal.Id);
         var projectId = hireResult.ProjectId;
 

@@ -1,4 +1,4 @@
-namespace Aivora.Services.HiringWorkflowService;
+namespace Aivora.Services.HiringService;
 
 public class Response
 {

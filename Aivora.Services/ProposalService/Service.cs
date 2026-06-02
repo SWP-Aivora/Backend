@@ -65,41 +65,6 @@ public class Service : IService
         return await GetProposalByIdAsync(proposal.Id);
     }
 
-    public async Task<Response.ProposalResponse> UpdateProposalStatusAsync(Guid userId, Guid proposalId, ProposalStatus status)
-    {
-        var proposal = await _dbContext.Proposals
-            .Include(p => p.Job)
-            .FirstOrDefaultAsync(p => p.Id == proposalId);
-
-        if (proposal == null) throw new NotFoundException("Proposal not found.");
-
-        // If client is updating (shortlist/reject/accept)
-        if (proposal.Job.ClientId == userId)
-        {
-            if (status != ProposalStatus.SHORTLISTED && status != ProposalStatus.REJECTED && status != ProposalStatus.ACCEPTED)
-                throw new ValidationException("Invalid status update for client.");
-        }
-        // If expert is updating (withdraw)
-        else if (proposal.ExpertId == userId)
-        {
-            if (status != ProposalStatus.WITHDRAWN)
-                throw new ValidationException("Invalid status update for expert.");
-        }
-        else
-        {
-            throw new UnauthorizedException("Access denied.");
-        }
-
-        proposal.Status = status;
-        if (status == ProposalStatus.WITHDRAWN) proposal.WithdrawnAt = DateTimeOffset.UtcNow;
-
-        // If accepted, handle logic to reject others might be needed, but we'll do that in Project creation logic or here.
-        // For MVP, we'll just update this status.
-
-        await _dbContext.SaveChangesAsync();
-        return await GetProposalByIdAsync(proposalId);
-    }
-
     public async Task<List<Response.ProposalResponse>> GetProposalsByJobIdAsync(Guid userId, Guid jobId)
     {
         var job = await _dbContext.JobPosts.FindAsync(jobId);

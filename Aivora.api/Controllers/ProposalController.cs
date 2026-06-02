@@ -1,7 +1,7 @@
 using Aivora.api.Extensions;
 using Aivora.Services.Models;
 using Aivora.Services.ProposalService;
-using Aivora.Services.HiringWorkflowService;
+using Aivora.Services.HiringService;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -13,11 +13,11 @@ namespace Aivora.api.Controllers;
 public class ProposalController : ControllerBase
 {
     private readonly Aivora.Services.ProposalService.IService _proposalService;
-    private readonly Aivora.Services.HiringWorkflowService.IService _hiringService;
+    private readonly IHiringService _hiringService;
 
     public ProposalController(
         Aivora.Services.ProposalService.IService proposalService,
-        Aivora.Services.HiringWorkflowService.IService hiringService)
+        IHiringService hiringService)
     {
         _proposalService = proposalService;
         _hiringService = hiringService;
@@ -44,8 +44,8 @@ public class ProposalController : ControllerBase
     public async Task<IActionResult> ShortlistProposal(Guid id)
     {
         var userId = this.GetUserId();
-        var result = await _proposalService.UpdateProposalStatusAsync(userId, id, Aivora.Repositories.Enums.ProposalStatus.SHORTLISTED);
-        return Ok(ApiResponseFactory.SuccessResponse(result, "Proposal shortlisted", HttpContext.TraceIdentifier));
+        await _hiringService.ShortlistProposalAsync(userId, id);
+        return Ok(ApiResponseFactory.SuccessResponse(true, "Proposal shortlisted", HttpContext.TraceIdentifier));
     }
 
     [HttpPut("{id}/reject")]
@@ -53,8 +53,8 @@ public class ProposalController : ControllerBase
     public async Task<IActionResult> RejectProposal(Guid id)
     {
         var userId = this.GetUserId();
-        var result = await _proposalService.UpdateProposalStatusAsync(userId, id, Aivora.Repositories.Enums.ProposalStatus.REJECTED);
-        return Ok(ApiResponseFactory.SuccessResponse(result, "Proposal rejected", HttpContext.TraceIdentifier));
+        await _hiringService.RejectProposalAsync(userId, id);
+        return Ok(ApiResponseFactory.SuccessResponse(true, "Proposal rejected", HttpContext.TraceIdentifier));
     }
 
     [HttpPut("{id}/withdraw")]
@@ -62,8 +62,8 @@ public class ProposalController : ControllerBase
     public async Task<IActionResult> WithdrawProposal(Guid id)
     {
         var userId = this.GetUserId();
-        var result = await _proposalService.UpdateProposalStatusAsync(userId, id, Aivora.Repositories.Enums.ProposalStatus.WITHDRAWN);
-        return Ok(ApiResponseFactory.SuccessResponse(result, "Proposal withdrawn", HttpContext.TraceIdentifier));
+        await _hiringService.WithdrawProposalAsync(userId, id);
+        return Ok(ApiResponseFactory.SuccessResponse(true, "Proposal withdrawn", HttpContext.TraceIdentifier));
     }
 
     [HttpPut("{id}/accept")]
