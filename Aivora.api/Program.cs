@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -105,27 +106,48 @@ builder.Services.Configure<RateLimitOptions>(builder.Configuration.GetSection(Ra
 
 builder.Services.AddRateLimiter(options =>
 {
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, token) =>
+    {
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out TimeSpan retryAfter))
+        {
+            await context.HttpContext.Response.WriteAsJsonAsync(new { message = $"Too many requests. Please try again after {retryAfter.TotalSeconds} second(s)." }, token);
+        }
+        else
+        {
+            await context.HttpContext.Response.WriteAsJsonAsync(new { message = "Too many requests. Please try again later." }, token);
+        }
+    };
+
     var rateLimitOptions = builder.Configuration.GetSection(RateLimitOptions.SectionName).Get<RateLimitOptions>() ?? new RateLimitOptions();
 
-    options.AddFixedWindowLimiter("Strict", opt =>
-    {
-        opt.PermitLimit = rateLimitOptions.Strict.PermitLimit;
-        opt.Window = TimeSpan.FromMinutes(rateLimitOptions.Strict.WindowInMinutes);
-    });
+    options.AddPolicy("Strict", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? context.Request.Headers.Host.ToString(),
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = rateLimitOptions.Strict.PermitLimit,
+                Window = TimeSpan.FromMinutes(rateLimitOptions.Strict.WindowInMinutes)
+            }));
 
-    options.AddFixedWindowLimiter("AI", opt =>
-    {
-        opt.PermitLimit = rateLimitOptions.AI.PermitLimit;
-        opt.Window = TimeSpan.FromMinutes(rateLimitOptions.AI.WindowInMinutes);
-    });
+    options.AddPolicy("AI", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? context.Request.Headers.Host.ToString(),
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = rateLimitOptions.AI.PermitLimit,
+                Window = TimeSpan.FromMinutes(rateLimitOptions.AI.WindowInMinutes)
+            }));
 
-    options.AddFixedWindowLimiter("General", opt =>
-    {
-        opt.PermitLimit = rateLimitOptions.General.PermitLimit;
-        opt.Window = TimeSpan.FromMinutes(rateLimitOptions.General.WindowInMinutes);
-    });
-
-    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("General", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? context.Request.Headers.Host.ToString(),
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = rateLimitOptions.General.PermitLimit,
+                Window = TimeSpan.FromMinutes(rateLimitOptions.General.WindowInMinutes)
+            }));
 });
 
 // Register Services
