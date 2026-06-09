@@ -1,11 +1,13 @@
 using Aivora.Services.CategoryService;
 using Aivora.Services.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Aivora.api.Controllers;
 
 [ApiController]
 [Route("api/v1/categories")]
+[EnableRateLimiting("General")]
 public class CategoryController : ControllerBase
 {
     private readonly IService _categoryService;

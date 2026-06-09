@@ -2,12 +2,14 @@ using Aivora.Services.MediaService;
 using Aivora.Services.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Aivora.api.Controllers;
 
 [ApiController]
 [Route("api/v1/media")]
 [Authorize]
+[EnableRateLimiting("General")]
 public class MediaController : ControllerBase
 {
     private readonly IService _mediaService;

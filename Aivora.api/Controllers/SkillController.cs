@@ -3,11 +3,13 @@ using Aivora.Services.SkillService;
 using Aivora.Services.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Aivora.api.Controllers;
 
 [ApiController]
 [Route("api/v1/skills")]
+[EnableRateLimiting("General")]
 public class SkillController : ControllerBase
 {
     private readonly IService _skillService;

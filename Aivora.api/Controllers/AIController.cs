@@ -3,12 +3,14 @@ using Aivora.Services.AIJobAssistantService;
 using Aivora.Services.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Aivora.api.Controllers;
 
 [ApiController]
 [Route("api/v1/ai")]
 [Authorize]
+[EnableRateLimiting("AI")]
 public class AIController : ControllerBase
 {
     private readonly IService _aiService;

@@ -4,12 +4,14 @@ using Aivora.Services.ProposalService;
 using Aivora.Services.HiringService;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Aivora.api.Controllers;
 
 [ApiController]
 [Route("api/v1/proposals")]
 [Authorize]
+[EnableRateLimiting("General")]
 public class ProposalController : ControllerBase
 {
     private readonly Aivora.Services.ProposalService.IService _proposalService;

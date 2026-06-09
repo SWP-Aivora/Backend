@@ -3,12 +3,14 @@ using Aivora.Services.MilestoneService;
 using Aivora.Services.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Aivora.api.Controllers;
 
 [ApiController]
 [Route("api/v1/milestones")]
 [Authorize]
+[EnableRateLimiting("General")]
 public class MilestoneController : ControllerBase
 {
     private readonly IService _milestoneService;

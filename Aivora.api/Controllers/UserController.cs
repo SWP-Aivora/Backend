@@ -3,12 +3,14 @@ using Aivora.Services.Models;
 using Aivora.Services.ProfileService;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Aivora.api.Controllers;
 
 [ApiController]
 [Route("api/v1/users")]
 [Authorize]
+[EnableRateLimiting("General")]
 public class UserController : ControllerBase
 {
     private readonly IService _profileService;

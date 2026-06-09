@@ -3,12 +3,14 @@ using Aivora.Services.Models;
 using Aivora.Services.WalletService;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Aivora.api.Controllers;
 
 [ApiController]
 [Route("api/v1/payments")]
 [Authorize]
+[EnableRateLimiting("General")]
 public class PaymentController : ControllerBase
 {
     private readonly IService _walletService;

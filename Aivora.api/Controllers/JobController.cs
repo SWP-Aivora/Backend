@@ -4,11 +4,13 @@ using Aivora.Services.JobService;
 using Aivora.Services.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Aivora.api.Controllers;
 
 [ApiController]
 [Route("api/v1/jobs")]
+[EnableRateLimiting("General")]
 public class JobController : ControllerBase
 {
     private readonly IService _jobService;

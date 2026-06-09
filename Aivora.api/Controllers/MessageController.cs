@@ -3,12 +3,14 @@ using Aivora.Services.MessageService;
 using Aivora.Services.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Aivora.api.Controllers;
 
 [ApiController]
 [Route("api/v1/conversations")]
 [Authorize]
+[EnableRateLimiting("General")]
 public class MessageController : ControllerBase
 {
     private readonly IService _messageService;

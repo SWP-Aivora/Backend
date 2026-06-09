@@ -3,12 +3,14 @@ using Aivora.Services.NotificationService;
 using Aivora.Services.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Aivora.api.Controllers;
 
 [ApiController]
 [Route("api/v1/notifications")]
 [Authorize]
+[EnableRateLimiting("General")]
 public class NotificationController : ControllerBase
 {
     private readonly IService _notificationService;

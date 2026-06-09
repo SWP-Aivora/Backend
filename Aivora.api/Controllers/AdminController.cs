@@ -3,12 +3,14 @@ using Aivora.Services.AdminService;
 using Aivora.Services.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Aivora.api.Controllers;
 
 [ApiController]
 [Route("api/v1/admin/users")]
 [Authorize(Policy = JwtExtensions.AdminPolicy)]
+[EnableRateLimiting("General")]
 public class AdminController : ControllerBase
 {
     private readonly IAdminService _adminService;

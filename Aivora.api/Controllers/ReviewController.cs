@@ -3,11 +3,13 @@ using Aivora.Services.Models;
 using Aivora.Services.ReviewService;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Aivora.api.Controllers;
 
 [ApiController]
 [Route("api/v1")]
+[EnableRateLimiting("General")]
 public class ReviewController : ControllerBase
 {
     private readonly IService _reviewService;
