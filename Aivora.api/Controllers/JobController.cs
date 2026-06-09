@@ -28,6 +28,7 @@ public class JobController : ControllerBase
     }
 
     [HttpGet]
+    [AllowAnonymous]
     public async Task<IActionResult> GetJobs([FromQuery] Aivora.Services.Base.Request.PageRequest pageRequest, [FromQuery] Guid? categoryId)
     {
         var result = await _jobService.GetJobsAsync(pageRequest, categoryId);
@@ -35,6 +36,7 @@ public class JobController : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [AllowAnonymous]
     public async Task<IActionResult> GetJob(Guid id)
     {
         var result = await _jobService.GetJobByIdAsync(id);
