@@ -4,6 +4,7 @@ using Aivora.Repositories.Data;
 using Aivora.Repositories.Data.Interceptors;
 using Aivora.Services.Options;
 using Aivora.Services.JwtService;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
@@ -100,6 +101,32 @@ builder.Services.AddCors(options =>
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("JwtSettings"));
 builder.Services.Configure<CloudinaryOptions>(builder.Configuration.GetSection("CloudinaryOptions"));
 builder.Services.Configure<AIProviderOptions>(builder.Configuration.GetSection("AIProvider"));
+builder.Services.Configure<RateLimitOptions>(builder.Configuration.GetSection(RateLimitOptions.SectionName));
+
+builder.Services.AddRateLimiter(options =>
+{
+    var rateLimitOptions = builder.Configuration.GetSection(RateLimitOptions.SectionName).Get<RateLimitOptions>() ?? new RateLimitOptions();
+
+    options.AddFixedWindowLimiter("Strict", opt =>
+    {
+        opt.PermitLimit = rateLimitOptions.Strict.PermitLimit;
+        opt.Window = TimeSpan.FromMinutes(rateLimitOptions.Strict.WindowInMinutes);
+    });
+
+    options.AddFixedWindowLimiter("AI", opt =>
+    {
+        opt.PermitLimit = rateLimitOptions.AI.PermitLimit;
+        opt.Window = TimeSpan.FromMinutes(rateLimitOptions.AI.WindowInMinutes);
+    });
+
+    options.AddFixedWindowLimiter("General", opt =>
+    {
+        opt.PermitLimit = rateLimitOptions.General.PermitLimit;
+        opt.Window = TimeSpan.FromMinutes(rateLimitOptions.General.WindowInMinutes);
+    });
+
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+});
 
 // Register Services
 builder.Services.AddHttpContextAccessor();
@@ -187,6 +214,8 @@ app.MapScalarApiReference(); // Accessible at /scalar/v1
 app.UseHttpsRedirection();
 
 app.UseCors("AllowSpecificOrigin");
+
+app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();
