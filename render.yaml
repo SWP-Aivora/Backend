@@ -28,6 +28,18 @@ services:
         sync: false
       - key: CLOUDINARY_API_SECRET
         sync: false
+      - key: RateLimit__Strict__PermitLimit
+        value: 10
+      - key: RateLimit__Strict__WindowInMinutes
+        value: 1
+      - key: RateLimit__AI__PermitLimit
+        value: 20
+      - key: RateLimit__AI__WindowInMinutes
+        value: 1
+      - key: RateLimit__General__PermitLimit
+        value: 100
+      - key: RateLimit__General__WindowInMinutes
+        value: 1
 
 databases:
   - name: aivora-db
