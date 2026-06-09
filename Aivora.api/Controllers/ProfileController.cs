@@ -63,4 +63,12 @@ public class ProfileController : ControllerBase
         var result = await _profileService.GetPublicExpertProfileAsync(expertId);
         return Ok(ApiResponseFactory.SuccessResponse(result, "Expert public profile retrieved successfully", HttpContext.TraceIdentifier));
     }
+
+    [HttpGet("experts/featured")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetFeaturedExperts([FromQuery] int count = 5)
+    {
+        var result = await _profileService.GetFeaturedExpertsAsync(count);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Featured experts retrieved successfully", HttpContext.TraceIdentifier));
+    }
 }

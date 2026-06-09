@@ -74,6 +74,20 @@ public class AdminService : IAdminService
         };
     }
 
+    public async Task<Response.DashboardStatsResponse> GetDashboardStatsAsync()
+    {
+        return new Response.DashboardStatsResponse
+        {
+            TotalUsers = await _dbContext.Users.CountAsync(),
+            TotalClients = await _dbContext.Users.CountAsync(u => u.Role == UserRole.CLIENT),
+            TotalExperts = await _dbContext.Users.CountAsync(u => u.Role == UserRole.EXPERT),
+            TotalJobs = await _dbContext.JobPosts.CountAsync(),
+            ActiveProjects = await _dbContext.Projects.CountAsync(p => p.Status == ProjectStatus.ACTIVE),
+            OpenDisputes = await _dbContext.Disputes.CountAsync(d => d.Status == DisputeStatus.OPEN),
+            TotalEscrowAmount = await _dbContext.Wallets.SumAsync(w => w.HeldBalance)
+        };
+    }
+
     private static IdentityService.Response.UserResponse MapToResponse(Aivora.Repositories.Entities.User u)
     {
         return new IdentityService.Response.UserResponse

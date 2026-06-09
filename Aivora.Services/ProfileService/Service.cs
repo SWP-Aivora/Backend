@@ -60,12 +60,16 @@ public class Service : IService
 
     public async Task<Response.ExpertProfileResponse> GetExpertProfileAsync(Guid userId)
     {
-        var profile = await _dbContext.ExpertProfiles.FirstOrDefaultAsync(p => p.UserId == userId);
+        var profile = await _dbContext.ExpertProfiles
+            .Include(p => p.User)
+            .FirstOrDefaultAsync(p => p.UserId == userId);
         if (profile == null) throw new NotFoundException("Expert profile not found.");
 
         return new Response.ExpertProfileResponse
         {
             UserId = profile.UserId,
+            FullName = profile.User.FullName,
+            AvatarUrl = profile.User.AvatarUrl,
             Title = profile.Title,
             Bio = profile.Bio,
             HourlyRate = profile.HourlyRate,
@@ -80,7 +84,9 @@ public class Service : IService
 
     public async Task<Response.ExpertProfileResponse> UpdateExpertProfileAsync(Guid userId, Request.UpdateExpertProfileRequest request)
     {
-        var profile = await _dbContext.ExpertProfiles.FirstOrDefaultAsync(p => p.UserId == userId);
+        var profile = await _dbContext.ExpertProfiles
+            .Include(p => p.User)
+            .FirstOrDefaultAsync(p => p.UserId == userId);
         if (profile == null) throw new NotFoundException("Expert profile not found.");
 
         profile.Title = request.Title;
@@ -94,6 +100,8 @@ public class Service : IService
         return new Response.ExpertProfileResponse
         {
             UserId = profile.UserId,
+            FullName = profile.User.FullName,
+            AvatarUrl = profile.User.AvatarUrl,
             Title = profile.Title,
             Bio = profile.Bio,
             HourlyRate = profile.HourlyRate,
@@ -132,13 +140,15 @@ public class Service : IService
 
     public async Task<Response.ExpertProfileResponse> GetPublicExpertProfileAsync(Guid expertId)
     {
-        // expertId here is the UserId or the ProfileId? The contract says expertId. 
-        // In our case ExpertProfile PK is its own GUID, but often we use UserId.
-        // Let's assume expertId is the ExpertProfile ID for now, or check by UserId if not found.
-        var profile = await _dbContext.ExpertProfiles.FindAsync(expertId);
+        var profile = await _dbContext.ExpertProfiles
+            .Include(p => p.User)
+            .FirstOrDefaultAsync(p => p.Id == expertId);
+
         if (profile == null)
         {
-            profile = await _dbContext.ExpertProfiles.FirstOrDefaultAsync(p => p.UserId == expertId);
+            profile = await _dbContext.ExpertProfiles
+                .Include(p => p.User)
+                .FirstOrDefaultAsync(p => p.UserId == expertId);
         }
         
         if (profile == null) throw new NotFoundException("Expert profile not found.");
@@ -146,6 +156,8 @@ public class Service : IService
         return new Response.ExpertProfileResponse
         {
             UserId = profile.UserId,
+            FullName = profile.User.FullName,
+            AvatarUrl = profile.User.AvatarUrl,
             Title = profile.Title,
             Bio = profile.Bio,
             HourlyRate = profile.HourlyRate,
@@ -156,5 +168,31 @@ public class Service : IService
             CompletedProjects = profile.CompletedProjects,
             SuccessRate = profile.SuccessRate
         };
+    }
+
+    public async Task<List<Response.ExpertProfileResponse>> GetFeaturedExpertsAsync(int count)
+    {
+        var profiles = await _dbContext.ExpertProfiles
+            .Include(p => p.User)
+            .OrderByDescending(p => p.Rating)
+            .ThenByDescending(p => p.SuccessRate)
+            .Take(count)
+            .ToListAsync();
+
+        return profiles.Select(p => new Response.ExpertProfileResponse
+        {
+            UserId = p.UserId,
+            FullName = p.User.FullName,
+            AvatarUrl = p.User.AvatarUrl,
+            Title = p.Title,
+            Bio = p.Bio,
+            HourlyRate = p.HourlyRate,
+            ExperienceYears = p.ExperienceYears,
+            AvailabilityStatus = p.AvailabilityStatus,
+            Rating = p.Rating,
+            TotalReviews = p.TotalReviews,
+            CompletedProjects = p.CompletedProjects,
+            SuccessRate = p.SuccessRate
+        }).ToList();
     }
 }

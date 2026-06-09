@@ -8,6 +8,21 @@ public interface IAdminService
     Task<IdentityService.Response.UserResponse> SuspendUserAsync(Guid adminId, Guid userId, string reason);
     Task<IdentityService.Response.UserResponse> UnsuspendUserAsync(Guid adminId, Guid userId);
     Task<Aivora.Services.Base.Response.PageResult<IdentityService.Response.UserResponse>> GetUsersAsync(Aivora.Services.Base.Request.PageRequest pageRequest, string? search = null);
+    Task<Response.DashboardStatsResponse> GetDashboardStatsAsync();
+}
+
+public class Response
+{
+    public class DashboardStatsResponse
+    {
+        public int TotalUsers { get; set; }
+        public int TotalClients { get; set; }
+        public int TotalExperts { get; set; }
+        public int TotalJobs { get; set; }
+        public int ActiveProjects { get; set; }
+        public int OpenDisputes { get; set; }
+        public decimal TotalEscrowAmount { get; set; }
+    }
 }
 
 public class Request

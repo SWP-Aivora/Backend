@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.RateLimiting;
 namespace Aivora.api.Controllers;
 
 [ApiController]
-[Route("api/v1/admin/users")]
+[Route("api/v1/admin")]
 [Authorize(Policy = JwtExtensions.AdminPolicy)]
 [EnableRateLimiting("General")]
 public class AdminController : ControllerBase
@@ -20,14 +20,21 @@ public class AdminController : ControllerBase
         _adminService = adminService;
     }
 
-    [HttpGet]
+    [HttpGet("stats")]
+    public async Task<IActionResult> GetStats()
+    {
+        var result = await _adminService.GetDashboardStatsAsync();
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Dashboard stats retrieved", HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("users")]
     public async Task<IActionResult> GetUsers([FromQuery] Aivora.Services.Base.Request.PageRequest pageRequest, [FromQuery] string? search)
     {
         var result = await _adminService.GetUsersAsync(pageRequest, search);
         return Ok(ApiResponseFactory.SuccessResponse(result, "Users retrieved", HttpContext.TraceIdentifier));
     }
 
-    [HttpPut("{id}/suspend")]
+    [HttpPut("users/{id}/suspend")]
     public async Task<IActionResult> SuspendUser(Guid id, [FromBody] Request.SuspendUserRequest request)
     {
         var adminId = this.GetUserId();
@@ -35,7 +42,7 @@ public class AdminController : ControllerBase
         return Ok(ApiResponseFactory.SuccessResponse(result, "User suspended successfully", HttpContext.TraceIdentifier));
     }
 
-    [HttpPut("{id}/unsuspend")]
+    [HttpPut("users/{id}/unsuspend")]
     public async Task<IActionResult> UnsuspendUser(Guid id)
     {
         var adminId = this.GetUserId();

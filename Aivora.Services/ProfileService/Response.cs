@@ -19,6 +19,8 @@ public class Response
     public class ExpertProfileResponse
     {
         public Guid UserId { get; set; }
+        public string FullName { get; set; } = null!;
+        public string? AvatarUrl { get; set; }
         public string? Title { get; set; }
         public string? Bio { get; set; }
         public decimal? HourlyRate { get; set; }
