@@ -15,66 +15,105 @@
 > **Status:** `Job: NULL → DRAFT → OPEN`
 > **Tables:** `JobPosts`, `JobSkills`, `AIJobSuggestions`, `RecommendationResults`, `ExpertProfiles`, `ExpertSkills`, `Skills`, `Categories`
 
-## 1.1. Gọi AI Job Assistant
+## 1.1. Gọi AI Job Assistant (Generate Suggestion)
 
 ```
 POST /api/v1/ai/job-assistant
 ```
 
-**Auth:** `ClientPolicy`.
+**Auth:** `ClientPolicy`.  **Rate Limit:** `AI` (20 req/min).
 
-**Request body:**
+**Request body (minimal — chỉ cần `rawInput`):**
 ```json
 {
-  "originalDescription": "Tôi muốn chatbot AI cho shop bán mỹ phẩm.",
-  "businessDomain": "E-commerce",
-  "expectedOutcome": "Tự động trả lời câu hỏi sản phẩm 24/7",
-  "budgetMin": 500,
-  "budgetMax": 2000,
-  "timelineDays": 30,
-  "deadline": "2026-08-01T00:00:00Z"
+  "rawInput": "I need a chatbot for my e-commerce store to handle customer support 24/7"
 }
 ```
 
-**Validation:**
-- `originalDescription` bắt buộc.
-- `budgetMin ≤ BudgetMax` nếu cả hai đều có.
+**Request body (đầy đủ):**
+```json
+{
+  "rawInput": "Build a deep learning recommendation engine for our streaming platform",
+  "businessDomain": "Media & Entertainment",
+  "expectedOutcome": "Increase user engagement by 30% through personalized recommendations",
+  "budgetType": "FIXED",
+  "currency": "AICOIN",
+  "budgetMin": 5000,
+  "budgetMax": 15000,
+  "timelineDays": 45,
+  "experienceLevel": "ADVANCED"
+}
+```
 
-**Side effects:**
-- Gọi AI Assistant Module.
-- Tạo `AIJobSuggestions` (Status = `GENERATED`).
+**Field Reference (`GenerateSuggestionRequest`):**
 
-**Response 200:**
+| Field | Type | Required | Validation |
+|-------|------|----------|------------|
+| `rawInput` | string | **Yes** | >= 5 chars, trimmed |
+| `businessDomain` | string? | No | Max 255 chars |
+| `expectedOutcome` | string? | No | Max 1000 chars |
+| `budgetType` | string? | No | `"FIXED"` \| `"HOURLY"` |
+| `currency` | string? | No | Normalized: `"VND"`, `"USD"`, `"AICOIN"` |
+| `budgetMin` | decimal? | No | — |
+| `budgetMax` | decimal? | No | — |
+| `timelineDays` | int? | No | — |
+| `experienceLevel` | string? | No | `"BEGINNER"` \| `"INTERMEDIATE"` \| `"ADVANCED"` \| `"EXPERT"` |
+
+**Status:** `201 Created` (thành công), `400` (validation), `401` (thiếu token), `403` (sai role).
+
+**Side effects:** Tạo `AIJobSuggestions` (Status = `GENERATED`). Gọi AI Assistant Module.
+
+**Response `201`:**
 ```json
 {
   "success": true,
+  "message": "AI job suggestion generated",
   "data": {
-    "suggestionId": "guid",
-    "status": "GENERATED",
-    "suggestedTitle": "Xây dựng Chatbot AI cho Shop Mỹ Phẩm",
-    "suggestedDescription": "Mô tả chi tiết...",
-    "suggestedSkills": [
-      { "skillId": "guid", "name": "NLP" },
-      { "skillId": "guid", "name": "Chatbot Development" }
-    ],
-    "suggestedBudgetMin": 800,
-    "suggestedBudgetMax": 1500,
-    "suggestedTimelineDays": 21,
+    "id": "7b1764ed-abeb-4684-83bb-6c1c02a13a48",
+    "jobId": null,
+    "clientId": "c87a3d46-243f-4fcc-b8c8-8b5a14815f32",
+    "rawInput": "Build a deep learning recommendation engine for our streaming platform",
+    "suggestedTitle": "AI Enhanced: Build a deep learning recommendation engine...",
+    "suggestedDescription": "This is an AI enhanced description for: ...",
+    "businessDomain": "Media & Entertainment",
+    "expectedOutcome": "Increase user engagement by 30%...",
+    "budgetType": "FIXED",
+    "currency": "AICOIN",
+    "suggestedBudgetMin": 5000,
+    "suggestedBudgetMax": 15000,
+    "suggestedTimelineDays": 45,
+    "experienceLevel": "ADVANCED",
+    "suggestedSkills": ["AI Chatbot", "Prompt Engineering"],
     "suggestedMilestones": [
-      { "title": "Phân tích yêu cầu & thiết kế luồng hội thoại", "description": "...", "amount": 400, "dueDay": 7 },
-      { "title": "Phát triển prototype & tích hợp website", "description": "...", "amount": 600, "dueDay": 14 },
-      { "title": "Testing & deployment", "description": "...", "amount": 500, "dueDay": 21 }
+      {
+        "title": "Requirements Analysis",
+        "description": "Analyze requirements...",
+        "amount": 3000,
+        "dueDays": 15,
+        "acceptanceCriteria": null
+      }
     ],
     "clarifyingQuestions": [
-      "Shop bán mỹ phẩm tự nhiên hay công nghệ cao?",
-      "Cần tích hợp với nền tảng nào?"
+      "What streaming platforms do you currently use?",
+      "Do you have existing user data for training?"
     ],
+    "clarifyingAnswers": [],
     "riskWarnings": [
-      "Ngân sách có thể thấp cho chatbot đa ngôn ngữ"
-    ]
+      "Budget may be low for real-time recommendation latency requirements",
+      "Timeline is aggressive for deep learning model development"
+    ],
+    "aiModel": "Aivora-Mock",
+    "status": "GENERATED",
+    "rejectionReason": null,
+    "createdAt": "2026-06-10T07:41:53Z"
   }
 }
 ```
+
+> **Error responses:** `400` — `"RawInput must be at least 5 characters long."` khi rawInput < 5 chars.
+> `401` khi thiếu token hoặc token không hợp lệ.
+
+---
 
 ## 1.2. Xem chi tiết gợi ý AI
 
@@ -84,13 +123,63 @@ GET /api/v1/ai/job-assistant/{suggestionId}
 
 **Auth:** `ClientPolicy`, phải là chủ suggestion.
 
-## 1.3. Chỉnh sửa gợi ý AI
+**Status:** `200` (thành công), `404` (không tìm thấy).
+
+**Response `404`:**
+```json
+{
+  "success": false,
+  "message": "AI Suggestion not found.",
+  "errors": { "code": "not_found" }
+}
+```
+
+---
+
+## 1.3. Chỉnh sửa gợi ý AI (Partial Update)
 
 ```
 PATCH /api/v1/ai/job-assistant/{suggestionId}
 ```
 
-**Auth:** `ClientPolicy`.
+**Auth:** `ClientPolicy`. Chỉ cập nhật các field được gửi lên (partial update).
+
+**Field Reference (`PatchSuggestionRequest`):**
+
+| Field | Type | Ghi chú |
+|-------|------|---------|
+| `suggestedTitle` | string? | Max 255 |
+| `suggestedDescription` | string? | — |
+| `businessDomain` | string? | Max 255 |
+| `expectedOutcome` | string? | Max 1000 |
+| `budgetType` | string? | `"FIXED"` \| `"HOURLY"` |
+| `currency` | string? | — |
+| `suggestedBudgetMin` | decimal? | — |
+| `suggestedBudgetMax` | decimal? | — |
+| `suggestedTimelineDays` | int? | — |
+| `experienceLevel` | string? | `"BEGINNER"` \| `"INTERMEDIATE"` \| `"ADVANCED"` \| `"EXPERT"` |
+| `suggestedSkills` | List\<string\>? | Array string |
+| `suggestedMilestones` | List\<SuggestedMilestone\>? | Array object |
+| `clarifyingAnswers` | List\<string\>? | Array string |
+
+**Request body (cập nhật budget + skills + title):**
+```json
+{
+  "suggestedTitle": "Custom AI Recommendation Engine for Streaming",
+  "experienceLevel": "EXPERT",
+  "budgetType": "HOURLY",
+  "suggestedBudgetMin": 7000,
+  "suggestedBudgetMax": 12000,
+  "suggestedSkills": ["Python", "TensorFlow", "Recommendation Systems", "Kubernetes"],
+  "suggestedTimelineDays": 60
+}
+```
+
+> **Lưu ý:** Các enum (`experienceLevel`, `budgetType`) chấp nhận giá trị chuỗi (VD: `"EXPERT"`, `"HOURLY"`) nhờ `[JsonConverter(typeof(JsonStringEnumConverter))]`.
+
+**Status:** `200` (thành công), `400` (suggestion đã xử lý).
+
+---
 
 ## 1.4. Refine gợi ý AI
 
@@ -98,9 +187,39 @@ PATCH /api/v1/ai/job-assistant/{suggestionId}
 POST /api/v1/ai/job-assistant/{suggestionId}/refine
 ```
 
-**Auth:** `ClientPolicy`. Gọi lại AI để cải thiện suggestion.
+**Auth:** `ClientPolicy`. Gửi message để AI cải thiện suggestion.
 
-## 1.5. Tạo job draft từ gợi ý AI (accept)
+**Request body (`RefineSuggestionRequest`):**
+```json
+{
+  "message": "Increase budget to 20000 and add PyTorch to the skills"
+}
+```
+
+**Validation:** `message` >= 3 chars.
+
+**Response `200`:**
+```json
+{
+  "success": true,
+  "message": "AI suggestion refined",
+  "data": {
+    "suggestion": {
+      "suggestedBudgetMin": 20000,
+      "suggestedBudgetMax": 20000,
+      "suggestedSkills": ["Python", "NLP", "TensorFlow", "FastAPI", "PyTorch"]
+    },
+    "aiResponse": "I updated the suggested budget.",
+    "changedFields": ["suggestedBudgetMin", "suggestedBudgetMax"]
+  }
+}
+```
+
+> **Mock provider behavior:** `message` chứa "budget" → cập nhật budget.  Chứa "add skill: X" → thêm skill.  Chứa "question N: answer" → trả lời clarifying question.  Chứa "should"/"why"/"explain" → trả lời advisory.
+
+---
+
+## 1.5. Tạo job draft từ gợi ý AI (Accept)
 
 ```
 POST /api/v1/ai/job-assistant/{suggestionId}/accept
@@ -108,18 +227,42 @@ POST /api/v1/ai/job-assistant/{suggestionId}/accept
 
 **Auth:** `ClientPolicy`.
 
+**Request body (`AcceptSuggestionRequest`):**
+```json
+{
+  "categoryId": "681b2016-dc4d-40a8-a727-ec1b26b3e5e2",
+  "selectedSkillIds": []
+}
+```
+
+| Field | Type | Required | Ghi chú |
+|-------|------|----------|---------|
+| `categoryId` | Guid? | **Yes** | Category phải tồn tại |
+| `selectedSkillIds` | List\<Guid\>? | No | Skill IDs từ seed data |
+
 **Side effects:**
 - `AIJobSuggestions.Status = ACCEPTED`.
-- Tạo `JobPosts` (Status = `DRAFT`, `OriginalDescription` = input gốc, `EnhancedDescription` = AI output).
-- Tạo `JobSkills`.
+- Tạo `JobPosts` (Status = `DRAFT`).
+- Tạo `JobSkills` + `JobPostMilestones`.
 
-**Response 200:**
+**Status:** `201 Created` (thành công), `400` (thiếu categoryId / suggestion đã xử lý), `500` (lỗi DB).
+
+**Response `201`:**
 ```json
 {
   "success": true,
-  "data": { "jobId": "guid", "status": "DRAFT" }
+  "message": "Job draft created from AI suggestion",
+  "data": {
+    "job": {
+      "id": "51bfa2f4-1484-4319-9d75-da2177fbc4e7",
+      "title": "Production NLP Sentiment Analysis Pipeline",
+      "status": "DRAFT"
+    }
+  }
 }
 ```
+
+---
 
 ## 1.6. Từ chối gợi ý AI
 
@@ -129,7 +272,156 @@ POST /api/v1/ai/job-assistant/{suggestionId}/reject
 
 **Auth:** `ClientPolicy`.
 
-**Side effects:** `AIJobSuggestions.Status = REJECTED`.
+**Request body (`RejectSuggestionRequest`):**
+```json
+{
+  "reason": "The budget is too high for our current stage. We will create a simpler job."
+}
+```
+
+**Validation:** `reason` >= 3 chars và <= 500 chars.
+
+**Side effects:** `AIJobSuggestions.Status = REJECTED`, `AIJobSuggestions.RejectionReason = reason`.
+
+**Status:** `200` (thành công), `400` (reason quá ngắn/dài hoặc suggestion đã xử lý).
+
+**Response `200`:**
+```json
+{
+  "success": true,
+  "message": "AI suggestion rejected",
+  "data": {
+    "status": "REJECTED",
+    "rejectionReason": "The budget is too high for our current stage..."
+  }
+}
+```
+
+---
+
+## 1.7. AI Service Generator (Expert only)
+
+```
+POST /api/v1/ai/service-generator
+```
+
+**Auth:** `ExpertPolicy`.  **Rate Limit:** `AI` (20 req/min).
+
+Tạo mô tả dịch vụ + 3 gói (Basic/Standard/Premium) cho Expert dựa trên input.
+
+**Request body (`GenerateServiceDescriptionRequest`):**
+
+```json
+{
+  "rawInput": "I am a senior AI engineer with 8 years of experience building production ML pipelines and custom LLM solutions for enterprise clients across finance and healthcare.",
+  "skills": ["Python", "Machine Learning", "Deep Learning", "NLP", "TensorFlow", "PyTorch"],
+  "priceFrom": 1500,
+  "deliveryDays": 30,
+  "tone": "professional",
+  "targetClient": "enterprise",
+  "language": "en"
+}
+```
+
+**Field Reference:**
+
+| Field | Type | Required | Validation |
+|-------|------|----------|------------|
+| `rawInput` | string | **Yes** | 20–4000 chars |
+| `skills` | List\<string\> | **Yes** | 1–20 items |
+| `priceFrom` | decimal | **Yes** | 1–100000 |
+| `deliveryDays` | int | **Yes** | 1–365 |
+| `tone` | string | No (default: `"professional"`) | `"professional"` \| `"casual"` \| `"technical"` \| `"friendly"` \| `"formal"` |
+| `targetClient` | string | No (default: `"startup"`) | `"startup"` \| `"enterprise"` \| `"small_business"` \| `"individual"` \| `"agency"` |
+| `language` | string | No (default: `"vi"`) | `"vi"` \| `"en"` |
+
+**Status:** `201 Created` (thành công), `400` (validation), `403` (Client gọi endpoint này).
+
+**Response `201`:**
+```json
+{
+  "success": true,
+  "message": "Service description generated",
+  "data": {
+    "suggestedTitle": "Professional Service: Build Python Solutions",
+    "suggestedDescription": "I deliver high-quality services for Python, Machine Learning...",
+    "packages": [
+      {
+        "name": "Basic",
+        "title": "Basic Package",
+        "price": 1500,
+        "deliveryDays": 15,
+        "description": "Core setup and first delivery.",
+        "features": ["Basic Python setup", "Setup documentation", "3 days support"]
+      },
+      {
+        "name": "Standard",
+        "title": "Standard Full Solution",
+        "price": 3000,
+        "deliveryDays": 30,
+        "description": "Complete delivery for common production needs.",
+        "features": ["Implementation with skills", "Testing", "API and database integration", "7 days support"]
+      },
+      {
+        "name": "Premium",
+        "title": "Premium Enterprise Solution",
+        "price": 6000,
+        "deliveryDays": 45,
+        "description": "Advanced delivery with scalability and extended support.",
+        "features": ["All Standard features", "Scalable architecture", "30 days warranty", "Handoff call"]
+      }
+    ],
+    "faqs": [
+      {
+        "question": "What do I need to prepare to get started?",
+        "answer": "Please prepare your requirements, examples, preferred stack, and any constraints."
+      },
+      {
+        "question": "Is support included after delivery?",
+        "answer": "Yes, support is included based on the selected package tier."
+      }
+    ]
+  }
+}
+```
+
+> **Gói tiers:** Luôn trả về đúng 3 gói: Basic, Standard, Premium. Giá: Basic = `priceFrom`, Standard = 2x, Premium = 4x.
+
+---
+
+## 1.8. AI Service — Test Results (2026-06-10)
+
+Toan bộ 7 endpoint AI service da đuợc test thực tế với database PostgreSQL thật và Mock AI provider. Kết quả:
+
+| # | Endpoint | Method | Status Code | Kết quả |
+|---|----------|--------|-------------|---------|
+| 1 | `/ai/job-assistant` | POST | 201 | Generate suggestion — trả về title, description, skills, milestones, clarifying questions, risk warnings |
+| 2 | `/ai/job-assistant/{id}` | GET | 200 | Get suggestion — trả về toan bộ data |
+| 3 | `/ai/job-assistant/{id}` | PATCH | 200 | Partial update — chấp nhận string enum (`EXPERT`, `HOURLY`) |
+| 4 | `/ai/job-assistant/{id}/refine` | POST | 200 | AI refinement — trả về `aiResponse` + `changedFields` |
+| 5 | `/ai/job-assistant/{id}/accept` | POST | 201 | Accept → tạo Job + JobPostMilestones trong DB |
+| 6 | `/ai/job-assistant/{id}/reject` | POST | 200 | Reject — cập nhật status + rejectionReason |
+| 7 | `/ai/service-generator` | POST | 201 | Generate service description — 3 tiers (Basic/Standard/Premium) + FAQs |
+
+**Error cases đa verify:**
+
+| Test case | Expected | Actual |
+|-----------|----------|--------|
+| Thiếu auth token | 401 | 401 |
+| `rawInput` < 5 chars | 400 + message | `"RawInput must be at least 5 characters long."` |
+| Suggestion ID khong tồn tại | 404 | `"AI Suggestion not found."` |
+| Suggestion đa xử lý (reject lại) | 400 | `"Suggestion is already processed."` |
+| Client gọi `/ai/service-generator` | 403 | 403 Forbidden |
+| `reason` < 3 chars khi reject | 400 | Validation error |
+| Thiếu `categoryId` khi accept | 400 | `"CategoryId is required..."` |
+
+**Bugs đa fix trong quá trinh test:**
+
+| Bug | Root Cause | Fix |
+|-----|-----------|-----|
+| `JobPostMilestones` table khong tồn tại | Thiếu `IEntityTypeConfiguration<JobPostMilestone>` + migration | Tạo `JobPostMilestoneConfiguration.cs` + migration `AddJobPostMilestonesTable` |
+| PATCH `experienceLevel` / `budgetType` bị reject | `System.Text.Json` khong parse string->enum mặc định | Them `[JsonConverter(typeof(JsonStringEnumConverter))]` vao `SkillLevel` va `BudgetType` enums |
+| AI luon dung Mock provider | Chưa set `AIProvider__ApiKey` env var | Set `AIProvider__Provider=Gemini` + `AIProvider__ApiKey=<key>` để bật real AI |
 
 ## 1.7. Tạo job draft thủ công
 
@@ -275,15 +567,16 @@ GET /api/v1/jobs/{jobId}/recommendations
 | 4 | POST | `/ai/job-assistant/{id}/refine` | Client | `AIJobSuggestions` |
 | 5 | POST | `/ai/job-assistant/{id}/accept` | Client | `AIJobSuggestions`, `JobPosts`, `JobSkills` |
 | 6 | POST | `/ai/job-assistant/{id}/reject` | Client | `AIJobSuggestions` |
-| 7 | POST | `/jobs` | Client | `JobPosts`, `JobSkills` |
-| 8 | GET | `/jobs` | — | `JobPosts` |
-| 9 | GET | `/jobs/{id}` | — | `JobPosts`, `JobSkills` |
-| 10 | PUT | `/jobs/{id}` | Client | `JobPosts` |
-| 11 | DELETE | `/jobs/{id}` | Client | `JobPosts` |
-| 12 | POST | `/jobs/{id}/publish` | Client | `JobPosts` |
-| 13 | POST | `/jobs/{id}/cancel` | Client | `JobPosts` |
-| 14 | POST | `/jobs/{id}/recommendations/generate` | Client | `RecommendationResults` |
-| 15 | GET | `/jobs/{id}/recommendations` | Client | `RecommendationResults` |
+| 7 | POST | `/ai/service-generator` | Expert | `AIJobSuggestions` |
+| 8 | POST | `/jobs` | Client | `JobPosts`, `JobSkills`, `JobPostMilestones` |
+| 9 | GET | `/jobs` | — | `JobPosts` |
+| 10 | GET | `/jobs/{id}` | — | `JobPosts`, `JobSkills` |
+| 11 | PUT | `/jobs/{id}` | Client | `JobPosts` |
+| 12 | DELETE | `/jobs/{id}` | Client | `JobPosts` |
+| 13 | POST | `/jobs/{id}/publish` | Client | `JobPosts` |
+| 14 | POST | `/jobs/{id}/cancel` | Client | `JobPosts` |
+| 15 | POST | `/jobs/{id}/recommendations/generate` | Client | `RecommendationResults` |
+| 16 | GET | `/jobs/{id}/recommendations` | Client | `RecommendationResults` |
 
 ---
 
