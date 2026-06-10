@@ -14,11 +14,23 @@ Aivora.sln
 └── Aivora.Tests        → Unit & integration tests
 ```
 
-**Mô hình Clean Architecture đơn giản:**
+### Chi tiết các tầng
 
-- **Aivora.api** — Controllers, Middleware, Extensions, Hubs (SignalR)
-- **Aivora.Services** — Business logic, DTOs, Options, Interfaces
-- **Aivora.Repositories** — DbContext, Entities, Seed data, Migrations
+#### 1. [Aivora.api](./Aivora.api)
+Main API Gateway. Xử lý authentication, routing, và real-time communication qua SignalR.
+- **Controllers**: Xử lý HTTP requests.
+- **Hubs**: SignalR hubs cho real-time chat (`ChatHub`).
+- **Middlewares**: Custom exception handling và security.
+- **Extensions**: JWT và Claims helper methods.
+
+#### 2. [Aivora.Repositories](./Aivora.Repositories)
+Tầng truy xuất dữ liệu. Quản lý database entities và persistence sử dụng EF Core.
+- **Key Entities**: User, JobPost, Proposal, Project, Wallet, Payment.
+- **Features**: Interceptors cho auditable entity tracking, Fluent API configurations.
+
+#### 3. [Aivora.Services](./Aivora.Services)
+Tầng logic nghiệp vụ. Chứa core business rules và điều phối dữ liệu giữa API và Repository.
+- **Core Services**: AIJobAssistantService, IdentityService, JobService, HiringService, Financial Services (Wallet, Payments, Milestones).
 
 ---
 
@@ -177,32 +189,11 @@ Flow đăng nhập:
 
 ---
 
-## Workflow chính
+## Tài liệu chi tiết
 
-```
-Client đăng job (DRAFT)
-        │
-        ▼
-Client publish job (OPEN)
-        │
-        ▼
-Expert nộp proposal
-        │
-        ▼
-Client accept proposal → Project được tạo
-        │
-        ▼
-Client fund milestone (tiền vào escrow)
-        │
-        ▼
-Expert nộp deliverable
-        │
-        ▼
-Client approve → tiền giải phóng cho Expert
-        │
-        ▼
-(Có thể mở Dispute → Admin giải quyết)
-```
+- **[Business Flow](./docs/flows/MAINFLOW.md)** — Chi tiết 4 luồng nghiệp vụ chính.
+- **[API Reference](./docs/flows/API_BY_FLOW.md)** — Danh sách API theo từng luồng nghiệp vụ.
+- **[Kiến trúc hệ thống](#kiến-trúc)** — Tổng quan về cấu trúc code.
 
 ---
 
