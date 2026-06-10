@@ -49,7 +49,10 @@ public class ProfileServiceTests
         // Arrange
         var dbContext = GetDbContext();
         var userId = Guid.NewGuid();
+        var user = new User { Id = userId, FullName = "Expert Name", Email = "e@t.com", Role = UserRole.EXPERT, PasswordHash = "h" };
         var profile = new ExpertProfile { Id = Guid.NewGuid(), UserId = userId, Title = "Expert" };
+        
+        dbContext.Users.Add(user);
         dbContext.ExpertProfiles.Add(profile);
         await dbContext.SaveChangesAsync();
 
@@ -61,7 +64,9 @@ public class ProfileServiceTests
 
         // Assert
         resultByUserId.Title.Should().Be("Expert");
+        resultByUserId.FullName.Should().Be("Expert Name");
         resultByProfileId.Title.Should().Be("Expert");
+        resultByProfileId.FullName.Should().Be("Expert Name");
     }
 
     [Fact]
