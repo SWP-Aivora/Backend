@@ -38,10 +38,10 @@ public class MessageServiceTests
         await dbContext.SaveChangesAsync();
 
         var service = new Service(dbContext);
-        var request = new Request.SendMessageRequest 
-        { 
-            ConversationId = conversationId, 
-            Content = "Hello from client" 
+        var request = new Request.SendMessageRequest
+        {
+            ConversationId = conversationId,
+            Content = "Hello from client"
         };
 
         // Act
@@ -50,7 +50,7 @@ public class MessageServiceTests
         // Assert
         result.Content.Should().Be("Hello from client");
         result.SenderId.Should().Be(clientId);
-        
+
         var msgInDb = await dbContext.Messages.FirstOrDefaultAsync(m => m.ConversationId == conversationId);
         msgInDb.Should().NotBeNull();
         msgInDb!.Content.Should().Be("Hello from client");

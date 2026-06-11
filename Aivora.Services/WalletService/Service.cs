@@ -35,7 +35,7 @@ public class Service : IService
         {
             decimal balanceBefore = wallet.AvailableBalance;
             wallet.AvailableBalance += request.Amount;
-            
+
             var walletTx = new WalletTransaction
             {
                 WalletId = wallet.Id,

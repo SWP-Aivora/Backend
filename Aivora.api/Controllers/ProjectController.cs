@@ -18,7 +18,7 @@ public class ProjectController : ControllerBase
     private readonly Aivora.Services.MilestoneService.IService _milestoneService;
 
     public ProjectController(
-        IService projectService, 
+        IService projectService,
         Aivora.Services.MilestoneService.IService milestoneService)
     {
         _projectService = projectService;

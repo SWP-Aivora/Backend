@@ -25,7 +25,7 @@ public class Service : IService
             .FirstOrDefaultAsync(p => p.Id == projectId);
 
         if (project == null) throw new NotFoundException("Project not found.");
-        
+
         // Security check
         if (project.ClientId != userId && project.ExpertId != userId)
             throw new UnauthorizedException("Access denied to this project.");

@@ -18,7 +18,7 @@ public class JobController : ControllerBase
     private readonly Aivora.Services.ProposalService.IService _proposalService;
 
     public JobController(
-        IService jobService, 
+        IService jobService,
         Aivora.Services.RecommendationService.IService recommendationService,
         Aivora.Services.ProposalService.IService proposalService)
     {

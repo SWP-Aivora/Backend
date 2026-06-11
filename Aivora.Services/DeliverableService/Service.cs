@@ -27,8 +27,8 @@ public class Service : IService
         if (milestone == null) throw new NotFoundException("Milestone not found.");
         if (milestone.Project.ExpertId != expertId) throw new UnauthorizedException("Only the project expert can submit deliverables.");
 
-        if (milestone.Status != MilestoneStatus.FUNDED && 
-            milestone.Status != MilestoneStatus.IN_PROGRESS && 
+        if (milestone.Status != MilestoneStatus.FUNDED &&
+            milestone.Status != MilestoneStatus.IN_PROGRESS &&
             milestone.Status != MilestoneStatus.REVISION_REQUESTED)
             throw new ValidationException("Cannot submit deliverable for this milestone status.");
 
@@ -55,13 +55,13 @@ public class Service : IService
         try
         {
             _dbContext.Deliverables.Add(deliverable);
-            
+
             milestone.Status = MilestoneStatus.SUBMITTED;
             milestone.SubmittedAt = DateTimeOffset.UtcNow;
 
             await _dbContext.SaveChangesAsync();
             await _treasury.SyncProjectStatusAsync(milestone.ProjectId);
-            
+
             await transaction.CommitAsync();
 
             return MapToResponse(deliverable);

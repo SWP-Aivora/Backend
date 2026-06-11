@@ -50,7 +50,7 @@ public class Service : IService
 
             milestone.Status = MilestoneStatus.DISPUTED;
             milestone.Project.Status = ProjectStatus.DISPUTED;
-            
+
             // Centralized payment state management via Treasury
             await _treasury.FreezeFundsAsync(milestone.Id, $"Dispute opened: {request.Reason}");
 
@@ -79,7 +79,7 @@ public class Service : IService
             .FirstOrDefaultAsync(d => d.Id == disputeId);
 
         if (dispute == null) throw new NotFoundException("Dispute not found.");
-        
+
         var user = await _dbContext.Users.FindAsync(userId);
         if (user!.Role != UserRole.ADMIN && dispute.OpenedBy != userId && dispute.AgainstUserId != userId)
             throw new UnauthorizedException("You are not authorized to view this dispute.");

@@ -37,11 +37,11 @@ public class HiringService : IHiringService
 
             // 2. Reject sibling proposals
             var otherProposals = await _dbContext.Proposals
-                .Where(p => p.JobId == proposal.JobId && p.Id != proposalId && 
+                .Where(p => p.JobId == proposal.JobId && p.Id != proposalId &&
                            (p.Status == ProposalStatus.SUBMITTED || p.Status == ProposalStatus.SHORTLISTED))
                 .ToListAsync();
-            
-            foreach (var p in otherProposals) 
+
+            foreach (var p in otherProposals)
             {
                 p.Status = ProposalStatus.REJECTED;
                 p.UpdatedAt = DateTimeOffset.UtcNow;
@@ -97,13 +97,13 @@ public class HiringService : IHiringService
     public async Task<bool> ShortlistProposalAsync(Guid clientId, Guid proposalId)
     {
         var proposal = await GetProposalWithOwnerCheckAsync(clientId, proposalId);
-        
+
         if (proposal.Status != ProposalStatus.SUBMITTED)
             throw new ValidationException("Only submitted proposals can be shortlisted.");
 
         proposal.Status = ProposalStatus.SHORTLISTED;
         proposal.UpdatedAt = DateTimeOffset.UtcNow;
-        
+
         await _dbContext.SaveChangesAsync();
         return true;
     }
@@ -125,10 +125,10 @@ public class HiringService : IHiringService
     public async Task<bool> WithdrawProposalAsync(Guid expertId, Guid proposalId)
     {
         var proposal = await _dbContext.Proposals.FindAsync(proposalId);
-        
+
         if (proposal == null) throw new NotFoundException("Proposal not found.");
         if (proposal.ExpertId != expertId) throw new UnauthorizedException("You can only withdraw your own proposal.");
-        
+
         if (proposal.Status == ProposalStatus.ACCEPTED || proposal.Status == ProposalStatus.REJECTED)
             throw new ValidationException("Terminal proposals cannot be withdrawn.");
 

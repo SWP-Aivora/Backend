@@ -236,12 +236,12 @@ using (var scope = app.Services.CreateScope())
     var services = scope.ServiceProvider;
     var logger = services.GetRequiredService<ILogger<Program>>();
     var context = services.GetRequiredService<AivoraDbContext>();
-    
+
     try
     {
         // Thử migrate bình thường
         context.Database.Migrate();
-        
+
         var forceReset = builder.Configuration.GetValue<bool>("SeedForceReset");
         if (forceReset)
         {
@@ -252,16 +252,16 @@ using (var scope = app.Services.CreateScope())
     catch (Exception ex)
     {
         logger.LogError(ex, "❌ Lỗi khi Migrate hoặc Seed DB. Thử khôi phục bằng cách Reset DB...");
-        
+
         try
         {
             // Nếu lỗi nặng (xung đột schema), xóa sạch và làm lại từ đầu
             await context.Database.EnsureDeletedAsync();
             logger.LogWarning("♻️ Đã xóa Database cũ.");
-            
+
             await context.Database.MigrateAsync();
             logger.LogInformation("✅ Đã khởi tạo lại Schema mới.");
-            
+
             await Aivora.Repositories.Data.SeedData.Initialize(context, forceReset: true);
             logger.LogInformation("✅ Đã Seed lại dữ liệu mặc định.");
         }

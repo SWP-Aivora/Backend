@@ -18,7 +18,7 @@ public class MilestoneController : ControllerBase
     private readonly Aivora.Services.DisputeService.IService _disputeService;
 
     public MilestoneController(
-        IService milestoneService, 
+        IService milestoneService,
         Aivora.Services.DeliverableService.IService deliverableService,
         Aivora.Services.DisputeService.IService disputeService)
     {

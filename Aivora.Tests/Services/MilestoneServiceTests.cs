@@ -52,7 +52,7 @@ public class MilestoneServiceTests
         result.Milestone.Status.Should().Be(MilestoneStatus.FUNDED);
         result.Wallet.AvailableBalance.Should().Be(700);
         result.Wallet.HeldBalance.Should().Be(300);
-        
+
         var updatedProject = await dbContext.Projects.FindAsync(projectId);
         updatedProject!.Status.Should().Be(ProjectStatus.ACTIVE);
 
@@ -92,7 +92,7 @@ public class MilestoneServiceTests
 
         // Assert
         result.Status.Should().Be(MilestoneStatus.PAID);
-        
+
         var updatedClientWallet = await dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == clientId);
         updatedClientWallet!.HeldBalance.Should().Be(0);
 

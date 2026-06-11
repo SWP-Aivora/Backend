@@ -150,7 +150,7 @@ public class Service : IService
                 .Include(p => p.User)
                 .FirstOrDefaultAsync(p => p.UserId == expertId);
         }
-        
+
         if (profile == null) throw new NotFoundException("Expert profile not found.");
 
         return new Response.ExpertProfileResponse

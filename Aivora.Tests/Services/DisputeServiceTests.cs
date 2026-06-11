@@ -52,7 +52,7 @@ public class DisputeServiceTests
 
         // Assert
         result.Status.Should().Be(DisputeStatus.OPEN.ToString());
-        
+
         var updatedMilestone = await dbContext.Milestones.FindAsync(milestoneId);
         updatedMilestone!.Status.Should().Be(MilestoneStatus.DISPUTED);
 
@@ -71,18 +71,18 @@ public class DisputeServiceTests
         var clientId = Guid.NewGuid();
         var expertId = Guid.NewGuid();
         var adminId = Guid.NewGuid();
-        
+
         var clientUser = new User { Id = clientId, FullName = "Client", Role = UserRole.CLIENT, Email = "c@t.com", PasswordHash = "x" };
         var expertUser = new User { Id = expertId, FullName = "Expert", Role = UserRole.EXPERT, Email = "e@t.com", PasswordHash = "x" };
         var adminUser = new User { Id = adminId, FullName = "Admin", Role = UserRole.ADMIN, Email = "a@t.com", PasswordHash = "x" };
 
         var clientWallet = new Wallet { UserId = clientId, AvailableBalance = 0, HeldBalance = 500, Currency = "AICOIN" };
         var expertWallet = new Wallet { UserId = expertId, AvailableBalance = 0, Currency = "AICOIN" };
-        
+
         var project = new Project { Id = Guid.NewGuid(), ClientId = clientId, ExpertId = expertId, Title = "Resolve Project", Status = ProjectStatus.DISPUTED };
         var milestone = new Milestone { Id = Guid.NewGuid(), ProjectId = project.Id, Amount = 500, Status = MilestoneStatus.DISPUTED, Title = "M1" };
         var payment = new Payment { Id = Guid.NewGuid(), MilestoneId = milestone.Id, ProjectId = project.Id, PayerId = clientId, PayeeId = expertId, Amount = 500, Status = PaymentStatus.FROZEN };
-        
+
         var dispute = new Dispute { Id = Guid.NewGuid(), ProjectId = project.Id, MilestoneId = milestone.Id, PaymentId = payment.Id, OpenedBy = clientId, AgainstUserId = expertId, Status = DisputeStatus.OPEN, Reason = "X" };
 
         dbContext.Users.AddRange(clientUser, expertUser, adminUser);
@@ -95,10 +95,10 @@ public class DisputeServiceTests
 
         var treasury = new Aivora.Services.Treasury.Treasury(dbContext, Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>());
         var service = new Service(dbContext, treasury);
-        var resolveRequest = new Request.ResolveDisputeRequest 
-        { 
+        var resolveRequest = new Request.ResolveDisputeRequest
+        {
             ResolutionType = DisputeResolutionType.REFUND_TO_CLIENT,
-            ResolutionNote = "Validated refund" 
+            ResolutionNote = "Validated refund"
         };
 
         // Act
