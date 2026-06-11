@@ -21,7 +21,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 
 # Create non-root user
-RUN addgroup -g 1001 -S appgroup && adduser -S appuser -u 1001 -G appgroup
+RUN useradd -u 1001 -s /bin/sh -M appuser
 USER appuser
 
 COPY --from=publish /app/publish .
