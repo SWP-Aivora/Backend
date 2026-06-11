@@ -266,8 +266,8 @@ Content-Type: application/json
 ### Auth: Expert only | Rate Limit: AI (20/min)
 ### Validation:
 ###   RawInput: 20-4000 | Skills: 1-20 | PriceFrom: 1-100000
-###   DeliveryDays: 1-365 | Tone: professional|casual|technical|friendly|formal
-###   TargetClient: startup|enterprise|small_business|individual|agency
+###   DeliveryDays: 1-365 | Tone: professional|friendly|premium|technical
+###   TargetClient: startup|sme|enterprise|individual
 ###   Language: vi|en
 ### ============================================================
 

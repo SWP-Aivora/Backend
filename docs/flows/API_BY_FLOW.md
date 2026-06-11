@@ -331,8 +331,8 @@ Tạo mô tả dịch vụ + 3 gói (Basic/Standard/Premium) cho Expert dựa tr
 | `skills` | List\<string\> | **Yes** | 1–20 items |
 | `priceFrom` | decimal | **Yes** | 1–100000 |
 | `deliveryDays` | int | **Yes** | 1–365 |
-| `tone` | string | No (default: `"professional"`) | `"professional"` \| `"casual"` \| `"technical"` \| `"friendly"` \| `"formal"` |
-| `targetClient` | string | No (default: `"startup"`) | `"startup"` \| `"enterprise"` \| `"small_business"` \| `"individual"` \| `"agency"` |
+| `tone` | string | No (default: `"professional"`) | `"professional"` \| `"friendly"` \| `"premium"` \| `"technical"` |
+| `targetClient` | string | No (default: `"startup"`) | `"startup"` \| `"sme"` \| `"enterprise"` \| `"individual"` |
 | `language` | string | No (default: `"vi"`) | `"vi"` \| `"en"` |
 
 **Status:** `201 Created` (thành công), `400` (validation), `403` (Client gọi endpoint này).
