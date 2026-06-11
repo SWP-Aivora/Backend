@@ -38,6 +38,11 @@ public static class OpenApiExtensions
 
     public static void UseOpenApiUI(this WebApplication app)
     {
+        if (!app.Environment.IsDevelopment())
+        {
+            return;
+        }
+
         app.MapOpenApi();
         app.MapScalarApiReference(); // Accessible at /scalar/v1
     }

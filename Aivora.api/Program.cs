@@ -1,70 +1,23 @@
+using System.Threading.RateLimiting;
 using Aivora.api.Extensions;
 using Aivora.api.Middlewares;
 using Aivora.Repositories.Data;
 using Aivora.Repositories.Data.Interceptors;
-using Aivora.Services.Options;
 using Aivora.Services.JwtService;
+using Aivora.Services.Models;
+using Aivora.Services.Options;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
 builder.Services.AddSingleton<AuditableEntityInterceptor>();
 
-// ── Validate required configuration ────────────────────────────
-var requiredConfig = new Dictionary<string, string>
-{
-    ["ConnectionStrings:DefaultConnection"] = "ConnectionStrings__DefaultConnection",
-    ["JwtSettings:Secret"] = "JwtSettings__Secret",
-    ["JwtSettings:Issuer"] = "JwtSettings__Issuer",
-    ["JwtSettings:Audience"] = "JwtSettings__Audience",
-    ["JwtSettings:ExpiryInMinutes"] = "JwtSettings__ExpiryInMinutes",
-    ["CloudinaryOptions:CloudName"] = "CloudinaryOptions__CloudName",
-    ["CloudinaryOptions:ApiKey"] = "CloudinaryOptions__ApiKey",
-    ["CloudinaryOptions:ApiSecret"] = "CloudinaryOptions__ApiSecret",
-};
+ValidateRequiredConfiguration(builder.Configuration);
+ValidateAIProviderConfiguration(builder.Configuration, builder.Environment);
 
-var missing = new List<string>();
-var placeholders = new List<string>();
-
-foreach (var (configKey, envVar) in requiredConfig)
-{
-    var value = builder.Configuration[configKey];
-
-    if (string.IsNullOrWhiteSpace(value))
-    {
-        missing.Add($"  • {configKey}  —  set env var '{envVar}'");
-    }
-    else if (HasPlaceholder(value))
-    {
-        placeholders.Add($"  • {configKey}  —  current value is a placeholder, set real value via '{envVar}'");
-    }
-}
-
-if (missing.Count > 0 || placeholders.Count > 0)
-{
-    var allErrors = new List<string>();
-    allErrors.AddRange(missing);
-    allErrors.AddRange(placeholders);
-    var message = $"Missing {missing.Count} and {placeholders.Count} placeholder configuration value(s):\n"
-        + string.Join("\n", allErrors);
-
-    throw new InvalidOperationException(message);
-}
-
-static bool HasPlaceholder(string? value)
-{
-    if (string.IsNullOrWhiteSpace(value)) return true;
-
-    return value.Contains("__SET", StringComparison.OrdinalIgnoreCase)
-           || value.Contains("CHANGE_ME", StringComparison.OrdinalIgnoreCase)
-           || value.Contains("PLACEHOLDER", StringComparison.OrdinalIgnoreCase);
-}
-
-// ── Register services ──────────────────────────────────────────
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")!;
 
 builder.Services.AddDbContext<AivoraDbContext>((sp, options) =>
@@ -74,20 +27,18 @@ builder.Services.AddDbContext<AivoraDbContext>((sp, options) =>
         .AddInterceptors(interceptor);
 });
 
-// CORS Configuration
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowSpecificOrigin",
         policy =>
         {
             policy.WithOrigins("http://localhost:5173", "https://aivora-pi.vercel.app")
-                  .AllowAnyHeader()
-                  .AllowAnyMethod()
-                  .AllowCredentials();
+                .AllowAnyHeader()
+                .AllowAnyMethod()
+                .AllowCredentials();
         });
 });
 
-// Configure Options
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("JwtSettings"));
 builder.Services.Configure<CloudinaryOptions>(builder.Configuration.GetSection("CloudinaryOptions"));
 builder.Services.Configure<AIProviderOptions>(builder.Configuration.GetSection("AIProvider"));
@@ -98,15 +49,20 @@ builder.Services.AddRateLimiter(options =>
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.OnRejected = async (context, token) =>
     {
+        var retryAfterSeconds = context.Lease.TryGetMetadata(MetadataName.RetryAfter, out TimeSpan retryAfter)
+            ? (int)Math.Ceiling(retryAfter.TotalSeconds)
+            : (int?)null;
+        var message = retryAfterSeconds.HasValue
+            ? $"Too many requests. Please try again after {retryAfterSeconds.Value} second(s)."
+            : "Too many requests. Please try again later.";
+
         context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
-        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out TimeSpan retryAfter))
-        {
-            await context.HttpContext.Response.WriteAsJsonAsync(new { message = $"Too many requests. Please try again after {retryAfter.TotalSeconds} second(s)." }, token);
-        }
-        else
-        {
-            await context.HttpContext.Response.WriteAsJsonAsync(new { message = "Too many requests. Please try again later." }, token);
-        }
+        await context.HttpContext.Response.WriteAsJsonAsync(
+            ApiResponseFactory.ErrorResponse(
+                message,
+                new { code = "rate_limit_exceeded", retryAfterSeconds },
+                context.HttpContext.TraceIdentifier),
+            token);
     };
 
     var rateLimitOptions = builder.Configuration.GetSection(RateLimitOptions.SectionName).Get<RateLimitOptions>() ?? new RateLimitOptions();
@@ -139,7 +95,6 @@ builder.Services.AddRateLimiter(options =>
             }));
 });
 
-// Register Services
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddJwtServices(builder.Configuration);
 
@@ -168,26 +123,56 @@ builder.Services.AddScoped<Aivora.Services.AIJobAssistantService.Providers.Gemin
 builder.Services.AddScoped<Aivora.Services.AIJobAssistantService.IAIJobSuggestionProvider>(sp =>
 {
     var options = sp.GetRequiredService<IOptions<AIProviderOptions>>().Value;
-    return string.Equals(options.Provider, "Gemini", StringComparison.OrdinalIgnoreCase)
-           && !string.IsNullOrWhiteSpace(options.ApiKey)
-        ? sp.GetRequiredService<Aivora.Services.AIJobAssistantService.Providers.GeminiAIJobSuggestionProvider>()
-        : sp.GetRequiredService<Aivora.Services.AIJobAssistantService.Providers.MockAIJobSuggestionProvider>();
+    if (UseGemini(options))
+    {
+        return sp.GetRequiredService<Aivora.Services.AIJobAssistantService.Providers.GeminiAIJobSuggestionProvider>();
+    }
+
+    var environment = sp.GetRequiredService<IWebHostEnvironment>();
+    if (environment.IsProduction())
+    {
+        throw new InvalidOperationException("AIProvider__Provider=Gemini and AIProvider__ApiKey are required in Production.");
+    }
+
+    var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("AIProvider");
+    logger.LogWarning("Using mock AI job suggestion provider because provider {Provider} is not fully configured.", options.Provider);
+    return sp.GetRequiredService<Aivora.Services.AIJobAssistantService.Providers.MockAIJobSuggestionProvider>();
 });
 builder.Services.AddScoped<Aivora.Services.AIJobAssistantService.IAIJobRefinementProvider>(sp =>
 {
     var options = sp.GetRequiredService<IOptions<AIProviderOptions>>().Value;
-    return string.Equals(options.Provider, "Gemini", StringComparison.OrdinalIgnoreCase)
-           && !string.IsNullOrWhiteSpace(options.ApiKey)
-        ? sp.GetRequiredService<Aivora.Services.AIJobAssistantService.Providers.GeminiAIJobRefinementProvider>()
-        : sp.GetRequiredService<Aivora.Services.AIJobAssistantService.Providers.MockAIJobRefinementProvider>();
+    if (UseGemini(options))
+    {
+        return sp.GetRequiredService<Aivora.Services.AIJobAssistantService.Providers.GeminiAIJobRefinementProvider>();
+    }
+
+    var environment = sp.GetRequiredService<IWebHostEnvironment>();
+    if (environment.IsProduction())
+    {
+        throw new InvalidOperationException("AIProvider__Provider=Gemini and AIProvider__ApiKey are required in Production.");
+    }
+
+    var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("AIProvider");
+    logger.LogWarning("Using mock AI job refinement provider because provider {Provider} is not fully configured.", options.Provider);
+    return sp.GetRequiredService<Aivora.Services.AIJobAssistantService.Providers.MockAIJobRefinementProvider>();
 });
 builder.Services.AddScoped<Aivora.Services.AIJobAssistantService.IAIServiceDescriptionProvider>(sp =>
 {
     var options = sp.GetRequiredService<IOptions<AIProviderOptions>>().Value;
-    return string.Equals(options.Provider, "Gemini", StringComparison.OrdinalIgnoreCase)
-           && !string.IsNullOrWhiteSpace(options.ApiKey)
-        ? sp.GetRequiredService<Aivora.Services.AIJobAssistantService.Providers.GeminiAIServiceDescriptionProvider>()
-        : sp.GetRequiredService<Aivora.Services.AIJobAssistantService.Providers.MockAIServiceDescriptionProvider>();
+    if (UseGemini(options))
+    {
+        return sp.GetRequiredService<Aivora.Services.AIJobAssistantService.Providers.GeminiAIServiceDescriptionProvider>();
+    }
+
+    var environment = sp.GetRequiredService<IWebHostEnvironment>();
+    if (environment.IsProduction())
+    {
+        throw new InvalidOperationException("AIProvider__Provider=Gemini and AIProvider__ApiKey are required in Production.");
+    }
+
+    var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("AIProvider");
+    logger.LogWarning("Using mock AI service description provider because provider {Provider} is not fully configured.", options.Provider);
+    return sp.GetRequiredService<Aivora.Services.AIJobAssistantService.Providers.MockAIServiceDescriptionProvider>();
 });
 builder.Services.AddScoped<Aivora.Services.AIJobAssistantService.IService, Aivora.Services.AIJobAssistantService.Service>();
 builder.Services.AddScoped<Aivora.Services.RecommendationService.IService, Aivora.Services.RecommendationService.Service>();
@@ -203,17 +188,36 @@ builder.Services.AddScoped<Aivora.Services.AdminService.IAdminService, Aivora.Se
 builder.Services.AddScoped<Aivora.Services.Treasury.ITreasury, Aivora.Services.Treasury.Treasury>();
 
 builder.Services.AddSignalR();
-builder.Services.AddControllers().AddJsonOptions(options =>
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+    });
+builder.Services.Configure<ApiBehaviorOptions>(options =>
 {
-    options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+    options.InvalidModelStateResponseFactory = context =>
+    {
+        var errors = context.ModelState
+            .Where(entry => entry.Value?.Errors.Count > 0)
+            .ToDictionary(
+                entry => entry.Key,
+                entry => entry.Value!.Errors
+                    .Select(error => string.IsNullOrWhiteSpace(error.ErrorMessage)
+                        ? "The input was invalid."
+                        : error.ErrorMessage)
+                    .ToArray());
+
+        return new BadRequestObjectResult(ApiResponseFactory.ErrorResponse(
+            "Validation failed.",
+            new { code = "validation_error", fields = errors },
+            context.HttpContext.TraceIdentifier));
+    };
 });
 
-// Native OpenAPI Configuration (.NET 10)
 builder.Services.AddOpenApiServices();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 app.UseMiddleware<ExceptionMiddleware>();
 
 app.UseOpenApiUI();
@@ -230,46 +234,140 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHub<Aivora.api.Hubs.ChatHub>("/api/v1/chat");
 
-// Seed the database
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
     var logger = services.GetRequiredService<ILogger<Program>>();
     var context = services.GetRequiredService<AivoraDbContext>();
-    
+    var forceReset = app.Configuration.GetValue<bool>("SeedForceReset");
+
+    if (forceReset && !app.Environment.IsDevelopment())
+    {
+        throw new InvalidOperationException("SeedForceReset can only be used in Development.");
+    }
+
     try
     {
-        // Thử migrate bình thường
-        context.Database.Migrate();
-        
-        var forceReset = builder.Configuration.GetValue<bool>("SeedForceReset");
+        await context.Database.MigrateAsync();
+
         if (forceReset)
         {
-            logger.LogWarning("⚠️ SeedForceReset=true — sẽ xóa hết data cũ và seed lại!");
+            logger.LogWarning("SeedForceReset=true; seed-managed data will be reset in Development.");
         }
+
         await Aivora.Repositories.Data.SeedData.Initialize(context, forceReset);
     }
     catch (Exception ex)
     {
-        logger.LogError(ex, "❌ Lỗi khi Migrate hoặc Seed DB. Thử khôi phục bằng cách Reset DB...");
-        
-        try
-        {
-            // Nếu lỗi nặng (xung đột schema), xóa sạch và làm lại từ đầu
-            await context.Database.EnsureDeletedAsync();
-            logger.LogWarning("♻️ Đã xóa Database cũ.");
-            
-            await context.Database.MigrateAsync();
-            logger.LogInformation("✅ Đã khởi tạo lại Schema mới.");
-            
-            await Aivora.Repositories.Data.SeedData.Initialize(context, forceReset: true);
-            logger.LogInformation("✅ Đã Seed lại dữ liệu mặc định.");
-        }
-        catch (Exception criticalEx)
-        {
-            logger.LogCritical(criticalEx, "🔥 KHÔNG THỂ KHÔI PHỤC DATABASE! Ứng dụng có thể hoạt động không ổn định.");
-        }
+        logger.LogCritical(ex, "Database migration or seed failed. Startup aborted without deleting the configured database.");
+        throw;
     }
 }
 
 app.Run();
+
+static void ValidateRequiredConfiguration(IConfiguration configuration)
+{
+    var requiredConfig = new Dictionary<string, string>
+    {
+        ["ConnectionStrings:DefaultConnection"] = "ConnectionStrings__DefaultConnection",
+        ["JwtSettings:Secret"] = "JwtSettings__Secret",
+        ["JwtSettings:Issuer"] = "JwtSettings__Issuer",
+        ["JwtSettings:Audience"] = "JwtSettings__Audience",
+        ["JwtSettings:ExpiryInMinutes"] = "JwtSettings__ExpiryInMinutes",
+        ["CloudinaryOptions:CloudName"] = "CloudinaryOptions__CloudName",
+        ["CloudinaryOptions:ApiKey"] = "CloudinaryOptions__ApiKey",
+        ["CloudinaryOptions:ApiSecret"] = "CloudinaryOptions__ApiSecret",
+    };
+
+    var errors = new List<string>();
+    foreach (var (configKey, envVar) in requiredConfig)
+    {
+        var value = configuration[configKey];
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            errors.Add($"{configKey} is missing; set {envVar}.");
+        }
+        else if (HasPlaceholder(value))
+        {
+            errors.Add($"{configKey} is a placeholder; set {envVar}.");
+        }
+    }
+
+    var jwtSecret = configuration["JwtSettings:Secret"];
+    if (!string.IsNullOrWhiteSpace(jwtSecret) && jwtSecret.Length < 32)
+    {
+        errors.Add("JwtSettings:Secret must be at least 32 characters.");
+    }
+
+    if (!int.TryParse(configuration["JwtSettings:ExpiryInMinutes"], out var expiryInMinutes) || expiryInMinutes <= 0)
+    {
+        errors.Add("JwtSettings:ExpiryInMinutes must be a positive integer.");
+    }
+
+    if (errors.Count > 0)
+    {
+        throw new InvalidOperationException("Invalid configuration:\n" + string.Join("\n", errors.Select(error => "- " + error)));
+    }
+}
+
+static void ValidateAIProviderConfiguration(IConfiguration configuration, IWebHostEnvironment environment)
+{
+    var options = configuration.GetSection("AIProvider").Get<AIProviderOptions>() ?? new AIProviderOptions();
+    var provider = options.Provider?.Trim();
+    var providerIsGemini = string.Equals(provider, "Gemini", StringComparison.OrdinalIgnoreCase);
+    var providerIsMock = string.Equals(provider, "Mock", StringComparison.OrdinalIgnoreCase);
+    var errors = new List<string>();
+
+    if (string.IsNullOrWhiteSpace(provider) || (!providerIsGemini && !providerIsMock))
+    {
+        errors.Add("AIProvider:Provider must be either Gemini or Mock.");
+    }
+
+    if (environment.IsProduction())
+    {
+        if (!providerIsGemini)
+        {
+            errors.Add("AIProvider:Provider must be Gemini in Production.");
+        }
+
+        if (string.IsNullOrWhiteSpace(options.ApiKey) || HasPlaceholder(options.ApiKey))
+        {
+            errors.Add("AIProvider:ApiKey is required in Production; set AIProvider__ApiKey.");
+        }
+
+        if (options.EnableFallback)
+        {
+            errors.Add("AIProvider:EnableFallback must be false in Production.");
+        }
+    }
+    else if (providerIsGemini && string.IsNullOrWhiteSpace(options.ApiKey) && !options.EnableFallback)
+    {
+        errors.Add("AIProvider:ApiKey is required when Gemini is selected and fallback is disabled.");
+    }
+
+    if (errors.Count > 0)
+    {
+        throw new InvalidOperationException("Invalid AI provider configuration:\n" + string.Join("\n", errors.Select(error => "- " + error)));
+    }
+}
+
+static bool HasPlaceholder(string? value)
+{
+    if (string.IsNullOrWhiteSpace(value))
+    {
+        return true;
+    }
+
+    return value.Contains("__SET", StringComparison.OrdinalIgnoreCase)
+        || value.Contains("CHANGE_ME", StringComparison.OrdinalIgnoreCase)
+        || value.Contains("PLACEHOLDER", StringComparison.OrdinalIgnoreCase)
+        || value.Contains("YOUR_", StringComparison.OrdinalIgnoreCase);
+}
+
+static bool UseGemini(AIProviderOptions options)
+{
+    return string.Equals(options.Provider, "Gemini", StringComparison.OrdinalIgnoreCase)
+        && !string.IsNullOrWhiteSpace(options.ApiKey)
+        && !HasPlaceholder(options.ApiKey);
+}
