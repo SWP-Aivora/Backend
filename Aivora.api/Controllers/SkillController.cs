@@ -34,6 +34,7 @@ public class SkillController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = JwtExtensions.AdminPolicy)]
     public async Task<IActionResult> CreateSkill([FromBody] Request.CreateSkillRequest request)
     {
         var result = await _skillService.CreateSkillAsync(request);

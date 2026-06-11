@@ -1,5 +1,7 @@
+using Aivora.api.Extensions;
 using Aivora.Services.CategoryService;
 using Aivora.Services.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -32,6 +34,7 @@ public class CategoryController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = JwtExtensions.AdminPolicy)]
     public async Task<IActionResult> CreateCategory([FromBody] Request.CreateCategoryRequest request)
     {
         var result = await _categoryService.CreateCategoryAsync(request);

@@ -18,6 +18,8 @@ public class IdentityServiceTests
     public IdentityServiceTests()
     {
         _jwtServiceMock = new Mock<IJwtService>();
+        _jwtServiceMock.Setup(x => x.HashRefreshToken(It.IsAny<string>()))
+            .Returns<string>(token => $"hash:{token}");
     }
 
     private AivoraDbContext GetDbContext()
@@ -49,6 +51,7 @@ public class IdentityServiceTests
         user!.ExpertProfile.Should().NotBeNull();
         user.Wallet.Should().NotBeNull();
         user.Wallet!.AvailableBalance.Should().Be(0);
+        user.RefreshToken.Should().Be("hash:rt");
     }
 
     [Fact]
@@ -58,7 +61,7 @@ public class IdentityServiceTests
         var dbContext = GetDbContext();
         var service = new Aivora.Services.IdentityService.Service(dbContext, _jwtServiceMock.Object);
         var refreshToken = "valid-rt";
-        var user = new User { Email = "u@t.com", FullName = "U", PasswordHash = "h", RefreshToken = refreshToken, RefreshTokenExpiryTime = DateTimeOffset.UtcNow.AddDays(1), Role = UserRole.CLIENT };
+        var user = new User { Email = "u@t.com", FullName = "U", PasswordHash = "h", RefreshToken = $"hash:{refreshToken}", RefreshTokenExpiryTime = DateTimeOffset.UtcNow.AddDays(1), Role = UserRole.CLIENT };
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync();
 
@@ -71,6 +74,7 @@ public class IdentityServiceTests
         // Assert
         result.AccessToken.Should().Be("new-at");
         result.RefreshToken.Should().Be("new-rt");
+        user.RefreshToken.Should().Be("hash:new-rt");
     }
 
     [Fact]
@@ -80,7 +84,7 @@ public class IdentityServiceTests
         var dbContext = GetDbContext();
         var service = new Aivora.Services.IdentityService.Service(dbContext, _jwtServiceMock.Object);
         var refreshToken = "expired-rt";
-        var user = new User { Email = "u@t.com", FullName = "U", PasswordHash = "h", RefreshToken = refreshToken, RefreshTokenExpiryTime = DateTimeOffset.UtcNow.AddDays(-1) };
+        var user = new User { Email = "u@t.com", FullName = "U", PasswordHash = $"hash:{refreshToken}", RefreshTokenExpiryTime = DateTimeOffset.UtcNow.AddDays(-1) };
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync();
 

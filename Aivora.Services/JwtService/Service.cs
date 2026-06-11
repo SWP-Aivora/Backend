@@ -1,5 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using Aivora.Repositories.Entities;
 using Aivora.Services.Options;
@@ -43,6 +44,18 @@ public class Service : IJwtService
 
     public string GenerateRefreshToken()
     {
-        return Guid.NewGuid().ToString("N");
+        return Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
+    }
+
+    public string HashRefreshToken(string refreshToken)
+    {
+        if (string.IsNullOrWhiteSpace(refreshToken))
+        {
+            throw new ArgumentException("Refresh token is required.", nameof(refreshToken));
+        }
+
+        var tokenBytes = Encoding.UTF8.GetBytes(refreshToken);
+        var hashBytes = SHA256.HashData(tokenBytes);
+        return Convert.ToHexString(hashBytes);
     }
 }
