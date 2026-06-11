@@ -1,0 +1,350 @@
+### ============================================================
+### Aivora AI Service — 7 API Endpoints Testing
+### Base URL: http://localhost:5176/api/v1
+### Auth: Bearer <accessToken>
+### ============================================================
+
+@baseUrl = http://localhost:5176/api/v1
+@accessToken = {{YOUR_JWT_TOKEN}}
+@categoryId = 019b0e8d-0000-7000-0000-000000000001
+@skillId = 019b0e8d-0000-7000-0000-000000000002
+
+### ============================================================
+### 1. POST Generate AI Job Suggestion
+### Route: POST /api/v1/ai/job-assistant
+### Auth: Client only | Rate Limit: AI (20/min)
+### Validation: RawInput >= 5 chars
+### ============================================================
+
+### 1a. Minimal valid request
+POST {{baseUrl}}/ai/job-assistant
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "rawInput": "I need a chatbot for my e-commerce store to handle customer support 24/7"
+}
+
+### 1b. Full request with all fields
+POST {{baseUrl}}/ai/job-assistant
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "rawInput": "Build a deep learning recommendation engine for our streaming platform with personalized content suggestions",
+  "businessDomain": "Media & Entertainment",
+  "expectedOutcome": "Increase user engagement by 30% through personalized recommendations delivered in real-time",
+  "budgetType": "FIXED",
+  "currency": "AICOIN",
+  "budgetMin": 5000,
+  "budgetMax": 15000,
+  "timelineDays": 45,
+  "experienceLevel": "ADVANCED"
+}
+
+### 1c. Error: RawInput too short (< 5 chars)
+POST {{baseUrl}}/ai/job-assistant
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "rawInput": "AI"
+}
+
+### 1d. Error: No auth token (expect 401)
+POST {{baseUrl}}/ai/job-assistant
+Content-Type: application/json
+
+{
+  "rawInput": "I need a chatbot for my store"
+}
+
+
+### ============================================================
+### 2. GET AI Job Suggestion by ID
+### Route: GET /api/v1/ai/job-assistant/{id}
+### Auth: Client only (must be owner)
+### ============================================================
+
+### 2a. Get suggestion (use ID from step 1 response)
+GET {{baseUrl}}/ai/job-assistant/REPLACE_WITH_SUGGESTION_ID
+Authorization: Bearer {{accessToken}}
+
+### 2b. Error: Non-existent ID (expect 404)
+GET {{baseUrl}}/ai/job-assistant/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{accessToken}}
+
+
+### ============================================================
+### 3. PATCH Job Suggestion (partial update)
+### Route: PATCH /api/v1/ai/job-assistant/{id}
+### Auth: Client only
+### Only provided fields are updated
+### ============================================================
+
+### 3a. Patch title and budget
+PATCH {{baseUrl}}/ai/job-assistant/REPLACE_WITH_SUGGESTION_ID
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "suggestedTitle": "Custom AI Recommendation Engine for Streaming Platform",
+  "suggestedBudgetMin": 7000,
+  "suggestedBudgetMax": 12000
+}
+
+### 3b. Patch skills and timeline
+PATCH {{baseUrl}}/ai/job-assistant/REPLACE_WITH_SUGGESTION_ID
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "suggestedSkills": ["Python", "TensorFlow", "Recommendation Systems", "Kubernetes"],
+  "suggestedTimelineDays": 60,
+  "experienceLevel": "EXPERT"
+}
+
+### 3c. Patch milestones
+PATCH {{baseUrl}}/ai/job-assistant/REPLACE_WITH_SUGGESTION_ID
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "suggestedMilestones": [
+    {
+      "title": "Data Analysis & Architecture",
+      "description": "Analyze existing data and design system architecture",
+      "amount": 3000,
+      "dueDays": 15
+    },
+    {
+      "title": "Model Development & Training",
+      "description": "Build and train the recommendation models",
+      "amount": 5000,
+      "dueDays": 30
+    },
+    {
+      "title": "Integration & Deployment",
+      "description": "Integrate with platform and deploy to production",
+      "amount": 4000,
+      "dueDays": 15
+    }
+  ]
+}
+
+
+### ============================================================
+### 4. POST Refine AI Job Suggestion
+### Route: POST /api/v1/ai/job-assistant/{id}/refine
+### Auth: Client only
+### Validation: Message between 3-? chars
+### Side effect: Calls AI to improve the suggestion
+### ============================================================
+
+### 4a. Refine with budget feedback
+POST {{baseUrl}}/ai/job-assistant/REPLACE_WITH_SUGGESTION_ID/refine
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "message": "Increase budget to 20000 and change to hourly"
+}
+
+### 4b. Refine with skill request
+POST {{baseUrl}}/ai/job-assistant/REPLACE_WITH_SUGGESTION_ID/refine
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "message": "add skill: PyTorch"
+}
+
+### 4c. Refine - clarifying question answer
+POST {{baseUrl}}/ai/job-assistant/REPLACE_WITH_SUGGESTION_ID/refine
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "message": "question 1: We have 10 million active users and 50,000 content items"
+}
+
+### 4d. Refine - advisory question
+POST {{baseUrl}}/ai/job-assistant/REPLACE_WITH_SUGGESTION_ID/refine
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "message": "should I use a cloud-based or on-premise solution?"
+}
+
+### 4e. Error: Message too short (< 3 chars)
+POST {{baseUrl}}/ai/job-assistant/REPLACE_WITH_SUGGESTION_ID/refine
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "message": "OK"
+}
+
+
+### ============================================================
+### 5. POST Accept Suggestion → Create Job
+### Route: POST /api/v1/ai/job-assistant/{id}/accept
+### Auth: Client only
+### Requires: categoryId (required), selectedSkillIds (optional)
+### Creates JobPost from AI suggestion
+### ============================================================
+
+### 5a. Accept with category ID
+POST {{baseUrl}}/ai/job-assistant/REPLACE_WITH_SUGGESTION_ID/accept
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "categoryId": "{{categoryId}}",
+  "selectedSkillIds": []
+}
+
+### 5b. Accept with category + skills
+POST {{baseUrl}}/ai/job-assistant/REPLACE_WITH_SUGGESTION_ID/accept
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "categoryId": "{{categoryId}}",
+  "selectedSkillIds": ["{{skillId}}"]
+}
+
+### 5c. Error: Missing categoryId
+POST {{baseUrl}}/ai/job-assistant/REPLACE_WITH_SUGGESTION_ID/accept
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "selectedSkillIds": []
+}
+
+
+### ============================================================
+### 6. POST Reject AI Job Suggestion
+### Route: POST /api/v1/ai/job-assistant/{id}/reject
+### Auth: Client only
+### Validation: Reason between 3-500 chars
+### ============================================================
+
+### 6a. Reject with valid reason
+POST {{baseUrl}}/ai/job-assistant/REPLACE_WITH_SUGGESTION_ID/reject
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "reason": "The suggested budget is too high for our current needs. We will create a simpler job manually."
+}
+
+### 6b. Error: Reason too short (< 3 chars)
+POST {{baseUrl}}/ai/job-assistant/REPLACE_WITH_SUGGESTION_ID/reject
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "reason": "no"
+}
+
+### 6c. Error: Reason too long (> 500 chars)
+POST {{baseUrl}}/ai/job-assistant/REPLACE_WITH_SUGGESTION_ID/reject
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "reason": "This is a deliberately overlong rejection reason that exceeds the maximum allowed length of five hundred characters used to trigger validation error testing ensure the API properly rejects overly long rejection reasons with an appropriate error message helping verify input validation works correctly"
+}
+
+
+### ============================================================
+### 7. POST Generate Service Description (Expert only)
+### Route: POST /api/v1/ai/service-generator
+### Auth: Expert only | Rate Limit: AI (20/min)
+### Validation:
+###   RawInput: 20-4000 | Skills: 1-20 | PriceFrom: 1-100000
+###   DeliveryDays: 1-365 | Tone: professional|friendly|premium|technical
+###   TargetClient: startup|sme|enterprise|individual
+###   Language: vi|en
+### ============================================================
+
+### 7a. Minimal valid (English)
+POST {{baseUrl}}/ai/service-generator
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "rawInput": "I am a full-stack AI developer with 5 years of experience building chatbots, recommendation systems, and NLP applications for various clients.",
+  "skills": ["Python", "NLP", "Chatbot"],
+  "priceFrom": 500,
+  "deliveryDays": 14
+}
+
+### 7b. Full request (Enterprise, English)
+POST {{baseUrl}}/ai/service-generator
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "rawInput": "We build enterprise-grade AI solutions including custom LLM fine-tuning, RAG pipelines, and production ML deployments. Our team has delivered 50+ projects for Fortune 500 companies across finance, healthcare, and retail sectors. All projects include comprehensive documentation, testing, and 30-day post-launch support.",
+  "skills": ["Python", "Machine Learning", "Deep Learning", "NLP", "Computer Vision", "MLOps"],
+  "priceFrom": 2500,
+  "deliveryDays": 30,
+  "tone": "professional",
+  "targetClient": "enterprise",
+  "language": "en"
+}
+
+### 7c. Vietnamese service description
+POST {{baseUrl}}/ai/service-generator
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "rawInput": "Toi la lap trinh vien AI voi hon 3 nam kinh nghiem trong linh vuc xu ly ngon ngu tu nhien va phat trien chatbot. Da tung lam viec voi nhieu khach hang tu startup den doanh nghiep lon.",
+  "skills": ["Python", "NLP", "RAG", "LangChain", "FastAPI"],
+  "priceFrom": 800,
+  "deliveryDays": 21,
+  "tone": "friendly",
+  "targetClient": "startup",
+  "language": "vi"
+}
+
+### 7d. Error: RawInput too short (< 20 chars)
+POST {{baseUrl}}/ai/service-generator
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "rawInput": "AI developer",
+  "skills": ["Python"],
+  "priceFrom": 100,
+  "deliveryDays": 7
+}
+
+### 7e. Error: No skills
+POST {{baseUrl}}/ai/service-generator
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "rawInput": "I am an experienced AI developer with many successful projects delivered.",
+  "skills": [],
+  "priceFrom": 100,
+  "deliveryDays": 7
+}
+
+### 7f. Error: PriceFrom too high (> 100000)
+POST {{baseUrl}}/ai/service-generator
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "rawInput": "I am an experienced AI developer with many successful projects delivered to happy clients.",
+  "skills": ["Python", "AI"],
+  "priceFrom": 200000,
+  "deliveryDays": 7
+}

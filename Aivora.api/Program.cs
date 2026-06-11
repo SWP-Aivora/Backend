@@ -7,19 +7,12 @@ using Aivora.Services.JwtService;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using Scalar.AspNetCore;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddSingleton<AuditableEntityInterceptor>();
-
-// builder.Services.AddDbContext<AivoraDbContext>((sp, options) => {
-//     var interceptor = sp.GetRequiredService<AuditableEntityInterceptor>();
-//     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"))
-//            .AddInterceptors(interceptor);
-// });
 
 // ── Validate required configuration ────────────────────────────
 var requiredConfig = new Dictionary<string, string>
@@ -73,10 +66,6 @@ static bool HasPlaceholder(string? value)
 
 // ── Register services ──────────────────────────────────────────
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")!;
-
-Console.WriteLine("===== DB CONNECTION STRING DEBUG =====");
-Console.WriteLine(connectionString);
-Console.WriteLine("======================================");
 
 builder.Services.AddDbContext<AivoraDbContext>((sp, options) =>
 {
@@ -214,24 +203,20 @@ builder.Services.AddScoped<Aivora.Services.AdminService.IAdminService, Aivora.Se
 builder.Services.AddScoped<Aivora.Services.Treasury.ITreasury, Aivora.Services.Treasury.Treasury>();
 
 builder.Services.AddSignalR();
-builder.Services.AddControllers();
+builder.Services.AddControllers().AddJsonOptions(options =>
+{
+    options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+});
 
 // Native OpenAPI Configuration (.NET 10)
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApiServices();
 
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
 app.UseMiddleware<ExceptionMiddleware>();
 
-// if (app.Environment.IsDevelopment())
-// {
-//     app.MapOpenApi();
-//     app.MapScalarApiReference(); // Accessible at /scalar/v1
-// }
-
-app.MapOpenApi();
-app.MapScalarApiReference(); // Accessible at /scalar/v1
+app.UseOpenApiUI();
 
 app.UseHttpsRedirection();
 
