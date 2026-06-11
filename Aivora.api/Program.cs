@@ -213,7 +213,10 @@ builder.Services.AddScoped<Aivora.Services.AdminService.IAdminService, Aivora.Se
 builder.Services.AddScoped<Aivora.Services.Treasury.ITreasury, Aivora.Services.Treasury.Treasury>();
 
 builder.Services.AddSignalR();
-builder.Services.AddControllers();
+builder.Services.AddControllers().AddJsonOptions(options =>
+{
+    options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+});
 
 // Native OpenAPI Configuration (.NET 10)
 builder.Services.AddOpenApiServices();

@@ -24,22 +24,12 @@ public static class OpenApiExtensions
                 document.Components ??= new OpenApiComponents();
                 document.Components.SecuritySchemes.Add("Bearer", securityScheme);
 
-                var securityRequirement = new OpenApiSecurityRequirement
+                document.Security ??= new List<OpenApiSecurityRequirement>();
+                var schemeRef = new OpenApiSecuritySchemeReference("Bearer", document, "/components/securitySchemes/Bearer");
+                document.Security.Add(new OpenApiSecurityRequirement
                 {
-                    {
-                        new OpenApiSecurityScheme
-                        {
-                            Reference = new OpenApiReference
-                            {
-                                Type = ReferenceType.SecurityScheme,
-                                Id = "Bearer"
-                            }
-                        },
-                        Array.Empty<string>()
-                    }
-                };
-
-                document.SecurityRequirements.Add(securityRequirement);
+                    [schemeRef] = new List<string>()
+                });
 
                 return Task.CompletedTask;
             });
