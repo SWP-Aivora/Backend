@@ -28,6 +28,7 @@ public class Treasury : ITreasury
         
         if (milestone.Project.ClientId != clientId) throw new UnauthorizedException("Access denied.");
         if (milestone.Status != MilestoneStatus.CREATED) throw new ValidationException("Milestone is already funded or processed.");
+        ValidatePositiveAmount(milestone.Amount, "Milestone amount");
 
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
@@ -99,6 +100,7 @@ public class Treasury : ITreasury
 
         var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestoneId && p.Status == PaymentStatus.HELD);
         if (payment == null) throw new NotFoundException("Held payment not found for this milestone.");
+        ValidatePaymentAmount(payment);
 
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
@@ -170,6 +172,9 @@ public class Treasury : ITreasury
         var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestoneId && (p.Status == PaymentStatus.HELD || p.Status == PaymentStatus.FROZEN));
         
         if (payment == null) throw new NotFoundException("Held/Frozen payment not found for refund.");
+        ValidatePaymentAmount(payment);
+        ValidatePositiveAmount(amount, "Refund amount");
+        if (amount != payment.Amount) throw new ValidationException("Refund amount must equal the held payment amount. Use split resolution for partial refunds.");
 
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
@@ -223,6 +228,11 @@ public class Treasury : ITreasury
         var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestoneId && (p.Status == PaymentStatus.HELD || p.Status == PaymentStatus.FROZEN));
 
         if (payment == null) throw new NotFoundException("Held/Frozen payment not found for split.");
+        ValidatePaymentAmount(payment);
+        if (releaseToExpertAmount < 0) throw new ValidationException("Release amount cannot be negative.");
+        if (refundToClientAmount < 0) throw new ValidationException("Refund amount cannot be negative.");
+        if (releaseToExpertAmount == 0 && refundToClientAmount == 0)
+            throw new ValidationException("At least one split amount must be greater than 0.");
         if (releaseToExpertAmount + refundToClientAmount != payment.Amount)
             throw new ValidationException("Total split amounts must equal payment amount.");
 
@@ -231,6 +241,7 @@ public class Treasury : ITreasury
         {
             var payerWallet = await GetWalletAsync(payment.PayerId);
             var payeeWallet = await GetWalletAsync(payment.PayeeId);
+            if (payerWallet.HeldBalance < payment.Amount) throw new ValidationException("Insufficient held funds for split.");
 
             // 1. Move money
             payerWallet.HeldBalance -= (releaseToExpertAmount + refundToClientAmount);
@@ -290,8 +301,10 @@ public class Treasury : ITreasury
         var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestoneId);
         if (payment == null) throw new NotFoundException("Payment not found.");
         if (payment.Status != PaymentStatus.HELD) throw new ValidationException("Only HELD payments can be frozen.");
+        ValidatePaymentAmount(payment);
 
         payment.Status = PaymentStatus.FROZEN;
+        payment.FrozenAt = DateTimeOffset.UtcNow;
         payment.UpdatedAt = DateTimeOffset.UtcNow;
         
         await _dbContext.SaveChangesAsync();
@@ -305,6 +318,7 @@ public class Treasury : ITreasury
         var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestoneId);
         if (payment == null) throw new NotFoundException("Payment not found.");
         if (payment.Status != PaymentStatus.FROZEN) throw new ValidationException("Only FROZEN payments can be unfrozen.");
+        ValidatePaymentAmount(payment);
 
         payment.Status = PaymentStatus.HELD;
         payment.UpdatedAt = DateTimeOffset.UtcNow;
@@ -377,5 +391,18 @@ public class Treasury : ITreasury
     {
         var wallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
         return wallet ?? throw new NotFoundException($"Wallet for user {userId} not found.");
+    }
+
+    private static void ValidatePaymentAmount(Payment payment)
+    {
+        ValidatePositiveAmount(payment.Amount, "Payment amount");
+    }
+
+    private static void ValidatePositiveAmount(decimal amount, string fieldName)
+    {
+        if (amount <= 0)
+        {
+            throw new ValidationException($"{fieldName} must be greater than 0.");
+        }
     }
 }

@@ -1,6 +1,7 @@
 using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
+using Aivora.Services.Exceptions;
 using Aivora.Services.MilestoneService;
 using Aivora.Services.Treasury;
 using Microsoft.Extensions.Logging;
@@ -59,6 +60,35 @@ public class MilestoneServiceTests
         var payment = await dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestoneId);
         payment.Should().NotBeNull();
         payment!.Status.Should().Be(PaymentStatus.HELD);
+    }
+
+    [Fact]
+    public async Task FundMilestoneAsync_RejectsNonPositiveMilestoneAmount()
+    {
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var milestoneId = Guid.NewGuid();
+
+        var wallet = new Wallet { UserId = clientId, AvailableBalance = 1000, Currency = "AICOIN" };
+        var project = new Project { Id = projectId, ClientId = clientId, ExpertId = expertId, Title = "Test Project", Status = ProjectStatus.PENDING_PAYMENT, Currency = "AICOIN" };
+        var milestone = new Milestone { Id = milestoneId, ProjectId = projectId, Amount = 0, Status = MilestoneStatus.CREATED, Title = "Invalid Milestone", Currency = "AICOIN" };
+
+        dbContext.Wallets.Add(wallet);
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestone);
+        await dbContext.SaveChangesAsync();
+
+        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>());
+        var service = new Service(dbContext, treasury);
+
+        Func<Task> act = async () => await service.FundMilestoneAsync(clientId, milestoneId);
+
+        await act.Should().ThrowAsync<ValidationException>()
+            .WithMessage("Milestone amount must be greater than 0.");
+        wallet.AvailableBalance.Should().Be(1000);
+        wallet.HeldBalance.Should().Be(0);
     }
 
     [Fact]

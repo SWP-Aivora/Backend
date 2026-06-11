@@ -31,6 +31,17 @@ public class Service : IService
 
     public async Task<Response.JobResponse> CreateJobAsync(Guid clientId, Request.CreateJobRequest request)
     {
+        if (request is null) throw new ValidationException("Request body is required.");
+
+        if (request.CategoryId == Guid.Empty)
+        {
+            throw new ValidationException("CategoryId is required.");
+        }
+
+        ValidateJobFields(request.BudgetMin, request.BudgetMax, request.TimelineDays, request.Deadline);
+        var skillIds = NormalizeGuidList(request.SkillIds);
+        var milestones = NormalizeMilestones(request.Milestones);
+
         var job = new JobPost
         {
             ClientId = clientId,
@@ -49,7 +60,7 @@ public class Service : IService
             ExperienceLevel = request.ExperienceLevel,
             Visibility = request.Visibility,
             Status = JobStatus.DRAFT,
-            Milestones = request.Milestones.Select(m => new JobPostMilestone
+            Milestones = milestones.Select(m => new JobPostMilestone
             {
                 Title = m.Title,
                 Description = m.Description,
@@ -60,9 +71,9 @@ public class Service : IService
             }).ToList()
         };
 
-        if (request.SkillIds.Any())
+        if (skillIds.Any())
         {
-            job.JobSkills = request.SkillIds.Select(skillId => new JobSkill { SkillId = skillId }).ToList();
+            job.JobSkills = skillIds.Select(skillId => new JobSkill { SkillId = skillId }).ToList();
         }
 
         _dbContext.JobPosts.Add(job);
@@ -85,7 +96,15 @@ public class Service : IService
         if (request.FinalDescription != null) job.FinalDescription = request.FinalDescription;
         if (request.BusinessDomain != null) job.BusinessDomain = NormalizeLimited(request.BusinessDomain, 100);
         if (request.ExpectedOutcome != null) job.ExpectedOutcome = NormalizeLimited(request.ExpectedOutcome, 2000);
-        if (request.CategoryId.HasValue) job.CategoryId = request.CategoryId.Value;
+        if (request.CategoryId.HasValue)
+        {
+            if (request.CategoryId.Value == Guid.Empty)
+            {
+                throw new ValidationException("CategoryId is required.");
+            }
+
+            job.CategoryId = request.CategoryId.Value;
+        }
         if (request.BudgetType.HasValue) job.BudgetType = request.BudgetType.Value;
         if (request.BudgetMin.HasValue) job.BudgetMin = request.BudgetMin.Value;
         if (request.BudgetMax.HasValue) job.BudgetMax = request.BudgetMax.Value;
@@ -95,10 +114,12 @@ public class Service : IService
         if (request.ExperienceLevel.HasValue) job.ExperienceLevel = request.ExperienceLevel.Value;
         if (request.Visibility.HasValue) job.Visibility = request.Visibility.Value;
 
+        ValidateJobFields(job.BudgetMin, job.BudgetMax, job.TimelineDays, job.Deadline);
+
         if (request.SkillIds != null)
         {
             _dbContext.JobSkills.RemoveRange(job.JobSkills);
-            job.JobSkills = request.SkillIds.Select(skillId => new JobSkill { SkillId = skillId }).ToList();
+            job.JobSkills = NormalizeGuidList(request.SkillIds).Select(skillId => new JobSkill { SkillId = skillId }).ToList();
         }
 
         await _dbContext.SaveChangesAsync();
@@ -253,5 +274,71 @@ public class Service : IService
     {
         var normalized = string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
         return normalized.Length <= maxLength ? normalized : normalized[..maxLength];
+    }
+
+    private static void ValidateJobFields(decimal? budgetMin, decimal? budgetMax, int? timelineDays, DateOnly? deadline)
+    {
+        if (budgetMin.HasValue && budgetMin.Value <= 0)
+        {
+            throw new ValidationException("BudgetMin must be greater than 0.");
+        }
+
+        if (budgetMax.HasValue && budgetMax.Value <= 0)
+        {
+            throw new ValidationException("BudgetMax must be greater than 0.");
+        }
+
+        if (budgetMin.HasValue && budgetMax.HasValue && budgetMin.Value > budgetMax.Value)
+        {
+            throw new ValidationException("BudgetMin must be less than or equal to BudgetMax.");
+        }
+
+        if (timelineDays.HasValue && (timelineDays.Value < 1 || timelineDays.Value > 3650))
+        {
+            throw new ValidationException("TimelineDays must be between 1 and 3650.");
+        }
+
+        if (deadline.HasValue && deadline.Value < DateOnly.FromDateTime(DateTime.UtcNow))
+        {
+            throw new ValidationException("Deadline cannot be in the past.");
+        }
+    }
+
+    private static List<Guid> NormalizeGuidList(IEnumerable<Guid>? values)
+    {
+        return (values ?? Enumerable.Empty<Guid>())
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToList();
+    }
+
+    private static List<Request.CreateJobMilestoneRequest> NormalizeMilestones(IEnumerable<Request.CreateJobMilestoneRequest>? milestones)
+    {
+        var normalized = (milestones ?? Enumerable.Empty<Request.CreateJobMilestoneRequest>())
+            .Select((milestone, index) => new Request.CreateJobMilestoneRequest
+            {
+                Title = NormalizeRequired(milestone.Title, $"Milestone {index + 1}", 255),
+                Description = NormalizeLimited(milestone.Description, 2000),
+                Amount = milestone.Amount,
+                DueDays = milestone.DueDays,
+                AcceptanceCriteria = NormalizeLimited(milestone.AcceptanceCriteria, 2000),
+                OrderIndex = milestone.OrderIndex < 0 ? index : milestone.OrderIndex
+            })
+            .ToList();
+
+        foreach (var milestone in normalized)
+        {
+            if (milestone.Amount <= 0)
+            {
+                throw new ValidationException("Milestone amounts must be greater than 0.");
+            }
+
+            if (milestone.DueDays < 1 || milestone.DueDays > 3650)
+            {
+                throw new ValidationException("Milestone due days must be between 1 and 3650.");
+            }
+        }
+
+        return normalized;
     }
 }
