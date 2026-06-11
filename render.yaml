@@ -4,13 +4,17 @@ services:
     env: docker
     plan: free
     region: singapore # Hoặc region bạn đang dùng
-    dockerContext: Backend
     dockerfilePath: Dockerfile
     healthCheckPath: /health
     envVars:
       - key: ASPNETCORE_ENVIRONMENT
         value: Production
-      - key: CONNECTION_STRING
+      # Render free tier: 512MB RAM — keep .NET GC conservative
+      - key: DOTNET_GCHeapHardLimit
+        value: 0x1C000000  # ~450MB, leaves room for native/DB connections
+      # Connection string from Render managed database
+      # Maps to ConnectionStrings:DefaultConnection in .NET config
+      - key: ConnectionStrings__DefaultConnection
         fromDatabase:
           name: aivora-db
           property: connectionString
@@ -27,6 +31,11 @@ services:
       - key: CLOUDINARY_API_KEY
         sync: false
       - key: CLOUDINARY_API_SECRET
+        sync: false
+      # AI Provider: set Provider=Gemini + ApiKey to enable real AI; otherwise uses Mock
+      - key: AIProvider__Provider
+        value: Mock
+      - key: AIProvider__ApiKey
         sync: false
       - key: RateLimit__Strict__PermitLimit
         value: 10
