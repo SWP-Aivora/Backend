@@ -308,7 +308,7 @@ Content-Type: application/json
   "skills": ["Python", "NLP", "RAG", "LangChain", "FastAPI"],
   "priceFrom": 800,
   "deliveryDays": 21,
-  "tone": "casual",
+  "tone": "friendly",
   "targetClient": "startup",
   "language": "vi"
 }
