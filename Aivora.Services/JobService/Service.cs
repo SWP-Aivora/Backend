@@ -213,6 +213,8 @@ public class Service : IService
                 Title = m.Title,
                 Description = m.Description,
                 Amount = m.Amount,
+                DueDays = m.DueDays,
+                AcceptanceCriteria = m.AcceptanceCriteria,
                 OrderIndex = m.OrderIndex
             }).OrderBy(m => m.OrderIndex).ToList() ?? new List<Response.JobMilestoneResponse>()
         };

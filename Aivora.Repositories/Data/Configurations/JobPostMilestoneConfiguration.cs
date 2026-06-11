@@ -13,6 +13,8 @@ public class JobPostMilestoneConfiguration : IEntityTypeConfiguration<JobPostMil
 
         builder.Property(x => x.Title).IsRequired().HasMaxLength(255);
         builder.Property(x => x.Description).HasMaxLength(1000);
+        builder.Property(x => x.Amount).HasPrecision(18, 2);
+        builder.Property(x => x.AcceptanceCriteria).HasMaxLength(2000);
 
         builder.HasOne(x => x.JobPost)
             .WithMany(j => j.Milestones)
