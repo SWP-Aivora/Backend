@@ -54,9 +54,9 @@ POST /api/v1/ai/job-assistant
 | `expectedOutcome` | string? | No | Max 1000 chars |
 | `budgetType` | string? | No | `"FIXED"` \| `"HOURLY"` |
 | `currency` | string? | No | Normalized: `"VND"`, `"USD"`, `"AICOIN"` |
-| `budgetMin` | decimal? | No | — |
-| `budgetMax` | decimal? | No | — |
-| `timelineDays` | int? | No | — |
+| `budgetMin` | decimal? | No | > 0 when provided; must be <= `budgetMax` |
+| `budgetMax` | decimal? | No | > 0 when provided |
+| `timelineDays` | int? | No | 1-3650 when provided |
 | `experienceLevel` | string? | No | `"BEGINNER"` \| `"INTERMEDIATE"` \| `"ADVANCED"` \| `"EXPERT"` |
 
 **Status:** `201 Created` (thành công), `400` (validation), `401` (thiếu token), `403` (sai role).
@@ -154,9 +154,9 @@ PATCH /api/v1/ai/job-assistant/{suggestionId}
 | `expectedOutcome` | string? | Max 1000 |
 | `budgetType` | string? | `"FIXED"` \| `"HOURLY"` |
 | `currency` | string? | — |
-| `suggestedBudgetMin` | decimal? | — |
-| `suggestedBudgetMax` | decimal? | — |
-| `suggestedTimelineDays` | int? | — |
+| `suggestedBudgetMin` | decimal? | > 0 when provided; must be <= `suggestedBudgetMax` |
+| `suggestedBudgetMax` | decimal? | > 0 when provided |
+| `suggestedTimelineDays` | int? | 1-3650 when provided |
 | `experienceLevel` | string? | `"BEGINNER"` \| `"INTERMEDIATE"` \| `"ADVANCED"` \| `"EXPERT"` |
 | `suggestedSkills` | List\<string\>? | Array string |
 | `suggestedMilestones` | List\<SuggestedMilestone\>? | Array object |
@@ -421,7 +421,7 @@ Toan bộ 7 endpoint AI service da đuợc test thực tế với database Postg
 |-----|-----------|-----|
 | `JobPostMilestones` table khong tồn tại | Thiếu `IEntityTypeConfiguration<JobPostMilestone>` + migration | Tạo `JobPostMilestoneConfiguration.cs` + migration `AddJobPostMilestonesTable` |
 | PATCH `experienceLevel` / `budgetType` bị reject | `System.Text.Json` khong parse string->enum mặc định | Them `[JsonConverter(typeof(JsonStringEnumConverter))]` vao `SkillLevel` va `BudgetType` enums |
-| AI luon dung Mock provider | Chưa set `AIProvider__ApiKey` env var | Set `AIProvider__Provider=Gemini` + `AIProvider__ApiKey=<key>` để bật real AI |
+| Production AI config fail-fast | Production missing `AIProvider__Provider=Gemini`, `AIProvider__ApiKey`, or `AIProvider__EnableFallback=false` | Set all required AI provider env vars before deploy; local Development may use Mock |
 
 ## 1.7. Tạo job draft thủ công
 
@@ -448,7 +448,8 @@ POST /api/v1/jobs
 **Validation:**
 - `originalDescription` bắt buộc.
 - `title` bắt buộc khi publish (có thể trống khi tạo draft).
-- `budgetMin ≤ BudgetMax` nếu cả hai đều có.
+- `budgetMin`/`budgetMax` must be greater than 0 when provided, and `budgetMin ≤ budgetMax`.
+- `timelineDays` must be between 1 and 3650 when provided.
 
 ## 1.8. Cập nhật job draft
 
@@ -1293,9 +1294,9 @@ GET /api/v1/users/{userId}/reviews?pageIndex=1&pageSize=20
 
 | # | Method | Endpoint | Auth | Tables |
 |---|--------|----------|------|--------|
-| 1 | POST | `/media/upload-image` | Any | Cloudinary |
-| 2 | POST | `/media/upload-file` | Any | Cloudinary |
-| 3 | DELETE | `/media/{publicId}` | Any | Cloudinary |
+| 1 | POST | `/media/upload-image` | Any authenticated user | Cloudinary |
+| 2 | POST | `/media/upload-file` | Any authenticated user | Cloudinary |
+| 3 | DELETE | `/media/{publicId}` | Admin | Cloudinary |
 | 4 | GET | `/notifications` | Any | `Notifications` |
 | 5 | GET | `/notifications/unread-count` | Any | `Notifications` |
 | 6 | PUT | `/notifications/{id}/read` | Any | `Notifications` |

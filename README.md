@@ -68,19 +68,28 @@ Sửa các giá trị trong `.env`:
 
 ```env
 # Database (connection string PostgreSQL)
-CONNECTION_STRING=Host=localhost;Port=5432;Database=aivora;Username=postgres;Password=your_password
+ConnectionStrings__DefaultConnection=Host=localhost;Port=5432;Database=aivora;Username=postgres;Password=your_password
 
 # JWT
-JWT_SECRET=your_secret_at_least_32_chars
-JWT_ISSUER=AivoraApi
-JWT_AUDIENCE=AivoraClient
-JWT_EXPIRY_IN_MINUTES=1440
+JwtSettings__Secret=your_secret_at_least_32_chars
+JwtSettings__Issuer=AivoraApi
+JwtSettings__Audience=AivoraClient
+JwtSettings__ExpiryInMinutes=1440
 
 # Cloudinary
-CLOUDINARY_CLOUD_NAME=your_cloud_name
-CLOUDINARY_API_KEY=your_api_key
-CLOUDINARY_API_SECRET=your_api_secret
+CloudinaryOptions__CloudName=your_cloud_name
+CloudinaryOptions__ApiKey=your_api_key
+CloudinaryOptions__ApiSecret=your_api_secret
+
+# AI provider
+AIProvider__Provider=Mock
+AIProvider__ApiKey=
+AIProvider__BaseUrl=https://generativelanguage.googleapis.com
+AIProvider__Model=gemini-2.5-flash
+AIProvider__EnableFallback=true
 ```
+
+Production must set `AIProvider__Provider=Gemini`, `AIProvider__ApiKey`, and `AIProvider__EnableFallback=false`.
 
 > ⚠️ **Tất cả config đều đọc từ env vars.** Nếu thiếu bất kỳ biến nào, app sẽ fail-fast với thông báo rõ ràng.
 
@@ -91,7 +100,7 @@ docker compose up --build
 ```
 
 API khởi động tại `http://localhost:8080`
-API Docs tại `http://localhost:8080/scalar/v1`
+API Docs tại `http://localhost:8080/scalar/v1` in Development only.
 
 ### 3. Chạy local (không Docker)
 

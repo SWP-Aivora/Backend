@@ -13,7 +13,7 @@
 ### 1. POST Generate AI Job Suggestion
 ### Route: POST /api/v1/ai/job-assistant
 ### Auth: Client only | Rate Limit: AI (20/min)
-### Validation: RawInput >= 5 chars
+### Validation: RawInput >= 5 chars; budgets > 0; budgetMin <= budgetMax; timelineDays 1-3650
 ### ============================================================
 
 ### 1a. Minimal valid request
@@ -308,7 +308,7 @@ Content-Type: application/json
   "skills": ["Python", "NLP", "RAG", "LangChain", "FastAPI"],
   "priceFrom": 800,
   "deliveryDays": 21,
-  "tone": "casual",
+  "tone": "friendly",
   "targetClient": "startup",
   "language": "vi"
 }
