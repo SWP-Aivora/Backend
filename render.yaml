@@ -6,7 +6,7 @@ services:
     region: singapore # Hoặc region bạn đang dùng
     dockerContext: Backend
     dockerfilePath: Dockerfile
-    healthCheckPath: /api/v1/jobs # Đường dẫn kiểm tra sức khỏe
+    healthCheckPath: /health
     envVars:
       - key: ASPNETCORE_ENVIRONMENT
         value: Production

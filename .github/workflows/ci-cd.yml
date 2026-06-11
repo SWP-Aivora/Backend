@@ -21,6 +21,9 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore Aivora.sln
 
+    - name: Check formatting
+      run: dotnet format Aivora.sln --verify-no-changes --verbosity diag
+
     - name: Build
       run: dotnet build Aivora.sln --no-restore -c Release
 
