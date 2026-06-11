@@ -2,6 +2,7 @@ using Aivora.Services.AIJobAssistantService.Parsing;
 using Aivora.Services.AIJobAssistantService.Prompting;
 using Aivora.Services.Exceptions;
 using Aivora.Services.Options;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Aivora.Services.AIJobAssistantService.Providers;
@@ -13,25 +14,29 @@ public class GeminiAIJobRefinementProvider : IAIJobRefinementProvider
     private readonly AIJobRefinementPromptBuilder _promptBuilder;
     private readonly AIJobRefinementParser _parser;
     private readonly MockAIJobRefinementProvider _fallbackProvider;
+    private readonly ILogger<GeminiAIJobRefinementProvider> _logger;
 
     public GeminiAIJobRefinementProvider(
         GeminiProviderClient client,
         IOptions<AIProviderOptions> options,
         AIJobRefinementPromptBuilder promptBuilder,
         AIJobRefinementParser parser,
-        MockAIJobRefinementProvider fallbackProvider)
+        MockAIJobRefinementProvider fallbackProvider,
+        ILogger<GeminiAIJobRefinementProvider> logger)
     {
         _client = client;
         _options = options.Value;
         _promptBuilder = promptBuilder;
         _parser = parser;
         _fallbackProvider = fallbackProvider;
+        _logger = logger;
     }
 
     public async Task<AIJobRefinementDraft> RefineSuggestionAsync(Response.SuggestionResponse current, string message, CancellationToken cancellationToken = default)
     {
         if (!_client.HasApiKey && _options.EnableFallback)
         {
+            _logger.LogWarning("Gemini API key is missing; using mock AI job refinement provider fallback.");
             return await _fallbackProvider.RefineSuggestionAsync(current, message, cancellationToken);
         }
 
@@ -44,13 +49,15 @@ public class GeminiAIJobRefinementProvider : IAIJobRefinementProvider
         {
             throw;
         }
-        catch (Exception) when (_options.EnableFallback)
+        catch (Exception ex) when (_options.EnableFallback)
         {
+            _logger.LogWarning(ex, "Gemini job refinement provider failed; using mock fallback.");
             return await _fallbackProvider.RefineSuggestionAsync(current, message, cancellationToken);
         }
         catch (Exception ex)
         {
-            throw new ValidationException($"AI refinement provider failed: {ex.Message}");
+            _logger.LogError(ex, "Gemini job refinement provider failed and fallback is disabled.");
+            throw new ValidationException("AI refinement provider failed. Please try again later.");
         }
     }
 }
