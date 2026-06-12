@@ -1,3 +1,4 @@
+using Aivora.Repositories.Abstractions;
 using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
@@ -14,11 +15,18 @@ namespace Aivora.Services.Treasury;
 public class Treasury : ITreasury
 {
     private readonly AivoraDbContext _dbContext;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<Treasury> _logger;
 
     public Treasury(AivoraDbContext dbContext, ILogger<Treasury> logger)
+        : this(dbContext, new EfUnitOfWork(dbContext), logger)
+    {
+    }
+
+    public Treasury(AivoraDbContext dbContext, IUnitOfWork unitOfWork, ILogger<Treasury> logger)
     {
         _dbContext = dbContext;
+        _unitOfWork = unitOfWork;
         _logger = logger;
     }
 
@@ -30,62 +38,62 @@ public class Treasury : ITreasury
         if (milestone.Status != MilestoneStatus.CREATED) throw new ValidationException("Milestone is already funded or processed.");
         ValidatePositiveAmount(milestone.Amount, "Milestone amount");
 
-        using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
-            var wallet = await GetWalletAsync(clientId);
-            if (wallet.AvailableBalance < milestone.Amount) throw new ValidationException("Insufficient balance.");
-
-            // 1. Update Wallet
-            wallet.AvailableBalance -= milestone.Amount;
-            wallet.HeldBalance += milestone.Amount;
-
-            // 2. Create Payment (HELD)
-            var payment = new Payment
+            await _unitOfWork.ExecuteInTransactionAsync(async () =>
             {
-                MilestoneId = milestoneId,
-                ProjectId = milestone.ProjectId,
-                PayerId = clientId,
-                PayeeId = milestone.Project.ExpertId,
-                Amount = milestone.Amount,
-                Currency = wallet.Currency,
-                Status = PaymentStatus.HELD,
-                HeldAt = DateTimeOffset.UtcNow
-            };
-            _dbContext.Payments.Add(payment);
+                var wallet = await GetWalletAsync(clientId);
+                if (wallet.AvailableBalance < milestone.Amount) throw new ValidationException("Insufficient balance.");
 
-            // 3. Log Transaction
-            _dbContext.WalletTransactions.Add(new WalletTransaction
-            {
-                WalletId = wallet.Id,
-                UserId = clientId,
-                Amount = milestone.Amount,
-                Type = WalletTransactionType.ESCROW_HOLD,
-                Direction = TransactionDirection.DEBIT,
-                Description = $"Funding milestone: {milestone.Title}",
-                BalanceBefore = wallet.AvailableBalance + milestone.Amount,
-                BalanceAfter = wallet.AvailableBalance,
-                PaymentId = payment.Id
+                // 1. Update Wallet
+                wallet.AvailableBalance -= milestone.Amount;
+                wallet.HeldBalance += milestone.Amount;
+
+                // 2. Create Payment (HELD)
+                var payment = new Payment
+                {
+                    MilestoneId = milestoneId,
+                    ProjectId = milestone.ProjectId,
+                    PayerId = clientId,
+                    PayeeId = milestone.Project.ExpertId,
+                    Amount = milestone.Amount,
+                    Currency = wallet.Currency,
+                    Status = PaymentStatus.HELD,
+                    HeldAt = DateTimeOffset.UtcNow
+                };
+                _dbContext.Payments.Add(payment);
+
+                // 3. Log Transaction
+                _dbContext.WalletTransactions.Add(new WalletTransaction
+                {
+                    WalletId = wallet.Id,
+                    UserId = clientId,
+                    Amount = milestone.Amount,
+                    Type = WalletTransactionType.ESCROW_HOLD,
+                    Direction = TransactionDirection.DEBIT,
+                    Description = $"Funding milestone: {milestone.Title}",
+                    BalanceBefore = wallet.AvailableBalance + milestone.Amount,
+                    BalanceAfter = wallet.AvailableBalance,
+                    PaymentId = payment.Id
+                });
+
+                // 4. Update Milestone & Project status
+                milestone.Status = MilestoneStatus.FUNDED;
+                milestone.FundedAt = DateTimeOffset.UtcNow;
+
+                if (milestone.Project.Status == ProjectStatus.PENDING_PAYMENT)
+                {
+                    milestone.Project.Status = ProjectStatus.ACTIVE;
+                    milestone.Project.StartDate = DateOnly.FromDateTime(DateTime.UtcNow);
+                }
+
+                await _dbContext.SaveChangesAsync();
             });
-
-            // 4. Update Milestone & Project status
-            milestone.Status = MilestoneStatus.FUNDED;
-            milestone.FundedAt = DateTimeOffset.UtcNow;
-
-            if (milestone.Project.Status == ProjectStatus.PENDING_PAYMENT)
-            {
-                milestone.Project.Status = ProjectStatus.ACTIVE;
-                milestone.Project.StartDate = DateOnly.FromDateTime(DateTime.UtcNow);
-            }
-
-            await _dbContext.SaveChangesAsync();
-            await transaction.CommitAsync();
             
             _logger.LogInformation("✅ Milestone {MilestoneId} funded successfully by Client {ClientId}", milestoneId, clientId);
         }
         catch (Exception ex)
         {
-            await transaction.RollbackAsync();
             _logger.LogError(ex, "❌ Failed to fund milestone {MilestoneId}", milestoneId);
             throw;
         }
@@ -102,65 +110,64 @@ public class Treasury : ITreasury
         if (payment == null) throw new NotFoundException("Held payment not found for this milestone.");
         ValidatePaymentAmount(payment);
 
-        using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
-            var payerWallet = await GetWalletAsync(payment.PayerId);
-            var payeeWallet = await GetWalletAsync(payment.PayeeId);
-
-            if (payerWallet.HeldBalance < payment.Amount) throw new ValidationException("Insufficient held funds in payer wallet.");
-
-            // 1. Move money
-            payerWallet.HeldBalance -= payment.Amount;
-            payeeWallet.AvailableBalance += payment.Amount;
-            payeeWallet.TotalEarned += payment.Amount;
-
-            // 2. Update Payment
-            payment.Status = PaymentStatus.RELEASED;
-            payment.ReleasedAt = DateTimeOffset.UtcNow;
-
-            // 3. Log Transactions
-            _dbContext.WalletTransactions.Add(new WalletTransaction
+            await _unitOfWork.ExecuteInTransactionAsync(async () =>
             {
-                WalletId = payerWallet.Id,
-                UserId = payerWallet.UserId,
-                Amount = payment.Amount,
-                Type = WalletTransactionType.PAYMENT_RELEASE,
-                Direction = TransactionDirection.DEBIT,
-                Description = $"Payment released for milestone: {milestone.Title}",
-                BalanceBefore = payerWallet.HeldBalance + payment.Amount,
-                BalanceAfter = payerWallet.HeldBalance,
-                PaymentId = payment.Id
+                var payerWallet = await GetWalletAsync(payment.PayerId);
+                var payeeWallet = await GetWalletAsync(payment.PayeeId);
+
+                if (payerWallet.HeldBalance < payment.Amount) throw new ValidationException("Insufficient held funds in payer wallet.");
+
+                // 1. Move money
+                payerWallet.HeldBalance -= payment.Amount;
+                payeeWallet.AvailableBalance += payment.Amount;
+                payeeWallet.TotalEarned += payment.Amount;
+
+                // 2. Update Payment
+                payment.Status = PaymentStatus.RELEASED;
+                payment.ReleasedAt = DateTimeOffset.UtcNow;
+
+                // 3. Log Transactions
+                _dbContext.WalletTransactions.Add(new WalletTransaction
+                {
+                    WalletId = payerWallet.Id,
+                    UserId = payerWallet.UserId,
+                    Amount = payment.Amount,
+                    Type = WalletTransactionType.PAYMENT_RELEASE,
+                    Direction = TransactionDirection.DEBIT,
+                    Description = $"Payment released for milestone: {milestone.Title}",
+                    BalanceBefore = payerWallet.HeldBalance + payment.Amount,
+                    BalanceAfter = payerWallet.HeldBalance,
+                    PaymentId = payment.Id
+                });
+
+                _dbContext.WalletTransactions.Add(new WalletTransaction
+                {
+                    WalletId = payeeWallet.Id,
+                    UserId = payeeWallet.UserId,
+                    Amount = payment.Amount,
+                    Type = WalletTransactionType.PAYMENT_RELEASE,
+                    Direction = TransactionDirection.CREDIT,
+                    Description = $"Payment received for milestone: {milestone.Title}",
+                    BalanceBefore = payeeWallet.AvailableBalance - payment.Amount,
+                    BalanceAfter = payeeWallet.AvailableBalance,
+                    PaymentId = payment.Id
+                });
+
+                // 4. Update Milestone & Project
+                milestone.Status = MilestoneStatus.PAID;
+                milestone.ApprovedAt = DateTimeOffset.UtcNow;
+                milestone.PaidAt = DateTimeOffset.UtcNow;
+
+                await _dbContext.SaveChangesAsync();
+                await SyncProjectStatusAsync(milestone.ProjectId);
             });
-
-            _dbContext.WalletTransactions.Add(new WalletTransaction
-            {
-                WalletId = payeeWallet.Id,
-                UserId = payeeWallet.UserId,
-                Amount = payment.Amount,
-                Type = WalletTransactionType.PAYMENT_RELEASE,
-                Direction = TransactionDirection.CREDIT,
-                Description = $"Payment received for milestone: {milestone.Title}",
-                BalanceBefore = payeeWallet.AvailableBalance - payment.Amount,
-                BalanceAfter = payeeWallet.AvailableBalance,
-                PaymentId = payment.Id
-            });
-
-            // 4. Update Milestone & Project
-            milestone.Status = MilestoneStatus.PAID;
-            milestone.ApprovedAt = DateTimeOffset.UtcNow;
-            milestone.PaidAt = DateTimeOffset.UtcNow;
-
-            await _dbContext.SaveChangesAsync();
-            await SyncProjectStatusAsync(milestone.ProjectId);
-            
-            await transaction.CommitAsync();
 
             _logger.LogInformation("✅ Funds released for Milestone {MilestoneId}", milestoneId);
         }
         catch (Exception ex)
         {
-            await transaction.RollbackAsync();
             _logger.LogError(ex, "❌ Failed to release funds for Milestone {MilestoneId}", milestoneId);
             throw;
         }
@@ -176,47 +183,46 @@ public class Treasury : ITreasury
         ValidatePositiveAmount(amount, "Refund amount");
         if (amount != payment.Amount) throw new ValidationException("Refund amount must equal the held payment amount. Use split resolution for partial refunds.");
 
-        using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
-            var payerWallet = await GetWalletAsync(payment.PayerId);
-            if (payerWallet.HeldBalance < amount) throw new ValidationException("Insufficient held funds for refund.");
-
-            // 1. Move money back
-            payerWallet.HeldBalance -= amount;
-            payerWallet.AvailableBalance += amount;
-
-            // 2. Update Payment
-            payment.Status = PaymentStatus.REFUNDED;
-            payment.RefundedAt = DateTimeOffset.UtcNow;
-
-            // 3. Log Transaction
-            _dbContext.WalletTransactions.Add(new WalletTransaction
+            await _unitOfWork.ExecuteInTransactionAsync(async () =>
             {
-                WalletId = payerWallet.Id,
-                UserId = payerWallet.UserId,
-                Amount = amount,
-                Type = WalletTransactionType.REFUND,
-                Direction = TransactionDirection.CREDIT,
-                Description = $"Refund for milestone: {reason}",
-                BalanceBefore = payerWallet.AvailableBalance - amount,
-                BalanceAfter = payerWallet.AvailableBalance,
-                PaymentId = payment.Id
+                var payerWallet = await GetWalletAsync(payment.PayerId);
+                if (payerWallet.HeldBalance < amount) throw new ValidationException("Insufficient held funds for refund.");
+
+                // 1. Move money back
+                payerWallet.HeldBalance -= amount;
+                payerWallet.AvailableBalance += amount;
+
+                // 2. Update Payment
+                payment.Status = PaymentStatus.REFUNDED;
+                payment.RefundedAt = DateTimeOffset.UtcNow;
+
+                // 3. Log Transaction
+                _dbContext.WalletTransactions.Add(new WalletTransaction
+                {
+                    WalletId = payerWallet.Id,
+                    UserId = payerWallet.UserId,
+                    Amount = amount,
+                    Type = WalletTransactionType.REFUND,
+                    Direction = TransactionDirection.CREDIT,
+                    Description = $"Refund for milestone: {reason}",
+                    BalanceBefore = payerWallet.AvailableBalance - amount,
+                    BalanceAfter = payerWallet.AvailableBalance,
+                    PaymentId = payment.Id
+                });
+
+                // 4. Update Milestone
+                milestone.Status = MilestoneStatus.REFUNDED;
+
+                await _dbContext.SaveChangesAsync();
+                await SyncProjectStatusAsync(milestone.ProjectId);
             });
-
-            // 4. Update Milestone
-            milestone.Status = MilestoneStatus.REFUNDED;
-            
-            await _dbContext.SaveChangesAsync();
-            await SyncProjectStatusAsync(milestone.ProjectId);
-
-            await transaction.CommitAsync();
             
             _logger.LogInformation("✅ Refunded {Amount} for Milestone {MilestoneId}", amount, milestoneId);
         }
         catch (Exception ex)
         {
-            await transaction.RollbackAsync();
             _logger.LogError(ex, "❌ Failed to refund milestone {MilestoneId}", milestoneId);
             throw;
         }
@@ -236,61 +242,60 @@ public class Treasury : ITreasury
         if (releaseToExpertAmount + refundToClientAmount != payment.Amount)
             throw new ValidationException("Total split amounts must equal payment amount.");
 
-        using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
-            var payerWallet = await GetWalletAsync(payment.PayerId);
-            var payeeWallet = await GetWalletAsync(payment.PayeeId);
-            if (payerWallet.HeldBalance < payment.Amount) throw new ValidationException("Insufficient held funds for split.");
-
-            // 1. Move money
-            payerWallet.HeldBalance -= (releaseToExpertAmount + refundToClientAmount);
-            payerWallet.AvailableBalance += refundToClientAmount;
-            
-            payeeWallet.AvailableBalance += releaseToExpertAmount;
-            payeeWallet.TotalEarned += releaseToExpertAmount;
-
-            // 2. Update Payment (Marking as released overall for MVP simplicity, or could add PARTIAL)
-            payment.Status = PaymentStatus.RELEASED; 
-            payment.ReleasedAt = DateTimeOffset.UtcNow;
-            payment.UpdatedAt = DateTimeOffset.UtcNow;
-
-            // 3. Log Transactions (Simplified summary logs)
-            _dbContext.WalletTransactions.Add(new WalletTransaction
+            await _unitOfWork.ExecuteInTransactionAsync(async () =>
             {
-                WalletId = payerWallet.Id,
-                UserId = payerWallet.UserId,
-                Amount = refundToClientAmount,
-                Type = WalletTransactionType.REFUND,
-                Direction = TransactionDirection.CREDIT,
-                Description = $"Dispute split: Refunded part. {reason}",
-                BalanceAfter = payerWallet.AvailableBalance,
-                PaymentId = payment.Id
+                var payerWallet = await GetWalletAsync(payment.PayerId);
+                var payeeWallet = await GetWalletAsync(payment.PayeeId);
+                if (payerWallet.HeldBalance < payment.Amount) throw new ValidationException("Insufficient held funds for split.");
+
+                // 1. Move money
+                payerWallet.HeldBalance -= (releaseToExpertAmount + refundToClientAmount);
+                payerWallet.AvailableBalance += refundToClientAmount;
+
+                payeeWallet.AvailableBalance += releaseToExpertAmount;
+                payeeWallet.TotalEarned += releaseToExpertAmount;
+
+                // 2. Update Payment (Marking as released overall for MVP simplicity, or could add PARTIAL)
+                payment.Status = PaymentStatus.RELEASED;
+                payment.ReleasedAt = DateTimeOffset.UtcNow;
+                payment.UpdatedAt = DateTimeOffset.UtcNow;
+
+                // 3. Log Transactions (Simplified summary logs)
+                _dbContext.WalletTransactions.Add(new WalletTransaction
+                {
+                    WalletId = payerWallet.Id,
+                    UserId = payerWallet.UserId,
+                    Amount = refundToClientAmount,
+                    Type = WalletTransactionType.REFUND,
+                    Direction = TransactionDirection.CREDIT,
+                    Description = $"Dispute split: Refunded part. {reason}",
+                    BalanceAfter = payerWallet.AvailableBalance,
+                    PaymentId = payment.Id
+                });
+
+                _dbContext.WalletTransactions.Add(new WalletTransaction
+                {
+                    WalletId = payeeWallet.Id,
+                    UserId = payeeWallet.UserId,
+                    Amount = releaseToExpertAmount,
+                    Type = WalletTransactionType.PAYMENT_RELEASE,
+                    Direction = TransactionDirection.CREDIT,
+                    Description = $"Dispute split: Released part. {reason}",
+                    BalanceAfter = payeeWallet.AvailableBalance,
+                    PaymentId = payment.Id
+                });
+
+                // 4. Update Milestone
+                milestone.Status = releaseToExpertAmount > 0 ? MilestoneStatus.PAID : MilestoneStatus.REFUNDED;
+
+                await _dbContext.SaveChangesAsync();
+                await SyncProjectStatusAsync(milestone.ProjectId);
             });
-
-            _dbContext.WalletTransactions.Add(new WalletTransaction
-            {
-                WalletId = payeeWallet.Id,
-                UserId = payeeWallet.UserId,
-                Amount = releaseToExpertAmount,
-                Type = WalletTransactionType.PAYMENT_RELEASE,
-                Direction = TransactionDirection.CREDIT,
-                Description = $"Dispute split: Released part. {reason}",
-                BalanceAfter = payeeWallet.AvailableBalance,
-                PaymentId = payment.Id
-            });
-
-            // 4. Update Milestone
-            milestone.Status = releaseToExpertAmount > 0 ? MilestoneStatus.PAID : MilestoneStatus.REFUNDED;
-
-            await _dbContext.SaveChangesAsync();
-            await SyncProjectStatusAsync(milestone.ProjectId);
-
-            await transaction.CommitAsync();
         }
         catch (Exception ex)
         {
-            await transaction.RollbackAsync();
             _logger.LogError(ex, "❌ Failed to split funds for milestone {MilestoneId}", milestoneId);
             throw;
         }

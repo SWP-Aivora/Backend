@@ -1,4 +1,5 @@
 using System.Threading.RateLimiting;
+using Aivora.Repositories.Abstractions;
 using Aivora.Repositories.Data;
 using Aivora.Repositories.Data.Interceptors;
 using Aivora.Services.JwtService;
@@ -117,6 +118,7 @@ public static class ServiceCollectionExtensions
         services.AddJwtServices(configuration);
 
         services.AddScoped<IJwtService, Aivora.Services.JwtService.Service>();
+        services.AddScoped<IUnitOfWork, EfUnitOfWork>();
         services.AddScoped<Aivora.Services.MediaService.IService, Aivora.Services.MediaService.Service>();
         services.AddScoped<Aivora.Services.IdentityService.IService, Aivora.Services.IdentityService.Service>();
         services.AddScoped<Aivora.Services.CategoryService.IService, Aivora.Services.CategoryService.Service>();

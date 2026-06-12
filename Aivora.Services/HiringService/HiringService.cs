@@ -1,3 +1,4 @@
+using Aivora.Repositories.Abstractions;
 using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
@@ -9,10 +10,17 @@ namespace Aivora.Services.HiringService;
 public class HiringService : IHiringService
 {
     private readonly AivoraDbContext _dbContext;
+    private readonly IUnitOfWork _unitOfWork;
 
     public HiringService(AivoraDbContext dbContext)
+        : this(dbContext, new EfUnitOfWork(dbContext))
+    {
+    }
+
+    public HiringService(AivoraDbContext dbContext, IUnitOfWork unitOfWork)
     {
         _dbContext = dbContext;
+        _unitOfWork = unitOfWork;
     }
 
     public async Task<Response.HiringResultResponse> AcceptProposalAsync(Guid clientId, Guid proposalId)
@@ -28,8 +36,8 @@ public class HiringService : IHiringService
         if (proposal.Status != ProposalStatus.SUBMITTED && proposal.Status != ProposalStatus.SHORTLISTED)
             throw new ValidationException("Proposal is not in a valid state to be accepted.");
 
-        using var transaction = await _dbContext.Database.BeginTransactionAsync();
-        try
+        Project? project = null;
+        await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
             // 1. Accept target proposal
             proposal.Status = ProposalStatus.ACCEPTED;
@@ -52,7 +60,7 @@ public class HiringService : IHiringService
             proposal.Job.UpdatedAt = DateTimeOffset.UtcNow;
 
             // 4. Create Project
-            var project = new Project
+            project = new Project
             {
                 JobId = proposal.JobId,
                 AcceptedProposalId = proposal.Id,
@@ -76,22 +84,15 @@ public class HiringService : IHiringService
 
             _dbContext.Projects.Add(project);
             await _dbContext.SaveChangesAsync();
+        });
 
-            await transaction.CommitAsync();
-
-            return new Response.HiringResultResponse
-            {
-                ProjectId = project.Id,
-                JobId = proposal.JobId,
-                AcceptedProposalId = proposal.Id,
-                Status = project.Status.ToString()
-            };
-        }
-        catch (Exception)
+        return new Response.HiringResultResponse
         {
-            await transaction.RollbackAsync();
-            throw;
-        }
+            ProjectId = project!.Id,
+            JobId = proposal.JobId,
+            AcceptedProposalId = proposal.Id,
+            Status = project!.Status.ToString()
+        };
     }
 
     public async Task<bool> ShortlistProposalAsync(Guid clientId, Guid proposalId)
