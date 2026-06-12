@@ -35,7 +35,7 @@ public class SkillServiceTests
         dbContext.ExpertSkills.Add(expertSkill);
         await dbContext.SaveChangesAsync();
 
-        var service = new Aivora.Services.SkillService.Service(dbContext);
+        var service = new Aivora.Services.SkillService.SkillApplicationService(dbContext);
 
         // Act
         var result = await service.RemoveExpertSkillAsync(userId, skill.Id);
@@ -60,7 +60,7 @@ public class SkillServiceTests
         dbContext.ExpertSkills.Add(expertSkill);
         await dbContext.SaveChangesAsync();
 
-        var service = new Aivora.Services.SkillService.Service(dbContext);
+        var service = new Aivora.Services.SkillService.SkillApplicationService(dbContext);
         var request = new Request.AddExpertSkillRequest { SkillId = skill.Id };
 
         // Act
@@ -75,7 +75,7 @@ public class SkillServiceTests
     {
         // Arrange
         var dbContext = GetDbContext();
-        var service = new Aivora.Services.SkillService.Service(dbContext);
+        var service = new Aivora.Services.SkillService.SkillApplicationService(dbContext);
         var request = new Request.CreateSkillRequest { Name = "S", CategoryId = Guid.NewGuid() };
 
         // Act

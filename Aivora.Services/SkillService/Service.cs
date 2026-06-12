@@ -5,11 +5,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Aivora.Services.SkillService;
 
-public class Service : IService
+public class SkillApplicationService : IService
 {
     private readonly AivoraDbContext _dbContext;
 
-    public Service(AivoraDbContext dbContext)
+    public SkillApplicationService(AivoraDbContext dbContext)
     {
         _dbContext = dbContext;
     }

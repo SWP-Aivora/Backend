@@ -26,9 +26,9 @@ public class AIJobAssistantServiceTests
         return new AivoraDbContext(options);
     }
 
-    private Service CreateService(AivoraDbContext dbContext)
+    private AIJobAssistantApplicationService CreateService(AivoraDbContext dbContext)
     {
-        return new Service(
+        return new AIJobAssistantApplicationService(
             dbContext,
             _jobServiceMock.Object,
             _suggestionProviderMock.Object,

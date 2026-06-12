@@ -7,7 +7,7 @@ using Aivora.Services.Exceptions;
 
 namespace Aivora.Services.MediaService;
 
-public class Service : IService
+public class MediaApplicationService : IService
 {
     private static readonly HashSet<string> AllowedFolders = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -38,7 +38,7 @@ public class Service : IService
 
     private readonly Cloudinary _cloudinary;
 
-    public Service(IOptions<CloudinaryOptions> options)
+    public MediaApplicationService(IOptions<CloudinaryOptions> options)
     {
         var acc = new Account(
             options.Value.CloudName,

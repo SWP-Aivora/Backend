@@ -5,11 +5,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Aivora.Services.ProfileService;
 
-public class Service : IService
+public class ProfileApplicationService : IService
 {
     private readonly AivoraDbContext _dbContext;
 
-    public Service(AivoraDbContext dbContext)
+    public ProfileApplicationService(AivoraDbContext dbContext)
     {
         _dbContext = dbContext;
     }

@@ -6,11 +6,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Aivora.Services.ProposalService;
 
-public class Service : IService
+public class ProposalApplicationService : IService
 {
     private readonly AivoraDbContext _dbContext;
 
-    public Service(AivoraDbContext dbContext)
+    public ProposalApplicationService(AivoraDbContext dbContext)
     {
         _dbContext = dbContext;
     }

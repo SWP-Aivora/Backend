@@ -62,7 +62,7 @@ public class E2EBusinessFlowTests
         // ----------------------------------------------------
         // 1. Client Create Job — Khang
         // ----------------------------------------------------
-        var jobService = new Aivora.Services.JobService.Service(dbContext);
+        var jobService = new Aivora.Services.JobService.JobApplicationService(dbContext);
 
         var createJobReq = new Aivora.Services.JobService.Request.CreateJobRequest
         {
@@ -139,7 +139,7 @@ public class E2EBusinessFlowTests
 
         // Finance setup
         var treasury = new Treasury(dbContext, Mock.Of<ILogger<Treasury>>());
-        var milestoneService = new Aivora.Services.MilestoneService.Service(dbContext, treasury);
+        var milestoneService = new Aivora.Services.MilestoneService.MilestoneApplicationService(dbContext, treasury);
 
         // Client funds milestone
         var fundResult = await milestoneService.FundMilestoneAsync(clientId, milestone.Id);
@@ -158,7 +158,7 @@ public class E2EBusinessFlowTests
         // ----------------------------------------------------
         // 4. E2E Step 4.1 — Expert Submits Deliverable (QAnh)
         // ----------------------------------------------------
-        var deliverableService = new Aivora.Services.DeliverableService.Service(dbContext, treasury);
+        var deliverableService = new Aivora.Services.DeliverableService.DeliverableApplicationService(dbContext, treasury);
         var submitDeliverableReq = new Aivora.Services.DeliverableService.Request.SubmitDeliverableRequest
         {
             Description = "Chatbot MVP completed with FAQ, product recommendation, and admin prompt config.",
@@ -207,7 +207,7 @@ public class E2EBusinessFlowTests
         // ----------------------------------------------------
         // 7. E2E Step 4.6 & 4.7 — Client & Expert Leave Reviews
         // ----------------------------------------------------
-        var reviewService = new Aivora.Services.ReviewService.Service(dbContext);
+        var reviewService = new Aivora.Services.ReviewService.ReviewApplicationService(dbContext);
 
         var clientReviewReq = new Aivora.Services.ReviewService.Request.CreateReviewRequest
         {
@@ -269,12 +269,12 @@ public class E2EBusinessFlowTests
         await dbContext.SaveChangesAsync();
 
         // Mocks for AI Service
-        var jobService = new Aivora.Services.JobService.Service(dbContext);
+        var jobService = new Aivora.Services.JobService.JobApplicationService(dbContext);
         var suggestionProviderMock = new Mock<Aivora.Services.AIJobAssistantService.IAIJobSuggestionProvider>();
         var refinementProviderMock = new Mock<Aivora.Services.AIJobAssistantService.IAIJobRefinementProvider>();
         var serviceDescriptionProviderMock = new Mock<Aivora.Services.AIJobAssistantService.IAIServiceDescriptionProvider>();
 
-        var aiService = new Aivora.Services.AIJobAssistantService.Service(
+        var aiService = new Aivora.Services.AIJobAssistantService.AIJobAssistantApplicationService(
             dbContext,
             jobService,
             suggestionProviderMock.Object,
@@ -356,7 +356,7 @@ public class E2EBusinessFlowTests
         // ----------------------------------------------------
         // Finance setup
         var treasury = new Treasury(dbContext, Mock.Of<ILogger<Treasury>>());
-        var milestoneService = new Aivora.Services.MilestoneService.Service(dbContext, treasury);
+        var milestoneService = new Aivora.Services.MilestoneService.MilestoneApplicationService(dbContext, treasury);
         var milestone = await dbContext.Milestones.FirstAsync(m => m.ProjectId == projectId);
 
         await milestoneService.FundMilestoneAsync(clientId, milestone.Id);
@@ -364,7 +364,7 @@ public class E2EBusinessFlowTests
         // ----------------------------------------------------
         // 5. Expert Submits and Client Approves -> Payment Released
         // ----------------------------------------------------
-        var deliverableService = new Aivora.Services.DeliverableService.Service(dbContext, treasury);
+        var deliverableService = new Aivora.Services.DeliverableService.DeliverableApplicationService(dbContext, treasury);
         await deliverableService.SubmitDeliverableAsync(expertId, milestone.Id, new Aivora.Services.DeliverableService.Request.SubmitDeliverableRequest { Description = "Done" });
         await milestoneService.ApproveMilestoneAsync(clientId, milestone.Id);
 
@@ -407,9 +407,9 @@ public class E2EBusinessFlowTests
 
         // Finance setup
         var treasury = new Treasury(dbContext, Mock.Of<ILogger<Treasury>>());
-        var milestoneService = new Aivora.Services.MilestoneService.Service(dbContext, treasury);
-        var reviewService = new Aivora.Services.ReviewService.Service(dbContext);
-        var disputeService = new Aivora.Services.DisputeService.Service(dbContext, treasury);
+        var milestoneService = new Aivora.Services.MilestoneService.MilestoneApplicationService(dbContext, treasury);
+        var reviewService = new Aivora.Services.ReviewService.ReviewApplicationService(dbContext);
+        var disputeService = new Aivora.Services.DisputeService.DisputeApplicationService(dbContext, treasury);
 
         // ----------------------------------------------------
         // Negative Test 1: Release payment before deliverable approval (Milestone is FUNDED, not SUBMITTED)

@@ -7,12 +7,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Aivora.Services.MilestoneService;
 
-public class Service : IService
+public class MilestoneApplicationService : IService
 {
     private readonly AivoraDbContext _dbContext;
     private readonly ITreasury _treasury;
 
-    public Service(AivoraDbContext dbContext, ITreasury treasury)
+    public MilestoneApplicationService(AivoraDbContext dbContext, ITreasury treasury)
     {
         _dbContext = dbContext;
         _treasury = treasury;

@@ -9,11 +9,11 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace Aivora.Services.JwtService;
 
-public class Service : IJwtService
+public class JwtTokenService : IJwtService
 {
     private readonly JwtOptions _jwtOption;
 
-    public Service(IOptions<JwtOptions> jwtOptions)
+    public JwtTokenService(IOptions<JwtOptions> jwtOptions)
     {
         _jwtOption = jwtOptions.Value;
     }

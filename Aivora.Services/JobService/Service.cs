@@ -6,11 +6,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Aivora.Services.JobService;
 
-public class Service : IService
+public class JobApplicationService : IService
 {
     private readonly AivoraDbContext _dbContext;
 
-    public Service(AivoraDbContext dbContext)
+    public JobApplicationService(AivoraDbContext dbContext)
     {
         _dbContext = dbContext;
     }

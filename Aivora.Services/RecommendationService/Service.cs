@@ -6,11 +6,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Aivora.Services.RecommendationService;
 
-public class Service : IService
+public class RecommendationApplicationService : IService
 {
     private readonly AivoraDbContext _dbContext;
 
-    public Service(AivoraDbContext dbContext)
+    public RecommendationApplicationService(AivoraDbContext dbContext)
     {
         _dbContext = dbContext;
     }

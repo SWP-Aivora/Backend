@@ -7,11 +7,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Aivora.Services.ProjectService;
 
-public class Service : IService
+public class ProjectApplicationService : IService
 {
     private readonly AivoraDbContext _dbContext;
 
-    public Service(AivoraDbContext dbContext)
+    public ProjectApplicationService(AivoraDbContext dbContext)
     {
         _dbContext = dbContext;
     }

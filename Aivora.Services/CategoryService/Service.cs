@@ -5,11 +5,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Aivora.Services.CategoryService;
 
-public class Service : IService
+public class CategoryApplicationService : IService
 {
     private readonly AivoraDbContext _dbContext;
 
-    public Service(AivoraDbContext dbContext)
+    public CategoryApplicationService(AivoraDbContext dbContext)
     {
         _dbContext = dbContext;
     }

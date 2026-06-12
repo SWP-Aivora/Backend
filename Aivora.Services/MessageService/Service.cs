@@ -5,11 +5,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Aivora.Services.MessageService;
 
-public class Service : IService
+public class MessageApplicationService : IService
 {
     private readonly AivoraDbContext _dbContext;
 
-    public Service(AivoraDbContext dbContext)
+    public MessageApplicationService(AivoraDbContext dbContext)
     {
         _dbContext = dbContext;
     }

@@ -117,25 +117,25 @@ public static class ServiceCollectionExtensions
         services.AddHttpContextAccessor();
         services.AddJwtServices(configuration);
 
-        services.AddScoped<IJwtService, Aivora.Services.JwtService.Service>();
+        services.AddScoped<IJwtService, Aivora.Services.JwtService.JwtTokenService>();
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
-        services.AddScoped<Aivora.Services.MediaService.IService, Aivora.Services.MediaService.Service>();
-        services.AddScoped<Aivora.Services.IdentityService.IService, Aivora.Services.IdentityService.Service>();
-        services.AddScoped<Aivora.Services.CategoryService.IService, Aivora.Services.CategoryService.Service>();
-        services.AddScoped<Aivora.Services.SkillService.IService, Aivora.Services.SkillService.Service>();
-        services.AddScoped<Aivora.Services.ProfileService.IService, Aivora.Services.ProfileService.Service>();
-        services.AddScoped<Aivora.Services.JobService.IService, Aivora.Services.JobService.Service>();
-        services.AddScoped<Aivora.Services.ProposalService.IService, Aivora.Services.ProposalService.Service>();
+        services.AddScoped<Aivora.Services.MediaService.IService, Aivora.Services.MediaService.MediaApplicationService>();
+        services.AddScoped<Aivora.Services.IdentityService.IService, Aivora.Services.IdentityService.IdentityApplicationService>();
+        services.AddScoped<Aivora.Services.CategoryService.IService, Aivora.Services.CategoryService.CategoryApplicationService>();
+        services.AddScoped<Aivora.Services.SkillService.IService, Aivora.Services.SkillService.SkillApplicationService>();
+        services.AddScoped<Aivora.Services.ProfileService.IService, Aivora.Services.ProfileService.ProfileApplicationService>();
+        services.AddScoped<Aivora.Services.JobService.IService, Aivora.Services.JobService.JobApplicationService>();
+        services.AddScoped<Aivora.Services.ProposalService.IService, Aivora.Services.ProposalService.ProposalApplicationService>();
         services.AddScoped<Aivora.Services.HiringService.IHiringService, Aivora.Services.HiringService.HiringService>();
-        services.AddScoped<Aivora.Services.RecommendationService.IService, Aivora.Services.RecommendationService.Service>();
-        services.AddScoped<Aivora.Services.ProjectService.IService, Aivora.Services.ProjectService.Service>();
-        services.AddScoped<Aivora.Services.MilestoneService.IService, Aivora.Services.MilestoneService.Service>();
-        services.AddScoped<Aivora.Services.DeliverableService.IService, Aivora.Services.DeliverableService.Service>();
-        services.AddScoped<Aivora.Services.WalletService.IService, Aivora.Services.WalletService.Service>();
-        services.AddScoped<Aivora.Services.ReviewService.IService, Aivora.Services.ReviewService.Service>();
-        services.AddScoped<Aivora.Services.MessageService.IService, Aivora.Services.MessageService.Service>();
-        services.AddScoped<Aivora.Services.DisputeService.IService, Aivora.Services.DisputeService.Service>();
-        services.AddScoped<Aivora.Services.NotificationService.IService, Aivora.Services.NotificationService.Service>();
+        services.AddScoped<Aivora.Services.RecommendationService.IService, Aivora.Services.RecommendationService.RecommendationApplicationService>();
+        services.AddScoped<Aivora.Services.ProjectService.IService, Aivora.Services.ProjectService.ProjectApplicationService>();
+        services.AddScoped<Aivora.Services.MilestoneService.IService, Aivora.Services.MilestoneService.MilestoneApplicationService>();
+        services.AddScoped<Aivora.Services.DeliverableService.IService, Aivora.Services.DeliverableService.DeliverableApplicationService>();
+        services.AddScoped<Aivora.Services.WalletService.IService, Aivora.Services.WalletService.WalletApplicationService>();
+        services.AddScoped<Aivora.Services.ReviewService.IService, Aivora.Services.ReviewService.ReviewApplicationService>();
+        services.AddScoped<Aivora.Services.MessageService.IService, Aivora.Services.MessageService.MessageApplicationService>();
+        services.AddScoped<Aivora.Services.DisputeService.IService, Aivora.Services.DisputeService.DisputeApplicationService>();
+        services.AddScoped<Aivora.Services.NotificationService.IService, Aivora.Services.NotificationService.NotificationApplicationService>();
         services.AddScoped<Aivora.Services.AdminService.IAdminService, Aivora.Services.AdminService.AdminService>();
         services.AddScoped<Aivora.Services.Treasury.ITreasury, Aivora.Services.Treasury.Treasury>();
 
@@ -200,7 +200,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Aivora.Services.AIJobAssistantService.IAIJobSuggestionProvider>(ResolveSuggestionProvider);
         services.AddScoped<Aivora.Services.AIJobAssistantService.IAIJobRefinementProvider>(ResolveRefinementProvider);
         services.AddScoped<Aivora.Services.AIJobAssistantService.IAIServiceDescriptionProvider>(ResolveServiceDescriptionProvider);
-        services.AddScoped<Aivora.Services.AIJobAssistantService.IService, Aivora.Services.AIJobAssistantService.Service>();
+        services.AddScoped<Aivora.Services.AIJobAssistantService.IService, Aivora.Services.AIJobAssistantService.AIJobAssistantApplicationService>();
     }
 
     private static Aivora.Services.AIJobAssistantService.IAIJobSuggestionProvider ResolveSuggestionProvider(IServiceProvider sp)

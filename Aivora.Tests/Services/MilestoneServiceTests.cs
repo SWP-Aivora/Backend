@@ -44,7 +44,7 @@ public class MilestoneServiceTests
 
         // Finance setup
         var treasury = new Aivora.Services.Treasury.Treasury(dbContext, Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>());
-        var service = new Service(dbContext, treasury);
+        var service = new MilestoneApplicationService(dbContext, treasury);
 
         // Act
         var result = await service.FundMilestoneAsync(clientId, milestoneId);
@@ -81,7 +81,7 @@ public class MilestoneServiceTests
         await dbContext.SaveChangesAsync();
 
         var treasury = new Aivora.Services.Treasury.Treasury(dbContext, Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>());
-        var service = new Service(dbContext, treasury);
+        var service = new MilestoneApplicationService(dbContext, treasury);
 
         Func<Task> act = async () => await service.FundMilestoneAsync(clientId, milestoneId);
 
@@ -115,7 +115,7 @@ public class MilestoneServiceTests
 
         // Finance setup
         var treasury = new Aivora.Services.Treasury.Treasury(dbContext, Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>());
-        var service = new Service(dbContext, treasury);
+        var service = new MilestoneApplicationService(dbContext, treasury);
 
         // Act
         var result = await service.ApproveMilestoneAsync(clientId, milestoneId);

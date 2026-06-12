@@ -7,12 +7,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Aivora.Services.IdentityService;
 
-public class Service : IService
+public class IdentityApplicationService : IService
 {
     private readonly AivoraDbContext _dbContext;
     private readonly IJwtService _jwtService;
 
-    public Service(AivoraDbContext dbContext, IJwtService jwtService)
+    public IdentityApplicationService(AivoraDbContext dbContext, IJwtService jwtService)
     {
         _dbContext = dbContext;
         _jwtService = jwtService;

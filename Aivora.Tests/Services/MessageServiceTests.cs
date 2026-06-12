@@ -37,7 +37,7 @@ public class MessageServiceTests
         dbContext.Conversations.Add(conversation);
         await dbContext.SaveChangesAsync();
 
-        var service = new Service(dbContext);
+        var service = new MessageApplicationService(dbContext);
         var request = new Request.SendMessageRequest
         {
             ConversationId = conversationId,
@@ -79,7 +79,7 @@ public class MessageServiceTests
         dbContext.Messages.AddRange(msg1, msg2);
         await dbContext.SaveChangesAsync();
 
-        var service = new Service(dbContext);
+        var service = new MessageApplicationService(dbContext);
 
         // Act
         await service.MarkAsReadAsync(clientId, conversationId);

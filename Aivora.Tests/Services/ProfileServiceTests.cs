@@ -30,7 +30,7 @@ public class ProfileServiceTests
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync();
 
-        var service = new Aivora.Services.ProfileService.Service(dbContext);
+        var service = new Aivora.Services.ProfileService.ProfileApplicationService(dbContext);
         var request = new Request.UpdateUserRequest { FullName = "New Name", Phone = "123456" };
 
         // Act
@@ -56,7 +56,7 @@ public class ProfileServiceTests
         dbContext.ExpertProfiles.Add(profile);
         await dbContext.SaveChangesAsync();
 
-        var service = new Aivora.Services.ProfileService.Service(dbContext);
+        var service = new Aivora.Services.ProfileService.ProfileApplicationService(dbContext);
 
         // Act
         var resultByUserId = await service.GetPublicExpertProfileAsync(userId);
@@ -79,7 +79,7 @@ public class ProfileServiceTests
         dbContext.ClientProfiles.Add(profile);
         await dbContext.SaveChangesAsync();
 
-        var service = new Aivora.Services.ProfileService.Service(dbContext);
+        var service = new Aivora.Services.ProfileService.ProfileApplicationService(dbContext);
 
         // Act
         var result = await service.GetClientProfileAsync(userId);

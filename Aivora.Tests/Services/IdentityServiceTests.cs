@@ -36,7 +36,7 @@ public class IdentityServiceTests
     {
         // Arrange
         var dbContext = GetDbContext();
-        var service = new Aivora.Services.IdentityService.Service(dbContext, _jwtServiceMock.Object);
+        var service = new Aivora.Services.IdentityService.IdentityApplicationService(dbContext, _jwtServiceMock.Object);
         var request = new Request.RegisterRequest { Email = "e@t.com", FullName = "Name", Password = "p", Role = "EXPERT" };
 
         _jwtServiceMock.Setup(x => x.GenerateAccessToken(It.IsAny<User>(), It.IsAny<string>())).Returns("at");
@@ -59,7 +59,7 @@ public class IdentityServiceTests
     {
         // Arrange
         var dbContext = GetDbContext();
-        var service = new Aivora.Services.IdentityService.Service(dbContext, _jwtServiceMock.Object);
+        var service = new Aivora.Services.IdentityService.IdentityApplicationService(dbContext, _jwtServiceMock.Object);
         var refreshToken = "valid-rt";
         var user = new User { Email = "u@t.com", FullName = "U", PasswordHash = "h", RefreshToken = $"hash:{refreshToken}", RefreshTokenExpiryTime = DateTimeOffset.UtcNow.AddDays(1), Role = UserRole.CLIENT };
         dbContext.Users.Add(user);
@@ -82,7 +82,7 @@ public class IdentityServiceTests
     {
         // Arrange
         var dbContext = GetDbContext();
-        var service = new Aivora.Services.IdentityService.Service(dbContext, _jwtServiceMock.Object);
+        var service = new Aivora.Services.IdentityService.IdentityApplicationService(dbContext, _jwtServiceMock.Object);
         var refreshToken = "expired-rt";
         var user = new User { Email = "u@t.com", FullName = "U", PasswordHash = $"hash:{refreshToken}", RefreshTokenExpiryTime = DateTimeOffset.UtcNow.AddDays(-1) };
         dbContext.Users.Add(user);
@@ -100,7 +100,7 @@ public class IdentityServiceTests
     {
         // Arrange
         var dbContext = GetDbContext();
-        var service = new Aivora.Services.IdentityService.Service(dbContext, _jwtServiceMock.Object);
+        var service = new Aivora.Services.IdentityService.IdentityApplicationService(dbContext, _jwtServiceMock.Object);
         var email = "login@test.com";
         var password = "password123";
         var user = new User { Email = email, FullName = "Login User", PasswordHash = BCrypt.Net.BCrypt.HashPassword(password), Role = UserRole.CLIENT };
