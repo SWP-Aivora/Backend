@@ -2,6 +2,8 @@ using System.Threading.RateLimiting;
 using Aivora.Repositories.Abstractions;
 using Aivora.Repositories.Data;
 using Aivora.Repositories.Data.Interceptors;
+using Aivora.Repositories.Repositories.Jobs;
+using Aivora.Repositories.Repositories.Proposals;
 using Aivora.Services.JwtService;
 using Aivora.Services.Models;
 using Aivora.Services.Options;
@@ -119,6 +121,8 @@ public static class ServiceCollectionExtensions
 
         services.AddScoped<IJwtService, Aivora.Services.JwtService.JwtTokenService>();
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
+        services.AddScoped<IJobRepository, JobRepository>();
+        services.AddScoped<IProposalRepository, ProposalRepository>();
         services.AddScoped<Aivora.Services.MediaService.IService, Aivora.Services.MediaService.MediaApplicationService>();
         services.AddScoped<Aivora.Services.IdentityService.IService, Aivora.Services.IdentityService.IdentityApplicationService>();
         services.AddScoped<Aivora.Services.CategoryService.IService, Aivora.Services.CategoryService.CategoryApplicationService>();
