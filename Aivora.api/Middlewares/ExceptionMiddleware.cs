@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Aivora.Services.Exceptions;
 using Aivora.Services.Models;
 
@@ -62,6 +63,7 @@ public class ExceptionMiddleware
         );
 
         var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+        options.Converters.Add(new JsonStringEnumConverter());
         await context.Response.WriteAsync(JsonSerializer.Serialize(response, options));
     }
 }
