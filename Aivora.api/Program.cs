@@ -248,7 +248,14 @@ using (var scope = app.Services.CreateScope())
 
     try
     {
-        await context.Database.MigrateAsync();
+        if (context.Database.IsRelational())
+        {
+            await context.Database.MigrateAsync();
+        }
+        else
+        {
+            await context.Database.EnsureCreatedAsync();
+        }
 
         if (forceReset)
         {
@@ -371,3 +378,5 @@ static bool UseGemini(AIProviderOptions options)
         && !string.IsNullOrWhiteSpace(options.ApiKey)
         && !HasPlaceholder(options.ApiKey);
 }
+
+public partial class Program { }
