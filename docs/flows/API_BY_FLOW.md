@@ -18,6 +18,9 @@ The test suite now includes API integration coverage for:
 | Validation envelope | Model-binding errors return `{ success: false, message: "Validation failed.", errors: { code: "validation_error" } }` |
 | OpenAPI exposure | `/openapi/v1.json` is available in Development and hidden in Production |
 | Production AI config | Production fails fast unless Gemini provider, API key, and fallback-disabled config are present |
+| Job/proposal flow | `CLIENT` can create and publish a job; `EXPERT` can submit a proposal; job owner can accept it into a project |
+| Ownership boundaries | Wrong role cannot submit proposals; non-owner client cannot list or accept another client's proposals |
+| Chat boundaries | Non-participant cannot read a conversation's messages |
 
 ---
 

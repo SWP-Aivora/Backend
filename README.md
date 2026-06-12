@@ -232,11 +232,12 @@ dotnet test Aivora.sln -c Release
 dotnet format Aivora.sln --verify-no-changes
 ```
 
-Current automated coverage includes service tests plus API integration tests for authentication, role-based authorization, validation response envelopes, OpenAPI Development-only exposure, and Production AI provider fail-fast config.
+Current automated coverage includes service tests plus API integration tests for authentication, role-based authorization, validation response envelopes, OpenAPI Development-only exposure, Production AI provider fail-fast config, job creation/publishing, proposal submit/accept ownership, and conversation participant denial.
 
 Known local caveats:
-- Build/test currently pass with `Microsoft.EntityFrameworkCore.Relational` version-conflict warnings from the Npgsql EF provider dependency graph.
-- `dotnet format --verify-no-changes` may report pre-existing whitespace issues in older files; fix or format those files before enforcing this gate in CI.
+- The default automated API integration tests use EF Core InMemory so they are fast and do not require Docker.
+- For a real PostgreSQL smoke path, start the database with `docker compose up -d db`, set `ConnectionStrings__DefaultConnection=Host=localhost;Port=5432;Database=aivora;Username=postgres;Password=postgrespw`, then run `dotnet ef database update --project Aivora.Repositories --startup-project Aivora.api` and `dotnet run --project Aivora.api`.
+- Money/status changes should keep service tests and API integration tests green before any repository or transaction refactor is merged.
 
 ---
 
