@@ -117,7 +117,7 @@ public class E2EBusinessFlowTests
         await dbContext.SaveChangesAsync();
 
         // Client accepts the proposal
-        var hiringService = new Aivora.Services.HiringService.HiringService(dbContext);
+        var hiringService = new Aivora.Services.HiringService.HiringService(new Aivora.Repositories.Repositories.Proposals.ProposalRepository(dbContext), new Aivora.Repositories.Repositories.Projects.ProjectRepository(dbContext), new Aivora.Repositories.Data.EfUnitOfWork(dbContext));
         var hiringResult = await hiringService.AcceptProposalAsync(clientId, proposalId);
 
         hiringResult.Status.Should().Be(ProjectStatus.PENDING_PAYMENT.ToString());
@@ -139,8 +139,8 @@ public class E2EBusinessFlowTests
         milestone.Status.Should().Be(MilestoneStatus.CREATED);
 
         // Finance setup
-        var treasury = new Treasury(dbContext, Mock.Of<ILogger<Treasury>>());
-        var milestoneService = new Aivora.Services.MilestoneService.MilestoneApplicationService(dbContext, treasury);
+        var treasury = new Treasury(new Aivora.Repositories.Repositories.Treasury.TreasuryRepository(dbContext), new Aivora.Repositories.Data.EfUnitOfWork(dbContext), Mock.Of<ILogger<Treasury>>());
+        var milestoneService = new Aivora.Services.MilestoneService.MilestoneApplicationService(new Aivora.Repositories.Repositories.Milestones.MilestoneRepository(dbContext), new Aivora.Repositories.Repositories.Treasury.TreasuryRepository(dbContext), treasury);
 
         // Client funds milestone
         var fundResult = await milestoneService.FundMilestoneAsync(clientId, milestone.Id);
@@ -349,7 +349,7 @@ public class E2EBusinessFlowTests
         dbContext.Proposals.Add(proposal);
         await dbContext.SaveChangesAsync();
 
-        var hiringService = new Aivora.Services.HiringService.HiringService(dbContext);
+        var hiringService = new Aivora.Services.HiringService.HiringService(new Aivora.Repositories.Repositories.Proposals.ProposalRepository(dbContext), new Aivora.Repositories.Repositories.Projects.ProjectRepository(dbContext), new Aivora.Repositories.Data.EfUnitOfWork(dbContext));
         var hireResult = await hiringService.AcceptProposalAsync(clientId, proposal.Id);
         var projectId = hireResult.ProjectId;
 
@@ -357,8 +357,8 @@ public class E2EBusinessFlowTests
         // 4. Client Funds Milestone (Escrow)
         // ----------------------------------------------------
         // Finance setup
-        var treasury = new Treasury(dbContext, Mock.Of<ILogger<Treasury>>());
-        var milestoneService = new Aivora.Services.MilestoneService.MilestoneApplicationService(dbContext, treasury);
+        var treasury = new Treasury(new Aivora.Repositories.Repositories.Treasury.TreasuryRepository(dbContext), new Aivora.Repositories.Data.EfUnitOfWork(dbContext), Mock.Of<ILogger<Treasury>>());
+        var milestoneService = new Aivora.Services.MilestoneService.MilestoneApplicationService(new Aivora.Repositories.Repositories.Milestones.MilestoneRepository(dbContext), new Aivora.Repositories.Repositories.Treasury.TreasuryRepository(dbContext), treasury);
         var milestone = await dbContext.Milestones.FirstAsync(m => m.ProjectId == projectId);
 
         await milestoneService.FundMilestoneAsync(clientId, milestone.Id);
@@ -408,8 +408,8 @@ public class E2EBusinessFlowTests
         await dbContext.SaveChangesAsync();
 
         // Finance setup
-        var treasury = new Treasury(dbContext, Mock.Of<ILogger<Treasury>>());
-        var milestoneService = new Aivora.Services.MilestoneService.MilestoneApplicationService(dbContext, treasury);
+        var treasury = new Treasury(new Aivora.Repositories.Repositories.Treasury.TreasuryRepository(dbContext), new Aivora.Repositories.Data.EfUnitOfWork(dbContext), Mock.Of<ILogger<Treasury>>());
+        var milestoneService = new Aivora.Services.MilestoneService.MilestoneApplicationService(new Aivora.Repositories.Repositories.Milestones.MilestoneRepository(dbContext), new Aivora.Repositories.Repositories.Treasury.TreasuryRepository(dbContext), treasury);
         var reviewService = new Aivora.Services.ReviewService.ReviewApplicationService(dbContext);
         var disputeService = new Aivora.Services.DisputeService.DisputeApplicationService(dbContext, treasury);
 

@@ -1,34 +1,31 @@
 using Aivora.Repositories.Abstractions;
-using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
+using Aivora.Repositories.Repositories.Projects;
+using Aivora.Repositories.Repositories.Proposals;
 using Aivora.Services.Exceptions;
-using Microsoft.EntityFrameworkCore;
 
 namespace Aivora.Services.HiringService;
 
 public class HiringService : IHiringService
 {
-    private readonly AivoraDbContext _dbContext;
+    private readonly IProposalRepository _proposalRepository;
+    private readonly IProjectRepository _projectRepository;
     private readonly IUnitOfWork _unitOfWork;
 
-    public HiringService(AivoraDbContext dbContext)
-        : this(dbContext, new EfUnitOfWork(dbContext))
+    public HiringService(
+        IProposalRepository proposalRepository,
+        IProjectRepository projectRepository,
+        IUnitOfWork unitOfWork)
     {
-    }
-
-    public HiringService(AivoraDbContext dbContext, IUnitOfWork unitOfWork)
-    {
-        _dbContext = dbContext;
+        _proposalRepository = proposalRepository;
+        _projectRepository = projectRepository;
         _unitOfWork = unitOfWork;
     }
 
     public async Task<Response.HiringResultResponse> AcceptProposalAsync(Guid clientId, Guid proposalId)
     {
-        var proposal = await _dbContext.Proposals
-            .Include(p => p.Job)
-            .Include(p => p.Milestones)
-            .FirstOrDefaultAsync(p => p.Id == proposalId);
+        var proposal = await _proposalRepository.GetForHiringAsync(proposalId);
 
         if (proposal == null) throw new NotFoundException("Proposal not found.");
         if (proposal.Job.ClientId != clientId) throw new UnauthorizedException("Only the job owner can accept proposals.");
@@ -44,10 +41,7 @@ public class HiringService : IHiringService
             proposal.UpdatedAt = DateTimeOffset.UtcNow;
 
             // 2. Reject sibling proposals
-            var otherProposals = await _dbContext.Proposals
-                .Where(p => p.JobId == proposal.JobId && p.Id != proposalId &&
-                           (p.Status == ProposalStatus.SUBMITTED || p.Status == ProposalStatus.SHORTLISTED))
-                .ToListAsync();
+            var otherProposals = await _proposalRepository.ListPendingSiblingsAsync(proposal.JobId, proposalId);
 
             foreach (var p in otherProposals)
             {
@@ -82,8 +76,8 @@ public class HiringService : IHiringService
                 }).ToList()
             };
 
-            _dbContext.Projects.Add(project);
-            await _dbContext.SaveChangesAsync();
+            await _projectRepository.AddAsync(project);
+            await _projectRepository.SaveChangesAsync();
         });
 
         return new Response.HiringResultResponse
@@ -105,7 +99,7 @@ public class HiringService : IHiringService
         proposal.Status = ProposalStatus.SHORTLISTED;
         proposal.UpdatedAt = DateTimeOffset.UtcNow;
 
-        await _dbContext.SaveChangesAsync();
+        await _proposalRepository.SaveChangesAsync();
         return true;
     }
 
@@ -119,13 +113,13 @@ public class HiringService : IHiringService
         proposal.Status = ProposalStatus.REJECTED;
         proposal.UpdatedAt = DateTimeOffset.UtcNow;
 
-        await _dbContext.SaveChangesAsync();
+        await _proposalRepository.SaveChangesAsync();
         return true;
     }
 
     public async Task<bool> WithdrawProposalAsync(Guid expertId, Guid proposalId)
     {
-        var proposal = await _dbContext.Proposals.FindAsync(proposalId);
+        var proposal = await _proposalRepository.GetByIdAsync(proposalId);
 
         if (proposal == null) throw new NotFoundException("Proposal not found.");
         if (proposal.ExpertId != expertId) throw new UnauthorizedException("You can only withdraw your own proposal.");
@@ -137,15 +131,13 @@ public class HiringService : IHiringService
         proposal.WithdrawnAt = DateTimeOffset.UtcNow;
         proposal.UpdatedAt = DateTimeOffset.UtcNow;
 
-        await _dbContext.SaveChangesAsync();
+        await _proposalRepository.SaveChangesAsync();
         return true;
     }
 
     private async Task<Proposal> GetProposalWithOwnerCheckAsync(Guid clientId, Guid proposalId)
     {
-        var proposal = await _dbContext.Proposals
-            .Include(p => p.Job)
-            .FirstOrDefaultAsync(p => p.Id == proposalId);
+        var proposal = await _proposalRepository.GetWithJobAsync(proposalId);
 
         if (proposal == null) throw new NotFoundException("Proposal not found.");
         if (proposal.Job.ClientId != clientId) throw new UnauthorizedException("Access denied.");

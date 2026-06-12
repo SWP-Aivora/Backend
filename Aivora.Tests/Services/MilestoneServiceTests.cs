@@ -43,8 +43,8 @@ public class MilestoneServiceTests
         await dbContext.SaveChangesAsync();
 
         // Finance setup
-        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>());
-        var service = new MilestoneApplicationService(dbContext, treasury);
+        var treasury = new Aivora.Services.Treasury.Treasury(new Aivora.Repositories.Repositories.Treasury.TreasuryRepository(dbContext), new Aivora.Repositories.Data.EfUnitOfWork(dbContext), Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>());
+        var service = new MilestoneApplicationService(new Aivora.Repositories.Repositories.Milestones.MilestoneRepository(dbContext), new Aivora.Repositories.Repositories.Treasury.TreasuryRepository(dbContext), treasury);
 
         // Act
         var result = await service.FundMilestoneAsync(clientId, milestoneId);
@@ -80,8 +80,8 @@ public class MilestoneServiceTests
         dbContext.Milestones.Add(milestone);
         await dbContext.SaveChangesAsync();
 
-        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>());
-        var service = new MilestoneApplicationService(dbContext, treasury);
+        var treasury = new Aivora.Services.Treasury.Treasury(new Aivora.Repositories.Repositories.Treasury.TreasuryRepository(dbContext), new Aivora.Repositories.Data.EfUnitOfWork(dbContext), Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>());
+        var service = new MilestoneApplicationService(new Aivora.Repositories.Repositories.Milestones.MilestoneRepository(dbContext), new Aivora.Repositories.Repositories.Treasury.TreasuryRepository(dbContext), treasury);
 
         Func<Task> act = async () => await service.FundMilestoneAsync(clientId, milestoneId);
 
@@ -114,8 +114,8 @@ public class MilestoneServiceTests
         await dbContext.SaveChangesAsync();
 
         // Finance setup
-        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>());
-        var service = new MilestoneApplicationService(dbContext, treasury);
+        var treasury = new Aivora.Services.Treasury.Treasury(new Aivora.Repositories.Repositories.Treasury.TreasuryRepository(dbContext), new Aivora.Repositories.Data.EfUnitOfWork(dbContext), Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>());
+        var service = new MilestoneApplicationService(new Aivora.Repositories.Repositories.Milestones.MilestoneRepository(dbContext), new Aivora.Repositories.Repositories.Treasury.TreasuryRepository(dbContext), treasury);
 
         // Act
         var result = await service.ApproveMilestoneAsync(clientId, milestoneId);

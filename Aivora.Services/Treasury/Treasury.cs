@@ -1,9 +1,8 @@
 using Aivora.Repositories.Abstractions;
-using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
+using Aivora.Repositories.Repositories.Treasury;
 using Aivora.Services.Exceptions;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace Aivora.Services.Treasury;
@@ -14,18 +13,13 @@ namespace Aivora.Services.Treasury;
 /// </summary>
 public class Treasury : ITreasury
 {
-    private readonly AivoraDbContext _dbContext;
+    private readonly ITreasuryRepository _treasuryRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<Treasury> _logger;
 
-    public Treasury(AivoraDbContext dbContext, ILogger<Treasury> logger)
-        : this(dbContext, new EfUnitOfWork(dbContext), logger)
+    public Treasury(ITreasuryRepository treasuryRepository, IUnitOfWork unitOfWork, ILogger<Treasury> logger)
     {
-    }
-
-    public Treasury(AivoraDbContext dbContext, IUnitOfWork unitOfWork, ILogger<Treasury> logger)
-    {
-        _dbContext = dbContext;
+        _treasuryRepository = treasuryRepository;
         _unitOfWork = unitOfWork;
         _logger = logger;
     }
@@ -61,10 +55,10 @@ public class Treasury : ITreasury
                     Status = PaymentStatus.HELD,
                     HeldAt = DateTimeOffset.UtcNow
                 };
-                _dbContext.Payments.Add(payment);
+                await _treasuryRepository.AddPaymentAsync(payment);
 
                 // 3. Log Transaction
-                _dbContext.WalletTransactions.Add(new WalletTransaction
+                _treasuryRepository.AddWalletTransaction(new WalletTransaction
                 {
                     WalletId = wallet.Id,
                     UserId = clientId,
@@ -87,7 +81,7 @@ public class Treasury : ITreasury
                     milestone.Project.StartDate = DateOnly.FromDateTime(DateTime.UtcNow);
                 }
 
-                await _dbContext.SaveChangesAsync();
+                await _treasuryRepository.SaveChangesAsync();
             });
 
             _logger.LogInformation("✅ Milestone {MilestoneId} funded successfully by Client {ClientId}", milestoneId, clientId);
@@ -106,7 +100,7 @@ public class Treasury : ITreasury
         if (milestone.Project.ClientId != clientId) throw new UnauthorizedException("Only the client can approve and release funds.");
         if (milestone.Status != MilestoneStatus.SUBMITTED) throw new ValidationException("Milestone must be in SUBMITTED status to be released.");
 
-        var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestoneId && p.Status == PaymentStatus.HELD);
+        var payment = await _treasuryRepository.GetPaymentByMilestoneAndStatusAsync(milestoneId, PaymentStatus.HELD);
         if (payment == null) throw new NotFoundException("Held payment not found for this milestone.");
         ValidatePaymentAmount(payment);
 
@@ -129,7 +123,7 @@ public class Treasury : ITreasury
                 payment.ReleasedAt = DateTimeOffset.UtcNow;
 
                 // 3. Log Transactions
-                _dbContext.WalletTransactions.Add(new WalletTransaction
+                _treasuryRepository.AddWalletTransaction(new WalletTransaction
                 {
                     WalletId = payerWallet.Id,
                     UserId = payerWallet.UserId,
@@ -142,7 +136,7 @@ public class Treasury : ITreasury
                     PaymentId = payment.Id
                 });
 
-                _dbContext.WalletTransactions.Add(new WalletTransaction
+                _treasuryRepository.AddWalletTransaction(new WalletTransaction
                 {
                     WalletId = payeeWallet.Id,
                     UserId = payeeWallet.UserId,
@@ -160,7 +154,7 @@ public class Treasury : ITreasury
                 milestone.ApprovedAt = DateTimeOffset.UtcNow;
                 milestone.PaidAt = DateTimeOffset.UtcNow;
 
-                await _dbContext.SaveChangesAsync();
+                await _treasuryRepository.SaveChangesAsync();
                 await SyncProjectStatusAsync(milestone.ProjectId);
             });
 
@@ -176,7 +170,7 @@ public class Treasury : ITreasury
     public async Task RefundMilestoneAsync(Guid adminId, Guid milestoneId, decimal amount, string reason)
     {
         var milestone = await GetMilestoneWithProjectAsync(milestoneId);
-        var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestoneId && (p.Status == PaymentStatus.HELD || p.Status == PaymentStatus.FROZEN));
+        var payment = await _treasuryRepository.GetHeldOrFrozenPaymentByMilestoneAsync(milestoneId);
 
         if (payment == null) throw new NotFoundException("Held/Frozen payment not found for refund.");
         ValidatePaymentAmount(payment);
@@ -199,7 +193,7 @@ public class Treasury : ITreasury
                 payment.RefundedAt = DateTimeOffset.UtcNow;
 
                 // 3. Log Transaction
-                _dbContext.WalletTransactions.Add(new WalletTransaction
+                _treasuryRepository.AddWalletTransaction(new WalletTransaction
                 {
                     WalletId = payerWallet.Id,
                     UserId = payerWallet.UserId,
@@ -215,7 +209,7 @@ public class Treasury : ITreasury
                 // 4. Update Milestone
                 milestone.Status = MilestoneStatus.REFUNDED;
 
-                await _dbContext.SaveChangesAsync();
+                await _treasuryRepository.SaveChangesAsync();
                 await SyncProjectStatusAsync(milestone.ProjectId);
             });
 
@@ -231,7 +225,7 @@ public class Treasury : ITreasury
     public async Task SplitMilestoneFundsAsync(Guid milestoneId, decimal releaseToExpertAmount, decimal refundToClientAmount, string reason)
     {
         var milestone = await GetMilestoneWithProjectAsync(milestoneId);
-        var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestoneId && (p.Status == PaymentStatus.HELD || p.Status == PaymentStatus.FROZEN));
+        var payment = await _treasuryRepository.GetHeldOrFrozenPaymentByMilestoneAsync(milestoneId);
 
         if (payment == null) throw new NotFoundException("Held/Frozen payment not found for split.");
         ValidatePaymentAmount(payment);
@@ -263,7 +257,7 @@ public class Treasury : ITreasury
                 payment.UpdatedAt = DateTimeOffset.UtcNow;
 
                 // 3. Log Transactions (Simplified summary logs)
-                _dbContext.WalletTransactions.Add(new WalletTransaction
+                _treasuryRepository.AddWalletTransaction(new WalletTransaction
                 {
                     WalletId = payerWallet.Id,
                     UserId = payerWallet.UserId,
@@ -275,7 +269,7 @@ public class Treasury : ITreasury
                     PaymentId = payment.Id
                 });
 
-                _dbContext.WalletTransactions.Add(new WalletTransaction
+                _treasuryRepository.AddWalletTransaction(new WalletTransaction
                 {
                     WalletId = payeeWallet.Id,
                     UserId = payeeWallet.UserId,
@@ -290,7 +284,7 @@ public class Treasury : ITreasury
                 // 4. Update Milestone
                 milestone.Status = releaseToExpertAmount > 0 ? MilestoneStatus.PAID : MilestoneStatus.REFUNDED;
 
-                await _dbContext.SaveChangesAsync();
+                await _treasuryRepository.SaveChangesAsync();
                 await SyncProjectStatusAsync(milestone.ProjectId);
             });
         }
@@ -303,7 +297,7 @@ public class Treasury : ITreasury
 
     public async Task FreezeFundsAsync(Guid milestoneId, string reason)
     {
-        var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestoneId);
+        var payment = await _treasuryRepository.GetPaymentByMilestoneAsync(milestoneId);
         if (payment == null) throw new NotFoundException("Payment not found.");
         if (payment.Status != PaymentStatus.HELD) throw new ValidationException("Only HELD payments can be frozen.");
         ValidatePaymentAmount(payment);
@@ -312,7 +306,7 @@ public class Treasury : ITreasury
         payment.FrozenAt = DateTimeOffset.UtcNow;
         payment.UpdatedAt = DateTimeOffset.UtcNow;
 
-        await _dbContext.SaveChangesAsync();
+        await _treasuryRepository.SaveChangesAsync();
         await MarkProjectDisputedAsync(payment.ProjectId);
 
         _logger.LogInformation("❄️ Funds frozen for Milestone {MilestoneId}. Reason: {Reason}", milestoneId, reason);
@@ -320,7 +314,7 @@ public class Treasury : ITreasury
 
     public async Task UnfreezeFundsAsync(Guid milestoneId, string reason)
     {
-        var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestoneId);
+        var payment = await _treasuryRepository.GetPaymentByMilestoneAsync(milestoneId);
         if (payment == null) throw new NotFoundException("Payment not found.");
         if (payment.Status != PaymentStatus.FROZEN) throw new ValidationException("Only FROZEN payments can be unfrozen.");
         ValidatePaymentAmount(payment);
@@ -328,7 +322,7 @@ public class Treasury : ITreasury
         payment.Status = PaymentStatus.HELD;
         payment.UpdatedAt = DateTimeOffset.UtcNow;
 
-        await _dbContext.SaveChangesAsync();
+        await _treasuryRepository.SaveChangesAsync();
         await SyncProjectStatusAsync(payment.ProjectId);
 
         _logger.LogInformation("🔥 Funds unfrozen for Milestone {MilestoneId}. Reason: {Reason}", milestoneId, reason);
@@ -336,10 +330,7 @@ public class Treasury : ITreasury
 
     public async Task SyncProjectStatusAsync(Guid projectId)
     {
-        var project = await _dbContext.Projects
-            .Include(p => p.Milestones)
-            .Include(p => p.Job)
-            .FirstOrDefaultAsync(p => p.Id == projectId);
+        var project = await _treasuryRepository.GetProjectWithMilestonesAndJobAsync(projectId);
 
         if (project == null) return;
 
@@ -369,32 +360,30 @@ public class Treasury : ITreasury
             project.Status = ProjectStatus.ACTIVE;
         }
 
-        await _dbContext.SaveChangesAsync();
+        await _treasuryRepository.SaveChangesAsync();
     }
 
     public async Task MarkProjectDisputedAsync(Guid projectId)
     {
-        var project = await _dbContext.Projects.FindAsync(projectId);
+        var project = await _treasuryRepository.GetProjectByIdAsync(projectId);
         if (project != null && project.Status != ProjectStatus.DISPUTED)
         {
             project.Status = ProjectStatus.DISPUTED;
-            await _dbContext.SaveChangesAsync();
+            await _treasuryRepository.SaveChangesAsync();
             _logger.LogWarning("⚠️ Project {ProjectId} status set to DISPUTED.", projectId);
         }
     }
 
     private async Task<Milestone> GetMilestoneWithProjectAsync(Guid milestoneId)
     {
-        var milestone = await _dbContext.Milestones
-            .Include(m => m.Project).ThenInclude(p => p.Milestones)
-            .FirstOrDefaultAsync(m => m.Id == milestoneId);
+        var milestone = await _treasuryRepository.GetMilestoneWithProjectAsync(milestoneId);
 
         return milestone ?? throw new NotFoundException("Milestone not found.");
     }
 
     private async Task<Wallet> GetWalletAsync(Guid userId)
     {
-        var wallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
+        var wallet = await _treasuryRepository.GetWalletByUserIdAsync(userId);
         return wallet ?? throw new NotFoundException($"Wallet for user {userId} not found.");
     }
 
