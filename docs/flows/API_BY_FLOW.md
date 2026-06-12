@@ -5,6 +5,19 @@
 > **Base path:** `/api/v1`
 > **Auth:** `Authorization: Bearer <accessToken>`
 > **Response wrapper:** `{ success, message, data, traceId }` (xem `API_CONTRACT.md` §1.3)
+> **OpenAPI/Scalar:** exposed only in Development.
+
+## Automated API Safety Coverage
+
+The test suite now includes API integration coverage for:
+
+| Area | Covered behavior |
+|---|---|
+| Auth challenge | Protected admin endpoint without token returns `401` |
+| Role policy | `CLIENT` token cannot call `ADMIN` category mutation and returns `403` |
+| Validation envelope | Model-binding errors return `{ success: false, message: "Validation failed.", errors: { code: "validation_error" } }` |
+| OpenAPI exposure | `/openapi/v1.json` is available in Development and hidden in Production |
+| Production AI config | Production fails fast unless Gemini provider, API key, and fallback-disabled config are present |
 
 ---
 

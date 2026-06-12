@@ -221,6 +221,23 @@ dotnet ef database update --project Aivora.Repositories --startup-project Aivora
 dotnet test
 ```
 
+### Verification gates trước refactor
+
+Trước khi refactor logic hoặc kiến trúc, chạy các gate sau từ repo root:
+
+```bash
+dotnet restore Aivora.sln
+dotnet build Aivora.sln -c Release
+dotnet test Aivora.sln -c Release
+dotnet format Aivora.sln --verify-no-changes
+```
+
+Current automated coverage includes service tests plus API integration tests for authentication, role-based authorization, validation response envelopes, OpenAPI Development-only exposure, and Production AI provider fail-fast config.
+
+Known local caveats:
+- Build/test currently pass with `Microsoft.EntityFrameworkCore.Relational` version-conflict warnings from the Npgsql EF provider dependency graph.
+- `dotnet format --verify-no-changes` may report pre-existing whitespace issues in older files; fix or format those files before enforcing this gate in CI.
+
 ---
 
 ## Customization rule notes
