@@ -32,7 +32,7 @@ public class ExceptionMiddleware
     private async Task HandleExceptionAsync(HttpContext context, Exception exception)
     {
         context.Response.ContentType = "application/json";
-        
+
         var statusCode = exception switch
         {
             ValidationException => HttpStatusCode.BadRequest,

@@ -43,7 +43,7 @@ public class HiringServiceTests
 
         // Assert
         result.ProjectId.Should().NotBeEmpty();
-        
+
         var acceptedP = await dbContext.Proposals.FindAsync(proposal1.Id);
         acceptedP!.Status.Should().Be(ProposalStatus.ACCEPTED);
 
@@ -66,7 +66,7 @@ public class HiringServiceTests
         var clientId = Guid.NewGuid();
         var job = new JobPost { Id = Guid.NewGuid(), ClientId = clientId, Title = "J", Status = JobStatus.OPEN, OriginalDescription = "X" };
         var proposal = new Proposal { Id = Guid.NewGuid(), JobId = job.Id, ExpertId = Guid.NewGuid(), Status = ProposalStatus.SUBMITTED, CoverLetter = "L" };
-        
+
         dbContext.JobPosts.Add(job);
         dbContext.Proposals.Add(proposal);
         await dbContext.SaveChangesAsync();

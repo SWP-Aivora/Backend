@@ -49,7 +49,7 @@ public class SeedDataIntegrationTests
         var otherProposals = await dbContext.Proposals
             .Where(p => p.JobId == job.Id && p.Id != proposal.Id)
             .ToListAsync();
-        
+
         otherProposals.Should().AllSatisfy(p => p.Status.Should().Be(ProposalStatus.REJECTED));
     }
 }

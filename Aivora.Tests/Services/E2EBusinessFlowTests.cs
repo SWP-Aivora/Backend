@@ -29,7 +29,7 @@ public class E2EBusinessFlowTests
         // Arrange & Preconditions
         // ----------------------------------------------------
         var dbContext = GetDbContext();
-        
+
         var clientId = Guid.NewGuid(); // Khang
         var expertId = Guid.NewGuid(); // QAnh
         var adminId = Guid.NewGuid();  // Quân
@@ -49,7 +49,7 @@ public class E2EBusinessFlowTests
         dbContext.ClientProfiles.Add(khangProfile);
         dbContext.ExpertProfiles.Add(qanhProfile);
         dbContext.Wallets.AddRange(khangWallet, qanhWallet);
-        
+
         var category = new Category { Id = Guid.NewGuid(), Name = "AI Chatbots" };
         dbContext.Categories.Add(category);
 
@@ -63,7 +63,7 @@ public class E2EBusinessFlowTests
         // 1. Client Create Job — Khang
         // ----------------------------------------------------
         var jobService = new Aivora.Services.JobService.Service(dbContext);
-        
+
         var createJobReq = new Aivora.Services.JobService.Request.CreateJobRequest
         {
             Title = "Build AI Chatbot for Beauty Shop",
@@ -120,7 +120,7 @@ public class E2EBusinessFlowTests
         var hiringResult = await hiringService.AcceptProposalAsync(clientId, proposalId);
 
         hiringResult.Status.Should().Be(ProjectStatus.PENDING_PAYMENT.ToString());
-        
+
         var acceptedJob = await dbContext.JobPosts.FindAsync(publishedJob.Id);
         acceptedJob!.Status.Should().Be(JobStatus.IN_PROGRESS);
 
@@ -133,7 +133,7 @@ public class E2EBusinessFlowTests
         var project = await dbContext.Projects.Include(p => p.Milestones).FirstAsync(p => p.Id == hiringResult.ProjectId);
         project.Status.Should().Be(ProjectStatus.PENDING_PAYMENT);
         project.Milestones.Should().HaveCount(1);
-        
+
         var milestone = project.Milestones.First();
         milestone.Status.Should().Be(MilestoneStatus.CREATED);
 
@@ -143,7 +143,7 @@ public class E2EBusinessFlowTests
 
         // Client funds milestone
         var fundResult = await milestoneService.FundMilestoneAsync(clientId, milestone.Id);
-        
+
         // Assert Wallet and project status updates
         fundResult.Milestone.Status.Should().Be(MilestoneStatus.FUNDED);
         fundResult.Wallet.AvailableBalance.Should().Be(1100);
@@ -208,7 +208,7 @@ public class E2EBusinessFlowTests
         // 7. E2E Step 4.6 & 4.7 — Client & Expert Leave Reviews
         // ----------------------------------------------------
         var reviewService = new Aivora.Services.ReviewService.Service(dbContext);
-        
+
         var clientReviewReq = new Aivora.Services.ReviewService.Request.CreateReviewRequest
         {
             ProjectId = project.Id,
@@ -317,7 +317,7 @@ public class E2EBusinessFlowTests
         var acceptResult = await aiService.AcceptSuggestionAsync(clientId, suggestionResult.Id, new Aivora.Services.AIJobAssistantService.Request.AcceptSuggestionRequest { CategoryId = category.Id });
         var jobId = acceptResult.Job.Id;
         acceptResult.Job.Status.Should().Be(JobStatus.DRAFT);
-        
+
         // Verify structured fields mapped correctly
         var jobInDb = await dbContext.JobPosts.FindAsync(jobId);
         jobInDb!.BusinessDomain.Should().Be("Tech");
@@ -358,7 +358,7 @@ public class E2EBusinessFlowTests
         var treasury = new Treasury(dbContext, Mock.Of<ILogger<Treasury>>());
         var milestoneService = new Aivora.Services.MilestoneService.Service(dbContext, treasury);
         var milestone = await dbContext.Milestones.FirstAsync(m => m.ProjectId == projectId);
-        
+
         await milestoneService.FundMilestoneAsync(clientId, milestone.Id);
 
         // ----------------------------------------------------
@@ -371,7 +371,7 @@ public class E2EBusinessFlowTests
         // Assert Final state
         var finalExpertWallet = await dbContext.Wallets.FirstAsync(w => w.UserId == expertId);
         finalExpertWallet.AvailableBalance.Should().Be(1200);
-        
+
         var finalProject = await dbContext.Projects.FindAsync(projectId);
         finalProject!.Status.Should().Be(ProjectStatus.COMPLETED);
     }
@@ -478,7 +478,7 @@ public class E2EBusinessFlowTests
         // Client requests revision
         var revisionRes = await milestoneService.RequestRevisionAsync(clientId, milestone.Id, "Please improve the landing UI.");
         revisionRes.Status.Should().Be(MilestoneStatus.REVISION_REQUESTED);
-        
+
         // Escrow payment remains held
         var heldPayment = await dbContext.Payments.FindAsync(payment.Id);
         heldPayment!.Status.Should().Be(PaymentStatus.HELD);
@@ -495,7 +495,7 @@ public class E2EBusinessFlowTests
             MilestoneId = milestone.Id,
             Reason = "No progress"
         };
-        
+
         var disputeResult = await disputeService.OpenDisputeAsync(clientId, openDisputeReq);
         disputeResult.Status.Should().Be(DisputeStatus.OPEN.ToString());
 

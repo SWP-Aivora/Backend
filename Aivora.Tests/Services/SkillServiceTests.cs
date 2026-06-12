@@ -29,7 +29,7 @@ public class SkillServiceTests
         var expert = new ExpertProfile { Id = Guid.NewGuid(), UserId = userId, Title = "Dev" };
         var skill = new Skill { Id = Guid.NewGuid(), Name = "Dotnet" };
         var expertSkill = new ExpertSkill { ExpertId = expert.Id, SkillId = skill.Id };
-        
+
         dbContext.ExpertProfiles.Add(expert);
         dbContext.Skills.Add(skill);
         dbContext.ExpertSkills.Add(expertSkill);
@@ -54,7 +54,7 @@ public class SkillServiceTests
         var expert = new ExpertProfile { Id = Guid.NewGuid(), UserId = userId, Title = "Dev" };
         var skill = new Skill { Id = Guid.NewGuid(), Name = "Dotnet" };
         var expertSkill = new ExpertSkill { ExpertId = expert.Id, SkillId = skill.Id };
-        
+
         dbContext.ExpertProfiles.Add(expert);
         dbContext.Skills.Add(skill);
         dbContext.ExpertSkills.Add(expertSkill);

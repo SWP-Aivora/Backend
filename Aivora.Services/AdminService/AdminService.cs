@@ -28,7 +28,7 @@ public class AdminService : IAdminService
 
         user.Status = UserStatus.SUSPENDED;
         // Optionally store the reason in a log or field if we add one later
-        
+
         await _dbContext.SaveChangesAsync();
         _logger.LogInformation("Admin {AdminId} suspended user {UserId}. Reason: {Reason}", adminId, userId, reason);
 

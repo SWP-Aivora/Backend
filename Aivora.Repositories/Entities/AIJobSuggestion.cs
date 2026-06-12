@@ -18,7 +18,7 @@ public class AIJobSuggestion : AuditableBaseEntity
     public SkillLevel? SuggestedExperienceLevel { get; set; }
     public string? SuggestedBusinessDomain { get; set; }
     public string? SuggestedExpectedOutcome { get; set; }
-    
+
     // JSON data stored as strings
     public string? SuggestedSkillsJson { get; set; }
     public string? SuggestedMilestonesJson { get; set; }

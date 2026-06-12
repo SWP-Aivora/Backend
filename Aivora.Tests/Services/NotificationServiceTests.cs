@@ -32,7 +32,7 @@ public class NotificationServiceTests
         // Assert
         result.Title.Should().Be("Test Title");
         result.IsRead.Should().BeFalse();
-        
+
         var count = await dbContext.Notifications.CountAsync(n => n.UserId == userId);
         count.Should().Be(1);
     }

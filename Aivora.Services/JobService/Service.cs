@@ -89,7 +89,7 @@ public class Service : IService
             .FirstOrDefaultAsync(j => j.Id == jobId && j.ClientId == clientId);
 
         if (job == null) throw new NotFoundException("Job not found or access denied.");
-        if (job.Status != JobStatus.DRAFT && job.Status != JobStatus.OPEN) 
+        if (job.Status != JobStatus.DRAFT && job.Status != JobStatus.OPEN)
             throw new ValidationException("Cannot update job in its current status.");
 
         if (request.Title != null) job.Title = NormalizeRequired(request.Title, job.Title, 255);
@@ -156,12 +156,12 @@ public class Service : IService
     {
         var job = await _dbContext.JobPosts.FirstOrDefaultAsync(j => j.Id == jobId && j.ClientId == clientId);
         if (job == null) throw new NotFoundException("Job not found or access denied.");
-        if (job.Status != JobStatus.DRAFT && job.Status != JobStatus.OPEN) 
+        if (job.Status != JobStatus.DRAFT && job.Status != JobStatus.OPEN)
             throw new ValidationException("Cannot cancel job in its current status.");
 
         job.Status = JobStatus.CANCELLED;
         // Optionally store reason in a separate field or log
-        
+
         await _dbContext.SaveChangesAsync();
         return await GetJobByIdAsync(job.Id);
     }

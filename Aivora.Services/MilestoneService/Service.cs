@@ -136,7 +136,7 @@ public class Service : IService
             throw new ValidationException("Milestone must be SUBMITTED to request revision.");
 
         milestone.Status = MilestoneStatus.REVISION_REQUESTED;
-        
+
         await _dbContext.SaveChangesAsync();
         await _treasury.SyncProjectStatusAsync(milestone.ProjectId);
 

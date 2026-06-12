@@ -33,7 +33,7 @@ public class Treasury : ITreasury
     public async Task FundMilestoneAsync(Guid clientId, Guid milestoneId)
     {
         var milestone = await GetMilestoneWithProjectAsync(milestoneId);
-        
+
         if (milestone.Project.ClientId != clientId) throw new UnauthorizedException("Access denied.");
         if (milestone.Status != MilestoneStatus.CREATED) throw new ValidationException("Milestone is already funded or processed.");
         ValidatePositiveAmount(milestone.Amount, "Milestone amount");
@@ -89,7 +89,7 @@ public class Treasury : ITreasury
 
                 await _dbContext.SaveChangesAsync();
             });
-            
+
             _logger.LogInformation("✅ Milestone {MilestoneId} funded successfully by Client {ClientId}", milestoneId, clientId);
         }
         catch (Exception ex)
@@ -177,7 +177,7 @@ public class Treasury : ITreasury
     {
         var milestone = await GetMilestoneWithProjectAsync(milestoneId);
         var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestoneId && (p.Status == PaymentStatus.HELD || p.Status == PaymentStatus.FROZEN));
-        
+
         if (payment == null) throw new NotFoundException("Held/Frozen payment not found for refund.");
         ValidatePaymentAmount(payment);
         ValidatePositiveAmount(amount, "Refund amount");
@@ -218,7 +218,7 @@ public class Treasury : ITreasury
                 await _dbContext.SaveChangesAsync();
                 await SyncProjectStatusAsync(milestone.ProjectId);
             });
-            
+
             _logger.LogInformation("✅ Refunded {Amount} for Milestone {MilestoneId}", amount, milestoneId);
         }
         catch (Exception ex)
@@ -311,7 +311,7 @@ public class Treasury : ITreasury
         payment.Status = PaymentStatus.FROZEN;
         payment.FrozenAt = DateTimeOffset.UtcNow;
         payment.UpdatedAt = DateTimeOffset.UtcNow;
-        
+
         await _dbContext.SaveChangesAsync();
         await MarkProjectDisputedAsync(payment.ProjectId);
 
@@ -345,12 +345,12 @@ public class Treasury : ITreasury
 
         // Terminal milestones are PAID or REFUNDED
         var allSettled = project.Milestones.All(m => m.Status == MilestoneStatus.PAID || m.Status == MilestoneStatus.REFUNDED);
-        
+
         if (allSettled && project.Milestones.Any())
         {
             project.Status = ProjectStatus.COMPLETED;
             project.CompletedAt = DateTimeOffset.UtcNow;
-            
+
             // Sync Job status
             if (project.Job != null)
             {
