@@ -68,19 +68,28 @@ Sửa các giá trị trong `.env`:
 
 ```env
 # Database (connection string PostgreSQL)
-CONNECTION_STRING=Host=localhost;Port=5432;Database=aivora;Username=postgres;Password=your_password
+ConnectionStrings__DefaultConnection=Host=localhost;Port=5432;Database=aivora;Username=postgres;Password=your_password
 
 # JWT
-JWT_SECRET=your_secret_at_least_32_chars
-JWT_ISSUER=AivoraApi
-JWT_AUDIENCE=AivoraClient
-JWT_EXPIRY_IN_MINUTES=1440
+JwtSettings__Secret=your_secret_at_least_32_chars
+JwtSettings__Issuer=AivoraApi
+JwtSettings__Audience=AivoraClient
+JwtSettings__ExpiryInMinutes=1440
 
 # Cloudinary
-CLOUDINARY_CLOUD_NAME=your_cloud_name
-CLOUDINARY_API_KEY=your_api_key
-CLOUDINARY_API_SECRET=your_api_secret
+CloudinaryOptions__CloudName=your_cloud_name
+CloudinaryOptions__ApiKey=your_api_key
+CloudinaryOptions__ApiSecret=your_api_secret
+
+# AI provider
+AIProvider__Provider=Mock
+AIProvider__ApiKey=
+AIProvider__BaseUrl=https://generativelanguage.googleapis.com
+AIProvider__Model=gemini-2.5-flash
+AIProvider__EnableFallback=true
 ```
+
+Production must set `AIProvider__Provider=Gemini`, `AIProvider__ApiKey`, and `AIProvider__EnableFallback=false`.
 
 > ⚠️ **Tất cả config đều đọc từ env vars.** Nếu thiếu bất kỳ biến nào, app sẽ fail-fast với thông báo rõ ràng.
 
@@ -91,7 +100,7 @@ docker compose up --build
 ```
 
 API khởi động tại `http://localhost:8080`
-API Docs tại `http://localhost:8080/scalar/v1`
+API Docs tại `http://localhost:8080/scalar/v1` in Development only.
 
 ### 3. Chạy local (không Docker)
 
@@ -211,6 +220,24 @@ dotnet ef database update --project Aivora.Repositories --startup-project Aivora
 ```bash
 dotnet test
 ```
+
+### Verification gates trước refactor
+
+Trước khi refactor logic hoặc kiến trúc, chạy các gate sau từ repo root:
+
+```bash
+dotnet restore Aivora.sln
+dotnet build Aivora.sln -c Release
+dotnet test Aivora.sln -c Release
+dotnet format Aivora.sln --verify-no-changes
+```
+
+Current automated coverage includes service tests plus API integration tests for authentication, role-based authorization, validation response envelopes, OpenAPI Development-only exposure, Production AI provider fail-fast config, job creation/publishing, proposal submit/accept ownership, and conversation participant denial.
+
+Known local caveats:
+- The default automated API integration tests use EF Core InMemory so they are fast and do not require Docker.
+- For a real PostgreSQL smoke path, start the database with `docker compose up -d db`, set `ConnectionStrings__DefaultConnection=Host=localhost;Port=5432;Database=aivora;Username=postgres;Password=postgrespw`, then run `dotnet ef database update --project Aivora.Repositories --startup-project Aivora.api` and `dotnet run --project Aivora.api`.
+- Money/status changes should keep service tests and API integration tests green before any repository or transaction refactor is merged.
 
 ---
 

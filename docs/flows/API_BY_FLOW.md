@@ -5,6 +5,22 @@
 > **Base path:** `/api/v1`
 > **Auth:** `Authorization: Bearer <accessToken>`
 > **Response wrapper:** `{ success, message, data, traceId }` (xem `API_CONTRACT.md` §1.3)
+> **OpenAPI/Scalar:** exposed only in Development.
+
+## Automated API Safety Coverage
+
+The test suite now includes API integration coverage for:
+
+| Area | Covered behavior |
+|---|---|
+| Auth challenge | Protected admin endpoint without token returns `401` |
+| Role policy | `CLIENT` token cannot call `ADMIN` category mutation and returns `403` |
+| Validation envelope | Model-binding errors return `{ success: false, message: "Validation failed.", errors: { code: "validation_error" } }` |
+| OpenAPI exposure | `/openapi/v1.json` is available in Development and hidden in Production |
+| Production AI config | Production fails fast unless Gemini provider, API key, and fallback-disabled config are present |
+| Job/proposal flow | `CLIENT` can create and publish a job; `EXPERT` can submit a proposal; job owner can accept it into a project |
+| Ownership boundaries | Wrong role cannot submit proposals; non-owner client cannot list or accept another client's proposals |
+| Chat boundaries | Non-participant cannot read a conversation's messages |
 
 ---
 
@@ -54,9 +70,9 @@ POST /api/v1/ai/job-assistant
 | `expectedOutcome` | string? | No | Max 1000 chars |
 | `budgetType` | string? | No | `"FIXED"` \| `"HOURLY"` |
 | `currency` | string? | No | Normalized: `"VND"`, `"USD"`, `"AICOIN"` |
-| `budgetMin` | decimal? | No | — |
-| `budgetMax` | decimal? | No | — |
-| `timelineDays` | int? | No | — |
+| `budgetMin` | decimal? | No | > 0 when provided; must be <= `budgetMax` |
+| `budgetMax` | decimal? | No | > 0 when provided |
+| `timelineDays` | int? | No | 1-3650 when provided |
 | `experienceLevel` | string? | No | `"BEGINNER"` \| `"INTERMEDIATE"` \| `"ADVANCED"` \| `"EXPERT"` |
 
 **Status:** `201 Created` (thành công), `400` (validation), `401` (thiếu token), `403` (sai role).
@@ -154,9 +170,9 @@ PATCH /api/v1/ai/job-assistant/{suggestionId}
 | `expectedOutcome` | string? | Max 1000 |
 | `budgetType` | string? | `"FIXED"` \| `"HOURLY"` |
 | `currency` | string? | — |
-| `suggestedBudgetMin` | decimal? | — |
-| `suggestedBudgetMax` | decimal? | — |
-| `suggestedTimelineDays` | int? | — |
+| `suggestedBudgetMin` | decimal? | > 0 when provided; must be <= `suggestedBudgetMax` |
+| `suggestedBudgetMax` | decimal? | > 0 when provided |
+| `suggestedTimelineDays` | int? | 1-3650 when provided |
 | `experienceLevel` | string? | `"BEGINNER"` \| `"INTERMEDIATE"` \| `"ADVANCED"` \| `"EXPERT"` |
 | `suggestedSkills` | List\<string\>? | Array string |
 | `suggestedMilestones` | List\<SuggestedMilestone\>? | Array object |
@@ -421,7 +437,7 @@ Toan bộ 7 endpoint AI service da đuợc test thực tế với database Postg
 |-----|-----------|-----|
 | `JobPostMilestones` table khong tồn tại | Thiếu `IEntityTypeConfiguration<JobPostMilestone>` + migration | Tạo `JobPostMilestoneConfiguration.cs` + migration `AddJobPostMilestonesTable` |
 | PATCH `experienceLevel` / `budgetType` bị reject | `System.Text.Json` khong parse string->enum mặc định | Them `[JsonConverter(typeof(JsonStringEnumConverter))]` vao `SkillLevel` va `BudgetType` enums |
-| AI luon dung Mock provider | Chưa set `AIProvider__ApiKey` env var | Set `AIProvider__Provider=Gemini` + `AIProvider__ApiKey=<key>` để bật real AI |
+| Production AI config fail-fast | Production missing `AIProvider__Provider=Gemini`, `AIProvider__ApiKey`, or `AIProvider__EnableFallback=false` | Set all required AI provider env vars before deploy; local Development may use Mock |
 
 ## 1.7. Tạo job draft thủ công
 
@@ -448,7 +464,8 @@ POST /api/v1/jobs
 **Validation:**
 - `originalDescription` bắt buộc.
 - `title` bắt buộc khi publish (có thể trống khi tạo draft).
-- `budgetMin ≤ BudgetMax` nếu cả hai đều có.
+- `budgetMin`/`budgetMax` must be greater than 0 when provided, and `budgetMin ≤ budgetMax`.
+- `timelineDays` must be between 1 and 3650 when provided.
 
 ## 1.8. Cập nhật job draft
 
@@ -1293,9 +1310,9 @@ GET /api/v1/users/{userId}/reviews?pageIndex=1&pageSize=20
 
 | # | Method | Endpoint | Auth | Tables |
 |---|--------|----------|------|--------|
-| 1 | POST | `/media/upload-image` | Any | Cloudinary |
-| 2 | POST | `/media/upload-file` | Any | Cloudinary |
-| 3 | DELETE | `/media/{publicId}` | Any | Cloudinary |
+| 1 | POST | `/media/upload-image` | Any authenticated user | Cloudinary |
+| 2 | POST | `/media/upload-file` | Any authenticated user | Cloudinary |
+| 3 | DELETE | `/media/{publicId}` | Admin | Cloudinary |
 | 4 | GET | `/notifications` | Any | `Notifications` |
 | 5 | GET | `/notifications/unread-count` | Any | `Notifications` |
 | 6 | PUT | `/notifications/{id}/read` | Any | `Notifications` |
