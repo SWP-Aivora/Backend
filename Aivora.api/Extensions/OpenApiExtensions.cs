@@ -48,7 +48,7 @@ public static class OpenApiExtensions
     public static void UseOpenApiUI(this WebApplication app)
     {
         app.MapOpenApi("/openapi/{documentName}.json");
-        app.MapScalarApiReference("/scalar/{documentName}", options =>
+        app.MapScalarApiReference("/scalar", options =>
         {
             options.OpenApiRoutePattern = "/openapi/{documentName}.json";
         });
