@@ -64,6 +64,7 @@ public static class OpenApiExtensions
         app.MapScalarApiReference("/scalar", options =>
         {
             options.OpenApiRoutePattern = "/openapi/{documentName}.json";
+            options.DynamicBaseServerUrl = true;
         });
     }
 }
