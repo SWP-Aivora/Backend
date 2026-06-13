@@ -68,9 +68,14 @@ public class MessageServiceTests
         var expertId = Guid.NewGuid();
         var conversationId = Guid.NewGuid();
 
+        var client = new User { Id = clientId, FullName = "Client", Email = "c@t.com", PasswordHash = "x" };
+        var expert = new User { Id = expertId, FullName = "Expert", Email = "e@t.com", PasswordHash = "x" };
+        var conversation = new Conversation { Id = conversationId, ClientId = clientId, ExpertId = expertId };
         var msg1 = new Message { ConversationId = conversationId, SenderId = expertId, Content = "Msg from expert", IsRead = false };
         var msg2 = new Message { ConversationId = conversationId, SenderId = clientId, Content = "Msg from client", IsRead = false };
 
+        dbContext.Users.AddRange(client, expert);
+        dbContext.Conversations.Add(conversation);
         dbContext.Messages.AddRange(msg1, msg2);
         await dbContext.SaveChangesAsync();
 
