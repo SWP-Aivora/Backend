@@ -1,27 +1,25 @@
-using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
+using Aivora.Repositories.Repositories.Jobs;
+using Aivora.Repositories.Repositories.Proposals;
 using Aivora.Services.Exceptions;
-using Microsoft.EntityFrameworkCore;
 
 namespace Aivora.Services.ProposalService;
 
-public class Service : IService
+public class ProposalApplicationService : IService
 {
-    private readonly AivoraDbContext _dbContext;
+    private readonly IProposalRepository _proposalRepository;
+    private readonly IJobRepository _jobRepository;
 
-    public Service(AivoraDbContext dbContext)
+    public ProposalApplicationService(IProposalRepository proposalRepository, IJobRepository jobRepository)
     {
-        _dbContext = dbContext;
+        _proposalRepository = proposalRepository;
+        _jobRepository = jobRepository;
     }
 
     public async Task<Response.ProposalResponse> GetProposalByIdAsync(Guid id)
     {
-        var proposal = await _dbContext.Proposals
-            .Include(p => p.Job).ThenInclude(j => j.Client)
-            .Include(p => p.Expert)
-            .Include(p => p.Milestones)
-            .FirstOrDefaultAsync(p => p.Id == id);
+        var proposal = await _proposalRepository.GetDetailedByIdAsync(id);
 
         if (proposal == null) throw new NotFoundException("Proposal not found.");
 
@@ -30,13 +28,13 @@ public class Service : IService
 
     public async Task<Response.ProposalResponse> CreateProposalAsync(Guid expertId, Request.CreateProposalRequest request)
     {
-        var job = await _dbContext.JobPosts.FindAsync(request.JobId);
+        var job = await _jobRepository.GetByIdAsync(request.JobId);
         if (job == null) throw new NotFoundException("Job not found.");
         if (job.Status != JobStatus.OPEN) throw new ValidationException("Job is no longer open for proposals.");
 
         if (job.ClientId == expertId) throw new ValidationException("You cannot submit a proposal to your own job.");
 
-        var existingProposal = await _dbContext.Proposals.AnyAsync(p => p.JobId == request.JobId && p.ExpertId == expertId);
+        var existingProposal = await _proposalRepository.ExistsForJobAndExpertAsync(request.JobId, expertId);
         if (existingProposal) throw new ValidationException("You have already submitted a proposal for this job.");
 
         var proposal = new Proposal
@@ -59,36 +57,26 @@ public class Service : IService
             }).ToList()
         };
 
-        _dbContext.Proposals.Add(proposal);
-        await _dbContext.SaveChangesAsync();
+        await _proposalRepository.AddAsync(proposal);
+        await _proposalRepository.SaveChangesAsync();
 
         return await GetProposalByIdAsync(proposal.Id);
     }
 
     public async Task<List<Response.ProposalResponse>> GetProposalsByJobIdAsync(Guid userId, Guid jobId)
     {
-        var job = await _dbContext.JobPosts.FindAsync(jobId);
+        var job = await _jobRepository.GetByIdAsync(jobId);
         if (job == null) throw new NotFoundException("Job not found.");
         if (job.ClientId != userId) throw new UnauthorizedException("Only the job owner can view proposals.");
 
-        var proposals = await _dbContext.Proposals
-            .Include(p => p.Expert)
-            .Include(p => p.Milestones)
-            .Where(p => p.JobId == jobId)
-            .OrderByDescending(p => p.CreatedAt)
-            .ToListAsync();
+        var proposals = await _proposalRepository.ListByJobIdAsync(jobId);
 
         return proposals.Select(MapToResponse).ToList();
     }
 
     public async Task<List<Response.ProposalResponse>> GetExpertProposalsAsync(Guid expertId)
     {
-        var proposals = await _dbContext.Proposals
-            .Include(p => p.Job)
-            .Include(p => p.Milestones)
-            .Where(p => p.ExpertId == expertId)
-            .OrderByDescending(p => p.CreatedAt)
-            .ToListAsync();
+        var proposals = await _proposalRepository.ListByExpertIdAsync(expertId);
 
         return proposals.Select(MapToResponse).ToList();
     }

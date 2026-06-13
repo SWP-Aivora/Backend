@@ -6,11 +6,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Aivora.Services.WalletService;
 
-public class Service : IService
+public class WalletApplicationService : IService
 {
     private readonly AivoraDbContext _dbContext;
 
-    public Service(AivoraDbContext dbContext)
+    public WalletApplicationService(AivoraDbContext dbContext)
     {
         _dbContext = dbContext;
     }

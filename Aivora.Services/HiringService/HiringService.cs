@@ -1,26 +1,31 @@
-using Aivora.Repositories.Data;
+using Aivora.Repositories.Abstractions;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
+using Aivora.Repositories.Repositories.Projects;
+using Aivora.Repositories.Repositories.Proposals;
 using Aivora.Services.Exceptions;
-using Microsoft.EntityFrameworkCore;
 
 namespace Aivora.Services.HiringService;
 
 public class HiringService : IHiringService
 {
-    private readonly AivoraDbContext _dbContext;
+    private readonly IProposalRepository _proposalRepository;
+    private readonly IProjectRepository _projectRepository;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public HiringService(AivoraDbContext dbContext)
+    public HiringService(
+        IProposalRepository proposalRepository,
+        IProjectRepository projectRepository,
+        IUnitOfWork unitOfWork)
     {
-        _dbContext = dbContext;
+        _proposalRepository = proposalRepository;
+        _projectRepository = projectRepository;
+        _unitOfWork = unitOfWork;
     }
 
     public async Task<Response.HiringResultResponse> AcceptProposalAsync(Guid clientId, Guid proposalId)
     {
-        var proposal = await _dbContext.Proposals
-            .Include(p => p.Job)
-            .Include(p => p.Milestones)
-            .FirstOrDefaultAsync(p => p.Id == proposalId);
+        var proposal = await _proposalRepository.GetForHiringAsync(proposalId);
 
         if (proposal == null) throw new NotFoundException("Proposal not found.");
         if (proposal.Job.ClientId != clientId) throw new UnauthorizedException("Only the job owner can accept proposals.");
@@ -28,18 +33,15 @@ public class HiringService : IHiringService
         if (proposal.Status != ProposalStatus.SUBMITTED && proposal.Status != ProposalStatus.SHORTLISTED)
             throw new ValidationException("Proposal is not in a valid state to be accepted.");
 
-        using var transaction = await _dbContext.Database.BeginTransactionAsync();
-        try
+        Project? project = null;
+        await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
             // 1. Accept target proposal
             proposal.Status = ProposalStatus.ACCEPTED;
             proposal.UpdatedAt = DateTimeOffset.UtcNow;
 
             // 2. Reject sibling proposals
-            var otherProposals = await _dbContext.Proposals
-                .Where(p => p.JobId == proposal.JobId && p.Id != proposalId &&
-                           (p.Status == ProposalStatus.SUBMITTED || p.Status == ProposalStatus.SHORTLISTED))
-                .ToListAsync();
+            var otherProposals = await _proposalRepository.ListPendingSiblingsAsync(proposal.JobId, proposalId);
 
             foreach (var p in otherProposals)
             {
@@ -52,7 +54,7 @@ public class HiringService : IHiringService
             proposal.Job.UpdatedAt = DateTimeOffset.UtcNow;
 
             // 4. Create Project
-            var project = new Project
+            project = new Project
             {
                 JobId = proposal.JobId,
                 AcceptedProposalId = proposal.Id,
@@ -74,24 +76,17 @@ public class HiringService : IHiringService
                 }).ToList()
             };
 
-            _dbContext.Projects.Add(project);
-            await _dbContext.SaveChangesAsync();
+            await _projectRepository.AddAsync(project);
+            await _projectRepository.SaveChangesAsync();
+        });
 
-            await transaction.CommitAsync();
-
-            return new Response.HiringResultResponse
-            {
-                ProjectId = project.Id,
-                JobId = proposal.JobId,
-                AcceptedProposalId = proposal.Id,
-                Status = project.Status.ToString()
-            };
-        }
-        catch (Exception)
+        return new Response.HiringResultResponse
         {
-            await transaction.RollbackAsync();
-            throw;
-        }
+            ProjectId = project!.Id,
+            JobId = proposal.JobId,
+            AcceptedProposalId = proposal.Id,
+            Status = project!.Status.ToString()
+        };
     }
 
     public async Task<bool> ShortlistProposalAsync(Guid clientId, Guid proposalId)
@@ -104,7 +99,7 @@ public class HiringService : IHiringService
         proposal.Status = ProposalStatus.SHORTLISTED;
         proposal.UpdatedAt = DateTimeOffset.UtcNow;
 
-        await _dbContext.SaveChangesAsync();
+        await _proposalRepository.SaveChangesAsync();
         return true;
     }
 
@@ -118,13 +113,13 @@ public class HiringService : IHiringService
         proposal.Status = ProposalStatus.REJECTED;
         proposal.UpdatedAt = DateTimeOffset.UtcNow;
 
-        await _dbContext.SaveChangesAsync();
+        await _proposalRepository.SaveChangesAsync();
         return true;
     }
 
     public async Task<bool> WithdrawProposalAsync(Guid expertId, Guid proposalId)
     {
-        var proposal = await _dbContext.Proposals.FindAsync(proposalId);
+        var proposal = await _proposalRepository.GetByIdAsync(proposalId);
 
         if (proposal == null) throw new NotFoundException("Proposal not found.");
         if (proposal.ExpertId != expertId) throw new UnauthorizedException("You can only withdraw your own proposal.");
@@ -136,15 +131,13 @@ public class HiringService : IHiringService
         proposal.WithdrawnAt = DateTimeOffset.UtcNow;
         proposal.UpdatedAt = DateTimeOffset.UtcNow;
 
-        await _dbContext.SaveChangesAsync();
+        await _proposalRepository.SaveChangesAsync();
         return true;
     }
 
     private async Task<Proposal> GetProposalWithOwnerCheckAsync(Guid clientId, Guid proposalId)
     {
-        var proposal = await _dbContext.Proposals
-            .Include(p => p.Job)
-            .FirstOrDefaultAsync(p => p.Id == proposalId);
+        var proposal = await _proposalRepository.GetWithJobAsync(proposalId);
 
         if (proposal == null) throw new NotFoundException("Proposal not found.");
         if (proposal.Job.ClientId != clientId) throw new UnauthorizedException("Access denied.");

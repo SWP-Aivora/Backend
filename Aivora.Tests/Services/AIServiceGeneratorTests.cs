@@ -123,13 +123,13 @@ public class AIServiceGeneratorTests
         _serviceDescriptionProviderMock.Verify(x => x.GenerateServiceDescriptionAsync(request, It.IsAny<CancellationToken>()), Times.Once);
     }
 
-    private Service CreateService()
+    private AIJobAssistantApplicationService CreateService()
     {
         var options = new DbContextOptionsBuilder<AivoraDbContext>()
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .Options;
 
-        return new Service(
+        return new AIJobAssistantApplicationService(
             new AivoraDbContext(options),
             _jobServiceMock.Object,
             _suggestionProviderMock.Object,
