@@ -9,6 +9,7 @@ using Aivora.Services.AIJobAssistantService.Providers;
 using Aivora.Services.Exceptions;
 using Aivora.Services.Options;
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Xunit;
 
@@ -112,13 +113,26 @@ public class AIJobAssistantProviderTests
             Options.Create(new AIProviderOptions { Provider = "Gemini", ApiKey = "test-key", EnableFallback = false }),
             new AIJobSuggestionPromptBuilder(),
             new AIJobSuggestionParser(),
-            new MockAIJobSuggestionProvider());
+            new MockAIJobSuggestionProvider(),
+            NullLogger<GeminiAIJobSuggestionProvider>.Instance);
 
         var draft = await provider.GenerateSuggestionAsync(new Request.GenerateSuggestionRequest { RawInput = "Build a chatbot for ecommerce." });
 
         draft.SuggestedTitle.Should().Be("Gemini title");
         draft.Currency.Should().Be("USD");
         draft.AIModel.Should().Be("Gemini 2.5 Flash");
+    }
+
+    [Fact]
+    public async Task GeminiProviderClient_SendsApiKeyInHeader_NotQueryString()
+    {
+        var handler = new FakeHandler(GeminiResponse("""{"ok":true}"""));
+        var client = BuildClient(handler);
+
+        await client.GenerateAsync("Return JSON.");
+
+        handler.HadApiKeyHeader.Should().BeTrue();
+        handler.HadQueryStringApiKey.Should().BeFalse();
     }
 
     [Fact]
@@ -129,7 +143,8 @@ public class AIJobAssistantProviderTests
             Options.Create(new AIProviderOptions { Provider = "Gemini", ApiKey = "test-key", EnableFallback = true }),
             new AIJobRefinementPromptBuilder(),
             new AIJobRefinementParser(),
-            new MockAIJobRefinementProvider());
+            new MockAIJobRefinementProvider(),
+            NullLogger<GeminiAIJobRefinementProvider>.Instance);
 
         var result = await provider.RefineSuggestionAsync(BuildCurrentSuggestion(), "budget 100 200");
 
@@ -145,7 +160,8 @@ public class AIJobAssistantProviderTests
             Options.Create(new AIProviderOptions { Provider = "Gemini", ApiKey = "test-key", EnableFallback = false }),
             new AIServiceDescriptionPromptBuilder(),
             new AIServiceDescriptionParser(),
-            new MockAIServiceDescriptionProvider());
+            new MockAIServiceDescriptionProvider(),
+            NullLogger<GeminiAIServiceDescriptionProvider>.Instance);
 
         Func<Task> act = async () => await provider.GenerateServiceDescriptionAsync(BuildServiceRequest());
 
@@ -160,7 +176,8 @@ public class AIJobAssistantProviderTests
             Options.Create(new AIProviderOptions { Provider = "Gemini", ApiKey = "test-key", EnableFallback = true }),
             new AIJobSuggestionPromptBuilder(),
             new AIJobSuggestionParser(),
-            new MockAIJobSuggestionProvider());
+            new MockAIJobSuggestionProvider(),
+            NullLogger<GeminiAIJobSuggestionProvider>.Instance);
 
         Func<Task> act = async () => await provider.GenerateSuggestionAsync(
             new Request.GenerateSuggestionRequest { RawInput = "Build a chatbot for ecommerce." },
@@ -240,6 +257,9 @@ public class AIJobAssistantProviderTests
     {
         private readonly HttpResponseMessage _response;
 
+        public bool HadApiKeyHeader { get; private set; }
+        public bool HadQueryStringApiKey { get; private set; }
+
         public FakeHandler(HttpResponseMessage response)
         {
             _response = response;
@@ -247,6 +267,8 @@ public class AIJobAssistantProviderTests
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            HadApiKeyHeader = request.Headers.Contains("x-goog-api-key");
+            HadQueryStringApiKey = request.RequestUri?.Query.Contains("key=", StringComparison.OrdinalIgnoreCase) == true;
             return Task.FromResult(_response);
         }
     }

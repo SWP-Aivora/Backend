@@ -52,8 +52,12 @@ public class ExceptionMiddleware
             _ => "internal_server_error"
         };
 
+        var clientMessage = statusCode == HttpStatusCode.InternalServerError
+            ? "An unexpected error occurred. Please try again later."
+            : exception.Message;
+
         var response = ApiResponseFactory.ErrorResponse(
-            exception.Message,
+            clientMessage,
             new { code = errorCode },
             context.TraceIdentifier
         );
