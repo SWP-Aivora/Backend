@@ -8,25 +8,14 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
-      - ConnectionStrings__DefaultConnection=${ConnectionStrings__DefaultConnection}
-      - JwtSettings__Secret=${JwtSettings__Secret}
-      - JwtSettings__Issuer=${JwtSettings__Issuer}
-      - JwtSettings__Audience=${JwtSettings__Audience}
-      - JwtSettings__ExpiryInMinutes=${JwtSettings__ExpiryInMinutes}
-      - CloudinaryOptions__CloudName=${CloudinaryOptions__CloudName}
-      - CloudinaryOptions__ApiKey=${CloudinaryOptions__ApiKey}
-      - CloudinaryOptions__ApiSecret=${CloudinaryOptions__ApiSecret}
-      - AIProvider__Provider=${AIProvider__Provider:-Mock}
-      - AIProvider__ApiKey=${AIProvider__ApiKey}
-      - AIProvider__BaseUrl=${AIProvider__BaseUrl:-https://generativelanguage.googleapis.com}
-      - AIProvider__Model=${AIProvider__Model:-gemini-2.5-flash}
-      - AIProvider__EnableFallback=${AIProvider__EnableFallback:-true}
-      - RateLimit__Strict__PermitLimit=${RateLimit__Strict__PermitLimit:-10}
-      - RateLimit__Strict__WindowInMinutes=${RateLimit__Strict__WindowInMinutes:-1}
-      - RateLimit__AI__PermitLimit=${RateLimit__AI__PermitLimit:-20}
-      - RateLimit__AI__WindowInMinutes=${RateLimit__AI__WindowInMinutes:-1}
-      - RateLimit__General__PermitLimit=${RateLimit__General__PermitLimit:-100}
-      - RateLimit__General__WindowInMinutes=${RateLimit__General__WindowInMinutes:-1}
+      - ConnectionStrings__DefaultConnection=${CONNECTION_STRING}
+      - JwtSettings__Secret=${JWT_SECRET}
+      - JwtSettings__Issuer=${JWT_ISSUER}
+      - JwtSettings__Audience=${JWT_AUDIENCE}
+      - JwtSettings__ExpiryInMinutes=${JWT_EXPIRY_IN_MINUTES}
+      - CloudinaryOptions__CloudName=${CLOUDINARY_CLOUD_NAME}
+      - CloudinaryOptions__ApiKey=${CLOUDINARY_API_KEY}
+      - CloudinaryOptions__ApiSecret=${CLOUDINARY_API_SECRET}
     depends_on:
       db:
         condition: service_healthy
