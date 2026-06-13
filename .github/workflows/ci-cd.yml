@@ -2,8 +2,9 @@ name: Aivora Backend CI/CD
 
 on:
   push:
-    branches: [ "main", "develop" ]
+    branches: [ "main", "develop", "fix/**" ]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [ "main" ]
 
 jobs:
