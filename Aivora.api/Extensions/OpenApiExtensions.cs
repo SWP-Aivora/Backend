@@ -1,4 +1,5 @@
 using Microsoft.OpenApi;
+using Microsoft.AspNetCore.Authorization;
 using Scalar.AspNetCore;
 
 namespace Aivora.api.Extensions;
@@ -32,13 +33,25 @@ public static class OpenApiExtensions
                     Description = "Nhập Token theo định dạng: Bearer {token}"
                 };
 
-                // Apply security requirement globally
-                if (document.Security is null)
-                    document.Security = new List<OpenApiSecurityRequirement>();
+                document.Security ??= new List<OpenApiSecurityRequirement>();
                 document.Security.Add(new OpenApiSecurityRequirement
                 {
                     [new OpenApiSecuritySchemeReference("Bearer", document, "/components/securitySchemes/Bearer")] = new List<string>()
                 });
+
+                return Task.CompletedTask;
+            });
+
+            options.AddOperationTransformer((operation, context, cancellationToken) =>
+            {
+                var metadata = context.Description.ActionDescriptor.EndpointMetadata;
+                var allowAnonymous = metadata.OfType<IAllowAnonymous>().Any();
+                var requiresAuthorization = metadata.OfType<IAuthorizeData>().Any();
+
+                if (allowAnonymous || !requiresAuthorization)
+                {
+                    operation.Security = new List<OpenApiSecurityRequirement>();
+                }
 
                 return Task.CompletedTask;
             });
