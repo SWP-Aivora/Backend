@@ -80,7 +80,11 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowSpecificOrigin",
         policy =>
         {
-            policy.WithOrigins("http://localhost:5173", "https://aivora-pi.vercel.app")
+            policy.WithOrigins(
+                    "http://localhost:5173",
+                    "https://aivora-pi.vercel.app",
+                    "https://client.scalar.com",
+                    "https://proxy.scalar.com")
                   .AllowAnyHeader()
                   .AllowAnyMethod()
                   .AllowCredentials();
