@@ -1,28 +1,22 @@
-using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
+using Aivora.Repositories.Repositories.Jobs;
 using Aivora.Services.Exceptions;
-using Microsoft.EntityFrameworkCore;
 
 namespace Aivora.Services.JobService;
 
-public class Service : IService
+public class JobApplicationService : IService
 {
-    private readonly AivoraDbContext _dbContext;
+    private readonly IJobRepository _jobRepository;
 
-    public Service(AivoraDbContext dbContext)
+    public JobApplicationService(IJobRepository jobRepository)
     {
-        _dbContext = dbContext;
+        _jobRepository = jobRepository;
     }
 
     public async Task<Response.JobResponse> GetJobByIdAsync(Guid id)
     {
-        var job = await _dbContext.JobPosts
-            .Include(j => j.Client)
-            .Include(j => j.Category)
-            .Include(j => j.JobSkills).ThenInclude(js => js.Skill)
-            .Include(j => j.Milestones)
-            .FirstOrDefaultAsync(j => j.Id == id);
+        var job = await _jobRepository.GetDetailedByIdAsync(id);
 
         if (job == null) throw new NotFoundException("Job not found.");
 
@@ -31,6 +25,17 @@ public class Service : IService
 
     public async Task<Response.JobResponse> CreateJobAsync(Guid clientId, Request.CreateJobRequest request)
     {
+        if (request is null) throw new ValidationException("Request body is required.");
+
+        if (request.CategoryId == Guid.Empty)
+        {
+            throw new ValidationException("CategoryId is required.");
+        }
+
+        ValidateJobFields(request.BudgetMin, request.BudgetMax, request.TimelineDays, request.Deadline);
+        var skillIds = NormalizeGuidList(request.SkillIds);
+        var milestones = NormalizeMilestones(request.Milestones);
+
         var job = new JobPost
         {
             ClientId = clientId,
@@ -49,7 +54,7 @@ public class Service : IService
             ExperienceLevel = request.ExperienceLevel,
             Visibility = request.Visibility,
             Status = JobStatus.DRAFT,
-            Milestones = request.Milestones.Select(m => new JobPostMilestone
+            Milestones = milestones.Select(m => new JobPostMilestone
             {
                 Title = m.Title,
                 Description = m.Description,
@@ -60,22 +65,20 @@ public class Service : IService
             }).ToList()
         };
 
-        if (request.SkillIds.Any())
+        if (skillIds.Any())
         {
-            job.JobSkills = request.SkillIds.Select(skillId => new JobSkill { SkillId = skillId }).ToList();
+            job.JobSkills = skillIds.Select(skillId => new JobSkill { SkillId = skillId }).ToList();
         }
 
-        _dbContext.JobPosts.Add(job);
-        await _dbContext.SaveChangesAsync();
+        await _jobRepository.AddAsync(job);
+        await _jobRepository.SaveChangesAsync();
 
         return await GetJobByIdAsync(job.Id);
     }
 
     public async Task<Response.JobResponse> UpdateJobAsync(Guid clientId, Guid jobId, Request.UpdateJobRequest request)
     {
-        var job = await _dbContext.JobPosts
-            .Include(j => j.JobSkills)
-            .FirstOrDefaultAsync(j => j.Id == jobId && j.ClientId == clientId);
+        var job = await _jobRepository.GetOwnedForUpdateAsync(jobId, clientId);
 
         if (job == null) throw new NotFoundException("Job not found or access denied.");
         if (job.Status != JobStatus.DRAFT && job.Status != JobStatus.OPEN)
@@ -85,7 +88,15 @@ public class Service : IService
         if (request.FinalDescription != null) job.FinalDescription = request.FinalDescription;
         if (request.BusinessDomain != null) job.BusinessDomain = NormalizeLimited(request.BusinessDomain, 100);
         if (request.ExpectedOutcome != null) job.ExpectedOutcome = NormalizeLimited(request.ExpectedOutcome, 2000);
-        if (request.CategoryId.HasValue) job.CategoryId = request.CategoryId.Value;
+        if (request.CategoryId.HasValue)
+        {
+            if (request.CategoryId.Value == Guid.Empty)
+            {
+                throw new ValidationException("CategoryId is required.");
+            }
+
+            job.CategoryId = request.CategoryId.Value;
+        }
         if (request.BudgetType.HasValue) job.BudgetType = request.BudgetType.Value;
         if (request.BudgetMin.HasValue) job.BudgetMin = request.BudgetMin.Value;
         if (request.BudgetMax.HasValue) job.BudgetMax = request.BudgetMax.Value;
@@ -95,45 +106,47 @@ public class Service : IService
         if (request.ExperienceLevel.HasValue) job.ExperienceLevel = request.ExperienceLevel.Value;
         if (request.Visibility.HasValue) job.Visibility = request.Visibility.Value;
 
+        ValidateJobFields(job.BudgetMin, job.BudgetMax, job.TimelineDays, job.Deadline);
+
         if (request.SkillIds != null)
         {
-            _dbContext.JobSkills.RemoveRange(job.JobSkills);
-            job.JobSkills = request.SkillIds.Select(skillId => new JobSkill { SkillId = skillId }).ToList();
+            _jobRepository.RemoveSkills(job.JobSkills);
+            job.JobSkills = NormalizeGuidList(request.SkillIds).Select(skillId => new JobSkill { SkillId = skillId }).ToList();
         }
 
-        await _dbContext.SaveChangesAsync();
+        await _jobRepository.SaveChangesAsync();
 
         return await GetJobByIdAsync(job.Id);
     }
 
     public async Task<bool> DeleteJobAsync(Guid clientId, Guid jobId)
     {
-        var job = await _dbContext.JobPosts.FirstOrDefaultAsync(j => j.Id == jobId && j.ClientId == clientId);
+        var job = await _jobRepository.GetOwnedByIdAsync(jobId, clientId);
         if (job == null) throw new NotFoundException("Job not found or access denied.");
         if (job.Status != JobStatus.DRAFT) throw new ValidationException("Only draft jobs can be deleted.");
 
-        _dbContext.JobPosts.Remove(job);
-        await _dbContext.SaveChangesAsync();
+        _jobRepository.Remove(job);
+        await _jobRepository.SaveChangesAsync();
         return true;
     }
 
     public async Task<Response.JobResponse> PublishJobAsync(Guid clientId, Guid jobId)
     {
-        var job = await _dbContext.JobPosts.FirstOrDefaultAsync(j => j.Id == jobId && j.ClientId == clientId);
+        var job = await _jobRepository.GetOwnedByIdAsync(jobId, clientId);
         if (job == null) throw new NotFoundException("Job not found or access denied.");
         if (job.Status != JobStatus.DRAFT) throw new ValidationException("Job is already published or in progress.");
 
         job.Status = JobStatus.OPEN;
         job.PublishedAt = DateTimeOffset.UtcNow;
 
-        await _dbContext.SaveChangesAsync();
+        await _jobRepository.SaveChangesAsync();
 
         return await GetJobByIdAsync(job.Id);
     }
 
     public async Task<Response.JobResponse> CancelJobAsync(Guid clientId, Guid jobId, string? reason)
     {
-        var job = await _dbContext.JobPosts.FirstOrDefaultAsync(j => j.Id == jobId && j.ClientId == clientId);
+        var job = await _jobRepository.GetOwnedByIdAsync(jobId, clientId);
         if (job == null) throw new NotFoundException("Job not found or access denied.");
         if (job.Status != JobStatus.DRAFT && job.Status != JobStatus.OPEN)
             throw new ValidationException("Cannot cancel job in its current status.");
@@ -141,39 +154,21 @@ public class Service : IService
         job.Status = JobStatus.CANCELLED;
         // Optionally store reason in a separate field or log
 
-        await _dbContext.SaveChangesAsync();
+        await _jobRepository.SaveChangesAsync();
         return await GetJobByIdAsync(job.Id);
     }
 
     public async Task<Aivora.Services.Base.Response.PageResult<Response.JobResponse>> GetJobsAsync(Aivora.Services.Base.Request.PageRequest pageRequest, Guid? categoryId = null)
     {
-        var query = _dbContext.JobPosts
-            .Include(j => j.Client)
-            .Include(j => j.Category)
-            .Include(j => j.JobSkills).ThenInclude(js => js.Skill)
-            .Where(j => j.Status == JobStatus.OPEN && j.Visibility == JobVisibility.PUBLIC);
-
-        if (categoryId.HasValue)
-        {
-            query = query.Where(j => j.CategoryId == categoryId.Value);
-        }
-
-        if (!string.IsNullOrWhiteSpace(pageRequest.SearchTerm))
-        {
-            query = query.Where(j => j.Title.Contains(pageRequest.SearchTerm) || j.FinalDescription!.Contains(pageRequest.SearchTerm));
-        }
-
-        var totalItems = await query.CountAsync();
-        var items = await query
-            .OrderByDescending(j => j.PublishedAt)
-            .Skip((pageRequest.PageIndex - 1) * pageRequest.PageSize)
-            .Take(pageRequest.PageSize)
-            .Select(j => MapToResponse(j))
-            .ToListAsync();
+        var (items, totalItems) = await _jobRepository.GetOpenPublicAsync(
+            pageRequest.PageIndex,
+            pageRequest.PageSize,
+            pageRequest.SearchTerm,
+            categoryId);
 
         return new Aivora.Services.Base.Response.PageResult<Response.JobResponse>
         {
-            Items = items,
+            Items = items.Select(MapToResponse).ToList(),
             TotalItems = totalItems,
             PageIndex = pageRequest.PageIndex,
             PageSize = pageRequest.PageSize
@@ -253,5 +248,71 @@ public class Service : IService
     {
         var normalized = string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
         return normalized.Length <= maxLength ? normalized : normalized[..maxLength];
+    }
+
+    private static void ValidateJobFields(decimal? budgetMin, decimal? budgetMax, int? timelineDays, DateOnly? deadline)
+    {
+        if (budgetMin.HasValue && budgetMin.Value <= 0)
+        {
+            throw new ValidationException("BudgetMin must be greater than 0.");
+        }
+
+        if (budgetMax.HasValue && budgetMax.Value <= 0)
+        {
+            throw new ValidationException("BudgetMax must be greater than 0.");
+        }
+
+        if (budgetMin.HasValue && budgetMax.HasValue && budgetMin.Value > budgetMax.Value)
+        {
+            throw new ValidationException("BudgetMin must be less than or equal to BudgetMax.");
+        }
+
+        if (timelineDays.HasValue && (timelineDays.Value < 1 || timelineDays.Value > 3650))
+        {
+            throw new ValidationException("TimelineDays must be between 1 and 3650.");
+        }
+
+        if (deadline.HasValue && deadline.Value < DateOnly.FromDateTime(DateTime.UtcNow))
+        {
+            throw new ValidationException("Deadline cannot be in the past.");
+        }
+    }
+
+    private static List<Guid> NormalizeGuidList(IEnumerable<Guid>? values)
+    {
+        return (values ?? Enumerable.Empty<Guid>())
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToList();
+    }
+
+    private static List<Request.CreateJobMilestoneRequest> NormalizeMilestones(IEnumerable<Request.CreateJobMilestoneRequest>? milestones)
+    {
+        var normalized = (milestones ?? Enumerable.Empty<Request.CreateJobMilestoneRequest>())
+            .Select((milestone, index) => new Request.CreateJobMilestoneRequest
+            {
+                Title = NormalizeRequired(milestone.Title, $"Milestone {index + 1}", 255),
+                Description = NormalizeLimited(milestone.Description, 2000),
+                Amount = milestone.Amount,
+                DueDays = milestone.DueDays,
+                AcceptanceCriteria = NormalizeLimited(milestone.AcceptanceCriteria, 2000),
+                OrderIndex = milestone.OrderIndex < 0 ? index : milestone.OrderIndex
+            })
+            .ToList();
+
+        foreach (var milestone in normalized)
+        {
+            if (milestone.Amount <= 0)
+            {
+                throw new ValidationException("Milestone amounts must be greater than 0.");
+            }
+
+            if (milestone.DueDays < 1 || milestone.DueDays > 3650)
+            {
+                throw new ValidationException("Milestone due days must be between 1 and 3650.");
+            }
+        }
+
+        return normalized;
     }
 }

@@ -26,9 +26,9 @@ public class AIJobAssistantServiceTests
         return new AivoraDbContext(options);
     }
 
-    private Service CreateService(AivoraDbContext dbContext)
+    private AIJobAssistantApplicationService CreateService(AivoraDbContext dbContext)
     {
-        return new Service(
+        return new AIJobAssistantApplicationService(
             dbContext,
             _jobServiceMock.Object,
             _suggestionProviderMock.Object,
@@ -69,6 +69,27 @@ public class AIJobAssistantServiceTests
         saved.SuggestedExperienceLevel.Should().Be(draft.ExperienceLevel);
         saved.ClarifyingAnswersJson.Should().NotBeNullOrWhiteSpace();
         _suggestionProviderMock.Verify(x => x.GenerateSuggestionAsync(request, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GenerateSuggestionAsync_RejectsInvalidBudgetRangeFromProvider()
+    {
+        var dbContext = GetDbContext();
+        var service = CreateService(dbContext);
+        var request = new Request.GenerateSuggestionRequest { RawInput = "Build a React AI chatbot for ecommerce." };
+        var draft = BuildDraft();
+        draft.SuggestedBudgetMin = 3000;
+        draft.SuggestedBudgetMax = 1000;
+
+        _suggestionProviderMock
+            .Setup(x => x.GenerateSuggestionAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(draft);
+
+        Func<Task> act = async () => await service.GenerateSuggestionAsync(Guid.NewGuid(), request);
+
+        await act.Should().ThrowAsync<ValidationException>()
+            .WithMessage("SuggestedBudgetMin must be less than or equal to SuggestedBudgetMax.");
+        (await dbContext.AIJobSuggestions.CountAsync()).Should().Be(0);
     }
 
     [Fact]
