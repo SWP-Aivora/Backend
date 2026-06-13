@@ -20,9 +20,9 @@ public static class OpenApiExtensions
                 };
 
                 // Add JWT Bearer security scheme
-                if (document.Components is null)
-                    document.Components = new OpenApiComponents();
-                document.Components.SecuritySchemes!["Bearer"] = new OpenApiSecurityScheme
+                document.Components ??= new OpenApiComponents();
+                document.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
+                document.Components.SecuritySchemes["Bearer"] = new OpenApiSecurityScheme
                 {
                     Name = "Authorization",
                     Type = SecuritySchemeType.Http,
@@ -47,7 +47,10 @@ public static class OpenApiExtensions
 
     public static void UseOpenApiUI(this WebApplication app)
     {
-        app.MapOpenApi();
-        app.MapScalarApiReference(); // Accessible at /scalar/v1
+        app.MapOpenApi("/openapi/{documentName}.json");
+        app.MapScalarApiReference("/scalar/{documentName}", options =>
+        {
+            options.OpenApiRoutePattern = "/openapi/{documentName}.json";
+        });
     }
 }

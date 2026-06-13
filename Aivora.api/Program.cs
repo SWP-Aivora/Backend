@@ -216,9 +216,9 @@ var app = builder.Build();
 // Configure the HTTP request pipeline.
 app.UseMiddleware<ExceptionMiddleware>();
 
-app.UseOpenApiUI();
-
 app.UseHttpsRedirection();
+
+app.UseOpenApiUI();
 
 app.UseCors("AllowSpecificOrigin");
 
