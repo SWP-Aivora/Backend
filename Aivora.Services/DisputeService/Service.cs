@@ -7,12 +7,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Aivora.Services.DisputeService;
 
-public class Service : IService
+public class DisputeApplicationService : IService
 {
     private readonly AivoraDbContext _dbContext;
     private readonly ITreasury _treasury;
 
-    public Service(AivoraDbContext dbContext, ITreasury treasury)
+    public DisputeApplicationService(AivoraDbContext dbContext, ITreasury treasury)
     {
         _dbContext = dbContext;
         _treasury = treasury;

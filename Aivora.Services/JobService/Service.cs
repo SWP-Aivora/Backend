@@ -1,28 +1,22 @@
-using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
+using Aivora.Repositories.Repositories.Jobs;
 using Aivora.Services.Exceptions;
-using Microsoft.EntityFrameworkCore;
 
 namespace Aivora.Services.JobService;
 
-public class Service : IService
+public class JobApplicationService : IService
 {
-    private readonly AivoraDbContext _dbContext;
+    private readonly IJobRepository _jobRepository;
 
-    public Service(AivoraDbContext dbContext)
+    public JobApplicationService(IJobRepository jobRepository)
     {
-        _dbContext = dbContext;
+        _jobRepository = jobRepository;
     }
 
     public async Task<Response.JobResponse> GetJobByIdAsync(Guid id)
     {
-        var job = await _dbContext.JobPosts
-            .Include(j => j.Client)
-            .Include(j => j.Category)
-            .Include(j => j.JobSkills).ThenInclude(js => js.Skill)
-            .Include(j => j.Milestones)
-            .FirstOrDefaultAsync(j => j.Id == id);
+        var job = await _jobRepository.GetDetailedByIdAsync(id);
 
         if (job == null) throw new NotFoundException("Job not found.");
 
@@ -76,17 +70,15 @@ public class Service : IService
             job.JobSkills = skillIds.Select(skillId => new JobSkill { SkillId = skillId }).ToList();
         }
 
-        _dbContext.JobPosts.Add(job);
-        await _dbContext.SaveChangesAsync();
+        await _jobRepository.AddAsync(job);
+        await _jobRepository.SaveChangesAsync();
 
         return await GetJobByIdAsync(job.Id);
     }
 
     public async Task<Response.JobResponse> UpdateJobAsync(Guid clientId, Guid jobId, Request.UpdateJobRequest request)
     {
-        var job = await _dbContext.JobPosts
-            .Include(j => j.JobSkills)
-            .FirstOrDefaultAsync(j => j.Id == jobId && j.ClientId == clientId);
+        var job = await _jobRepository.GetOwnedForUpdateAsync(jobId, clientId);
 
         if (job == null) throw new NotFoundException("Job not found or access denied.");
         if (job.Status != JobStatus.DRAFT && job.Status != JobStatus.OPEN)
@@ -118,82 +110,65 @@ public class Service : IService
 
         if (request.SkillIds != null)
         {
-            _dbContext.JobSkills.RemoveRange(job.JobSkills);
+            _jobRepository.RemoveSkills(job.JobSkills);
             job.JobSkills = NormalizeGuidList(request.SkillIds).Select(skillId => new JobSkill { SkillId = skillId }).ToList();
         }
 
-        await _dbContext.SaveChangesAsync();
+        await _jobRepository.SaveChangesAsync();
 
         return await GetJobByIdAsync(job.Id);
     }
 
     public async Task<bool> DeleteJobAsync(Guid clientId, Guid jobId)
     {
-        var job = await _dbContext.JobPosts.FirstOrDefaultAsync(j => j.Id == jobId && j.ClientId == clientId);
+        var job = await _jobRepository.GetOwnedByIdAsync(jobId, clientId);
         if (job == null) throw new NotFoundException("Job not found or access denied.");
         if (job.Status != JobStatus.DRAFT) throw new ValidationException("Only draft jobs can be deleted.");
 
-        _dbContext.JobPosts.Remove(job);
-        await _dbContext.SaveChangesAsync();
+        _jobRepository.Remove(job);
+        await _jobRepository.SaveChangesAsync();
         return true;
     }
 
     public async Task<Response.JobResponse> PublishJobAsync(Guid clientId, Guid jobId)
     {
-        var job = await _dbContext.JobPosts.FirstOrDefaultAsync(j => j.Id == jobId && j.ClientId == clientId);
+        var job = await _jobRepository.GetOwnedByIdAsync(jobId, clientId);
         if (job == null) throw new NotFoundException("Job not found or access denied.");
         if (job.Status != JobStatus.DRAFT) throw new ValidationException("Job is already published or in progress.");
 
         job.Status = JobStatus.OPEN;
         job.PublishedAt = DateTimeOffset.UtcNow;
 
-        await _dbContext.SaveChangesAsync();
+        await _jobRepository.SaveChangesAsync();
 
         return await GetJobByIdAsync(job.Id);
     }
 
     public async Task<Response.JobResponse> CancelJobAsync(Guid clientId, Guid jobId, string? reason)
     {
-        var job = await _dbContext.JobPosts.FirstOrDefaultAsync(j => j.Id == jobId && j.ClientId == clientId);
+        var job = await _jobRepository.GetOwnedByIdAsync(jobId, clientId);
         if (job == null) throw new NotFoundException("Job not found or access denied.");
         if (job.Status != JobStatus.DRAFT && job.Status != JobStatus.OPEN)
             throw new ValidationException("Cannot cancel job in its current status.");
 
         job.Status = JobStatus.CANCELLED;
+        // Optionally store reason in a separate field or log
 
-        await _dbContext.SaveChangesAsync();
+        await _jobRepository.SaveChangesAsync();
         return await GetJobByIdAsync(job.Id);
     }
 
     public async Task<Aivora.Services.Base.Response.PageResult<Response.JobResponse>> GetJobsAsync(Aivora.Services.Base.Request.PageRequest pageRequest, Guid? categoryId = null)
     {
-        var query = _dbContext.JobPosts
-            .Include(j => j.Client)
-            .Include(j => j.Category)
-            .Include(j => j.JobSkills).ThenInclude(js => js.Skill)
-            .Where(j => j.Status == JobStatus.OPEN && j.Visibility == JobVisibility.PUBLIC);
-
-        if (categoryId.HasValue)
-        {
-            query = query.Where(j => j.CategoryId == categoryId.Value);
-        }
-
-        if (!string.IsNullOrWhiteSpace(pageRequest.SearchTerm))
-        {
-            query = query.Where(j => j.Title.Contains(pageRequest.SearchTerm) || j.FinalDescription!.Contains(pageRequest.SearchTerm));
-        }
-
-        var totalItems = await query.CountAsync();
-        var items = await query
-            .OrderByDescending(j => j.PublishedAt)
-            .Skip((pageRequest.PageIndex - 1) * pageRequest.PageSize)
-            .Take(pageRequest.PageSize)
-            .Select(j => MapToResponse(j))
-            .ToListAsync();
+        var (items, totalItems) = await _jobRepository.GetOpenPublicAsync(
+            pageRequest.PageIndex,
+            pageRequest.PageSize,
+            pageRequest.SearchTerm,
+            categoryId);
 
         return new Aivora.Services.Base.Response.PageResult<Response.JobResponse>
         {
-            Items = items,
+            Items = items.Select(MapToResponse).ToList(),
             TotalItems = totalItems,
             PageIndex = pageRequest.PageIndex,
             PageSize = pageRequest.PageSize

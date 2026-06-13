@@ -24,7 +24,7 @@ public class NotificationServiceTests
         // Arrange
         var dbContext = GetDbContext();
         var userId = Guid.NewGuid();
-        var service = new Service(dbContext);
+        var service = new NotificationApplicationService(dbContext);
 
         // Act
         var result = await service.SendNotificationAsync(userId, "Test Title", "Test Message", "PROPOSAL", "/jobs/1");
@@ -47,7 +47,7 @@ public class NotificationServiceTests
         dbContext.Notifications.Add(notification);
         await dbContext.SaveChangesAsync();
 
-        var service = new Service(dbContext);
+        var service = new NotificationApplicationService(dbContext);
 
         // Act
         await service.MarkAsReadAsync(userId, notification.Id);
@@ -70,7 +70,7 @@ public class NotificationServiceTests
         );
         await dbContext.SaveChangesAsync();
 
-        var service = new Service(dbContext);
+        var service = new NotificationApplicationService(dbContext);
 
         // Act
         var count = await service.GetUnreadCountAsync(userId);

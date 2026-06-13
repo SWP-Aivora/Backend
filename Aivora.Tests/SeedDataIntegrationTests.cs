@@ -33,7 +33,7 @@ public class SeedDataIntegrationTests
         var job = await dbContext.JobPosts.FirstAsync(j => j.Title.Contains("Customer Support Chatbot"));
         var proposal = await dbContext.Proposals.FirstAsync(p => p.JobId == job.Id && p.ExpertId == expertSeniorAI.Id);
 
-        var hiringService = new HiringService(dbContext);
+        var hiringService = new HiringService(new Aivora.Repositories.Repositories.Proposals.ProposalRepository(dbContext), new Aivora.Repositories.Repositories.Projects.ProjectRepository(dbContext), new Aivora.Repositories.Data.EfUnitOfWork(dbContext));
 
         // 2. Act: Thực hiện chấp nhận Proposal
         var result = await hiringService.AcceptProposalAsync(clientStartup.Id, proposal.Id);

@@ -1,8 +1,16 @@
 using System.Threading.RateLimiting;
+using Aivora.Repositories.Abstractions;
 using Aivora.Repositories.Data;
 using Aivora.Repositories.Data.Interceptors;
+using Aivora.Repositories.Repositories.Jobs;
+using Aivora.Repositories.Repositories.Milestones;
+using Aivora.Repositories.Repositories.Proposals;
+using Aivora.Repositories.Repositories.Projects;
+using Aivora.Repositories.Repositories.Treasury;
 using Aivora.Services.JwtService;
+using Aivora.Services.Models;
 using Aivora.Services.Options;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -38,9 +46,9 @@ public static class ServiceCollectionExtensions
                             "https://aivora-pi.vercel.app",
                             "https://client.scalar.com",
                             "https://proxy.scalar.com")
-                          .AllowAnyHeader()
-                          .AllowAnyMethod()
-                          .AllowCredentials();
+                        .AllowAnyHeader()
+                        .AllowAnyMethod()
+                        .AllowCredentials();
                 });
         });
 
@@ -64,19 +72,20 @@ public static class ServiceCollectionExtensions
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             options.OnRejected = async (context, token) =>
             {
+                var retryAfterSeconds = context.Lease.TryGetMetadata(MetadataName.RetryAfter, out TimeSpan retryAfter)
+                    ? (int)Math.Ceiling(retryAfter.TotalSeconds)
+                    : (int?)null;
+                var message = retryAfterSeconds.HasValue
+                    ? $"Too many requests. Please try again after {retryAfterSeconds.Value} second(s)."
+                    : "Too many requests. Please try again later.";
+
                 context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
-                if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out TimeSpan retryAfter))
-                {
-                    await context.HttpContext.Response.WriteAsJsonAsync(
-                        new { message = $"Too many requests. Please try again after {retryAfter.TotalSeconds} second(s)." },
-                        token);
-                }
-                else
-                {
-                    await context.HttpContext.Response.WriteAsJsonAsync(
-                        new { message = "Too many requests. Please try again later." },
-                        token);
-                }
+                await context.HttpContext.Response.WriteAsJsonAsync(
+                    ApiResponseFactory.ErrorResponse(
+                        message,
+                        new { code = "rate_limit_exceeded", retryAfterSeconds },
+                        context.HttpContext.TraceIdentifier),
+                    token);
             };
 
             var rateLimitOptions = configuration.GetSection(RateLimitOptions.SectionName).Get<RateLimitOptions>() ?? new RateLimitOptions();
@@ -117,15 +126,78 @@ public static class ServiceCollectionExtensions
         services.AddHttpContextAccessor();
         services.AddJwtServices(configuration);
 
-        services.AddScoped<IJwtService, Aivora.Services.JwtService.Service>();
-        services.AddScoped<Aivora.Services.MediaService.IService, Aivora.Services.MediaService.Service>();
-        services.AddScoped<Aivora.Services.IdentityService.IService, Aivora.Services.IdentityService.Service>();
-        services.AddScoped<Aivora.Services.CategoryService.IService, Aivora.Services.CategoryService.Service>();
-        services.AddScoped<Aivora.Services.SkillService.IService, Aivora.Services.SkillService.Service>();
-        services.AddScoped<Aivora.Services.ProfileService.IService, Aivora.Services.ProfileService.Service>();
-        services.AddScoped<Aivora.Services.JobService.IService, Aivora.Services.JobService.Service>();
-        services.AddScoped<Aivora.Services.ProposalService.IService, Aivora.Services.ProposalService.Service>();
+        services.AddScoped<IJwtService, Aivora.Services.JwtService.JwtTokenService>();
+        services.AddScoped<IUnitOfWork, EfUnitOfWork>();
+        services.AddScoped<IJobRepository, JobRepository>();
+        services.AddScoped<IMilestoneRepository, MilestoneRepository>();
+        services.AddScoped<IProposalRepository, ProposalRepository>();
+        services.AddScoped<IProjectRepository, ProjectRepository>();
+        services.AddScoped<ITreasuryRepository, TreasuryRepository>();
+        services.AddScoped<Aivora.Services.MediaService.IService, Aivora.Services.MediaService.MediaApplicationService>();
+        services.AddScoped<Aivora.Services.IdentityService.IService, Aivora.Services.IdentityService.IdentityApplicationService>();
+        services.AddScoped<Aivora.Services.CategoryService.IService, Aivora.Services.CategoryService.CategoryApplicationService>();
+        services.AddScoped<Aivora.Services.SkillService.IService, Aivora.Services.SkillService.SkillApplicationService>();
+        services.AddScoped<Aivora.Services.ProfileService.IService, Aivora.Services.ProfileService.ProfileApplicationService>();
+        services.AddScoped<Aivora.Services.JobService.IService, Aivora.Services.JobService.JobApplicationService>();
+        services.AddScoped<Aivora.Services.ProposalService.IService, Aivora.Services.ProposalService.ProposalApplicationService>();
         services.AddScoped<Aivora.Services.HiringService.IHiringService, Aivora.Services.HiringService.HiringService>();
+        services.AddScoped<Aivora.Services.RecommendationService.IService, Aivora.Services.RecommendationService.RecommendationApplicationService>();
+        services.AddScoped<Aivora.Services.ProjectService.IService, Aivora.Services.ProjectService.ProjectApplicationService>();
+        services.AddScoped<Aivora.Services.MilestoneService.IService, Aivora.Services.MilestoneService.MilestoneApplicationService>();
+        services.AddScoped<Aivora.Services.DeliverableService.IService, Aivora.Services.DeliverableService.DeliverableApplicationService>();
+        services.AddScoped<Aivora.Services.WalletService.IService, Aivora.Services.WalletService.WalletApplicationService>();
+        services.AddScoped<Aivora.Services.ReviewService.IService, Aivora.Services.ReviewService.ReviewApplicationService>();
+        services.AddScoped<Aivora.Services.MessageService.IService, Aivora.Services.MessageService.MessageApplicationService>();
+        services.AddScoped<Aivora.Services.DisputeService.IService, Aivora.Services.DisputeService.DisputeApplicationService>();
+        services.AddScoped<Aivora.Services.NotificationService.IService, Aivora.Services.NotificationService.NotificationApplicationService>();
+        services.AddScoped<Aivora.Services.AdminService.IAdminService, Aivora.Services.AdminService.AdminService>();
+        services.AddScoped<Aivora.Services.Treasury.ITreasury, Aivora.Services.Treasury.Treasury>();
+
+        services.AddAIJobAssistantServices();
+
+        return services;
+    }
+
+    public static IServiceCollection AddAivoraRealtime(this IServiceCollection services)
+    {
+        services.AddSignalR();
+        return services;
+    }
+
+    public static IServiceCollection AddAivoraControllers(this IServiceCollection services)
+    {
+        services.AddControllers()
+            .AddJsonOptions(options =>
+            {
+                options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+            });
+
+        services.Configure<ApiBehaviorOptions>(options =>
+        {
+            options.InvalidModelStateResponseFactory = context =>
+            {
+                var errors = context.ModelState
+                    .Where(entry => entry.Value?.Errors.Count > 0)
+                    .ToDictionary(
+                        entry => entry.Key,
+                        entry => entry.Value!.Errors
+                            .Select(error => string.IsNullOrWhiteSpace(error.ErrorMessage)
+                                ? "The input was invalid."
+                                : error.ErrorMessage)
+                            .ToArray());
+
+                return new BadRequestObjectResult(ApiResponseFactory.ErrorResponse(
+                    "Validation failed.",
+                    new { code = "validation_error", fields = errors },
+                    context.HttpContext.TraceIdentifier));
+            };
+        });
+
+        return services;
+    }
+
+    private static void AddAIJobAssistantServices(this IServiceCollection services)
+    {
         services.AddScoped<Aivora.Services.AIJobAssistantService.Prompting.AIJobSuggestionPromptBuilder>();
         services.AddScoped<Aivora.Services.AIJobAssistantService.Prompting.AIJobRefinementPromptBuilder>();
         services.AddScoped<Aivora.Services.AIJobAssistantService.Prompting.AIServiceDescriptionPromptBuilder>();
@@ -139,59 +211,63 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Aivora.Services.AIJobAssistantService.Providers.GeminiAIJobSuggestionProvider>();
         services.AddScoped<Aivora.Services.AIJobAssistantService.Providers.GeminiAIJobRefinementProvider>();
         services.AddScoped<Aivora.Services.AIJobAssistantService.Providers.GeminiAIServiceDescriptionProvider>();
-        services.AddScoped<Aivora.Services.AIJobAssistantService.IAIJobSuggestionProvider>(sp =>
-        {
-            var options = sp.GetRequiredService<IOptions<AIProviderOptions>>().Value;
-            return string.Equals(options.Provider, "Gemini", StringComparison.OrdinalIgnoreCase)
-                   && !string.IsNullOrWhiteSpace(options.ApiKey)
-                ? sp.GetRequiredService<Aivora.Services.AIJobAssistantService.Providers.GeminiAIJobSuggestionProvider>()
-                : sp.GetRequiredService<Aivora.Services.AIJobAssistantService.Providers.MockAIJobSuggestionProvider>();
-        });
-        services.AddScoped<Aivora.Services.AIJobAssistantService.IAIJobRefinementProvider>(sp =>
-        {
-            var options = sp.GetRequiredService<IOptions<AIProviderOptions>>().Value;
-            return string.Equals(options.Provider, "Gemini", StringComparison.OrdinalIgnoreCase)
-                   && !string.IsNullOrWhiteSpace(options.ApiKey)
-                ? sp.GetRequiredService<Aivora.Services.AIJobAssistantService.Providers.GeminiAIJobRefinementProvider>()
-                : sp.GetRequiredService<Aivora.Services.AIJobAssistantService.Providers.MockAIJobRefinementProvider>();
-        });
-        services.AddScoped<Aivora.Services.AIJobAssistantService.IAIServiceDescriptionProvider>(sp =>
-        {
-            var options = sp.GetRequiredService<IOptions<AIProviderOptions>>().Value;
-            return string.Equals(options.Provider, "Gemini", StringComparison.OrdinalIgnoreCase)
-                   && !string.IsNullOrWhiteSpace(options.ApiKey)
-                ? sp.GetRequiredService<Aivora.Services.AIJobAssistantService.Providers.GeminiAIServiceDescriptionProvider>()
-                : sp.GetRequiredService<Aivora.Services.AIJobAssistantService.Providers.MockAIServiceDescriptionProvider>();
-        });
-        services.AddScoped<Aivora.Services.AIJobAssistantService.IService, Aivora.Services.AIJobAssistantService.Service>();
-        services.AddScoped<Aivora.Services.RecommendationService.IService, Aivora.Services.RecommendationService.Service>();
-        services.AddScoped<Aivora.Services.ProjectService.IService, Aivora.Services.ProjectService.Service>();
-        services.AddScoped<Aivora.Services.MilestoneService.IService, Aivora.Services.MilestoneService.Service>();
-        services.AddScoped<Aivora.Services.DeliverableService.IService, Aivora.Services.DeliverableService.Service>();
-        services.AddScoped<Aivora.Services.WalletService.IService, Aivora.Services.WalletService.Service>();
-        services.AddScoped<Aivora.Services.ReviewService.IService, Aivora.Services.ReviewService.Service>();
-        services.AddScoped<Aivora.Services.MessageService.IService, Aivora.Services.MessageService.Service>();
-        services.AddScoped<Aivora.Services.DisputeService.IService, Aivora.Services.DisputeService.Service>();
-        services.AddScoped<Aivora.Services.NotificationService.IService, Aivora.Services.NotificationService.Service>();
-        services.AddScoped<Aivora.Services.AdminService.IAdminService, Aivora.Services.AdminService.AdminService>();
-        services.AddScoped<Aivora.Services.Treasury.ITreasury, Aivora.Services.Treasury.Treasury>();
-
-        return services;
+        services.AddScoped<Aivora.Services.AIJobAssistantService.IAIJobSuggestionProvider>(ResolveSuggestionProvider);
+        services.AddScoped<Aivora.Services.AIJobAssistantService.IAIJobRefinementProvider>(ResolveRefinementProvider);
+        services.AddScoped<Aivora.Services.AIJobAssistantService.IAIServiceDescriptionProvider>(ResolveServiceDescriptionProvider);
+        services.AddScoped<Aivora.Services.AIJobAssistantService.IService, Aivora.Services.AIJobAssistantService.AIJobAssistantApplicationService>();
     }
 
-    public static IServiceCollection AddAivoraRealtime(this IServiceCollection services)
+    private static Aivora.Services.AIJobAssistantService.IAIJobSuggestionProvider ResolveSuggestionProvider(IServiceProvider sp)
     {
-        services.AddSignalR();
-        return services;
+        var options = sp.GetRequiredService<IOptions<AIProviderOptions>>().Value;
+        if (ConfigurationValidationExtensions.UseGemini(options))
+        {
+            return sp.GetRequiredService<Aivora.Services.AIJobAssistantService.Providers.GeminiAIJobSuggestionProvider>();
+        }
+
+        EnsureMockAllowed(sp, options);
+        LogMockProvider(sp, options, "job suggestion");
+        return sp.GetRequiredService<Aivora.Services.AIJobAssistantService.Providers.MockAIJobSuggestionProvider>();
     }
 
-    public static IServiceCollection AddAivoraControllers(this IServiceCollection services)
+    private static Aivora.Services.AIJobAssistantService.IAIJobRefinementProvider ResolveRefinementProvider(IServiceProvider sp)
     {
-        services.AddControllers().AddJsonOptions(options =>
+        var options = sp.GetRequiredService<IOptions<AIProviderOptions>>().Value;
+        if (ConfigurationValidationExtensions.UseGemini(options))
         {
-            options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
-        });
+            return sp.GetRequiredService<Aivora.Services.AIJobAssistantService.Providers.GeminiAIJobRefinementProvider>();
+        }
 
-        return services;
+        EnsureMockAllowed(sp, options);
+        LogMockProvider(sp, options, "job refinement");
+        return sp.GetRequiredService<Aivora.Services.AIJobAssistantService.Providers.MockAIJobRefinementProvider>();
+    }
+
+    private static Aivora.Services.AIJobAssistantService.IAIServiceDescriptionProvider ResolveServiceDescriptionProvider(IServiceProvider sp)
+    {
+        var options = sp.GetRequiredService<IOptions<AIProviderOptions>>().Value;
+        if (ConfigurationValidationExtensions.UseGemini(options))
+        {
+            return sp.GetRequiredService<Aivora.Services.AIJobAssistantService.Providers.GeminiAIServiceDescriptionProvider>();
+        }
+
+        EnsureMockAllowed(sp, options);
+        LogMockProvider(sp, options, "service description");
+        return sp.GetRequiredService<Aivora.Services.AIJobAssistantService.Providers.MockAIServiceDescriptionProvider>();
+    }
+
+    private static void EnsureMockAllowed(IServiceProvider sp, AIProviderOptions options)
+    {
+        var environment = sp.GetRequiredService<IWebHostEnvironment>();
+        if (environment.IsProduction())
+        {
+            throw new InvalidOperationException("AIProvider__Provider=Gemini and AIProvider__ApiKey are required in Production.");
+        }
+    }
+
+    private static void LogMockProvider(IServiceProvider sp, AIProviderOptions options, string providerPurpose)
+    {
+        var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("AIProvider");
+        logger.LogWarning("Using mock AI {ProviderPurpose} provider because provider {Provider} is not fully configured.", providerPurpose, options.Provider);
     }
 }

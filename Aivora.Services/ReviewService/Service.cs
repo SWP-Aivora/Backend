@@ -7,11 +7,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Aivora.Services.ReviewService;
 
-public class Service : IService
+public class ReviewApplicationService : IService
 {
     private readonly AivoraDbContext _dbContext;
 
-    public Service(AivoraDbContext dbContext)
+    public ReviewApplicationService(AivoraDbContext dbContext)
     {
         _dbContext = dbContext;
     }

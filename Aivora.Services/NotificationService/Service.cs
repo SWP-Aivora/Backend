@@ -6,11 +6,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Aivora.Services.NotificationService;
 
-public class Service : IService
+public class NotificationApplicationService : IService
 {
     private readonly AivoraDbContext _dbContext;
 
-    public Service(AivoraDbContext dbContext)
+    public NotificationApplicationService(AivoraDbContext dbContext)
     {
         _dbContext = dbContext;
     }

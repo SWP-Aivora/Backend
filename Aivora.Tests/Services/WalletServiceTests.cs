@@ -30,7 +30,7 @@ public class WalletServiceTests
         dbContext.Wallets.Add(wallet);
         await dbContext.SaveChangesAsync();
 
-        var service = new Service(dbContext);
+        var service = new WalletApplicationService(dbContext);
         var request = new Request.DepositDemoRequest { Amount = 500, Description = "Test Deposit" };
 
         // Act

@@ -36,7 +36,7 @@ public class HiringServiceTests
         dbContext.Proposals.AddRange(proposal1, proposal2);
         await dbContext.SaveChangesAsync();
 
-        var service = new Aivora.Services.HiringService.HiringService(dbContext);
+        var service = new Aivora.Services.HiringService.HiringService(new Aivora.Repositories.Repositories.Proposals.ProposalRepository(dbContext), new Aivora.Repositories.Repositories.Projects.ProjectRepository(dbContext), new Aivora.Repositories.Data.EfUnitOfWork(dbContext));
 
         // Act
         var result = await service.AcceptProposalAsync(clientId, proposal1.Id);
@@ -71,7 +71,7 @@ public class HiringServiceTests
         dbContext.Proposals.Add(proposal);
         await dbContext.SaveChangesAsync();
 
-        var service = new Aivora.Services.HiringService.HiringService(dbContext);
+        var service = new Aivora.Services.HiringService.HiringService(new Aivora.Repositories.Repositories.Proposals.ProposalRepository(dbContext), new Aivora.Repositories.Repositories.Projects.ProjectRepository(dbContext), new Aivora.Repositories.Data.EfUnitOfWork(dbContext));
 
         // Act
         await service.ShortlistProposalAsync(clientId, proposal.Id);

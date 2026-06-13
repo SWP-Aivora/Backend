@@ -1,28 +1,23 @@
-using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
+using Aivora.Repositories.Repositories.Projects;
 using Aivora.Services.Base;
 using Aivora.Services.Exceptions;
-using Microsoft.EntityFrameworkCore;
 
 namespace Aivora.Services.ProjectService;
 
-public class Service : IService
+public class ProjectApplicationService : IService
 {
-    private readonly AivoraDbContext _dbContext;
+    private readonly IProjectRepository _projectRepository;
 
-    public Service(AivoraDbContext dbContext)
+    public ProjectApplicationService(IProjectRepository projectRepository)
     {
-        _dbContext = dbContext;
+        _projectRepository = projectRepository;
     }
 
     public async Task<Response.ProjectResponse> GetProjectByIdAsync(Guid userId, Guid projectId)
     {
-        var project = await _dbContext.Projects
-            .Include(p => p.Client)
-            .Include(p => p.Expert)
-            .Include(p => p.Milestones)
-            .FirstOrDefaultAsync(p => p.Id == projectId);
+        var project = await _projectRepository.GetDetailedByIdAsync(projectId);
 
         if (project == null) throw new NotFoundException("Project not found.");
 
@@ -35,36 +30,13 @@ public class Service : IService
 
     public async Task<Aivora.Services.Base.Response.PageResult<Response.ProjectResponse>> GetProjectsAsync(Guid userId, UserRole role, Aivora.Services.Base.Request.PageRequest pageRequest, ProjectStatus? status = null)
     {
-        var query = _dbContext.Projects
-            .Include(p => p.Client)
-            .Include(p => p.Expert)
-            .AsQueryable();
-
-        if (role == UserRole.CLIENT)
-        {
-            query = query.Where(p => p.ClientId == userId);
-        }
-        else if (role == UserRole.EXPERT)
-        {
-            query = query.Where(p => p.ExpertId == userId);
-        }
-
-        if (status.HasValue)
-        {
-            query = query.Where(p => p.Status == status.Value);
-        }
-
-        if (!string.IsNullOrWhiteSpace(pageRequest.SearchTerm))
-        {
-            query = query.Where(p => p.Title.Contains(pageRequest.SearchTerm));
-        }
-
-        var totalItems = await query.CountAsync();
-        var items = await query
-            .OrderByDescending(p => p.CreatedAt)
-            .Skip((pageRequest.PageIndex - 1) * pageRequest.PageSize)
-            .Take(pageRequest.PageSize)
-            .ToListAsync();
+        var (items, totalItems) = await _projectRepository.ListForUserAsync(
+            userId,
+            role,
+            pageRequest.PageIndex,
+            pageRequest.PageSize,
+            pageRequest.SearchTerm,
+            status);
 
         return new Aivora.Services.Base.Response.PageResult<Response.ProjectResponse>
         {
@@ -77,9 +49,7 @@ public class Service : IService
 
     public async Task<Response.ProjectResponse> CancelProjectAsync(Guid userId, Guid projectId, string? reason)
     {
-        var project = await _dbContext.Projects
-            .Include(p => p.Milestones)
-            .FirstOrDefaultAsync(p => p.Id == projectId && p.ClientId == userId);
+        var project = await _projectRepository.GetOwnedWithMilestonesAsync(projectId, userId);
 
         if (project == null) throw new NotFoundException("Project not found or access denied.");
 
@@ -91,7 +61,7 @@ public class Service : IService
         project.Status = ProjectStatus.CANCELLED;
         // Optionally store reason
 
-        await _dbContext.SaveChangesAsync();
+        await _projectRepository.SaveChangesAsync();
         return MapToResponse(project);
     }
 

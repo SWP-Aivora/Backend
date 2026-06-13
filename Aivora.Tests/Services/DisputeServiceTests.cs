@@ -43,8 +43,8 @@ public class DisputeServiceTests
         dbContext.Payments.Add(payment);
         await dbContext.SaveChangesAsync();
 
-        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>());
-        var service = new Service(dbContext, treasury);
+        var treasury = new Aivora.Services.Treasury.Treasury(new Aivora.Repositories.Repositories.Treasury.TreasuryRepository(dbContext), new Aivora.Repositories.Data.EfUnitOfWork(dbContext), Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>());
+        var service = new DisputeApplicationService(dbContext, treasury);
         var request = new Request.OpenDisputeRequest { MilestoneId = milestoneId, Reason = "Poor quality" };
 
         // Act
@@ -93,8 +93,8 @@ public class DisputeServiceTests
         dbContext.Disputes.Add(dispute);
         await dbContext.SaveChangesAsync();
 
-        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>());
-        var service = new Service(dbContext, treasury);
+        var treasury = new Aivora.Services.Treasury.Treasury(new Aivora.Repositories.Repositories.Treasury.TreasuryRepository(dbContext), new Aivora.Repositories.Data.EfUnitOfWork(dbContext), Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>());
+        var service = new DisputeApplicationService(dbContext, treasury);
         var resolveRequest = new Request.ResolveDisputeRequest
         {
             ResolutionType = DisputeResolutionType.REFUND_TO_CLIENT,

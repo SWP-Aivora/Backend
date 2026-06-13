@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Aivora.Services.AIJobAssistantService;
 
-public class Service : IService
+public class AIJobAssistantApplicationService : IService
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
     private static readonly HashSet<string> AllowedTones = new(StringComparer.OrdinalIgnoreCase) { "professional", "friendly", "premium", "technical" };
@@ -21,7 +21,7 @@ public class Service : IService
     private readonly IAIJobRefinementProvider _refinementProvider;
     private readonly IAIServiceDescriptionProvider _serviceDescriptionProvider;
 
-    public Service(
+    public AIJobAssistantApplicationService(
         AivoraDbContext dbContext,
         JobService.IService jobService,
         IAIJobSuggestionProvider suggestionProvider,
