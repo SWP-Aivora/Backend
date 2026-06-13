@@ -11,24 +11,33 @@ public static class OpenApiExtensions
         {
             options.AddDocumentTransformer((document, context, cancellationToken) =>
             {
-                var securityScheme = new OpenApiSecurityScheme
+                // Add API info if missing
+                document.Info ??= new OpenApiInfo
+                {
+                    Title = "Aivora API",
+                    Version = "v1",
+                    Description = "Aivora Backend API — Marketplace kết nối Client với Expert"
+                };
+
+                // Add JWT Bearer security scheme
+                if (document.Components is null)
+                    document.Components = new OpenApiComponents();
+                document.Components.SecuritySchemes!["Bearer"] = new OpenApiSecurityScheme
                 {
                     Name = "Authorization",
                     Type = SecuritySchemeType.Http,
                     Scheme = "Bearer",
                     BearerFormat = "JWT",
                     In = ParameterLocation.Header,
-                    Description = "Nhập Token của bạn theo định dạng: Bearer {token}"
+                    Description = "Nhập Token theo định dạng: Bearer {token}"
                 };
 
-                document.Components ??= new OpenApiComponents();
-                document.Components.SecuritySchemes.Add("Bearer", securityScheme);
-
-                document.Security ??= new List<OpenApiSecurityRequirement>();
-                var schemeRef = new OpenApiSecuritySchemeReference("Bearer", document, "/components/securitySchemes/Bearer");
+                // Apply security requirement globally
+                if (document.Security is null)
+                    document.Security = new List<OpenApiSecurityRequirement>();
                 document.Security.Add(new OpenApiSecurityRequirement
                 {
-                    [schemeRef] = new List<string>()
+                    [new OpenApiSecuritySchemeReference("Bearer", document, "/components/securitySchemes/Bearer")] = new List<string>()
                 });
 
                 return Task.CompletedTask;
