@@ -12,19 +12,41 @@ public static class SeedData
         // 1. Kiểm tra Reset nếu cần
         if (forceReset)
         {
+            // Finance & Communication (Leaf nodes)
+            context.WalletTransactions.RemoveRange(context.WalletTransactions);
+            context.Payments.RemoveRange(context.Payments);
+            context.Notifications.RemoveRange(context.Notifications);
+            context.Messages.RemoveRange(context.Messages);
+            context.Conversations.RemoveRange(context.Conversations);
             context.Reviews.RemoveRange(context.Reviews);
+            context.DisputeEvidences.RemoveRange(context.DisputeEvidences);
+            context.Disputes.RemoveRange(context.Disputes);
+            
+            // Projects & Proposals
             context.Deliverables.RemoveRange(context.Deliverables);
             context.Milestones.RemoveRange(context.Milestones);
             context.Projects.RemoveRange(context.Projects);
+            context.ProposalMilestones.RemoveRange(context.ProposalMilestones);
             context.Proposals.RemoveRange(context.Proposals);
+            
+            // Jobs
+            context.JobPostMilestones.RemoveRange(context.JobPostMilestones);
+            context.JobSkills.RemoveRange(context.JobSkills);
+            context.AIJobSuggestions.RemoveRange(context.AIJobSuggestions);
             context.JobPosts.RemoveRange(context.JobPosts);
+            context.RecommendationResults.RemoveRange(context.RecommendationResults);
+            
+            // Profiles & Taxonomy
             context.ExpertSkills.RemoveRange(context.ExpertSkills);
             context.Skills.RemoveRange(context.Skills);
             context.Categories.RemoveRange(context.Categories);
             context.ExpertProfiles.RemoveRange(context.ExpertProfiles);
             context.ClientProfiles.RemoveRange(context.ClientProfiles);
+            
+            // Identity (Root nodes)
             context.Wallets.RemoveRange(context.Wallets);
             context.Users.RemoveRange(context.Users);
+            
             await context.SaveChangesAsync();
         }
 
