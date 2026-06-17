@@ -49,11 +49,18 @@ public static class SeedData
         var expertJuniorAI = new User { Email = "expert.junior.ai@demo.com", PasswordHash = BCryptNet.HashPassword("123456"), FullName = "Ben Carter", Role = UserRole.EXPERT, Status = UserStatus.ACTIVE };
 
         var users = new[] { admin1, admin2, clientStartup, clientEcommerce, clientResearch, expertSeniorAI, expertFullstack, expertDataScientist, expertAutomation, expertJuniorAI };
-        context.Users.AddRange(users);
-        await context.SaveChangesAsync();
 
-        var wallets = users.Select(u => new Wallet { UserId = u.Id, AvailableBalance = (u.Role == UserRole.CLIENT ? 10000m : 0m), Currency = "AICOIN" }).ToList();
-        context.Wallets.AddRange(wallets);
+        foreach (var u in users)
+        {
+            u.Wallet = new Wallet
+            {
+                UserId = u.Id,
+                AvailableBalance = (u.Role == UserRole.CLIENT ? 10000m : 0m),
+                Currency = "AICOIN"
+            };
+        }
+
+        context.Users.AddRange(users);
         await context.SaveChangesAsync();
 
         // ── 2. Profiles ─────────────────────────────────────────────
