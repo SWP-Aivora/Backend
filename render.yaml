@@ -49,6 +49,8 @@ services:
         value: 100
       - key: RateLimit__General__WindowInMinutes
         value: 1
+      - key: SeedForceReset
+        value: true
 
 databases:
   - name: aivora-db
