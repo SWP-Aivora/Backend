@@ -36,15 +36,38 @@ public class WalletSeedingIntegrationTests
         {
             user.Wallet.Should().NotBeNull($"User {user.Email} should have a wallet after seeding");
             user.Wallet!.UserId.Should().Be(user.Id);
-            
-            if (user.Role == UserRole.CLIENT)
+
+            decimal expectedBalance = 0m;
+            if (user.Email == "client.startup@demo.com")
             {
-                user.Wallet.AvailableBalance.Should().Be(10000m);
+                expectedBalance = 6500m;
             }
-            else
+            else if (user.Email == "client.ecommerce@demo.com")
             {
-                user.Wallet.AvailableBalance.Should().Be(0m);
+                expectedBalance = 5500m;
             }
+            else if (user.Email == "client.research@demo.com")
+            {
+                expectedBalance = 9200m;
+            }
+            else if (user.Role == UserRole.CLIENT)
+            {
+                expectedBalance = 10000m;
+            }
+            else if (user.Email == "expert.senior.ai@demo.com")
+            {
+                expectedBalance = 1500m;
+            }
+            else if (user.Email == "expert.data.scientist@demo.com")
+            {
+                expectedBalance = 800m;
+            }
+            else if (user.Email == "expert.automation@demo.com")
+            {
+                expectedBalance = 2500m;
+            }
+
+            user.Wallet.AvailableBalance.Should().Be(expectedBalance, $"User {user.Email} should have expected wallet balance");
         }
     }
 
@@ -63,6 +86,6 @@ public class WalletSeedingIntegrationTests
         // Assert
         wallet.Should().NotBeNull();
         wallet.UserId.Should().Be(clientStartup.Id);
-        wallet.AvailableBalance.Should().Be(10000m);
+        wallet.AvailableBalance.Should().Be(6500m);
     }
 }
