@@ -18,25 +18,27 @@ services:
         fromDatabase:
           name: aivora-db
           property: connectionString
-      - key: JWT_SECRET
+      - key: JwtSettings__Secret
         sync: false # Bạn sẽ cấu hình trên giao diện Render một lần
-      - key: JWT_ISSUER
+      - key: JwtSettings__Issuer
         value: AivoraApi
-      - key: JWT_AUDIENCE
+      - key: JwtSettings__Audience
         value: AivoraClient
-      - key: JWT_EXPIRY_IN_MINUTES
+      - key: JwtSettings__ExpiryInMinutes
         value: 1440
-      - key: CLOUDINARY_CLOUD_NAME
+      - key: CloudinaryOptions__CloudName
         sync: false
-      - key: CLOUDINARY_API_KEY
+      - key: CloudinaryOptions__ApiKey
         sync: false
-      - key: CLOUDINARY_API_SECRET
+      - key: CloudinaryOptions__ApiSecret
         sync: false
       # AI Provider: set Provider=Gemini + ApiKey to enable real AI; otherwise uses Mock
       - key: AIProvider__Provider
-        value: Mock
+        value: Gemini
       - key: AIProvider__ApiKey
         sync: false
+      - key: AIProvider__EnableFallback
+        value: false
       - key: RateLimit__Strict__PermitLimit
         value: 10
       - key: RateLimit__Strict__WindowInMinutes
