@@ -17,11 +17,15 @@ public class ChatHub : Hub
 
     public async Task JoinConversation(Guid conversationId)
     {
+        var userId = Context.User!.GetUserId();
+        await _messageService.EnsureConversationParticipantAsync(userId, conversationId);
         await Groups.AddToGroupAsync(Context.ConnectionId, conversationId.ToString());
     }
 
     public async Task LeaveConversation(Guid conversationId)
     {
+        var userId = Context.User!.GetUserId();
+        await _messageService.EnsureConversationParticipantAsync(userId, conversationId);
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, conversationId.ToString());
     }
 

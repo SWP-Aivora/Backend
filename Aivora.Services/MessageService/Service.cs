@@ -67,10 +67,7 @@ public class Service : IService
 
     public async Task<Base.Response.PageResult<Response.MessageResponse>> GetConversationMessagesAsync(Guid userId, Guid conversationId, Base.Request.PageRequest pageRequest)
     {
-        var conversation = await _dbContext.Conversations.FindAsync(conversationId);
-        if (conversation == null) throw new NotFoundException("Conversation not found.");
-        if (conversation.ClientId != userId && conversation.ExpertId != userId)
-            throw new UnauthorizedException("You are not a participant in this conversation.");
+        await EnsureConversationParticipantAsync(userId, conversationId);
 
         var query = _dbContext.Messages
             .Include(m => m.Sender)
@@ -102,6 +99,14 @@ public class Service : IService
             PageSize = pageRequest.PageSize,
             TotalItems = totalItems
         };
+    }
+
+    public async Task EnsureConversationParticipantAsync(Guid userId, Guid conversationId)
+    {
+        var conversation = await _dbContext.Conversations.FindAsync(conversationId);
+        if (conversation == null) throw new NotFoundException("Conversation not found.");
+        if (conversation.ClientId != userId && conversation.ExpertId != userId)
+            throw new UnauthorizedException("You are not a participant in this conversation.");
     }
 
     public async Task<Response.MessageResponse> SendMessageAsync(Guid senderId, Request.SendMessageRequest request)
@@ -144,6 +149,8 @@ public class Service : IService
 
     public async Task MarkAsReadAsync(Guid userId, Guid conversationId)
     {
+        await EnsureConversationParticipantAsync(userId, conversationId);
+
         var messages = await _dbContext.Messages
             .Where(m => m.ConversationId == conversationId && m.SenderId != userId && !m.IsRead)
             .ToListAsync();

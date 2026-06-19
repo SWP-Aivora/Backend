@@ -30,7 +30,7 @@ public class GeminiProviderClient
             ? "https://generativelanguage.googleapis.com"
             : _options.BaseUrl.TrimEnd('/');
         var model = string.IsNullOrWhiteSpace(_options.Model) ? "gemini-2.5-flash" : _options.Model.Trim();
-        var requestUri = $"{baseUrl}/v1beta/models/{Uri.EscapeDataString(model)}:generateContent?key={Uri.EscapeDataString(_options.ApiKey!)}";
+        var requestUri = $"{baseUrl}/v1beta/models/{Uri.EscapeDataString(model)}:generateContent";
         var payload = new
         {
             contents = new[]
@@ -45,11 +45,17 @@ public class GeminiProviderClient
         };
 
         using var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-        using var response = await _httpClient.PostAsync(requestUri, content, cancellationToken);
+        using var request = new HttpRequestMessage(HttpMethod.Post, requestUri)
+        {
+            Content = content
+        };
+        request.Headers.TryAddWithoutValidation("x-goog-api-key", _options.ApiKey);
+
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
         var responseText = await response.Content.ReadAsStringAsync(cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
-            throw new ValidationException($"AI provider request failed with HTTP {(int)response.StatusCode}: {responseText}");
+            throw new ValidationException($"AI provider request failed with HTTP {(int)response.StatusCode}.");
         }
 
         using var document = JsonDocument.Parse(responseText);

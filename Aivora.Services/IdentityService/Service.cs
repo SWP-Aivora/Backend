@@ -34,7 +34,7 @@ public class Service : IService
         var accessToken = _jwtService.GenerateAccessToken(user, user.Role.ToString());
         var refreshToken = _jwtService.GenerateRefreshToken();
 
-        user.RefreshToken = refreshToken;
+        user.RefreshToken = _jwtService.HashRefreshToken(refreshToken);
         user.RefreshTokenExpiryTime = DateTimeOffset.UtcNow.AddDays(7);
         await _dbContext.SaveChangesAsync();
 
@@ -94,7 +94,7 @@ public class Service : IService
         var accessToken = _jwtService.GenerateAccessToken(user, user.Role.ToString());
         var refreshToken = _jwtService.GenerateRefreshToken();
 
-        user.RefreshToken = refreshToken;
+        user.RefreshToken = _jwtService.HashRefreshToken(refreshToken);
         user.RefreshTokenExpiryTime = DateTimeOffset.UtcNow.AddDays(7);
         await _dbContext.SaveChangesAsync();
 
@@ -110,7 +110,13 @@ public class Service : IService
 
     public async Task<Response.IdentityResponse> RefreshTokenAsync(Request.RefreshTokenRequest request)
     {
-        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.RefreshToken == request.RefreshToken);
+        if (string.IsNullOrWhiteSpace(request?.RefreshToken))
+        {
+            throw new UnauthorizedException("Invalid or expired refresh token.");
+        }
+
+        var refreshTokenHash = _jwtService.HashRefreshToken(request.RefreshToken);
+        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.RefreshToken == refreshTokenHash);
         if (user == null || user.RefreshTokenExpiryTime <= DateTimeOffset.UtcNow)
         {
             throw new UnauthorizedException("Invalid or expired refresh token.");
@@ -124,7 +130,7 @@ public class Service : IService
         var accessToken = _jwtService.GenerateAccessToken(user, user.Role.ToString());
         var refreshToken = _jwtService.GenerateRefreshToken();
 
-        user.RefreshToken = refreshToken;
+        user.RefreshToken = _jwtService.HashRefreshToken(refreshToken);
         user.RefreshTokenExpiryTime = DateTimeOffset.UtcNow.AddDays(7);
         await _dbContext.SaveChangesAsync();
 
