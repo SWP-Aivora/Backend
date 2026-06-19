@@ -78,7 +78,7 @@ public class WalletSeedingIntegrationTests
         var dbContext = GetDbContext();
         await SeedData.Initialize(dbContext, forceReset: true);
         var clientStartup = await dbContext.Users.FirstAsync(u => u.Email == "client.startup@demo.com");
-        var walletService = new Service(dbContext);
+        var walletService = new WalletApplicationService(dbContext);
 
         // Act
         var wallet = await walletService.GetWalletAsync(clientStartup.Id);
