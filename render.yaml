@@ -9,6 +9,7 @@ services:
     envVars:
       - key: ASPNETCORE_ENVIRONMENT
         value: Production
+        previewValue: Staging
       # Render free tier: 512MB RAM — keep .NET GC conservative
       - key: DOTNET_GCHeapHardLimit
         value: 0x1C000000  # ~450MB, leaves room for native/DB connections
@@ -20,6 +21,7 @@ services:
           property: connectionString
       - key: JwtSettings__Secret
         sync: false # Bạn sẽ cấu hình trên giao diện Render một lần
+        previewValue: preview-jwt-secret-for-render-pr-builds-12345
       - key: JwtSettings__Issuer
         value: AivoraApi
       - key: JwtSettings__Audience
@@ -28,17 +30,22 @@ services:
         value: 1440
       - key: CloudinaryOptions__CloudName
         sync: false
+        previewValue: preview-cloud
       - key: CloudinaryOptions__ApiKey
         sync: false
+        previewValue: preview-api-key
       - key: CloudinaryOptions__ApiSecret
         sync: false
+        previewValue: preview-api-secret
       # AI Provider: set Provider=Gemini + ApiKey to enable real AI; otherwise uses Mock
       - key: AIProvider__Provider
         value: Gemini
+        previewValue: Mock
       - key: AIProvider__ApiKey
         sync: false
       - key: AIProvider__EnableFallback
         value: false
+        previewValue: true
       - key: RateLimit__Strict__PermitLimit
         value: 10
       - key: RateLimit__Strict__WindowInMinutes
