@@ -40,7 +40,8 @@ public sealed class AivoraApiFactory : WebApplicationFactory<Program>
         {
             ["AIProvider:Provider"] = "Gemini",
             ["AIProvider:ApiKey"] = "test-gemini-api-key",
-            ["AIProvider:EnableFallback"] = "false"
+            ["AIProvider:EnableFallback"] = "false",
+            ["SeedForceReset"] = "false"
         };
 
         if (configurationOverrides is not null)
