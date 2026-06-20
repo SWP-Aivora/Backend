@@ -70,7 +70,18 @@ public static class SeedData
         var expertAutomation = new User { Email = "expert.automation@demo.com", PasswordHash = BCryptNet.HashPassword("123456"), FullName = "Kenji Tanaka", Role = UserRole.EXPERT, Status = UserStatus.ACTIVE };
         var expertJuniorAI = new User { Email = "expert.junior.ai@demo.com", PasswordHash = BCryptNet.HashPassword("123456"), FullName = "Ben Carter", Role = UserRole.EXPERT, Status = UserStatus.ACTIVE };
 
-        var users = new[] { admin1, admin2, clientStartup, clientEcommerce, clientResearch, expertSeniorAI, expertFullstack, expertDataScientist, expertAutomation, expertJuniorAI };
+        // Lấy danh sách user hiện có
+        var existingUsers = await context.Users.ToListAsync();
+        var users = new List<User>();
+
+        // Chỉ thêm user nếu chưa tồn tại
+        foreach (var user in new[] { admin1, admin2, clientStartup, clientEcommerce, clientResearch, expertSeniorAI, expertFullstack, expertDataScientist, expertAutomation, expertJuniorAI })
+        {
+            if (!existingUsers.Any(u => u.Email == user.Email))
+            {
+                users.Add(user);
+            }
+        }
 
         foreach (var u in users)
         {
@@ -96,7 +107,11 @@ public static class SeedData
             };
         }
 
-        context.Users.AddRange(users);
+        // Chỉ add nếu có user mới
+        if (users.Any())
+        {
+            context.Users.AddRange(users);
+        }
         await context.SaveChangesAsync();
 
         // ── 2. Profiles ─────────────────────────────────────────────
