@@ -50,8 +50,8 @@ public static class SeedData
             await context.SaveChangesAsync();
         }
 
-        // 2. Chế độ an toàn: Chỉ seed nếu chưa có User nào
-        if (await context.Users.AnyAsync())
+        // 2. Chỉ seed khi forceReset=true để tránh duplicate constraint errors
+        if (!forceReset)
         {
             return;
         }
@@ -79,15 +79,32 @@ public static class SeedData
         {
             if (!existingUsers.Any(u => u.Email == user.Email))
             {
+                // Setup wallet for user
+                decimal available = 0m;
+                decimal held = 0m;
+                decimal earned = 0m;
+
+                if (user.Email == "client.startup@demo.com") { available = 6500m; held = 1000m; }
+                else if (user.Email == "client.ecommerce@demo.com") { available = 5500m; held = 3000m; }
+                else if (user.Email == "client.research@demo.com") { available = 9200m; held = 0m; }
+                else if (user.Role == UserRole.CLIENT) { available = 10000m; }
+                else if (user.Email == "expert.senior.ai@demo.com") { available = 1500m; earned = 1500m; }
+                else if (user.Email == "expert.data.scientist@demo.com") { available = 800m; earned = 800m; }
+                else if (user.Email == "expert.automation@demo.com") { available = 2500m; earned = 2500m; }
+
+                user.Wallet = new Wallet
+                {
+                    UserId = user.Id,
+                    AvailableBalance = available,
+                    HeldBalance = held,
+                    TotalEarned = earned,
+                    Currency = "AICOIN"
+                };
                 users.Add(user);
             }
         }
 
         foreach (var u in users)
-        {
-            decimal available = 0m;
-            decimal held = 0m;
-            decimal earned = 0m;
 
             if (u.Email == "client.startup@demo.com") { available = 6500m; held = 1000m; }
             else if (u.Email == "client.ecommerce@demo.com") { available = 5500m; held = 3000m; }
@@ -114,19 +131,22 @@ public static class SeedData
         }
         await context.SaveChangesAsync();
 
-        // ── 2. Profiles ─────────────────────────────────────────────
-        context.ClientProfiles.AddRange(
-            new ClientProfile { UserId = clientStartup.Id, CompanyName = "TechNova Solutions" },
-            new ClientProfile { UserId = clientEcommerce.Id, CompanyName = "Glamour Boutique" },
-            new ClientProfile { UserId = clientResearch.Id, CompanyName = "Independent Researcher" }
-        );
-        context.ExpertProfiles.AddRange(
-            new ExpertProfile { UserId = expertSeniorAI.Id, Title = "Principal AI Engineer", Bio = "10+ years in ML.", HourlyRate = 150 },
-            new ExpertProfile { UserId = expertFullstack.Id, Title = "Full-Stack Developer | AI Integrator", Bio = "Building scalable web apps with AI.", HourlyRate = 90 },
-            new ExpertProfile { UserId = expertDataScientist.Id, Title = "Data Scientist", Bio = "Turning data into insights.", HourlyRate = 120 },
-            new ExpertProfile { UserId = expertAutomation.Id, Title = "Automation Specialist", Bio = "Automating business processes.", HourlyRate = 80 },
-            new ExpertProfile { UserId = expertJuniorAI.Id, Title = "AI Developer", Bio = "Eager to build great AI products.", HourlyRate = 50 }
-        );
+        // ── 2. Profiles (chỉ nếu có user mới được insert) ─────────────────────────────────────────────
+        if (users.Any())
+        {
+            context.ClientProfiles.AddRange(
+                new ClientProfile { UserId = clientStartup.Id, CompanyName = "TechNova Solutions" },
+                new ClientProfile { UserId = clientEcommerce.Id, CompanyName = "Glamour Boutique" },
+                new ClientProfile { UserId = clientResearch.Id, CompanyName = "Independent Researcher" }
+            );
+            context.ExpertProfiles.AddRange(
+                new ExpertProfile { UserId = expertSeniorAI.Id, Title = "Principal AI Engineer", Bio = "10+ years in ML.", HourlyRate = 150 },
+                new ExpertProfile { UserId = expertFullstack.Id, Title = "Full-Stack Developer | AI Integrator", Bio = "Building scalable web apps with AI.", HourlyRate = 90 },
+                new ExpertProfile { UserId = expertDataScientist.Id, Title = "Data Scientist", Bio = "Turning data into insights.", HourlyRate = 120 },
+                new ExpertProfile { UserId = expertAutomation.Id, Title = "Automation Specialist", Bio = "Automating business processes.", HourlyRate = 80 },
+                new ExpertProfile { UserId = expertJuniorAI.Id, Title = "AI Developer", Bio = "Eager to build great AI products.", HourlyRate = 50 }
+            );
+        }
         await context.SaveChangesAsync();
 
         // ── 3. Taxonomy ─────────────────────────────────────────────
@@ -148,23 +168,38 @@ public static class SeedData
         context.Skills.AddRange(skillPython, skillRAG, skillLangChain, skillReact, skillSQL, skillSelenium, skillZapier);
         await context.SaveChangesAsync();
 
-        var seniorAIProfile = context.ExpertProfiles.First(p => p.UserId == expertSeniorAI.Id);
-        var fullstackProfile = context.ExpertProfiles.First(p => p.UserId == expertFullstack.Id);
-        var dataScientistProfile = context.ExpertProfiles.First(p => p.UserId == expertDataScientist.Id);
-        var automationProfile = context.ExpertProfiles.First(p => p.UserId == expertAutomation.Id);
+        // ── 3. Skills & Expert Skills (chỉ nếu có user mới) ────────────────────────────────────────
+        if (users.Any())
+        {
+            var skillPython = new Skill { Name = "Python", CategoryId = catData.Id };
+            var skillRAG = new Skill { Name = "RAG", CategoryId = catChatbot.Id };
+            var skillLangChain = new Skill { Name = "LangChain", CategoryId = catChatbot.Id };
+            var skillReact = new Skill { Name = "React", CategoryId = catWeb.Id };
+            var skillSQL = new Skill { Name = "SQL", CategoryId = catData.Id };
+            var skillSelenium = new Skill { Name = "Selenium", CategoryId = catWeb.Id };
+            var skillZapier = new Skill { Name = "Zapier", CategoryId = catWeb.Id };
+
+            context.Skills.AddRange(skillPython, skillRAG, skillLangChain, skillReact, skillSQL, skillSelenium, skillZapier);
+            await context.SaveChangesAsync();
+
+            var seniorAIProfile = context.ExpertProfiles.First(p => p.UserId == expertSeniorAI.Id);
+            var fullstackProfile = context.ExpertProfiles.First(p => p.UserId == expertFullstack.Id);
+            var dataScientistProfile = context.ExpertProfiles.First(p => p.UserId == expertDataScientist.Id);
+            var automationProfile = context.ExpertProfiles.First(p => p.UserId == expertAutomation.Id);
 
         context.ExpertSkills.AddRange(
-            new ExpertSkill { ExpertId = seniorAIProfile.Id, SkillId = skillPython.Id, Level = SkillLevel.EXPERT },
-            new ExpertSkill { ExpertId = seniorAIProfile.Id, SkillId = skillRAG.Id, Level = SkillLevel.EXPERT },
-            new ExpertSkill { ExpertId = fullstackProfile.Id, SkillId = skillReact.Id, Level = SkillLevel.ADVANCED },
-            new ExpertSkill { ExpertId = fullstackProfile.Id, SkillId = skillPython.Id, Level = SkillLevel.INTERMEDIATE },
-            new ExpertSkill { ExpertId = dataScientistProfile.Id, SkillId = skillSQL.Id, Level = SkillLevel.EXPERT },
-            new ExpertSkill { ExpertId = dataScientistProfile.Id, SkillId = skillPython.Id, Level = SkillLevel.ADVANCED },
-            new ExpertSkill { ExpertId = automationProfile.Id, SkillId = skillPython.Id, Level = SkillLevel.ADVANCED },
-            new ExpertSkill { ExpertId = automationProfile.Id, SkillId = skillSelenium.Id, Level = SkillLevel.EXPERT },
-            new ExpertSkill { ExpertId = automationProfile.Id, SkillId = skillZapier.Id, Level = SkillLevel.EXPERT }
-        );
-        await context.SaveChangesAsync();
+                new ExpertSkill { ExpertId = seniorAIProfile.Id, SkillId = skillPython.Id, Level = SkillLevel.EXPERT },
+                new ExpertSkill { ExpertId = seniorAIProfile.Id, SkillId = skillRAG.Id, Level = SkillLevel.EXPERT },
+                new ExpertSkill { ExpertId = fullstackProfile.Id, SkillId = skillReact.Id, Level = SkillLevel.ADVANCED },
+                new ExpertSkill { ExpertId = fullstackProfile.Id, SkillId = skillPython.Id, Level = SkillLevel.INTERMEDIATE },
+                new ExpertSkill { ExpertId = dataScientistProfile.Id, SkillId = skillSQL.Id, Level = SkillLevel.EXPERT },
+                new ExpertSkill { ExpertId = dataScientistProfile.Id, SkillId = skillPython.Id, Level = SkillLevel.ADVANCED },
+                new ExpertSkill { ExpertId = automationProfile.Id, SkillId = skillPython.Id, Level = SkillLevel.ADVANCED },
+                new ExpertSkill { ExpertId = automationProfile.Id, SkillId = skillSelenium.Id, Level = SkillLevel.EXPERT },
+                new ExpertSkill { ExpertId = automationProfile.Id, SkillId = skillZapier.Id, Level = SkillLevel.EXPERT }
+            );
+            await context.SaveChangesAsync();
+        }
 
         // ── 4. Job 1: Open for Bidding (Original) ───────────────────
         var jobChatbot = new JobPost
