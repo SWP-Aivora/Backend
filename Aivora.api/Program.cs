@@ -1,10 +1,12 @@
 using Aivora.api.Extensions;
 using Aivora.api.Middlewares;
 using Microsoft.AspNetCore.HttpOverrides;
-using DotNetEnv;
 
-// Load .env file if it exists
-Env.Load();
+// Load .env file only in development, not in production
+if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")?.ToLower() != "production")
+{
+    DotNetEnv.Env.Load();
+}
 
 var builder = WebApplication.CreateBuilder(args);
 
