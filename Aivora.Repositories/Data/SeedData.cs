@@ -11,7 +11,7 @@ public static class SeedData
     {
         try
         {
-            await SaveChangesWithDuplicateHandling(context);
+            await context.SaveChangesAsync();
         }
         catch (Microsoft.EntityFrameworkCore.DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException pgEx && pgEx.SqlState == "23505")
         {
