@@ -29,6 +29,12 @@ public class SeedDataIntegrationTests
         // Use seeding - it should work now for InMemory DB
         await SeedData.Initialize(dbContext, forceReset: true);
 
+        // Retrieve seeded entities
+        var clientStartup = await dbContext.Users.FirstAsync(u => u.Email == "client.startup@demo.com");
+        var expertSeniorAI = await dbContext.Users.FirstAsync(u => u.Email == "expert.senior.ai@demo.com");
+        var job = await dbContext.JobPosts.FirstAsync(j => j.Title.Contains("Customer Support Chatbot"));
+        var proposal = await dbContext.Proposals.FirstAsync(p => p.JobId == job.Id && p.ExpertId == expertSeniorAI.Id);
+
         var hiringService = new HiringService(dbContext);
 
         // 2. Act: Thực hiện chấp nhận Proposal
