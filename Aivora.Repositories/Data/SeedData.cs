@@ -104,26 +104,7 @@ public static class SeedData
             }
         }
 
-        foreach (var u in users)
-
-            if (u.Email == "client.startup@demo.com") { available = 6500m; held = 1000m; }
-            else if (u.Email == "client.ecommerce@demo.com") { available = 5500m; held = 3000m; }
-            else if (u.Email == "client.research@demo.com") { available = 9200m; held = 0m; }
-            else if (u.Role == UserRole.CLIENT) { available = 10000m; }
-            else if (u.Email == "expert.senior.ai@demo.com") { available = 1500m; earned = 1500m; }
-            else if (u.Email == "expert.data.scientist@demo.com") { available = 800m; earned = 800m; }
-            else if (u.Email == "expert.automation@demo.com") { available = 2500m; earned = 2500m; }
-
-            u.Wallet = new Wallet
-            {
-                UserId = u.Id,
-                AvailableBalance = available,
-                HeldBalance = held,
-                TotalEarned = earned,
-                Currency = "AICOIN"
-            };
-        }
-
+        
         // Chỉ add nếu có user mới
         if (users.Any())
         {
