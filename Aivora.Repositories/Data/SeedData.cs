@@ -106,7 +106,7 @@ public static class SeedData
             }
         }
 
-        
+
         // Chỉ add nếu có user mới
         if (users.Any())
         {
@@ -161,17 +161,17 @@ public static class SeedData
             var dataScientistProfile = context.ExpertProfiles.First(p => p.UserId == expertDataScientist.Id);
             var automationProfile = context.ExpertProfiles.First(p => p.UserId == expertAutomation.Id);
 
-        context.ExpertSkills.AddRange(
-                new ExpertSkill { ExpertId = seniorAIProfile.Id, SkillId = skillPython.Id, Level = SkillLevel.EXPERT },
-                new ExpertSkill { ExpertId = seniorAIProfile.Id, SkillId = skillRAG.Id, Level = SkillLevel.EXPERT },
-                new ExpertSkill { ExpertId = fullstackProfile.Id, SkillId = skillReact.Id, Level = SkillLevel.ADVANCED },
-                new ExpertSkill { ExpertId = fullstackProfile.Id, SkillId = skillPython.Id, Level = SkillLevel.INTERMEDIATE },
-                new ExpertSkill { ExpertId = dataScientistProfile.Id, SkillId = skillSQL.Id, Level = SkillLevel.EXPERT },
-                new ExpertSkill { ExpertId = dataScientistProfile.Id, SkillId = skillPython.Id, Level = SkillLevel.ADVANCED },
-                new ExpertSkill { ExpertId = automationProfile.Id, SkillId = skillPython.Id, Level = SkillLevel.ADVANCED },
-                new ExpertSkill { ExpertId = automationProfile.Id, SkillId = skillSelenium.Id, Level = SkillLevel.EXPERT },
-                new ExpertSkill { ExpertId = automationProfile.Id, SkillId = skillZapier.Id, Level = SkillLevel.EXPERT }
-            );
+            context.ExpertSkills.AddRange(
+                    new ExpertSkill { ExpertId = seniorAIProfile.Id, SkillId = skillPython.Id, Level = SkillLevel.EXPERT },
+                    new ExpertSkill { ExpertId = seniorAIProfile.Id, SkillId = skillRAG.Id, Level = SkillLevel.EXPERT },
+                    new ExpertSkill { ExpertId = fullstackProfile.Id, SkillId = skillReact.Id, Level = SkillLevel.ADVANCED },
+                    new ExpertSkill { ExpertId = fullstackProfile.Id, SkillId = skillPython.Id, Level = SkillLevel.INTERMEDIATE },
+                    new ExpertSkill { ExpertId = dataScientistProfile.Id, SkillId = skillSQL.Id, Level = SkillLevel.EXPERT },
+                    new ExpertSkill { ExpertId = dataScientistProfile.Id, SkillId = skillPython.Id, Level = SkillLevel.ADVANCED },
+                    new ExpertSkill { ExpertId = automationProfile.Id, SkillId = skillPython.Id, Level = SkillLevel.ADVANCED },
+                    new ExpertSkill { ExpertId = automationProfile.Id, SkillId = skillSelenium.Id, Level = SkillLevel.EXPERT },
+                    new ExpertSkill { ExpertId = automationProfile.Id, SkillId = skillZapier.Id, Level = SkillLevel.EXPERT }
+                );
             await context.SaveChangesAsync();
         }
 
