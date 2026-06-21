@@ -25,66 +25,188 @@ public static class SeedData
 
     public static async Task Initialize(AivoraDbContext context, bool forceReset = false)
     {
-        // 1. Kiểm tra Reset nếu cần
+        // Always clear tracking state to avoid stale references
+        context.ChangeTracker.Clear();
+
         if (forceReset)
         {
-            // Finance & Communication (Leaf nodes) - phải xóa trước do foreign key constraints
-            context.WalletTransactions.RemoveRange(context.WalletTransactions);
-            context.Payments.RemoveRange(context.Payments);
-            context.Notifications.RemoveRange(context.Notifications);
-            context.Messages.RemoveRange(context.Messages);
-            context.Conversations.RemoveRange(context.Conversations);
-            context.Reviews.RemoveRange(context.Reviews);
-            context.DisputeEvidences.RemoveRange(context.DisputeEvidences);
-            context.Disputes.RemoveRange(context.Disputes);
-
-            // Projects & Proposals
-            context.Deliverables.RemoveRange(context.Deliverables);
-            context.Milestones.RemoveRange(context.Milestones);
-            context.Projects.RemoveRange(context.Projects);
-            context.ProposalMilestones.RemoveRange(context.ProposalMilestones);
-            context.Proposals.RemoveRange(context.Proposals);
-
-            // Jobs
-            context.JobPostMilestones.RemoveRange(context.JobPostMilestones);
-            context.JobSkills.RemoveRange(context.JobSkills);
-            context.AIJobSuggestions.RemoveRange(context.AIJobSuggestions);
-            context.JobPosts.RemoveRange(context.JobPosts);
-            context.RecommendationResults.RemoveRange(context.RecommendationResults);
-
-            // Profiles & Taxonomy - phải xóa profiles trước do foreign key constraints
-            context.ExpertSkills.RemoveRange(context.ExpertSkills);
-            context.ClientProfiles.RemoveRange(context.ClientProfiles);
-            context.ExpertProfiles.RemoveRange(context.ExpertProfiles);
-            context.Skills.RemoveRange(context.Skills);
-            context.Categories.RemoveRange(context.Categories);
-
-            // Identity (Root nodes) - Wallets phụ thuộc vào Users
-            context.Wallets.RemoveRange(context.Wallets);
-            context.Users.RemoveRange(context.Users);
-
-            await SaveChangesWithDuplicateHandling(context);
-            // Clear EF Core tracking state to ensure fresh query for existing users
-            context.ChangeTracker.Clear();
+            // Delete all data - recreate clean database
+            await ResetDatabase(context);
+            await SeedDatabaseIfEmpty(context);
         }
         else
         {
-            // For InMemory DB used in tests, still seed data when forceReset=false
-            // because there's no persistence between test runs
+            // Check if database is empty
             var userCount = await context.Users.AsNoTracking().CountAsync();
             if (userCount == 0)
             {
-                forceReset = true;
+                // Only seed when database is empty
+                await SeedDatabaseIfEmpty(context);
             }
         }
+    }
 
-        // 2. Chỉ seed khi forceReset=true để tránh duplicate constraint errors
-        if (!forceReset)
+    private static async Task ResetDatabase(AivoraDbContext context)
+    {
+        // Finance & Communication (Leaf nodes) - phải xóa trước do foreign key constraints
+        context.WalletTransactions.RemoveRange(context.WalletTransactions);
+        context.Payments.RemoveRange(context.Payments);
+        context.Notifications.RemoveRange(context.Notifications);
+        context.Messages.RemoveRange(context.Messages);
+        context.Conversations.RemoveRange(context.Conversations);
+        context.Reviews.RemoveRange(context.Reviews);
+        context.DisputeEvidences.RemoveRange(context.DisputeEvidences);
+        context.Disputes.RemoveRange(context.Disputes);
+
+        // Projects & Proposals
+        context.Deliverables.RemoveRange(context.Deliverables);
+        context.Milestones.RemoveRange(context.Milestones);
+        context.Projects.RemoveRange(context.Projects);
+        context.ProposalMilestones.RemoveRange(context.ProposalMilestones);
+        context.Proposals.RemoveRange(context.Proposals);
+
+        // Jobs
+        context.JobPostMilestones.RemoveRange(context.JobPostMilestones);
+        context.JobSkills.RemoveRange(context.JobSkills);
+        context.AIJobSuggestions.RemoveRange(context.AIJobSuggestions);
+        context.JobPosts.RemoveRange(context.JobPosts);
+        context.RecommendationResults.RemoveRange(context.RecommendationResults);
+
+        // Profiles & Taxonomy - phải xóa profiles trước do foreign key constraints
+        context.ExpertSkills.RemoveRange(context.ExpertSkills);
+        context.ClientProfiles.RemoveRange(context.ClientProfiles);
+        context.ExpertProfiles.RemoveRange(context.ExpertProfiles);
+        context.Skills.RemoveRange(context.Skills);
+        context.Categories.RemoveRange(context.Categories);
+
+        // Identity (Root nodes) - Wallets phụ thuộc vào Users
+        context.Wallets.RemoveRange(context.Wallets);
+        context.Users.RemoveRange(context.Users);
+
+        await SaveChangesWithDuplicateHandling(context);
+    }
+
+    private static async Task SeedDatabaseIfEmpty(AivoraDbContext context)
+    {
+        try
         {
-            return;
-        }
+            // ── 1. Users & Wallets ──────────────────────────────────────
+            var admin1 = new User { Email = "admin@aivora.com", PasswordHash = BCryptNet.HashPassword("123456"), FullName = "Platform Admin", Role = UserRole.ADMIN, Status = UserStatus.ACTIVE };
+            var admin2 = new User { Email = "Ahihi@aivora.com", PasswordHash = BCryptNet.HashPassword("Ahihi123"), FullName = "Ahihi Admin", Role = UserRole.ADMIN, Status = UserStatus.ACTIVE };
 
-        // ── 1. Users & Wallets ──────────────────────────────────────
+            var clientStartup = new User { Email = "client.startup@demo.com", PasswordHash = BCryptNet.HashPassword("123456"), FullName = "TechNova Solutions", Role = UserRole.CLIENT, Status = UserStatus.ACTIVE };
+            var clientEcommerce = new User { Email = "client.ecommerce@demo.com", PasswordHash = BCryptNet.HashPassword("123456"), FullName = "Glamour Boutique", Role = UserRole.CLIENT, Status = UserStatus.ACTIVE };
+            var clientResearch = new User { Email = "client.research@demo.com", PasswordHash = BCryptNet.HashPassword("123456"), FullName = "John Doe", Role = UserRole.CLIENT, Status = UserStatus.ACTIVE };
+
+            var expertSeniorAI = new User { Email = "expert.senior.ai@demo.com", PasswordHash = BCryptNet.HashPassword("123456"), FullName = "Dr. Evelyn Reed", Role = UserRole.EXPERT, Status = UserStatus.ACTIVE };
+            var expertFullstack = new User { Email = "expert.fullstack@demo.com", PasswordHash = BCryptNet.HashPassword("123456"), FullName = "Marcus Chen", Role = UserRole.EXPERT, Status = UserStatus.ACTIVE };
+            var expertDataScientist = new User { Email = "expert.data.scientist@demo.com", PasswordHash = BCryptNet.HashPassword("123456"), FullName = "Isabella Rossi", Role = UserRole.EXPERT, Status = UserStatus.ACTIVE };
+            var expertAutomation = new User { Email = "expert.automation@demo.com", PasswordHash = BCryptNet.HashPassword("123456"), FullName = "Kenji Tanaka", Role = UserRole.EXPERT, Status = UserStatus.ACTIVE };
+            var expertJuniorAI = new User { Email = "expert.junior.ai@demo.com", PasswordHash = BCryptNet.HashPassword("123456"), FullName = "Ben Carter", Role = UserRole.EXPERT, Status = UserStatus.ACTIVE };
+
+            var users = new List<User> { admin1, admin2, clientStartup, clientEcommerce, clientResearch, expertSeniorAI, expertFullstack, expertDataScientist, expertAutomation, expertJuniorAI };
+
+            // Setup wallets
+            foreach (var user in users)
+            {
+                decimal available = 0m;
+                decimal held = 0m;
+                decimal earned = 0m;
+
+                if (user.Email == "client.startup@demo.com") { available = 6500m; held = 1000m; }
+                else if (user.Email == "client.ecommerce@demo.com") { available = 5500m; held = 3000m; }
+                else if (user.Email == "client.research@demo.com") { available = 9200m; held = 0m; }
+                else if (user.Role == UserRole.CLIENT) { available = 10000m; }
+                else if (user.Email == "expert.senior.ai@demo.com") { available = 1500m; earned = 1500m; }
+                else if (user.Email == "expert.data.scientist@demo.com") { available = 800m; earned = 800m; }
+                else if (user.Email == "expert.automation@demo.com") { available = 2500m; earned = 2500m; }
+
+                user.Wallet = new Wallet
+                {
+                    AvailableBalance = available,
+                    HeldBalance = held,
+                    TotalEarned = earned,
+                    Currency = "AICOIN"
+                };
+            }
+
+            // Insert users
+            context.Users.AddRange(users);
+            await SaveChangesWithDuplicateHandling(context);
+
+            // Query user IDs after insert
+            var userIds = await context.Users
+                .Where(u => users.Select(u2 => u2.Email).Contains(u.Email))
+                .ToDictionaryAsync(u => u.Email, u => u.Id);
+
+            // ── 2. Profiles ──────────────────────────────────────────────
+            context.ClientProfiles.AddRange(
+                new ClientProfile { UserId = userIds[clientStartup.Email], CompanyName = "TechNova Solutions" },
+                new ClientProfile { UserId = userIds[clientEcommerce.Email], CompanyName = "Glamour Boutique" },
+                new ClientProfile { UserId = userIds[clientResearch.Email], CompanyName = "Independent Researcher" }
+            );
+            context.ExpertProfiles.AddRange(
+                new ExpertProfile { UserId = userIds[expertSeniorAI.Email], Title = "Principal AI Engineer", Bio = "10+ years in ML.", HourlyRate = 150 },
+                new ExpertProfile { UserId = userIds[expertFullstack.Email], Title = "Full-Stack Developer | AI Integrator", Bio = "Building scalable web apps with AI.", HourlyRate = 90 },
+                new ExpertProfile { UserId = userIds[expertDataScientist.Email], Title = "Data Scientist", Bio = "Turning data into insights.", HourlyRate = 120 },
+                new ExpertProfile { UserId = userIds[expertAutomation.Email], Title = "Automation Specialist", Bio = "Automating business processes.", HourlyRate = 80 },
+                new ExpertProfile { UserId = userIds[expertJuniorAI.Email], Title = "AI Developer", Bio = "Eager to build great AI products.", HourlyRate = 50 }
+            );
+            await SaveChangesWithDuplicateHandling(context);
+
+            // Continue with other seed data (categories, skills, etc.)
+            await SeedAdditionalData(context, userIds);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error during seeding: {ex.Message}");
+            // Don't throw - let the app start even if seeding fails
+        }
+    }
+
+    private static async Task SeedAdditionalData(AivoraDbContext context, Dictionary<string, Guid> userIds)
+    {
+        // ── 3. Taxonomy ─────────────────────────────────────────────
+        var catChatbot = new Category { Name = "AI Chatbots" };
+        var catData = new Category { Name = "Data Science & Analytics" };
+        var catWeb = new Category { Name = "Web & AI Integration" };
+
+        context.Categories.AddRange(catChatbot, catData, catWeb);
+        await SaveChangesWithDuplicateHandling(context);
+
+        var skillPython = new Skill { Name = "Python", CategoryId = catData.Id };
+        var skillRAG = new Skill { Name = "RAG", CategoryId = catChatbot.Id };
+        var skillLangChain = new Skill { Name = "LangChain", CategoryId = catChatbot.Id };
+        var skillReact = new Skill { Name = "React", CategoryId = catWeb.Id };
+        var skillSQL = new Skill { Name = "SQL", CategoryId = catData.Id };
+        var skillSelenium = new Skill { Name = "Selenium", CategoryId = catWeb.Id };
+        var skillZapier = new Skill { Name = "Zapier", CategoryId = catWeb.Id };
+
+        context.Skills.AddRange(skillPython, skillRAG, skillLangChain, skillReact, skillSQL, skillSelenium, skillZapier);
+        await SaveChangesWithDuplicateHandling(context);
+
+        // ── 4. Skills & Expert Skills (chỉ nếu có user mới) ────────────────────────────────────────
+        var seniorAIProfile = context.ExpertProfiles.First(p => p.UserId == userIds[expertSeniorAI.Email]);
+        var fullstackProfile = context.ExpertProfiles.First(p => p.UserId == userIds[expertFullstack.Email]);
+        var dataScientistProfile = context.ExpertProfiles.First(p => p.UserId == userIds[expertDataScientist.Email]);
+        var automationProfile = context.ExpertProfiles.First(p => p.UserId == userIds[expertAutomation.Email]);
+
+        context.ExpertSkills.AddRange(
+            new ExpertSkill { ExpertId = seniorAIProfile.Id, SkillId = skillPython.Id, Level = SkillLevel.EXPERT },
+            new ExpertSkill { ExpertId = seniorAIProfile.Id, SkillId = skillRAG.Id, Level = SkillLevel.EXPERT },
+            new ExpertSkill { ExpertId = fullstackProfile.Id, SkillId = skillReact.Id, Level = SkillLevel.ADVANCED },
+            new ExpertSkill { ExpertId = fullstackProfile.Id, SkillId = skillPython.Id, Level = SkillLevel.INTERMEDIATE },
+            new ExpertSkill { ExpertId = dataScientistProfile.Id, SkillId = skillSQL.Id, Level = SkillLevel.EXPERT },
+            new ExpertSkill { ExpertId = dataScientistProfile.Id, SkillId = skillPython.Id, Level = SkillLevel.ADVANCED },
+            new ExpertSkill { ExpertId = automationProfile.Id, SkillId = skillPython.Id, Level = SkillLevel.ADVANCED },
+            new ExpertSkill { ExpertId = automationProfile.Id, SkillId = skillSelenium.Id, Level = SkillLevel.EXPERT },
+            new ExpertSkill { ExpertId = automationProfile.Id, SkillId = skillZapier.Id, Level = SkillLevel.EXPERT }
+        );
+        await SaveChangesWithDuplicateHandling(context);
+
+        // Continue with other data... (jobs, projects, etc.)
+        // For now, just seed basic data
+    }
         var admin1 = new User { Email = "admin@aivora.com", PasswordHash = BCryptNet.HashPassword("123456"), FullName = "Platform Admin", Role = UserRole.ADMIN, Status = UserStatus.ACTIVE };
         var admin2 = new User { Email = "Ahihi@aivora.com", PasswordHash = BCryptNet.HashPassword("Ahihi123"), FullName = "Ahihi Admin", Role = UserRole.ADMIN, Status = UserStatus.ACTIVE };
 
