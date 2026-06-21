@@ -141,32 +141,33 @@ public static class SeedData
                 // EF Core sẽ tự generate ID khi insert
                 context.Users.AddRange(users);
                 await SaveChangesWithDuplicateHandling(context);
+
+                // Save users first to get their IDs
+                await SaveChangesWithDuplicateHandling(context);
+
+                // ── 2. Profiles (sau khi users đã có ID) ──────────────────────────────────────────────
+                context.ClientProfiles.AddRange(
+                    new ClientProfile { UserId = clientStartup.Id, CompanyName = "TechNova Solutions" },
+                    new ClientProfile { UserId = clientEcommerce.Id, CompanyName = "Glamour Boutique" },
+                    new ClientProfile { UserId = clientResearch.Id, CompanyName = "Independent Researcher" }
+                );
+                context.ExpertProfiles.AddRange(
+                    new ExpertProfile { UserId = expertSeniorAI.Id, Title = "Principal AI Engineer", Bio = "10+ years in ML.", HourlyRate = 150 },
+                    new ExpertProfile { UserId = expertFullstack.Id, Title = "Full-Stack Developer | AI Integrator", Bio = "Building scalable web apps with AI.", HourlyRate = 90 },
+                    new ExpertProfile { UserId = expertDataScientist.Id, Title = "Data Scientist", Bio = "Turning data into insights.", HourlyRate = 120 },
+                    new ExpertProfile { UserId = expertAutomation.Id, Title = "Automation Specialist", Bio = "Automating business processes.", HourlyRate = 80 },
+                    new ExpertProfile { UserId = expertJuniorAI.Id, Title = "AI Developer", Bio = "Eager to build great AI products.", HourlyRate = 50 }
+                );
+                await SaveChangesWithDuplicateHandling(context);
             }
             catch (Microsoft.EntityFrameworkCore.DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException pgEx && pgEx.SqlState == "23505")
             {
                 // Handle duplicate key constraint violation gracefully
                 // This can happen when seeding runs multiple times
                 Console.WriteLine($"Warning: Duplicate key violation during seeding - {pgEx.Message}");
+                context.ChangeTracker.Clear();
             }
         }
-
-        // ── 2. Profiles (chỉ nếu có user mới được insert) ─────────────────────────────────────────────
-        if (users.Any())
-        {
-            context.ClientProfiles.AddRange(
-                new ClientProfile { UserId = clientStartup.Id, CompanyName = "TechNova Solutions" },
-                new ClientProfile { UserId = clientEcommerce.Id, CompanyName = "Glamour Boutique" },
-                new ClientProfile { UserId = clientResearch.Id, CompanyName = "Independent Researcher" }
-            );
-            context.ExpertProfiles.AddRange(
-                new ExpertProfile { UserId = expertSeniorAI.Id, Title = "Principal AI Engineer", Bio = "10+ years in ML.", HourlyRate = 150 },
-                new ExpertProfile { UserId = expertFullstack.Id, Title = "Full-Stack Developer | AI Integrator", Bio = "Building scalable web apps with AI.", HourlyRate = 90 },
-                new ExpertProfile { UserId = expertDataScientist.Id, Title = "Data Scientist", Bio = "Turning data into insights.", HourlyRate = 120 },
-                new ExpertProfile { UserId = expertAutomation.Id, Title = "Automation Specialist", Bio = "Automating business processes.", HourlyRate = 80 },
-                new ExpertProfile { UserId = expertJuniorAI.Id, Title = "AI Developer", Bio = "Eager to build great AI products.", HourlyRate = 50 }
-            );
-        }
-        await SaveChangesWithDuplicateHandling(context);
 
         // ── 3. Taxonomy ─────────────────────────────────────────────
         var catChatbot = new Category { Name = "AI Chatbots" };
