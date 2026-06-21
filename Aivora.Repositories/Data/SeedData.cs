@@ -48,6 +48,8 @@ public static class SeedData
             context.Users.RemoveRange(context.Users);
 
             await context.SaveChangesAsync();
+            // Clear EF Core tracking state to ensure fresh query for existing users
+            context.ChangeTracker.Clear();
         }
 
         // 2. Chỉ seed khi forceReset=true để tránh duplicate constraint errors
@@ -70,8 +72,8 @@ public static class SeedData
         var expertAutomation = new User { Email = "expert.automation@demo.com", PasswordHash = BCryptNet.HashPassword("123456"), FullName = "Kenji Tanaka", Role = UserRole.EXPERT, Status = UserStatus.ACTIVE };
         var expertJuniorAI = new User { Email = "expert.junior.ai@demo.com", PasswordHash = BCryptNet.HashPassword("123456"), FullName = "Ben Carter", Role = UserRole.EXPERT, Status = UserStatus.ACTIVE };
 
-        // Lấy danh sách user hiện có
-        var existingUsers = await context.Users.ToListAsync();
+        // Lấy danh sách user hiện có từ database (không từ memory)
+        var existingUsers = await context.AsNoTracking().Users.ToListAsync();
         var users = new List<User>();
 
         // Chỉ thêm user nếu chưa tồn tại
