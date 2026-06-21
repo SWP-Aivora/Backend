@@ -51,6 +51,16 @@ public static class SeedData
             // Clear EF Core tracking state to ensure fresh query for existing users
             context.ChangeTracker.Clear();
         }
+        else
+        {
+            // For InMemory DB used in tests, still seed data when forceReset=false
+            // because there's no persistence between test runs
+            var userCount = await context.Users.CountAsync();
+            if (userCount == 0)
+            {
+                forceReset = true;
+            }
+        }
 
         // 2. Chỉ seed khi forceReset=true để tránh duplicate constraint errors
         if (!forceReset)
