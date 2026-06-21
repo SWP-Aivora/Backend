@@ -55,7 +55,7 @@ public static class SeedData
         {
             // For InMemory DB used in tests, still seed data when forceReset=false
             // because there's no persistence between test runs
-            var userCount = await context.Users.CountAsync();
+            var userCount = await context.Users.AsNoTracking().CountAsync();
             if (userCount == 0)
             {
                 forceReset = true;
@@ -104,9 +104,9 @@ public static class SeedData
                 else if (user.Email == "expert.data.scientist@demo.com") { available = 800m; earned = 800m; }
                 else if (user.Email == "expert.automation@demo.com") { available = 2500m; earned = 2500m; }
 
+                // Tạo wallet trước và set ID
                 user.Wallet = new Wallet
                 {
-                    UserId = user.Id,
                     AvailableBalance = available,
                     HeldBalance = held,
                     TotalEarned = earned,
@@ -120,9 +120,19 @@ public static class SeedData
         // Chỉ add nếu có user mới
         if (users.Any())
         {
-            context.Users.AddRange(users);
+            try
+            {
+                // EF Core sẽ tự generate ID khi insert
+                context.Users.AddRange(users);
+                await context.SaveChangesAsync();
+            }
+            catch (Microsoft.EntityFrameworkCore.DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException pgEx && pgEx.SqlState == "23505")
+            {
+                // Handle duplicate key constraint violation gracefully
+                // This can happen when seeding runs multiple times
+                Console.WriteLine($"Warning: Duplicate key violation during seeding - {pgEx.Message}");
+            }
         }
-        await context.SaveChangesAsync();
 
         // ── 2. Profiles (chỉ nếu có user mới được insert) ─────────────────────────────────────────────
         if (users.Any())
