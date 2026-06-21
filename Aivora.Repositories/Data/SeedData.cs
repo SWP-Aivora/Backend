@@ -145,18 +145,23 @@ public static class SeedData
                 // Save users first to get their IDs
                 await SaveChangesWithDuplicateHandling(context);
 
+                // Query users again to get updated IDs
+                var userIds = await context.Users
+                    .Where(u => users.Select(u2 => u2.Email).Contains(u.Email))
+                    .ToDictionaryAsync(u => u.Email, u => u.Id);
+
                 // ── 2. Profiles (sau khi users đã có ID) ──────────────────────────────────────────────
                 context.ClientProfiles.AddRange(
-                    new ClientProfile { UserId = clientStartup.Id, CompanyName = "TechNova Solutions" },
-                    new ClientProfile { UserId = clientEcommerce.Id, CompanyName = "Glamour Boutique" },
-                    new ClientProfile { UserId = clientResearch.Id, CompanyName = "Independent Researcher" }
+                    new ClientProfile { UserId = userIds[clientStartup.Email], CompanyName = "TechNova Solutions" },
+                    new ClientProfile { UserId = userIds[clientEcommerce.Email], CompanyName = "Glamour Boutique" },
+                    new ClientProfile { UserId = userIds[clientResearch.Email], CompanyName = "Independent Researcher" }
                 );
                 context.ExpertProfiles.AddRange(
-                    new ExpertProfile { UserId = expertSeniorAI.Id, Title = "Principal AI Engineer", Bio = "10+ years in ML.", HourlyRate = 150 },
-                    new ExpertProfile { UserId = expertFullstack.Id, Title = "Full-Stack Developer | AI Integrator", Bio = "Building scalable web apps with AI.", HourlyRate = 90 },
-                    new ExpertProfile { UserId = expertDataScientist.Id, Title = "Data Scientist", Bio = "Turning data into insights.", HourlyRate = 120 },
-                    new ExpertProfile { UserId = expertAutomation.Id, Title = "Automation Specialist", Bio = "Automating business processes.", HourlyRate = 80 },
-                    new ExpertProfile { UserId = expertJuniorAI.Id, Title = "AI Developer", Bio = "Eager to build great AI products.", HourlyRate = 50 }
+                    new ExpertProfile { UserId = userIds[expertSeniorAI.Email], Title = "Principal AI Engineer", Bio = "10+ years in ML.", HourlyRate = 150 },
+                    new ExpertProfile { UserId = userIds[expertFullstack.Email], Title = "Full-Stack Developer | AI Integrator", Bio = "Building scalable web apps with AI.", HourlyRate = 90 },
+                    new ExpertProfile { UserId = userIds[expertDataScientist.Email], Title = "Data Scientist", Bio = "Turning data into insights.", HourlyRate = 120 },
+                    new ExpertProfile { UserId = userIds[expertAutomation.Email], Title = "Automation Specialist", Bio = "Automating business processes.", HourlyRate = 80 },
+                    new ExpertProfile { UserId = userIds[expertJuniorAI.Email], Title = "AI Developer", Bio = "Eager to build great AI products.", HourlyRate = 50 }
                 );
                 await SaveChangesWithDuplicateHandling(context);
             }
