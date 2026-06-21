@@ -18,6 +18,8 @@ public static class SeedData
             // Handle duplicate key constraint violation gracefully
             // This can happen when seeding runs multiple times or when data already exists
             Console.WriteLine($"Warning: Duplicate key violation during seeding - {pgEx.Message}");
+            // Clear tracking state to avoid issues with subsequent queries
+            context.ChangeTracker.Clear();
         }
     }
 
