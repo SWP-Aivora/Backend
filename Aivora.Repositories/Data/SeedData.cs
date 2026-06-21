@@ -7,12 +7,26 @@ namespace Aivora.Repositories.Data;
 
 public static class SeedData
 {
+    private static async Task SaveChangesWithDuplicateHandling(AivoraDbContext context)
+    {
+        try
+        {
+            await SaveChangesWithDuplicateHandling(context);
+        }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException pgEx && pgEx.SqlState == "23505")
+        {
+            // Handle duplicate key constraint violation gracefully
+            // This can happen when seeding runs multiple times or when data already exists
+            Console.WriteLine($"Warning: Duplicate key violation during seeding - {pgEx.Message}");
+        }
+    }
+
     public static async Task Initialize(AivoraDbContext context, bool forceReset = false)
     {
         // 1. Kiểm tra Reset nếu cần
         if (forceReset)
         {
-            // Finance & Communication (Leaf nodes)
+            // Finance & Communication (Leaf nodes) - phải xóa trước do foreign key constraints
             context.WalletTransactions.RemoveRange(context.WalletTransactions);
             context.Payments.RemoveRange(context.Payments);
             context.Notifications.RemoveRange(context.Notifications);
@@ -36,18 +50,18 @@ public static class SeedData
             context.JobPosts.RemoveRange(context.JobPosts);
             context.RecommendationResults.RemoveRange(context.RecommendationResults);
 
-            // Profiles & Taxonomy
+            // Profiles & Taxonomy - phải xóa profiles trước do foreign key constraints
             context.ExpertSkills.RemoveRange(context.ExpertSkills);
+            context.ClientProfiles.RemoveRange(context.ClientProfiles);
+            context.ExpertProfiles.RemoveRange(context.ExpertProfiles);
             context.Skills.RemoveRange(context.Skills);
             context.Categories.RemoveRange(context.Categories);
-            context.ExpertProfiles.RemoveRange(context.ExpertProfiles);
-            context.ClientProfiles.RemoveRange(context.ClientProfiles);
 
-            // Identity (Root nodes)
+            // Identity (Root nodes) - Wallets phụ thuộc vào Users
             context.Wallets.RemoveRange(context.Wallets);
             context.Users.RemoveRange(context.Users);
 
-            await context.SaveChangesAsync();
+            await SaveChangesWithDuplicateHandling(context);
             // Clear EF Core tracking state to ensure fresh query for existing users
             context.ChangeTracker.Clear();
         }
@@ -124,7 +138,7 @@ public static class SeedData
             {
                 // EF Core sẽ tự generate ID khi insert
                 context.Users.AddRange(users);
-                await context.SaveChangesAsync();
+                await SaveChangesWithDuplicateHandling(context);
             }
             catch (Microsoft.EntityFrameworkCore.DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException pgEx && pgEx.SqlState == "23505")
             {
@@ -150,7 +164,7 @@ public static class SeedData
                 new ExpertProfile { UserId = expertJuniorAI.Id, Title = "AI Developer", Bio = "Eager to build great AI products.", HourlyRate = 50 }
             );
         }
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         // ── 3. Taxonomy ─────────────────────────────────────────────
         var catChatbot = new Category { Name = "AI Chatbots" };
@@ -158,7 +172,7 @@ public static class SeedData
         var catWeb = new Category { Name = "Web & AI Integration" };
 
         context.Categories.AddRange(catChatbot, catData, catWeb);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         var skillPython = new Skill { Name = "Python", CategoryId = catData.Id };
         var skillRAG = new Skill { Name = "RAG", CategoryId = catChatbot.Id };
@@ -169,7 +183,7 @@ public static class SeedData
         var skillZapier = new Skill { Name = "Zapier", CategoryId = catWeb.Id };
 
         context.Skills.AddRange(skillPython, skillRAG, skillLangChain, skillReact, skillSQL, skillSelenium, skillZapier);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         // ── 3. Skills & Expert Skills (chỉ nếu có user mới) ────────────────────────────────────────
         if (users.Any())
@@ -192,7 +206,7 @@ public static class SeedData
                     new ExpertSkill { ExpertId = automationProfile.Id, SkillId = skillSelenium.Id, Level = SkillLevel.EXPERT },
                     new ExpertSkill { ExpertId = automationProfile.Id, SkillId = skillZapier.Id, Level = SkillLevel.EXPERT }
                 );
-            await context.SaveChangesAsync();
+            await SaveChangesWithDuplicateHandling(context);
         }
 
         // ── 4. Job 1: Open for Bidding (Original) ───────────────────
@@ -208,13 +222,13 @@ public static class SeedData
             Currency = "AICOIN"
         };
         context.JobPosts.Add(jobChatbot);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         context.Proposals.AddRange(
             new Proposal { JobId = jobChatbot.Id, ExpertId = expertSeniorAI.Id, CoverLetter = "I have extensive experience building chatbots with RAG and LangChain.", ProposedBudget = 4500 },
             new Proposal { JobId = jobChatbot.Id, ExpertId = expertFullstack.Id, CoverLetter = "I can build and integrate this chatbot into your existing platform.", ProposedBudget = 3000 }
         );
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         // ── 5. Job 2: In Progress (Original - Ecommerce) ────────────
         var jobInProgress = new JobPost
@@ -228,7 +242,7 @@ public static class SeedData
             Currency = "AICOIN"
         };
         context.JobPosts.Add(jobInProgress);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         var proposalAccepted = new Proposal
         {
@@ -239,7 +253,7 @@ public static class SeedData
             ProposedBudget = 6000
         };
         context.Proposals.Add(proposalAccepted);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         var projectInProgress = new Project
         {
@@ -252,13 +266,13 @@ public static class SeedData
             Currency = "AICOIN"
         };
         context.Projects.Add(projectInProgress);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         var m1_paid = new Milestone { ProjectId = projectInProgress.Id, Title = "Data Analysis & Model Design", Amount = 1500, Status = MilestoneStatus.PAID, FundedAt = DateTime.UtcNow.AddDays(-10), ApprovedAt = DateTime.UtcNow.AddDays(-5), PaidAt = DateTime.UtcNow.AddDays(-5) };
         var m2_submitted = new Milestone { ProjectId = projectInProgress.Id, Title = "Backend API Implementation", Amount = 3000, Status = MilestoneStatus.DISPUTED, FundedAt = DateTime.UtcNow.AddDays(-4) };
         var m3_pending = new Milestone { ProjectId = projectInProgress.Id, Title = "Frontend Integration & Testing", Amount = 1500, Status = MilestoneStatus.CREATED };
         context.Milestones.AddRange(m1_paid, m2_submitted, m3_pending);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         context.Deliverables.Add(new Deliverable
         {
@@ -267,12 +281,12 @@ public static class SeedData
             Description = "API endpoints are ready for review.",
             Status = DeliverableStatus.SUBMITTED
         });
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         var paymentOld1 = new Payment { ProjectId = projectInProgress.Id, MilestoneId = m1_paid.Id, PayerId = clientEcommerce.Id, PayeeId = expertSeniorAI.Id, Amount = 1500, Status = PaymentStatus.RELEASED, HeldAt = DateTime.UtcNow.AddDays(-10), ReleasedAt = DateTime.UtcNow.AddDays(-5) };
         var paymentOld2 = new Payment { ProjectId = projectInProgress.Id, MilestoneId = m2_submitted.Id, PayerId = clientEcommerce.Id, PayeeId = expertSeniorAI.Id, Amount = 3000, Status = PaymentStatus.HELD, HeldAt = DateTime.UtcNow.AddDays(-4) };
         context.Payments.AddRange(paymentOld1, paymentOld2);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         // Dispute for Project In Progress
         var dispute = new Dispute
@@ -287,13 +301,13 @@ public static class SeedData
             Status = DisputeStatus.OPEN
         };
         context.Disputes.Add(dispute);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         context.DisputeEvidences.AddRange(
             new DisputeEvidence { DisputeId = dispute.Id, SubmittedBy = clientEcommerce.Id, Content = "Here are the API logs showing the errors and request payloads...", FileUrl = "https://example.com/api_error_logs.txt" },
             new DisputeEvidence { DisputeId = dispute.Id, SubmittedBy = expertSeniorAI.Id, Content = "I tested the API locally and it works fine. The issue might be with their sandbox DB credentials.", FileUrl = "https://example.com/api_demo_video.mp4" }
         );
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         // ── 6. Job 3: Completed (Original - Research) ───────────────
         var jobCompleted = new JobPost
@@ -307,7 +321,7 @@ public static class SeedData
             Currency = "AICOIN"
         };
         context.JobPosts.Add(jobCompleted);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         var proposalCompleted = new Proposal
         {
@@ -318,7 +332,7 @@ public static class SeedData
             ProposedBudget = 800
         };
         context.Proposals.Add(proposalCompleted);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         var projectCompleted = new Project
         {
@@ -332,21 +346,21 @@ public static class SeedData
             Currency = "AICOIN"
         };
         context.Projects.Add(projectCompleted);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         var m_completed = new Milestone { ProjectId = projectCompleted.Id, Title = "Full Analysis and Report", Amount = 800, Status = MilestoneStatus.PAID, FundedAt = DateTime.UtcNow.AddDays(-3), ApprovedAt = DateTime.UtcNow.AddDays(-2), PaidAt = DateTime.UtcNow.AddDays(-2) };
         context.Milestones.Add(m_completed);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         var paymentOld3 = new Payment { ProjectId = projectCompleted.Id, MilestoneId = m_completed.Id, PayerId = clientResearch.Id, PayeeId = expertDataScientist.Id, Amount = 800, Status = PaymentStatus.RELEASED, HeldAt = DateTime.UtcNow.AddDays(-3), ReleasedAt = DateTime.UtcNow.AddDays(-2) };
         context.Payments.Add(paymentOld3);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         context.Reviews.AddRange(
             new Review { ProjectId = projectCompleted.Id, ReviewerId = clientResearch.Id, RevieweeId = expertDataScientist.Id, Rating = 5, Comment = "Excellent work, very thorough analysis!" },
             new Review { ProjectId = projectCompleted.Id, ReviewerId = expertDataScientist.Id, RevieweeId = clientResearch.Id, Rating = 5, Comment = "Great client, very clear requirements." }
         );
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         // ── 7. Job 4: Completed (New - Automation) ───────────────────
         var jobAutomationCompleted = new JobPost
@@ -361,7 +375,7 @@ public static class SeedData
             Currency = "AICOIN"
         };
         context.JobPosts.Add(jobAutomationCompleted);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         var proposalAutoCompleted = new Proposal
         {
@@ -372,7 +386,7 @@ public static class SeedData
             ProposedBudget = 1500
         };
         context.Proposals.Add(proposalAutoCompleted);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         var projectAutoCompleted = new Project
         {
@@ -386,29 +400,29 @@ public static class SeedData
             Currency = "AICOIN"
         };
         context.Projects.Add(projectAutoCompleted);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         var milestoneAuto1 = new Milestone { ProjectId = projectAutoCompleted.Id, Title = "Script Development", Amount = 700, Status = MilestoneStatus.PAID, FundedAt = DateTime.UtcNow.AddDays(-7), ApprovedAt = DateTime.UtcNow.AddDays(-5), PaidAt = DateTime.UtcNow.AddDays(-5) };
         var milestoneAuto2 = new Milestone { ProjectId = projectAutoCompleted.Id, Title = "Deployment & Setup", Amount = 800, Status = MilestoneStatus.PAID, FundedAt = DateTime.UtcNow.AddDays(-6), ApprovedAt = DateTime.UtcNow.AddDays(-3), PaidAt = DateTime.UtcNow.AddDays(-3) };
         context.Milestones.AddRange(milestoneAuto1, milestoneAuto2);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         context.Deliverables.AddRange(
             new Deliverable { MilestoneId = milestoneAuto1.Id, ExpertId = expertAutomation.Id, Description = "Scraping script completed and verified", Status = DeliverableStatus.APPROVED, ReviewedAt = DateTime.UtcNow.AddDays(-5) },
             new Deliverable { MilestoneId = milestoneAuto2.Id, ExpertId = expertAutomation.Id, Description = "Deployment to VM complete", Status = DeliverableStatus.APPROVED, ReviewedAt = DateTime.UtcNow.AddDays(-3) }
         );
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         var paymentAuto1 = new Payment { ProjectId = projectAutoCompleted.Id, MilestoneId = milestoneAuto1.Id, PayerId = clientStartup.Id, PayeeId = expertAutomation.Id, Amount = 700, Status = PaymentStatus.RELEASED, HeldAt = DateTime.UtcNow.AddDays(-7), ReleasedAt = DateTime.UtcNow.AddDays(-5) };
         var paymentAuto2 = new Payment { ProjectId = projectAutoCompleted.Id, MilestoneId = milestoneAuto2.Id, PayerId = clientStartup.Id, PayeeId = expertAutomation.Id, Amount = 800, Status = PaymentStatus.RELEASED, HeldAt = DateTime.UtcNow.AddDays(-6), ReleasedAt = DateTime.UtcNow.AddDays(-3) };
         context.Payments.AddRange(paymentAuto1, paymentAuto2);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         context.Reviews.AddRange(
             new Review { ProjectId = projectAutoCompleted.Id, ReviewerId = clientStartup.Id, RevieweeId = expertAutomation.Id, Rating = 5, Comment = "Kenji is an automation wizard! Highly recommended." },
             new Review { ProjectId = projectAutoCompleted.Id, ReviewerId = expertAutomation.Id, RevieweeId = clientStartup.Id, Rating = 5, Comment = "Great client, clear requirements, prompt payments." }
         );
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         // ── 8. Job 5: In Progress (New - Automation) ─────────────────
         var jobAutomationInProgress = new JobPost
@@ -423,7 +437,7 @@ public static class SeedData
             Currency = "AICOIN"
         };
         context.JobPosts.Add(jobAutomationInProgress);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         var proposalAutoInProgress = new Proposal
         {
@@ -434,7 +448,7 @@ public static class SeedData
             ProposedBudget = 2000
         };
         context.Proposals.Add(proposalAutoInProgress);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         var projectAutoInProgress = new Project
         {
@@ -447,23 +461,23 @@ public static class SeedData
             Currency = "AICOIN"
         };
         context.Projects.Add(projectAutoInProgress);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         var milestoneAuto3 = new Milestone { ProjectId = projectAutoInProgress.Id, Title = "Zapier Trigger Integration", Amount = 1000, Status = MilestoneStatus.PAID, FundedAt = DateTime.UtcNow.AddDays(-4), ApprovedAt = DateTime.UtcNow.AddDays(-1), PaidAt = DateTime.UtcNow.AddDays(-1) };
         var milestoneAuto4 = new Milestone { ProjectId = projectAutoInProgress.Id, Title = "Action & Filtering Logic", Amount = 1000, Status = MilestoneStatus.FUNDED, FundedAt = DateTime.UtcNow.AddDays(-2) };
         context.Milestones.AddRange(milestoneAuto3, milestoneAuto4);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         context.Deliverables.AddRange(
             new Deliverable { MilestoneId = milestoneAuto3.Id, ExpertId = expertAutomation.Id, Description = "Webhook trigger and parsing logic completed", Status = DeliverableStatus.APPROVED, ReviewedAt = DateTime.UtcNow.AddDays(-1) },
             new Deliverable { MilestoneId = milestoneAuto4.Id, ExpertId = expertAutomation.Id, Description = "Filtered logic and spreadsheet mapping. Please check.", Status = DeliverableStatus.SUBMITTED }
         );
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         var paymentAuto3 = new Payment { ProjectId = projectAutoInProgress.Id, MilestoneId = milestoneAuto3.Id, PayerId = clientStartup.Id, PayeeId = expertAutomation.Id, Amount = 1000, Status = PaymentStatus.RELEASED, HeldAt = DateTime.UtcNow.AddDays(-4), ReleasedAt = DateTime.UtcNow.AddDays(-1) };
         var paymentAuto4 = new Payment { ProjectId = projectAutoInProgress.Id, MilestoneId = milestoneAuto4.Id, PayerId = clientStartup.Id, PayeeId = expertAutomation.Id, Amount = 1000, Status = PaymentStatus.HELD, HeldAt = DateTime.UtcNow.AddDays(-2) };
         context.Payments.AddRange(paymentAuto3, paymentAuto4);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         // ── 9. Wallet Transactions ───────────────────────────────────
         var walletStartup = clientStartup.Wallet!;
@@ -511,7 +525,7 @@ public static class SeedData
         context.WalletTransactions.Add(
             new WalletTransaction { WalletId = walletDataScientist.Id, UserId = expertDataScientist.Id, PaymentId = paymentOld3.Id, Type = WalletTransactionType.PAYMENT_RELEASE, Direction = TransactionDirection.CREDIT, Amount = 800, BalanceBefore = 0, BalanceAfter = 800, Description = "Payment release for Milestone: Full Analysis and Report" }
         );
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         // ── 10. Communication (Conversations & Messages) ──────────────
         var conversation = new Conversation
@@ -522,7 +536,7 @@ public static class SeedData
             ExpertId = expertAutomation.Id
         };
         context.Conversations.Add(conversation);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         context.Messages.AddRange(
             new Message { ConversationId = conversation.Id, SenderId = clientStartup.Id, Content = "Hi Kenji, thanks for accepting the project. Let's start with the Zapier trigger integration.", IsRead = true, ReadAt = DateTime.UtcNow.AddDays(-4) },
@@ -536,7 +550,7 @@ public static class SeedData
             new Notification { UserId = clientStartup.Id, Title = "Deliverable Submitted", Message = "Expert Kenji Tanaka submitted a deliverable for milestone Action & Filtering Logic", Type = "MILESTONE", IsRead = false },
             new Notification { UserId = expertAutomation.Id, Title = "Milestone Funded", Message = "Client TechNova Solutions funded milestone Action & Filtering Logic", Type = "PAYMENT", IsRead = true }
         );
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         // ── 12. AI Job Suggestion & Recommendation ───────────────────
         var aiSuggestion = new AIJobSuggestion
@@ -557,7 +571,7 @@ public static class SeedData
             Status = AIJobSuggestionStatus.GENERATED
         };
         context.AIJobSuggestions.Add(aiSuggestion);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         context.RecommendationResults.Add(new RecommendationResult
         {
@@ -572,6 +586,6 @@ public static class SeedData
             CompletionScore = 9.8m,
             Explanation = "Kenji is a top match for your CRM Zapier automation job due to his strong portfolio in automation workflows."
         });
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
     }
 }
