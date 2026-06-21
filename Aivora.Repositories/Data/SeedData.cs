@@ -73,7 +73,7 @@ public static class SeedData
         var expertJuniorAI = new User { Email = "expert.junior.ai@demo.com", PasswordHash = BCryptNet.HashPassword("123456"), FullName = "Ben Carter", Role = UserRole.EXPERT, Status = UserStatus.ACTIVE };
 
         // Lấy danh sách user hiện có từ database (không từ memory)
-        var existingUsers = await context.AsNoTracking().Users.ToListAsync();
+        var existingUsers = await context.Users.AsNoTracking().ToListAsync();
         var users = new List<User>();
 
         // Chỉ thêm user nếu chưa tồn tại
@@ -154,16 +154,7 @@ public static class SeedData
         // ── 3. Skills & Expert Skills (chỉ nếu có user mới) ────────────────────────────────────────
         if (users.Any())
         {
-            var skillPython = new Skill { Name = "Python", CategoryId = catData.Id };
-            var skillRAG = new Skill { Name = "RAG", CategoryId = catChatbot.Id };
-            var skillLangChain = new Skill { Name = "LangChain", CategoryId = catChatbot.Id };
-            var skillReact = new Skill { Name = "React", CategoryId = catWeb.Id };
-            var skillSQL = new Skill { Name = "SQL", CategoryId = catData.Id };
-            var skillSelenium = new Skill { Name = "Selenium", CategoryId = catWeb.Id };
-            var skillZapier = new Skill { Name = "Zapier", CategoryId = catWeb.Id };
-
-            context.Skills.AddRange(skillPython, skillRAG, skillLangChain, skillReact, skillSQL, skillSelenium, skillZapier);
-            await context.SaveChangesAsync();
+            // Skills đã được add ở trên, không cần add lại
 
             var seniorAIProfile = context.ExpertProfiles.First(p => p.UserId == expertSeniorAI.Id);
             var fullstackProfile = context.ExpertProfiles.First(p => p.UserId == expertFullstack.Id);
