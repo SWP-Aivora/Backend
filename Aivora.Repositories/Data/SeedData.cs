@@ -142,10 +142,19 @@ public static class SeedData
                 context.Users.AddRange(users);
                 await SaveChangesWithDuplicateHandling(context);
 
-                // Save users first to get their IDs
-                await SaveChangesWithDuplicateHandling(context);
+                // Try to save users, handle duplicates gracefully
+                try
+                {
+                    await SaveChangesWithDuplicateHandling(context);
+                }
+                catch (Microsoft.EntityFrameworkCore.DbUpdateException) when (!users.Any())
+                {
+                    // No users were inserted (all duplicates)
+                    context.ChangeTracker.Clear();
+                    return; // Exit if all users already exist
+                }
 
-                // Query users again to get updated IDs
+                // Query existing users (both newly inserted and existing ones)
                 var userIds = await context.Users
                     .Where(u => users.Select(u2 => u2.Email).Contains(u.Email))
                     .ToDictionaryAsync(u => u.Email, u => u.Id);
