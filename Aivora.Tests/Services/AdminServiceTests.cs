@@ -88,19 +88,19 @@ public class AdminServiceTests
     {
         // Arrange
         var dbContext = GetDbContext();
-        
+
         // Add users
         dbContext.Users.Add(new User { Id = Guid.NewGuid(), Email = "client1@test.com", FullName = "Client 1", Role = UserRole.CLIENT, Status = UserStatus.ACTIVE, PasswordHash = "x" });
         dbContext.Users.Add(new User { Id = Guid.NewGuid(), Email = "expert1@test.com", FullName = "Expert 1", Role = UserRole.EXPERT, Status = UserStatus.ACTIVE, PasswordHash = "x" });
-        
+
         // Add wallets with held balances
         dbContext.Wallets.Add(new Wallet { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), AvailableBalance = 100, HeldBalance = 1500 });
         dbContext.Wallets.Add(new Wallet { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), AvailableBalance = 200, HeldBalance = 2500 });
-        
+
         // Add projects
         dbContext.Projects.Add(new Project { Id = Guid.NewGuid(), Title = "Project 1", Status = ProjectStatus.ACTIVE });
         dbContext.Projects.Add(new Project { Id = Guid.NewGuid(), Title = "Project 2", Status = ProjectStatus.PENDING_PAYMENT });
-        
+
         // Add disputes
         dbContext.Disputes.Add(new Dispute { Id = Guid.NewGuid(), Status = DisputeStatus.OPEN, Reason = "Reason 1" });
         dbContext.Disputes.Add(new Dispute { Id = Guid.NewGuid(), Status = DisputeStatus.RESOLVED, Reason = "Reason 2" });
