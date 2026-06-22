@@ -58,10 +58,9 @@ public static class SeedData
                 await context.WalletTransactions.IgnoreQueryFilters().ExecuteDeleteAsync();
                 await context.Payments.IgnoreQueryFilters().ExecuteDeleteAsync();
 
-                // Tầng 2: Deliverables, Milestones và Projects
+                // Tầng 2: Deliverables, Milestones (Projects bị phụ thuộc bởi Reviews nên sẽ xóa sau)
                 await context.Deliverables.IgnoreQueryFilters().ExecuteDeleteAsync();
                 await context.Milestones.IgnoreQueryFilters().ExecuteDeleteAsync();
-                await context.Projects.IgnoreQueryFilters().ExecuteDeleteAsync();
 
                 // Tầng 3: Proposal Milestones, Proposals
                 await context.ProposalMilestones.IgnoreQueryFilters().ExecuteDeleteAsync();
@@ -79,15 +78,18 @@ public static class SeedData
                 await context.Skills.IgnoreQueryFilters().ExecuteDeleteAsync();
                 await context.Categories.IgnoreQueryFilters().ExecuteDeleteAsync();
 
-                // Tầng 6: Profiles, Reviews, Communications & Support
+                // Tầng 6: Reviews và Projects (Projects phụ thuộc bởi Reviews nên xóa sau)
+                await context.Reviews.IgnoreQueryFilters().ExecuteDeleteAsync();
+                await context.Projects.IgnoreQueryFilters().ExecuteDeleteAsync();
+
+                // Tầng 7: Profiles, Communications & Support
                 await context.ExpertProfiles.IgnoreQueryFilters().ExecuteDeleteAsync();
                 await context.ClientProfiles.IgnoreQueryFilters().ExecuteDeleteAsync();
-                await context.Reviews.IgnoreQueryFilters().ExecuteDeleteAsync();
                 await context.Notifications.IgnoreQueryFilters().ExecuteDeleteAsync();
                 await context.Messages.IgnoreQueryFilters().ExecuteDeleteAsync();
                 await context.Conversations.IgnoreQueryFilters().ExecuteDeleteAsync();
 
-                // Tầng 7: Wallets & Users (Root nodes)
+                // Tầng 8: Wallets & Users (Root nodes)
                 await context.Wallets.IgnoreQueryFilters().ExecuteDeleteAsync();
                 await context.Users.IgnoreQueryFilters().ExecuteDeleteAsync();
             }
