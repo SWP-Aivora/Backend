@@ -365,7 +365,11 @@ public class E2EBusinessFlowTests
         // 5. Expert Submits and Client Approves -> Payment Released
         // ----------------------------------------------------
         var deliverableService = new Aivora.Services.DeliverableService.Service(dbContext, treasury);
-        await deliverableService.SubmitDeliverableAsync(expertId, milestone.Id, new Aivora.Services.DeliverableService.Request.SubmitDeliverableRequest { Description = "Done" });
+        await deliverableService.SubmitDeliverableAsync(expertId, milestone.Id, new Aivora.Services.DeliverableService.Request.SubmitDeliverableRequest 
+        { 
+            Description = "Done",
+            Note = "Done"
+        });
         await milestoneService.ApproveMilestoneAsync(clientId, milestone.Id);
 
         // Assert Final state
@@ -419,6 +423,22 @@ public class E2EBusinessFlowTests
             .WithMessage("Milestone must be in SUBMITTED status to be approved and completed.");
 
         // ----------------------------------------------------
+        // Negative Test 1b: Submit deliverable with all blank evidence fields
+        // ----------------------------------------------------
+        var deliverableService = new Aivora.Services.DeliverableService.Service(dbContext, treasury);
+        var blankDeliverableReq = new Aivora.Services.DeliverableService.Request.SubmitDeliverableRequest
+        {
+            Description = "Empty evidence fields",
+            FileUrl = null,
+            DemoUrl = "",
+            SourceCodeUrl = "   ",
+            Note = null
+        };
+        Func<Task> blankDeliverable = async () => await deliverableService.SubmitDeliverableAsync(expertId, milestone.Id, blankDeliverableReq);
+        await blankDeliverable.Should().ThrowAsync<ValidationException>()
+            .WithMessage("At least one evidence field (FileUrl, DemoUrl, SourceCodeUrl, Note) must be provided.");
+
+        // ----------------------------------------------------
         // Negative Test 2: Review before project is completed
         // ----------------------------------------------------
         var earlyReviewReq = new Aivora.Services.ReviewService.Request.CreateReviewRequest
@@ -449,6 +469,46 @@ public class E2EBusinessFlowTests
         Func<Task> selfReview = async () => await reviewService.CreateReviewAsync(clientId, selfReviewReq);
         await selfReview.Should().ThrowAsync<ValidationException>()
             .WithMessage("You cannot review yourself.");
+
+        // ----------------------------------------------------
+        // Negative Test 4b: Review with rating outside 1..5
+        // ----------------------------------------------------
+        var invalidRatingReq1 = new Aivora.Services.ReviewService.Request.CreateReviewRequest
+        {
+            ProjectId = project.Id,
+            RevieweeId = expertId,
+            Rating = 0,
+            Comment = "Invalid rating 0"
+        };
+        Func<Task> invalidRating1 = async () => await reviewService.CreateReviewAsync(clientId, invalidRatingReq1);
+        await invalidRating1.Should().ThrowAsync<ValidationException>()
+            .WithMessage("Rating must be between 1 and 5.");
+
+        var invalidRatingReq2 = new Aivora.Services.ReviewService.Request.CreateReviewRequest
+        {
+            ProjectId = project.Id,
+            RevieweeId = expertId,
+            Rating = 6,
+            Comment = "Invalid rating 6"
+        };
+        Func<Task> invalidRating2 = async () => await reviewService.CreateReviewAsync(clientId, invalidRatingReq2);
+        await invalidRating2.Should().ThrowAsync<ValidationException>()
+            .WithMessage("Rating must be between 1 and 5.");
+
+        // ----------------------------------------------------
+        // Negative Test 4c: Review with sub-rating outside 1..5
+        // ----------------------------------------------------
+        var invalidSubRatingReq = new Aivora.Services.ReviewService.Request.CreateReviewRequest
+        {
+            ProjectId = project.Id,
+            RevieweeId = expertId,
+            Rating = 4,
+            CommunicationRating = -1,
+            Comment = "Invalid sub-rating"
+        };
+        Func<Task> invalidSubRating = async () => await reviewService.CreateReviewAsync(clientId, invalidSubRatingReq);
+        await invalidSubRating.Should().ThrowAsync<ValidationException>()
+            .WithMessage("Communication rating must be between 1 and 5.");
 
         // ----------------------------------------------------
         // Negative Test 5: Duplicate review for same project/reviewer
@@ -505,7 +565,7 @@ public class E2EBusinessFlowTests
         var disputedProject = await dbContext.Projects.FindAsync(project.Id);
         disputedProject!.Status.Should().Be(ProjectStatus.DISPUTED);
 
-        var frozenPayment = await dbContext.Payments.FindAsync(payment.Id);
-        frozenPayment!.Status.Should().Be(PaymentStatus.FROZEN);
+        var heldDisputedPayment = await dbContext.Payments.FindAsync(payment.Id);
+        heldDisputedPayment!.Status.Should().Be(PaymentStatus.HELD);
     }
 }

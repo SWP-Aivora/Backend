@@ -82,4 +82,42 @@ public class AdminServiceTests
         var updatedUser = await dbContext.Users.FindAsync(userId);
         updatedUser!.Status.Should().Be(UserStatus.ACTIVE);
     }
+
+    [Fact]
+    public async Task GetDashboardStatsAsync_ReturnsCorrectStats()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        
+        // Add users
+        dbContext.Users.Add(new User { Id = Guid.NewGuid(), Email = "client1@test.com", FullName = "Client 1", Role = UserRole.CLIENT, Status = UserStatus.ACTIVE, PasswordHash = "x" });
+        dbContext.Users.Add(new User { Id = Guid.NewGuid(), Email = "expert1@test.com", FullName = "Expert 1", Role = UserRole.EXPERT, Status = UserStatus.ACTIVE, PasswordHash = "x" });
+        
+        // Add wallets with held balances
+        dbContext.Wallets.Add(new Wallet { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), AvailableBalance = 100, HeldBalance = 1500 });
+        dbContext.Wallets.Add(new Wallet { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), AvailableBalance = 200, HeldBalance = 2500 });
+        
+        // Add projects
+        dbContext.Projects.Add(new Project { Id = Guid.NewGuid(), Title = "Project 1", Status = ProjectStatus.ACTIVE });
+        dbContext.Projects.Add(new Project { Id = Guid.NewGuid(), Title = "Project 2", Status = ProjectStatus.PENDING_PAYMENT });
+        
+        // Add disputes
+        dbContext.Disputes.Add(new Dispute { Id = Guid.NewGuid(), Status = DisputeStatus.OPEN, Reason = "Reason 1" });
+        dbContext.Disputes.Add(new Dispute { Id = Guid.NewGuid(), Status = DisputeStatus.RESOLVED, Reason = "Reason 2" });
+
+        await dbContext.SaveChangesAsync();
+
+        var service = new AdminService(dbContext, Mock.Of<ILogger<AdminService>>());
+
+        // Act
+        var result = await service.GetDashboardStatsAsync();
+
+        // Assert
+        result.TotalUsers.Should().Be(2);
+        result.TotalClients.Should().Be(1);
+        result.TotalExperts.Should().Be(1);
+        result.ActiveProjects.Should().Be(1);
+        result.OpenDisputes.Should().Be(1);
+        result.TotalSimulatedTransferAmount.Should().Be(4000); // 1500 + 2500
+    }
 }

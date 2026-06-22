@@ -53,6 +53,11 @@ public class DisputeController : ControllerBase
         return Ok(ApiResponseFactory.SuccessResponse(result, "Evidence added successfully", HttpContext.TraceIdentifier));
     }
 
+    /// <summary>
+    /// Legacy Admin/Demo-only endpoint to resolve disputes.
+    /// This endpoint is used only for demonstration and testing of database status sync.
+    /// It does not trigger real financial refunds or platform payouts.
+    /// </summary>
     [HttpPut("{id}/resolve")]
     [Authorize(Policy = JwtExtensions.AdminPolicy)]
     public async Task<IActionResult> ResolveDispute(Guid id, [FromBody] Request.ResolveDisputeRequest request)

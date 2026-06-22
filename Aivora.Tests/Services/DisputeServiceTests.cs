@@ -60,7 +60,7 @@ public class DisputeServiceTests
         updatedProject!.Status.Should().Be(ProjectStatus.DISPUTED);
 
         var updatedPayment = await dbContext.Payments.FindAsync(payment.Id);
-        updatedPayment!.Status.Should().Be(PaymentStatus.FROZEN);
+        updatedPayment!.Status.Should().Be(PaymentStatus.HELD);
     }
 
     [Fact]
