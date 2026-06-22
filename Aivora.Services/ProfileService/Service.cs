@@ -195,4 +195,82 @@ public class Service : IService
             SuccessRate = p.SuccessRate
         }).ToList();
     }
+
+    public async Task<Response.PaginatedExpertListResponse> SearchExpertsAsync(Request.SearchExpertsRequest request)
+    {
+        var query = _dbContext.ExpertProfiles
+            .Include(p => p.User)
+            .Include(p => p.ExpertSkills)
+                .ThenInclude(es => es.Skill)
+            .Include(p => p.User.UserSkills)
+                .ThenInclude(us => us.Skill)
+            .AsQueryable();
+
+        // Apply keyword search
+        if (!string.IsNullOrWhiteSpace(request.Keyword))
+        {
+            var keyword = request.Keyword.ToLower();
+            query = query.Where(p =>
+                p.User.FullName.ToLower().Contains(keyword) ||
+                p.Title.ToLower().Contains(keyword) ||
+                p.Bio.ToLower().Contains(keyword) ||
+                p.ExpertSkills.Any(es => es.Skill.Name.ToLower().Contains(keyword)) ||
+                p.User.UserSkills.Any(us => us.Skill.Name.ToLower().Contains(keyword)));
+        }
+
+        // Apply category filter
+        if (request.CategoryId.HasValue)
+        {
+            query = query.Where(p =>
+                p.ExpertSkills.Any(es => es.Skill.CategoryId == request.CategoryId.Value));
+        }
+
+        // Get total count
+        var totalCount = await query.CountAsync();
+
+        // Apply pagination
+        var experts = await query
+            .OrderByDescending(p => p.Rating)
+            .ThenByDescending(p => p.SuccessRate)
+            .Skip((request.Page - 1) * request.PageSize)
+            .Take(request.PageSize)
+            .ToListAsync();
+
+        // Transform response with standardized skills
+        var expertResponses = experts.Select(p => new Response.ExpertProfileResponse
+        {
+            UserId = p.UserId,
+            FullName = p.User.FullName,
+            AvatarUrl = p.User.AvatarUrl,
+            Title = p.Title,
+            Bio = p.Bio,
+            HourlyRate = p.HourlyRate,
+            ExperienceYears = p.ExperienceYears,
+            AvailabilityStatus = p.AvailabilityStatus,
+            Rating = p.Rating,
+            TotalReviews = p.TotalReviews,
+            CompletedProjects = p.CompletedProjects,
+            SuccessRate = p.SuccessRate,
+            Skills = p.ExpertSkills.Select(es => new Response.ExpertSkillResponse
+            {
+                SkillId = es.SkillId,
+                SkillName = es.Skill.Name,
+                ProficiencyLevel = es.ProficiencyLevel
+            }).Concat(p.User.UserSkills.Select(us => new Response.ExpertSkillResponse
+            {
+                SkillId = us.SkillId,
+                SkillName = us.Skill.Name,
+                ProficiencyLevel = us.ProficiencyLevel
+            })).ToList()
+        }).ToList();
+
+        return new Response.PaginatedExpertListResponse
+        {
+            Experts = expertResponses,
+            TotalCount = totalCount,
+            Page = request.Page,
+            PageSize = request.PageSize,
+            TotalPages = (int)Math.Ceiling((double)totalCount / request.PageSize)
+        };
+    }
 }

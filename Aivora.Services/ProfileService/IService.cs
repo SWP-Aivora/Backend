@@ -13,4 +13,5 @@ public interface IService
     Task<Aivora.Services.IdentityService.Response.UserResponse> UpdateUserAsync(Guid userId, Request.UpdateUserRequest request);
     Task<Response.ExpertProfileResponse> GetPublicExpertProfileAsync(Guid expertId);
     Task<List<Response.ExpertProfileResponse>> GetFeaturedExpertsAsync(int count);
+    Task<Response.PaginatedExpertListResponse> SearchExpertsAsync(Request.SearchExpertsRequest request);
 }

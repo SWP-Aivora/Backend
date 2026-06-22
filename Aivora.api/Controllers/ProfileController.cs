@@ -71,4 +71,23 @@ public class ProfileController : ControllerBase
         var result = await _profileService.GetFeaturedExpertsAsync(count);
         return Ok(ApiResponseFactory.SuccessResponse(result, "Featured experts retrieved successfully", HttpContext.TraceIdentifier));
     }
+
+    [HttpGet("experts/search")]
+    [AllowAnonymous]
+    public async Task<IActionResult> SearchExperts(
+        [FromQuery] string? keyword = null,
+        [FromQuery] Guid? categoryId = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10)
+    {
+        var request = new Aivora.Services.ProfileService.Request.SearchExpertsRequest
+        {
+            Keyword = keyword,
+            CategoryId = categoryId,
+            Page = page,
+            PageSize = pageSize
+        };
+        var result = await _profileService.SearchExpertsAsync(request);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Experts searched successfully", HttpContext.TraceIdentifier));
+    }
 }
