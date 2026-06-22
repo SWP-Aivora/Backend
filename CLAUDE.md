@@ -170,7 +170,7 @@ dotnet ef database update --startup-project ../Aivora.api
 
 | File | Purpose |
 |------|---------|
-| `Aivora.api/Program.cs` | Service registration, middleware pipeline, DB seed |
+| `Aivora.api/Program.cs` | Service registration, middleware pipeline, database migration |
 | `docs/ENV.md` | All environment variables |
 | `docs/architecture/IMPROVEMENTS.md` | Known architectural debt & planned improvements |
 | `docs/flows/MAINFLOW.md` | 4 main business flows (source of truth) |
@@ -191,21 +191,9 @@ dotnet ef database update --startup-project ../Aivora.api
 7. **Mock AI fallback:** When `AIProvider__ApiKey` is not set, all AI endpoints return Mock responses. This is intentional for development/testing.
 8. **SignalR hub:** Chat uses `/api/v1/chat` hub (not REST). Methods: `SendMessage(conversationId, content)`. Events: `ReceiveMessage`, `ReadConfirmation`, `Error`.
 9. **Database seeding with duplicate keys:** Robust duplicate key handling implemented - all `SaveChangesAsync()` calls are wrapped in `SaveChangesWithDuplicateHandling()` which catches Postgres error 23505 and continues gracefully with warnings. Seeding will never crash due to duplicate constraints.
-10. **SeedForceReset in Production:** Currently temporarily allowed in Production for testing purposes. Should be reverted to Development-only once seeding is stable.
 
 ---
 
-## 📊 Database Seed Accounts
-
-| Email | Role |
-|-------|------|
-| `client@test.com` | CLIENT |
-| `expert@test.com` | EXPERT |
-| `admin@test.com` | ADMIN |
-
-Use these for local development and testing.
-
----
 
 ## 📚 References
 

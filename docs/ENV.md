@@ -37,7 +37,6 @@ These variables **must** be set or the application will crash at startup with `I
 | `RateLimit__AI__WindowInMinutes` | `RateLimit:AI:WindowInMinutes` | `1` | AI policy: window size in minutes |
 | `RateLimit__General__PermitLimit` | `RateLimit:General:PermitLimit` | `100` | General policy: max requests per window |
 | `RateLimit__General__WindowInMinutes` | `RateLimit:General:WindowInMinutes` | `1` | General policy: window size in minutes |
-| `SeedForceReset` | `SeedForceReset` | `false` | When `true`, deletes all data and re-seeds on startup |
 
 ---
 
