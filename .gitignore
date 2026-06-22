@@ -35,7 +35,6 @@ build_log.txt
 .env
 
 # AI assistant config
-CLAUDE.md
 AGENTS.md
 
 # Local documentation

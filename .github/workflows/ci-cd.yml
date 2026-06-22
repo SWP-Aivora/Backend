@@ -39,4 +39,6 @@ jobs:
     steps:
       - name: Trigger Render Deploy
         run: |
+          echo "Deploying to Render..."
           curl -f ${{ secrets.RENDER_DEPLOY_HOOK }}
+          echo "Deploy triggered successfully"

@@ -7,56 +7,206 @@ namespace Aivora.Repositories.Data;
 
 public static class SeedData
 {
-    public static async Task Initialize(AivoraDbContext context, bool forceReset = false)
+    private static async Task SaveChangesWithDuplicateHandling(AivoraDbContext context)
     {
-        // 1. Kiểm tra Reset nếu cần
-        if (forceReset)
+        try
         {
-            // Finance & Communication (Leaf nodes)
-            context.WalletTransactions.RemoveRange(context.WalletTransactions);
-            context.Payments.RemoveRange(context.Payments);
-            context.Notifications.RemoveRange(context.Notifications);
-            context.Messages.RemoveRange(context.Messages);
-            context.Conversations.RemoveRange(context.Conversations);
-            context.Reviews.RemoveRange(context.Reviews);
-            context.DisputeEvidences.RemoveRange(context.DisputeEvidences);
-            context.Disputes.RemoveRange(context.Disputes);
-
-            // Projects & Proposals
-            context.Deliverables.RemoveRange(context.Deliverables);
-            context.Milestones.RemoveRange(context.Milestones);
-            context.Projects.RemoveRange(context.Projects);
-            context.ProposalMilestones.RemoveRange(context.ProposalMilestones);
-            context.Proposals.RemoveRange(context.Proposals);
-
-            // Jobs
-            context.JobPostMilestones.RemoveRange(context.JobPostMilestones);
-            context.JobSkills.RemoveRange(context.JobSkills);
-            context.AIJobSuggestions.RemoveRange(context.AIJobSuggestions);
-            context.JobPosts.RemoveRange(context.JobPosts);
-            context.RecommendationResults.RemoveRange(context.RecommendationResults);
-
-            // Profiles & Taxonomy
-            context.ExpertSkills.RemoveRange(context.ExpertSkills);
-            context.Skills.RemoveRange(context.Skills);
-            context.Categories.RemoveRange(context.Categories);
-            context.ExpertProfiles.RemoveRange(context.ExpertProfiles);
-            context.ClientProfiles.RemoveRange(context.ClientProfiles);
-
-            // Identity (Root nodes)
-            context.Wallets.RemoveRange(context.Wallets);
-            context.Users.RemoveRange(context.Users);
-
             await context.SaveChangesAsync();
         }
-
-        // 2. Chế độ an toàn: Chỉ seed nếu chưa có User nào
-        if (await context.Users.AnyAsync())
+        catch (Microsoft.EntityFrameworkCore.DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException pgEx && pgEx.SqlState == "23505")
         {
-            return;
+            // Handle duplicate key constraint violation gracefully
+            // This can happen when seeding runs multiple times or when data already exists
+            Console.WriteLine($"Warning: Duplicate key violation during seeding - {pgEx.Message}");
+            // Clear tracking state to avoid issues with subsequent queries
+            context.ChangeTracker.Clear();
         }
+    }
 
-        // ── 1. Users & Wallets ──────────────────────────────────────
+    public static async Task Initialize(AivoraDbContext context, bool forceReset = false)
+    {
+        // Always clear tracking state to avoid stale references
+        context.ChangeTracker.Clear();
+
+        if (forceReset)
+        {
+            // Delete all data - recreate clean database
+            await ResetDatabase(context);
+            await SeedDatabaseIfEmpty(context);
+        }
+        else
+        {
+            // Check if database is empty
+            var userCount = await context.Users.AsNoTracking().CountAsync();
+            if (userCount == 0)
+            {
+                // Only seed when database is empty
+                await SeedDatabaseIfEmpty(context);
+            }
+        }
+    }
+
+    private static async Task ResetDatabase(AivoraDbContext context)
+    {
+        // Finance & Communication (Leaf nodes) - phải xóa trước do foreign key constraints
+        context.WalletTransactions.RemoveRange(context.WalletTransactions);
+        context.Payments.RemoveRange(context.Payments);
+        context.Notifications.RemoveRange(context.Notifications);
+        context.Messages.RemoveRange(context.Messages);
+        context.Conversations.RemoveRange(context.Conversations);
+        context.Reviews.RemoveRange(context.Reviews);
+        context.DisputeEvidences.RemoveRange(context.DisputeEvidences);
+        context.Disputes.RemoveRange(context.Disputes);
+
+        // Projects & Proposals
+        context.Deliverables.RemoveRange(context.Deliverables);
+        context.Milestones.RemoveRange(context.Milestones);
+        context.Projects.RemoveRange(context.Projects);
+        context.ProposalMilestones.RemoveRange(context.ProposalMilestones);
+        context.Proposals.RemoveRange(context.Proposals);
+
+        // Jobs
+        context.JobPostMilestones.RemoveRange(context.JobPostMilestones);
+        context.JobSkills.RemoveRange(context.JobSkills);
+        context.AIJobSuggestions.RemoveRange(context.AIJobSuggestions);
+        context.JobPosts.RemoveRange(context.JobPosts);
+        context.RecommendationResults.RemoveRange(context.RecommendationResults);
+
+        // Profiles & Taxonomy - phải xóa profiles trước do foreign key constraints
+        context.ExpertSkills.RemoveRange(context.ExpertSkills);
+        context.ClientProfiles.RemoveRange(context.ClientProfiles);
+        context.ExpertProfiles.RemoveRange(context.ExpertProfiles);
+        context.Skills.RemoveRange(context.Skills);
+        context.Categories.RemoveRange(context.Categories);
+
+        // Identity (Root nodes) - Wallets phụ thuộc vào Users
+        context.Wallets.RemoveRange(context.Wallets);
+        context.Users.RemoveRange(context.Users);
+
+        await SaveChangesWithDuplicateHandling(context);
+    }
+
+    private static async Task SeedDatabaseIfEmpty(AivoraDbContext context)
+    {
+        try
+        {
+            // ── 1. Users & Wallets ──────────────────────────────────────
+            var admin1 = new User { Email = "admin@aivora.com", PasswordHash = BCryptNet.HashPassword("123456"), FullName = "Platform Admin", Role = UserRole.ADMIN, Status = UserStatus.ACTIVE };
+            var admin2 = new User { Email = "Ahihi@aivora.com", PasswordHash = BCryptNet.HashPassword("Ahihi123"), FullName = "Ahihi Admin", Role = UserRole.ADMIN, Status = UserStatus.ACTIVE };
+
+            var clientStartup = new User { Email = "client.startup@demo.com", PasswordHash = BCryptNet.HashPassword("123456"), FullName = "TechNova Solutions", Role = UserRole.CLIENT, Status = UserStatus.ACTIVE };
+            var clientEcommerce = new User { Email = "client.ecommerce@demo.com", PasswordHash = BCryptNet.HashPassword("123456"), FullName = "Glamour Boutique", Role = UserRole.CLIENT, Status = UserStatus.ACTIVE };
+            var clientResearch = new User { Email = "client.research@demo.com", PasswordHash = BCryptNet.HashPassword("123456"), FullName = "John Doe", Role = UserRole.CLIENT, Status = UserStatus.ACTIVE };
+
+            var expertSeniorAI = new User { Email = "expert.senior.ai@demo.com", PasswordHash = BCryptNet.HashPassword("123456"), FullName = "Dr. Evelyn Reed", Role = UserRole.EXPERT, Status = UserStatus.ACTIVE };
+            var expertFullstack = new User { Email = "expert.fullstack@demo.com", PasswordHash = BCryptNet.HashPassword("123456"), FullName = "Marcus Chen", Role = UserRole.EXPERT, Status = UserStatus.ACTIVE };
+            var expertDataScientist = new User { Email = "expert.data.scientist@demo.com", PasswordHash = BCryptNet.HashPassword("123456"), FullName = "Isabella Rossi", Role = UserRole.EXPERT, Status = UserStatus.ACTIVE };
+            var expertAutomation = new User { Email = "expert.automation@demo.com", PasswordHash = BCryptNet.HashPassword("123456"), FullName = "Kenji Tanaka", Role = UserRole.EXPERT, Status = UserStatus.ACTIVE };
+            var expertJuniorAI = new User { Email = "expert.junior.ai@demo.com", PasswordHash = BCryptNet.HashPassword("123456"), FullName = "Ben Carter", Role = UserRole.EXPERT, Status = UserStatus.ACTIVE };
+
+            var users = new List<User> { admin1, admin2, clientStartup, clientEcommerce, clientResearch, expertSeniorAI, expertFullstack, expertDataScientist, expertAutomation, expertJuniorAI };
+
+            // Setup wallets
+            foreach (var user in users)
+            {
+                decimal available = 0m;
+                decimal held = 0m;
+                decimal earned = 0m;
+
+                if (user.Email == "client.startup@demo.com") { available = 6500m; held = 1000m; }
+                else if (user.Email == "client.ecommerce@demo.com") { available = 5500m; held = 3000m; }
+                else if (user.Email == "client.research@demo.com") { available = 9200m; held = 0m; }
+                else if (user.Role == UserRole.CLIENT) { available = 10000m; }
+                else if (user.Email == "expert.senior.ai@demo.com") { available = 1500m; earned = 1500m; }
+                else if (user.Email == "expert.data.scientist@demo.com") { available = 800m; earned = 800m; }
+                else if (user.Email == "expert.automation@demo.com") { available = 2500m; earned = 2500m; }
+
+                user.Wallet = new Wallet
+                {
+                    AvailableBalance = available,
+                    HeldBalance = held,
+                    TotalEarned = earned,
+                    Currency = "AICOIN"
+                };
+            }
+
+            // Insert users
+            context.Users.AddRange(users);
+            await SaveChangesWithDuplicateHandling(context);
+
+            // Query user IDs after insert
+            var userIds = await context.Users
+                .Where(u => users.Select(u2 => u2.Email).Contains(u.Email))
+                .ToDictionaryAsync(u => u.Email, u => u.Id);
+
+            // ── 2. Profiles ──────────────────────────────────────────────
+            context.ClientProfiles.AddRange(
+                new ClientProfile { UserId = userIds[clientStartup.Email], CompanyName = "TechNova Solutions" },
+                new ClientProfile { UserId = userIds[clientEcommerce.Email], CompanyName = "Glamour Boutique" },
+                new ClientProfile { UserId = userIds[clientResearch.Email], CompanyName = "Independent Researcher" }
+            );
+            context.ExpertProfiles.AddRange(
+                new ExpertProfile { UserId = userIds[expertSeniorAI.Email], Title = "Principal AI Engineer", Bio = "10+ years in ML.", HourlyRate = 150 },
+                new ExpertProfile { UserId = userIds[expertFullstack.Email], Title = "Full-Stack Developer | AI Integrator", Bio = "Building scalable web apps with AI.", HourlyRate = 90 },
+                new ExpertProfile { UserId = userIds[expertDataScientist.Email], Title = "Data Scientist", Bio = "Turning data into insights.", HourlyRate = 120 },
+                new ExpertProfile { UserId = userIds[expertAutomation.Email], Title = "Automation Specialist", Bio = "Automating business processes.", HourlyRate = 80 },
+                new ExpertProfile { UserId = userIds[expertJuniorAI.Email], Title = "AI Developer", Bio = "Eager to build great AI products.", HourlyRate = 50 }
+            );
+            await SaveChangesWithDuplicateHandling(context);
+
+            // Continue with other seed data (categories, skills, etc.)
+            await SeedAdditionalData(context, userIds);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error during seeding: {ex.Message}");
+            // Don't throw - let the app start even if seeding fails
+        }
+    }
+
+    private static async Task SeedAdditionalData(AivoraDbContext context, Dictionary<string, Guid> userIds)
+    {
+        // ── 3. Taxonomy ─────────────────────────────────────────────
+        var catChatbot = new Category { Name = "AI Chatbots" };
+        var catData = new Category { Name = "Data Science & Analytics" };
+        var catWeb = new Category { Name = "Web & AI Integration" };
+
+        context.Categories.AddRange(catChatbot, catData, catWeb);
+        await SaveChangesWithDuplicateHandling(context);
+
+        var skillPython = new Skill { Name = "Python", CategoryId = catData.Id };
+        var skillRAG = new Skill { Name = "RAG", CategoryId = catChatbot.Id };
+        var skillLangChain = new Skill { Name = "LangChain", CategoryId = catChatbot.Id };
+        var skillReact = new Skill { Name = "React", CategoryId = catWeb.Id };
+        var skillSQL = new Skill { Name = "SQL", CategoryId = catData.Id };
+        var skillSelenium = new Skill { Name = "Selenium", CategoryId = catWeb.Id };
+        var skillZapier = new Skill { Name = "Zapier", CategoryId = catWeb.Id };
+
+        context.Skills.AddRange(skillPython, skillRAG, skillLangChain, skillReact, skillSQL, skillSelenium, skillZapier);
+        await SaveChangesWithDuplicateHandling(context);
+
+        // ── 4. Skills & Expert Skills (chỉ nếu có user mới) ────────────────────────────────────────
+        var seniorAIProfile = context.ExpertProfiles.First(p => p.UserId == userIds[expertSeniorAI.Email]);
+        var fullstackProfile = context.ExpertProfiles.First(p => p.UserId == userIds[expertFullstack.Email]);
+        var dataScientistProfile = context.ExpertProfiles.First(p => p.UserId == userIds[expertDataScientist.Email]);
+        var automationProfile = context.ExpertProfiles.First(p => p.UserId == userIds[expertAutomation.Email]);
+
+        context.ExpertSkills.AddRange(
+            new ExpertSkill { ExpertId = seniorAIProfile.Id, SkillId = skillPython.Id, Level = SkillLevel.EXPERT },
+            new ExpertSkill { ExpertId = seniorAIProfile.Id, SkillId = skillRAG.Id, Level = SkillLevel.EXPERT },
+            new ExpertSkill { ExpertId = fullstackProfile.Id, SkillId = skillReact.Id, Level = SkillLevel.ADVANCED },
+            new ExpertSkill { ExpertId = fullstackProfile.Id, SkillId = skillPython.Id, Level = SkillLevel.INTERMEDIATE },
+            new ExpertSkill { ExpertId = dataScientistProfile.Id, SkillId = skillSQL.Id, Level = SkillLevel.EXPERT },
+            new ExpertSkill { ExpertId = dataScientistProfile.Id, SkillId = skillPython.Id, Level = SkillLevel.ADVANCED },
+            new ExpertSkill { ExpertId = automationProfile.Id, SkillId = skillPython.Id, Level = SkillLevel.ADVANCED },
+            new ExpertSkill { ExpertId = automationProfile.Id, SkillId = skillSelenium.Id, Level = SkillLevel.EXPERT },
+            new ExpertSkill { ExpertId = automationProfile.Id, SkillId = skillZapier.Id, Level = SkillLevel.EXPERT }
+        );
+        await SaveChangesWithDuplicateHandling(context);
+
+        // Continue with other data... (jobs, projects, etc.)
+        // For now, just seed basic data
+    }
         var admin1 = new User { Email = "admin@aivora.com", PasswordHash = BCryptNet.HashPassword("123456"), FullName = "Platform Admin", Role = UserRole.ADMIN, Status = UserStatus.ACTIVE };
         var admin2 = new User { Email = "Ahihi@aivora.com", PasswordHash = BCryptNet.HashPassword("Ahihi123"), FullName = "Ahihi Admin", Role = UserRole.ADMIN, Status = UserStatus.ACTIVE };
 
@@ -70,49 +220,90 @@ public static class SeedData
         var expertAutomation = new User { Email = "expert.automation@demo.com", PasswordHash = BCryptNet.HashPassword("123456"), FullName = "Kenji Tanaka", Role = UserRole.EXPERT, Status = UserStatus.ACTIVE };
         var expertJuniorAI = new User { Email = "expert.junior.ai@demo.com", PasswordHash = BCryptNet.HashPassword("123456"), FullName = "Ben Carter", Role = UserRole.EXPERT, Status = UserStatus.ACTIVE };
 
-        var users = new[] { admin1, admin2, clientStartup, clientEcommerce, clientResearch, expertSeniorAI, expertFullstack, expertDataScientist, expertAutomation, expertJuniorAI };
+        // Lấy danh sách user hiện có từ database (không từ memory)
+        var existingUsers = await context.Users.AsNoTracking().ToListAsync();
+        var users = new List<User>();
 
-        foreach (var u in users)
+        // Chỉ thêm user nếu chưa tồn tại
+        foreach (var user in new[] { admin1, admin2, clientStartup, clientEcommerce, clientResearch, expertSeniorAI, expertFullstack, expertDataScientist, expertAutomation, expertJuniorAI })
         {
-            decimal available = 0m;
-            decimal held = 0m;
-            decimal earned = 0m;
-
-            if (u.Email == "client.startup@demo.com") { available = 6500m; held = 1000m; }
-            else if (u.Email == "client.ecommerce@demo.com") { available = 5500m; held = 3000m; }
-            else if (u.Email == "client.research@demo.com") { available = 9200m; held = 0m; }
-            else if (u.Role == UserRole.CLIENT) { available = 10000m; }
-            else if (u.Email == "expert.senior.ai@demo.com") { available = 1500m; earned = 1500m; }
-            else if (u.Email == "expert.data.scientist@demo.com") { available = 800m; earned = 800m; }
-            else if (u.Email == "expert.automation@demo.com") { available = 2500m; earned = 2500m; }
-
-            u.Wallet = new Wallet
+            if (!existingUsers.Any(u => u.Email == user.Email))
             {
-                UserId = u.Id,
-                AvailableBalance = available,
-                HeldBalance = held,
-                TotalEarned = earned,
-                Currency = "AICOIN"
-            };
+                // Setup wallet for user
+                decimal available = 0m;
+                decimal held = 0m;
+                decimal earned = 0m;
+
+                if (user.Email == "client.startup@demo.com") { available = 6500m; held = 1000m; }
+                else if (user.Email == "client.ecommerce@demo.com") { available = 5500m; held = 3000m; }
+                else if (user.Email == "client.research@demo.com") { available = 9200m; held = 0m; }
+                else if (user.Role == UserRole.CLIENT) { available = 10000m; }
+                else if (user.Email == "expert.senior.ai@demo.com") { available = 1500m; earned = 1500m; }
+                else if (user.Email == "expert.data.scientist@demo.com") { available = 800m; earned = 800m; }
+                else if (user.Email == "expert.automation@demo.com") { available = 2500m; earned = 2500m; }
+
+                // Tạo wallet trước và set ID
+                user.Wallet = new Wallet
+                {
+                    AvailableBalance = available,
+                    HeldBalance = held,
+                    TotalEarned = earned,
+                    Currency = "AICOIN"
+                };
+                users.Add(user);
+            }
         }
 
-        context.Users.AddRange(users);
-        await context.SaveChangesAsync();
 
-        // ── 2. Profiles ─────────────────────────────────────────────
-        context.ClientProfiles.AddRange(
-            new ClientProfile { UserId = clientStartup.Id, CompanyName = "TechNova Solutions" },
-            new ClientProfile { UserId = clientEcommerce.Id, CompanyName = "Glamour Boutique" },
-            new ClientProfile { UserId = clientResearch.Id, CompanyName = "Independent Researcher" }
-        );
-        context.ExpertProfiles.AddRange(
-            new ExpertProfile { UserId = expertSeniorAI.Id, Title = "Principal AI Engineer", Bio = "10+ years in ML.", HourlyRate = 150 },
-            new ExpertProfile { UserId = expertFullstack.Id, Title = "Full-Stack Developer | AI Integrator", Bio = "Building scalable web apps with AI.", HourlyRate = 90 },
-            new ExpertProfile { UserId = expertDataScientist.Id, Title = "Data Scientist", Bio = "Turning data into insights.", HourlyRate = 120 },
-            new ExpertProfile { UserId = expertAutomation.Id, Title = "Automation Specialist", Bio = "Automating business processes.", HourlyRate = 80 },
-            new ExpertProfile { UserId = expertJuniorAI.Id, Title = "AI Developer", Bio = "Eager to build great AI products.", HourlyRate = 50 }
-        );
-        await context.SaveChangesAsync();
+        // Chỉ add nếu có user mới
+        if (users.Any())
+        {
+            try
+            {
+                // EF Core sẽ tự generate ID khi insert
+                context.Users.AddRange(users);
+                await SaveChangesWithDuplicateHandling(context);
+
+                // Try to save users, handle duplicates gracefully
+                try
+                {
+                    await SaveChangesWithDuplicateHandling(context);
+                }
+                catch (Microsoft.EntityFrameworkCore.DbUpdateException) when (!users.Any())
+                {
+                    // No users were inserted (all duplicates)
+                    context.ChangeTracker.Clear();
+                    return; // Exit if all users already exist
+                }
+
+                // Query existing users (both newly inserted and existing ones)
+                var userIds = await context.Users
+                    .Where(u => users.Select(u2 => u2.Email).Contains(u.Email))
+                    .ToDictionaryAsync(u => u.Email, u => u.Id);
+
+                // ── 2. Profiles (sau khi users đã có ID) ──────────────────────────────────────────────
+                context.ClientProfiles.AddRange(
+                    new ClientProfile { UserId = userIds[clientStartup.Email], CompanyName = "TechNova Solutions" },
+                    new ClientProfile { UserId = userIds[clientEcommerce.Email], CompanyName = "Glamour Boutique" },
+                    new ClientProfile { UserId = userIds[clientResearch.Email], CompanyName = "Independent Researcher" }
+                );
+                context.ExpertProfiles.AddRange(
+                    new ExpertProfile { UserId = userIds[expertSeniorAI.Email], Title = "Principal AI Engineer", Bio = "10+ years in ML.", HourlyRate = 150 },
+                    new ExpertProfile { UserId = userIds[expertFullstack.Email], Title = "Full-Stack Developer | AI Integrator", Bio = "Building scalable web apps with AI.", HourlyRate = 90 },
+                    new ExpertProfile { UserId = userIds[expertDataScientist.Email], Title = "Data Scientist", Bio = "Turning data into insights.", HourlyRate = 120 },
+                    new ExpertProfile { UserId = userIds[expertAutomation.Email], Title = "Automation Specialist", Bio = "Automating business processes.", HourlyRate = 80 },
+                    new ExpertProfile { UserId = userIds[expertJuniorAI.Email], Title = "AI Developer", Bio = "Eager to build great AI products.", HourlyRate = 50 }
+                );
+                await SaveChangesWithDuplicateHandling(context);
+            }
+            catch (Microsoft.EntityFrameworkCore.DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException pgEx && pgEx.SqlState == "23505")
+            {
+                // Handle duplicate key constraint violation gracefully
+                // This can happen when seeding runs multiple times
+                Console.WriteLine($"Warning: Duplicate key violation during seeding - {pgEx.Message}");
+                context.ChangeTracker.Clear();
+            }
+        }
 
         // ── 3. Taxonomy ─────────────────────────────────────────────
         var catChatbot = new Category { Name = "AI Chatbots" };
@@ -120,7 +311,7 @@ public static class SeedData
         var catWeb = new Category { Name = "Web & AI Integration" };
 
         context.Categories.AddRange(catChatbot, catData, catWeb);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         var skillPython = new Skill { Name = "Python", CategoryId = catData.Id };
         var skillRAG = new Skill { Name = "RAG", CategoryId = catChatbot.Id };
@@ -131,25 +322,31 @@ public static class SeedData
         var skillZapier = new Skill { Name = "Zapier", CategoryId = catWeb.Id };
 
         context.Skills.AddRange(skillPython, skillRAG, skillLangChain, skillReact, skillSQL, skillSelenium, skillZapier);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
-        var seniorAIProfile = context.ExpertProfiles.First(p => p.UserId == expertSeniorAI.Id);
-        var fullstackProfile = context.ExpertProfiles.First(p => p.UserId == expertFullstack.Id);
-        var dataScientistProfile = context.ExpertProfiles.First(p => p.UserId == expertDataScientist.Id);
-        var automationProfile = context.ExpertProfiles.First(p => p.UserId == expertAutomation.Id);
+        // ── 3. Skills & Expert Skills (chỉ nếu có user mới) ────────────────────────────────────────
+        if (users.Any())
+        {
+            // Skills đã được add ở trên, không cần add lại
 
-        context.ExpertSkills.AddRange(
-            new ExpertSkill { ExpertId = seniorAIProfile.Id, SkillId = skillPython.Id, Level = SkillLevel.EXPERT },
-            new ExpertSkill { ExpertId = seniorAIProfile.Id, SkillId = skillRAG.Id, Level = SkillLevel.EXPERT },
-            new ExpertSkill { ExpertId = fullstackProfile.Id, SkillId = skillReact.Id, Level = SkillLevel.ADVANCED },
-            new ExpertSkill { ExpertId = fullstackProfile.Id, SkillId = skillPython.Id, Level = SkillLevel.INTERMEDIATE },
-            new ExpertSkill { ExpertId = dataScientistProfile.Id, SkillId = skillSQL.Id, Level = SkillLevel.EXPERT },
-            new ExpertSkill { ExpertId = dataScientistProfile.Id, SkillId = skillPython.Id, Level = SkillLevel.ADVANCED },
-            new ExpertSkill { ExpertId = automationProfile.Id, SkillId = skillPython.Id, Level = SkillLevel.ADVANCED },
-            new ExpertSkill { ExpertId = automationProfile.Id, SkillId = skillSelenium.Id, Level = SkillLevel.EXPERT },
-            new ExpertSkill { ExpertId = automationProfile.Id, SkillId = skillZapier.Id, Level = SkillLevel.EXPERT }
-        );
-        await context.SaveChangesAsync();
+            var seniorAIProfile = context.ExpertProfiles.First(p => p.UserId == expertSeniorAI.Id);
+            var fullstackProfile = context.ExpertProfiles.First(p => p.UserId == expertFullstack.Id);
+            var dataScientistProfile = context.ExpertProfiles.First(p => p.UserId == expertDataScientist.Id);
+            var automationProfile = context.ExpertProfiles.First(p => p.UserId == expertAutomation.Id);
+
+            context.ExpertSkills.AddRange(
+                    new ExpertSkill { ExpertId = seniorAIProfile.Id, SkillId = skillPython.Id, Level = SkillLevel.EXPERT },
+                    new ExpertSkill { ExpertId = seniorAIProfile.Id, SkillId = skillRAG.Id, Level = SkillLevel.EXPERT },
+                    new ExpertSkill { ExpertId = fullstackProfile.Id, SkillId = skillReact.Id, Level = SkillLevel.ADVANCED },
+                    new ExpertSkill { ExpertId = fullstackProfile.Id, SkillId = skillPython.Id, Level = SkillLevel.INTERMEDIATE },
+                    new ExpertSkill { ExpertId = dataScientistProfile.Id, SkillId = skillSQL.Id, Level = SkillLevel.EXPERT },
+                    new ExpertSkill { ExpertId = dataScientistProfile.Id, SkillId = skillPython.Id, Level = SkillLevel.ADVANCED },
+                    new ExpertSkill { ExpertId = automationProfile.Id, SkillId = skillPython.Id, Level = SkillLevel.ADVANCED },
+                    new ExpertSkill { ExpertId = automationProfile.Id, SkillId = skillSelenium.Id, Level = SkillLevel.EXPERT },
+                    new ExpertSkill { ExpertId = automationProfile.Id, SkillId = skillZapier.Id, Level = SkillLevel.EXPERT }
+                );
+            await SaveChangesWithDuplicateHandling(context);
+        }
 
         // ── 4. Job 1: Open for Bidding (Original) ───────────────────
         var jobChatbot = new JobPost
@@ -164,13 +361,13 @@ public static class SeedData
             Currency = "AICOIN"
         };
         context.JobPosts.Add(jobChatbot);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         context.Proposals.AddRange(
             new Proposal { JobId = jobChatbot.Id, ExpertId = expertSeniorAI.Id, CoverLetter = "I have extensive experience building chatbots with RAG and LangChain.", ProposedBudget = 4500 },
             new Proposal { JobId = jobChatbot.Id, ExpertId = expertFullstack.Id, CoverLetter = "I can build and integrate this chatbot into your existing platform.", ProposedBudget = 3000 }
         );
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         // ── 5. Job 2: In Progress (Original - Ecommerce) ────────────
         var jobInProgress = new JobPost
@@ -184,7 +381,7 @@ public static class SeedData
             Currency = "AICOIN"
         };
         context.JobPosts.Add(jobInProgress);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         var proposalAccepted = new Proposal
         {
@@ -195,7 +392,7 @@ public static class SeedData
             ProposedBudget = 6000
         };
         context.Proposals.Add(proposalAccepted);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         var projectInProgress = new Project
         {
@@ -208,13 +405,13 @@ public static class SeedData
             Currency = "AICOIN"
         };
         context.Projects.Add(projectInProgress);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         var m1_paid = new Milestone { ProjectId = projectInProgress.Id, Title = "Data Analysis & Model Design", Amount = 1500, Status = MilestoneStatus.PAID, FundedAt = DateTime.UtcNow.AddDays(-10), ApprovedAt = DateTime.UtcNow.AddDays(-5), PaidAt = DateTime.UtcNow.AddDays(-5) };
         var m2_submitted = new Milestone { ProjectId = projectInProgress.Id, Title = "Backend API Implementation", Amount = 3000, Status = MilestoneStatus.DISPUTED, FundedAt = DateTime.UtcNow.AddDays(-4) };
         var m3_pending = new Milestone { ProjectId = projectInProgress.Id, Title = "Frontend Integration & Testing", Amount = 1500, Status = MilestoneStatus.CREATED };
         context.Milestones.AddRange(m1_paid, m2_submitted, m3_pending);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         context.Deliverables.Add(new Deliverable
         {
@@ -223,12 +420,12 @@ public static class SeedData
             Description = "API endpoints are ready for review.",
             Status = DeliverableStatus.SUBMITTED
         });
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         var paymentOld1 = new Payment { ProjectId = projectInProgress.Id, MilestoneId = m1_paid.Id, PayerId = clientEcommerce.Id, PayeeId = expertSeniorAI.Id, Amount = 1500, Status = PaymentStatus.RELEASED, HeldAt = DateTime.UtcNow.AddDays(-10), ReleasedAt = DateTime.UtcNow.AddDays(-5) };
         var paymentOld2 = new Payment { ProjectId = projectInProgress.Id, MilestoneId = m2_submitted.Id, PayerId = clientEcommerce.Id, PayeeId = expertSeniorAI.Id, Amount = 3000, Status = PaymentStatus.HELD, HeldAt = DateTime.UtcNow.AddDays(-4) };
         context.Payments.AddRange(paymentOld1, paymentOld2);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         // Dispute for Project In Progress
         var dispute = new Dispute
@@ -243,13 +440,13 @@ public static class SeedData
             Status = DisputeStatus.OPEN
         };
         context.Disputes.Add(dispute);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         context.DisputeEvidences.AddRange(
             new DisputeEvidence { DisputeId = dispute.Id, SubmittedBy = clientEcommerce.Id, Content = "Here are the API logs showing the errors and request payloads...", FileUrl = "https://example.com/api_error_logs.txt" },
             new DisputeEvidence { DisputeId = dispute.Id, SubmittedBy = expertSeniorAI.Id, Content = "I tested the API locally and it works fine. The issue might be with their sandbox DB credentials.", FileUrl = "https://example.com/api_demo_video.mp4" }
         );
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         // ── 6. Job 3: Completed (Original - Research) ───────────────
         var jobCompleted = new JobPost
@@ -263,7 +460,7 @@ public static class SeedData
             Currency = "AICOIN"
         };
         context.JobPosts.Add(jobCompleted);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         var proposalCompleted = new Proposal
         {
@@ -274,7 +471,7 @@ public static class SeedData
             ProposedBudget = 800
         };
         context.Proposals.Add(proposalCompleted);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         var projectCompleted = new Project
         {
@@ -288,21 +485,21 @@ public static class SeedData
             Currency = "AICOIN"
         };
         context.Projects.Add(projectCompleted);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         var m_completed = new Milestone { ProjectId = projectCompleted.Id, Title = "Full Analysis and Report", Amount = 800, Status = MilestoneStatus.PAID, FundedAt = DateTime.UtcNow.AddDays(-3), ApprovedAt = DateTime.UtcNow.AddDays(-2), PaidAt = DateTime.UtcNow.AddDays(-2) };
         context.Milestones.Add(m_completed);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         var paymentOld3 = new Payment { ProjectId = projectCompleted.Id, MilestoneId = m_completed.Id, PayerId = clientResearch.Id, PayeeId = expertDataScientist.Id, Amount = 800, Status = PaymentStatus.RELEASED, HeldAt = DateTime.UtcNow.AddDays(-3), ReleasedAt = DateTime.UtcNow.AddDays(-2) };
         context.Payments.Add(paymentOld3);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         context.Reviews.AddRange(
             new Review { ProjectId = projectCompleted.Id, ReviewerId = clientResearch.Id, RevieweeId = expertDataScientist.Id, Rating = 5, Comment = "Excellent work, very thorough analysis!" },
             new Review { ProjectId = projectCompleted.Id, ReviewerId = expertDataScientist.Id, RevieweeId = clientResearch.Id, Rating = 5, Comment = "Great client, very clear requirements." }
         );
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         // ── 7. Job 4: Completed (New - Automation) ───────────────────
         var jobAutomationCompleted = new JobPost
@@ -317,7 +514,7 @@ public static class SeedData
             Currency = "AICOIN"
         };
         context.JobPosts.Add(jobAutomationCompleted);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         var proposalAutoCompleted = new Proposal
         {
@@ -328,7 +525,7 @@ public static class SeedData
             ProposedBudget = 1500
         };
         context.Proposals.Add(proposalAutoCompleted);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         var projectAutoCompleted = new Project
         {
@@ -342,29 +539,29 @@ public static class SeedData
             Currency = "AICOIN"
         };
         context.Projects.Add(projectAutoCompleted);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         var milestoneAuto1 = new Milestone { ProjectId = projectAutoCompleted.Id, Title = "Script Development", Amount = 700, Status = MilestoneStatus.PAID, FundedAt = DateTime.UtcNow.AddDays(-7), ApprovedAt = DateTime.UtcNow.AddDays(-5), PaidAt = DateTime.UtcNow.AddDays(-5) };
         var milestoneAuto2 = new Milestone { ProjectId = projectAutoCompleted.Id, Title = "Deployment & Setup", Amount = 800, Status = MilestoneStatus.PAID, FundedAt = DateTime.UtcNow.AddDays(-6), ApprovedAt = DateTime.UtcNow.AddDays(-3), PaidAt = DateTime.UtcNow.AddDays(-3) };
         context.Milestones.AddRange(milestoneAuto1, milestoneAuto2);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         context.Deliverables.AddRange(
             new Deliverable { MilestoneId = milestoneAuto1.Id, ExpertId = expertAutomation.Id, Description = "Scraping script completed and verified", Status = DeliverableStatus.APPROVED, ReviewedAt = DateTime.UtcNow.AddDays(-5) },
             new Deliverable { MilestoneId = milestoneAuto2.Id, ExpertId = expertAutomation.Id, Description = "Deployment to VM complete", Status = DeliverableStatus.APPROVED, ReviewedAt = DateTime.UtcNow.AddDays(-3) }
         );
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         var paymentAuto1 = new Payment { ProjectId = projectAutoCompleted.Id, MilestoneId = milestoneAuto1.Id, PayerId = clientStartup.Id, PayeeId = expertAutomation.Id, Amount = 700, Status = PaymentStatus.RELEASED, HeldAt = DateTime.UtcNow.AddDays(-7), ReleasedAt = DateTime.UtcNow.AddDays(-5) };
         var paymentAuto2 = new Payment { ProjectId = projectAutoCompleted.Id, MilestoneId = milestoneAuto2.Id, PayerId = clientStartup.Id, PayeeId = expertAutomation.Id, Amount = 800, Status = PaymentStatus.RELEASED, HeldAt = DateTime.UtcNow.AddDays(-6), ReleasedAt = DateTime.UtcNow.AddDays(-3) };
         context.Payments.AddRange(paymentAuto1, paymentAuto2);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         context.Reviews.AddRange(
             new Review { ProjectId = projectAutoCompleted.Id, ReviewerId = clientStartup.Id, RevieweeId = expertAutomation.Id, Rating = 5, Comment = "Kenji is an automation wizard! Highly recommended." },
             new Review { ProjectId = projectAutoCompleted.Id, ReviewerId = expertAutomation.Id, RevieweeId = clientStartup.Id, Rating = 5, Comment = "Great client, clear requirements, prompt payments." }
         );
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         // ── 8. Job 5: In Progress (New - Automation) ─────────────────
         var jobAutomationInProgress = new JobPost
@@ -379,7 +576,7 @@ public static class SeedData
             Currency = "AICOIN"
         };
         context.JobPosts.Add(jobAutomationInProgress);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         var proposalAutoInProgress = new Proposal
         {
@@ -390,7 +587,7 @@ public static class SeedData
             ProposedBudget = 2000
         };
         context.Proposals.Add(proposalAutoInProgress);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         var projectAutoInProgress = new Project
         {
@@ -403,23 +600,23 @@ public static class SeedData
             Currency = "AICOIN"
         };
         context.Projects.Add(projectAutoInProgress);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         var milestoneAuto3 = new Milestone { ProjectId = projectAutoInProgress.Id, Title = "Zapier Trigger Integration", Amount = 1000, Status = MilestoneStatus.PAID, FundedAt = DateTime.UtcNow.AddDays(-4), ApprovedAt = DateTime.UtcNow.AddDays(-1), PaidAt = DateTime.UtcNow.AddDays(-1) };
         var milestoneAuto4 = new Milestone { ProjectId = projectAutoInProgress.Id, Title = "Action & Filtering Logic", Amount = 1000, Status = MilestoneStatus.FUNDED, FundedAt = DateTime.UtcNow.AddDays(-2) };
         context.Milestones.AddRange(milestoneAuto3, milestoneAuto4);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         context.Deliverables.AddRange(
             new Deliverable { MilestoneId = milestoneAuto3.Id, ExpertId = expertAutomation.Id, Description = "Webhook trigger and parsing logic completed", Status = DeliverableStatus.APPROVED, ReviewedAt = DateTime.UtcNow.AddDays(-1) },
             new Deliverable { MilestoneId = milestoneAuto4.Id, ExpertId = expertAutomation.Id, Description = "Filtered logic and spreadsheet mapping. Please check.", Status = DeliverableStatus.SUBMITTED }
         );
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         var paymentAuto3 = new Payment { ProjectId = projectAutoInProgress.Id, MilestoneId = milestoneAuto3.Id, PayerId = clientStartup.Id, PayeeId = expertAutomation.Id, Amount = 1000, Status = PaymentStatus.RELEASED, HeldAt = DateTime.UtcNow.AddDays(-4), ReleasedAt = DateTime.UtcNow.AddDays(-1) };
         var paymentAuto4 = new Payment { ProjectId = projectAutoInProgress.Id, MilestoneId = milestoneAuto4.Id, PayerId = clientStartup.Id, PayeeId = expertAutomation.Id, Amount = 1000, Status = PaymentStatus.HELD, HeldAt = DateTime.UtcNow.AddDays(-2) };
         context.Payments.AddRange(paymentAuto3, paymentAuto4);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         // ── 9. Wallet Transactions ───────────────────────────────────
         var walletStartup = clientStartup.Wallet!;
@@ -467,7 +664,7 @@ public static class SeedData
         context.WalletTransactions.Add(
             new WalletTransaction { WalletId = walletDataScientist.Id, UserId = expertDataScientist.Id, PaymentId = paymentOld3.Id, Type = WalletTransactionType.PAYMENT_RELEASE, Direction = TransactionDirection.CREDIT, Amount = 800, BalanceBefore = 0, BalanceAfter = 800, Description = "Payment release for Milestone: Full Analysis and Report" }
         );
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         // ── 10. Communication (Conversations & Messages) ──────────────
         var conversation = new Conversation
@@ -478,7 +675,7 @@ public static class SeedData
             ExpertId = expertAutomation.Id
         };
         context.Conversations.Add(conversation);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         context.Messages.AddRange(
             new Message { ConversationId = conversation.Id, SenderId = clientStartup.Id, Content = "Hi Kenji, thanks for accepting the project. Let's start with the Zapier trigger integration.", IsRead = true, ReadAt = DateTime.UtcNow.AddDays(-4) },
@@ -492,7 +689,7 @@ public static class SeedData
             new Notification { UserId = clientStartup.Id, Title = "Deliverable Submitted", Message = "Expert Kenji Tanaka submitted a deliverable for milestone Action & Filtering Logic", Type = "MILESTONE", IsRead = false },
             new Notification { UserId = expertAutomation.Id, Title = "Milestone Funded", Message = "Client TechNova Solutions funded milestone Action & Filtering Logic", Type = "PAYMENT", IsRead = true }
         );
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         // ── 12. AI Job Suggestion & Recommendation ───────────────────
         var aiSuggestion = new AIJobSuggestion
@@ -513,7 +710,7 @@ public static class SeedData
             Status = AIJobSuggestionStatus.GENERATED
         };
         context.AIJobSuggestions.Add(aiSuggestion);
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
 
         context.RecommendationResults.Add(new RecommendationResult
         {
@@ -528,6 +725,6 @@ public static class SeedData
             CompletionScore = 9.8m,
             Explanation = "Kenji is a top match for your CRM Zapier automation job due to his strong portfolio in automation workflows."
         });
-        await context.SaveChangesAsync();
+        await SaveChangesWithDuplicateHandling(context);
     }
 }

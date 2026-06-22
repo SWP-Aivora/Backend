@@ -52,9 +52,9 @@ services:
       - key: RateLimit__General__WindowInMinutes
         value: 1
       - key: SeedForceReset
-        value: true
+        value: false
 
-databases:
+    databases:
   - name: aivora-db
     plan: free
     region: singapore

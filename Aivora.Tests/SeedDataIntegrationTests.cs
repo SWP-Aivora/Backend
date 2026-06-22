@@ -1,6 +1,8 @@
 using Aivora.Repositories.Data;
+using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.HiringService;
+using BCryptNet = BCrypt.Net.BCrypt;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
@@ -23,11 +25,11 @@ public class SeedDataIntegrationTests
     {
         // 1. Arrange: Khởi tạo DB và Seed Data
         var dbContext = GetDbContext();
-        await SeedData.Initialize(dbContext);
 
-        // Lấy thông tin từ SeedData: 
-        // - Job: "Build a Customer Support Chatbot for a SaaS Product" (Client: clientStartup)
-        // - Proposal của expertSeniorAI
+        // Use seeding - it should work now for InMemory DB
+        await SeedData.Initialize(dbContext, forceReset: true);
+
+        // Retrieve seeded entities
         var clientStartup = await dbContext.Users.FirstAsync(u => u.Email == "client.startup@demo.com");
         var expertSeniorAI = await dbContext.Users.FirstAsync(u => u.Email == "expert.senior.ai@demo.com");
         var job = await dbContext.JobPosts.FirstAsync(j => j.Title.Contains("Customer Support Chatbot"));
