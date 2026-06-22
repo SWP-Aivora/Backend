@@ -51,34 +51,34 @@ public static class SeedData
             {
                 // Xóa vật lý (Hard Delete) sử dụng ExecuteDeleteAsync() và IgnoreQueryFilters() để bypass Soft Delete interceptor trên PostgreSQL
                 // Sắp xếp thứ tự để tránh vi phạm khóa ngoại (Foreign Key Constraints)
-                
+
                 // Tầng 1: Các bảng chứa dữ liệu trung gian / bằng chứng tranh chấp / giao dịch ví
                 await context.DisputeEvidences.IgnoreQueryFilters().ExecuteDeleteAsync();
                 await context.Disputes.IgnoreQueryFilters().ExecuteDeleteAsync();
                 await context.WalletTransactions.IgnoreQueryFilters().ExecuteDeleteAsync();
                 await context.Payments.IgnoreQueryFilters().ExecuteDeleteAsync();
-                
+
                 // Tầng 2: Deliverables, Milestones và Projects
                 await context.Deliverables.IgnoreQueryFilters().ExecuteDeleteAsync();
                 await context.Milestones.IgnoreQueryFilters().ExecuteDeleteAsync();
                 await context.Projects.IgnoreQueryFilters().ExecuteDeleteAsync();
-                
+
                 // Tầng 3: Proposal Milestones, Proposals
                 await context.ProposalMilestones.IgnoreQueryFilters().ExecuteDeleteAsync();
                 await context.Proposals.IgnoreQueryFilters().ExecuteDeleteAsync();
-                
+
                 // Tầng 4: JobPost Milestones, Job Skills, AI Job Suggestions, Recommendation Results và JobPosts
                 await context.JobPostMilestones.IgnoreQueryFilters().ExecuteDeleteAsync();
                 await context.JobSkills.IgnoreQueryFilters().ExecuteDeleteAsync();
                 await context.AIJobSuggestions.IgnoreQueryFilters().ExecuteDeleteAsync();
                 await context.RecommendationResults.IgnoreQueryFilters().ExecuteDeleteAsync();
                 await context.JobPosts.IgnoreQueryFilters().ExecuteDeleteAsync();
-                
+
                 // Tầng 5: Expert Skills, Skills, Categories
                 await context.ExpertSkills.IgnoreQueryFilters().ExecuteDeleteAsync();
                 await context.Skills.IgnoreQueryFilters().ExecuteDeleteAsync();
                 await context.Categories.IgnoreQueryFilters().ExecuteDeleteAsync();
-                
+
                 // Tầng 6: Profiles, Reviews, Communications & Support
                 await context.ExpertProfiles.IgnoreQueryFilters().ExecuteDeleteAsync();
                 await context.ClientProfiles.IgnoreQueryFilters().ExecuteDeleteAsync();
@@ -86,7 +86,7 @@ public static class SeedData
                 await context.Notifications.IgnoreQueryFilters().ExecuteDeleteAsync();
                 await context.Messages.IgnoreQueryFilters().ExecuteDeleteAsync();
                 await context.Conversations.IgnoreQueryFilters().ExecuteDeleteAsync();
-                
+
                 // Tầng 7: Wallets & Users (Root nodes)
                 await context.Wallets.IgnoreQueryFilters().ExecuteDeleteAsync();
                 await context.Users.IgnoreQueryFilters().ExecuteDeleteAsync();
