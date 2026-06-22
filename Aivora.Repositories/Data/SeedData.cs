@@ -58,13 +58,14 @@ public static class SeedData
                 await context.WalletTransactions.IgnoreQueryFilters().ExecuteDeleteAsync();
                 await context.Payments.IgnoreQueryFilters().ExecuteDeleteAsync();
 
-                // Tầng 2: Deliverables, Milestones (Projects bị phụ thuộc bởi Reviews nên sẽ xóa sau)
+                // Tầng 2: Deliverables, Milestones, Projects (Projects bị phụ thuộc bởi Proposals nên phải xóa trước)
                 await context.Deliverables.IgnoreQueryFilters().ExecuteDeleteAsync();
                 await context.Milestones.IgnoreQueryFilters().ExecuteDeleteAsync();
-
-                // Tầng 3: Proposal Milestones, Proposals
-                await context.ProposalMilestones.IgnoreQueryFilters().ExecuteDeleteAsync();
+                await context.Projects.IgnoreQueryFilters().ExecuteDeleteAsync();
                 await context.Proposals.IgnoreQueryFilters().ExecuteDeleteAsync();
+
+                // Tầng 3: Proposal Milestones (Proposals đã được xóa ở tầng 2, chỉ còn ProposalMilestones)
+                await context.ProposalMilestones.IgnoreQueryFilters().ExecuteDeleteAsync();
 
                 // Tầng 4: JobPost Milestones, Job Skills, AI Job Suggestions, Recommendation Results và JobPosts
                 await context.JobPostMilestones.IgnoreQueryFilters().ExecuteDeleteAsync();
@@ -78,9 +79,8 @@ public static class SeedData
                 await context.Skills.IgnoreQueryFilters().ExecuteDeleteAsync();
                 await context.Categories.IgnoreQueryFilters().ExecuteDeleteAsync();
 
-                // Tầng 6: Reviews và Projects (Projects phụ thuộc bởi Reviews nên xóa sau)
+                // Tầng 6: Reviews (Projects đã được xóa ở tầng 2)
                 await context.Reviews.IgnoreQueryFilters().ExecuteDeleteAsync();
-                await context.Projects.IgnoreQueryFilters().ExecuteDeleteAsync();
 
                 // Tầng 7: Profiles, Communications & Support
                 await context.ExpertProfiles.IgnoreQueryFilters().ExecuteDeleteAsync();
