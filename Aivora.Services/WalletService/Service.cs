@@ -58,10 +58,10 @@ public class Service : IService
                 Transaction = MapToTxResponse(walletTx)
             };
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             await transaction.RollbackAsync();
-            throw;
+            throw new ValidationException($"Transaction failed: {ex.Message}");
         }
     }
 
@@ -124,10 +124,10 @@ public class Service : IService
                 Transaction = MapToTxResponse(walletTx)
             };
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             await transaction.RollbackAsync();
-            throw;
+            throw new ValidationException($"Transaction failed: {ex.Message}");
         }
     }
 
@@ -144,8 +144,10 @@ public class Service : IService
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
-            decimal balanceBefore = wallet.AvailableBalance;
-            wallet.AvailableBalance -= request.Amount;
+            // Get fresh wallet within transaction
+            var currentWallet = await _dbContext.Wallets.FindAsync(wallet.Id);
+            decimal balanceBefore = currentWallet.AvailableBalance;
+            currentWallet.AvailableBalance -= request.Amount;
 
             var walletTx = new WalletTransaction
             {
@@ -170,10 +172,10 @@ public class Service : IService
                 Transaction = MapToTxResponse(walletTx)
             };
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             await transaction.RollbackAsync();
-            throw;
+            throw new ValidationException($"Transaction failed: {ex.Message}");
         }
     }
 
@@ -193,13 +195,20 @@ public class Service : IService
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
+            // Check balances again within transaction to prevent race conditions
+            var currentWallet = await _dbContext.Wallets.FindAsync(wallet.Id);
+            var currentExpertWallet = await _dbContext.Wallets.FindAsync(expertWallet.Id);
+
+            if (currentWallet.AvailableBalance < request.Amount)
+                throw new ValidationException("Insufficient balance for transfer.");
+
             // Deduct from client
-            decimal clientBalanceBefore = wallet.AvailableBalance;
-            wallet.AvailableBalance -= request.Amount;
+            decimal clientBalanceBefore = currentWallet.AvailableBalance;
+            currentWallet.AvailableBalance -= request.Amount;
 
             // Add to expert (held until project completion)
-            decimal expertBalanceBefore = expertWallet.AvailableBalance;
-            expertWallet.AvailableBalance += request.Amount;
+            decimal expertBalanceBefore = currentExpertWallet.AvailableBalance;
+            currentExpertWallet.AvailableBalance += request.Amount;
 
             // Create transactions
             var clientTx = new WalletTransaction
@@ -238,10 +247,10 @@ public class Service : IService
                 Transaction = MapToTxResponse(clientTx)
             };
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             await transaction.RollbackAsync();
-            throw;
+            throw new ValidationException($"Transaction failed: {ex.Message}");
         }
     }
 
@@ -299,10 +308,10 @@ public class Service : IService
                 Transaction = MapToTxResponse(walletTx)
             };
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             await transaction.RollbackAsync();
-            throw;
+            throw new ValidationException($"Transaction failed: {ex.Message}");
         }
     }
 
