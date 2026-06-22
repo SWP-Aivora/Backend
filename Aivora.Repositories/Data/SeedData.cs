@@ -49,49 +49,50 @@ public static class SeedData
             }
             else
             {
-                // Xóa vật lý (Hard Delete) sử dụng ExecuteDeleteAsync() và IgnoreQueryFilters() để bypass Soft Delete interceptor trên PostgreSQL
-                // Sắp xếp thứ tự để tránh vi phạm khóa ngoại (Foreign Key Constraints)
+                // Sử dụng CASCADE DELETE để tự động xử lý foreign key constraints
+                // PostgreSQL sẽ tự động xóa các tables phụ thuộc khi xóa parent table
+                var connection = context.Database.GetDbConnection();
+                await connection.OpenAsync();
 
-                // Tầng 1: Các bảng chứa dữ liệu trung gian / bằng chứng tranh chấp / giao dịch ví
-                await context.DisputeEvidences.IgnoreQueryFilters().ExecuteDeleteAsync();
-                await context.Disputes.IgnoreQueryFilters().ExecuteDeleteAsync();
-                await context.WalletTransactions.IgnoreQueryFilters().ExecuteDeleteAsync();
-                await context.Payments.IgnoreQueryFilters().ExecuteDeleteAsync();
+                using (var command = connection.CreateCommand())
+                {
+                    // Sử dụng TRUNCATE CASCADE để xóa tất cả dữ liệu nhanh chóng
+                    // Thứ tự từ tables có ít phụ thuộc nhất đến tables có nhiều phụ thuộc nhất
+                    command.CommandText = @"
+                        -- Truncate tất cả tables với cascade để tự động handle foreign key constraints
+                        -- PostgreSQL sẽ tự động xử lý thứ tự xóa dựa trên foreign key dependencies
+                        TRUNCATE TABLE
+                            DisputeEvidences,
+                            Disputes,
+                            WalletTransactions,
+                            Payments,
+                            Deliverables,
+                            Messages,
+                            Conversations,
+                            Notifications,
+                            Reviews,
+                            Milestones,
+                            ProposalMilestones,
+                            Projects,
+                            Proposals,
+                            JobPostMilestones,
+                            JobSkills,
+                            AIJobSuggestions,
+                            RecommendationResults,
+                            JobPosts,
+                            ExpertSkills,
+                            Skills,
+                            Categories,
+                            ExpertProfiles,
+                            ClientProfiles,
+                            Wallets,
+                            Users
+                        CASCADE;";
 
-                // Tầng 2: Deliverables, Milestones, Projects (Projects bị phụ thuộc bởi Proposals nên phải xóa trước)
-                await context.Deliverables.IgnoreQueryFilters().ExecuteDeleteAsync();
-                await context.Milestones.IgnoreQueryFilters().ExecuteDeleteAsync();
-                await context.Projects.IgnoreQueryFilters().ExecuteDeleteAsync();
-                await context.Proposals.IgnoreQueryFilters().ExecuteDeleteAsync();
+                    await command.ExecuteNonQueryAsync();
+                }
 
-                // Tầng 3: Proposal Milestones (Proposals đã được xóa ở tầng 2, chỉ còn ProposalMilestones)
-                await context.ProposalMilestones.IgnoreQueryFilters().ExecuteDeleteAsync();
-
-                // Tầng 4: JobPost Milestones, Job Skills, AI Job Suggestions, Recommendation Results và JobPosts
-                await context.JobPostMilestones.IgnoreQueryFilters().ExecuteDeleteAsync();
-                await context.JobSkills.IgnoreQueryFilters().ExecuteDeleteAsync();
-                await context.AIJobSuggestions.IgnoreQueryFilters().ExecuteDeleteAsync();
-                await context.RecommendationResults.IgnoreQueryFilters().ExecuteDeleteAsync();
-                await context.JobPosts.IgnoreQueryFilters().ExecuteDeleteAsync();
-
-                // Tầng 5: Expert Skills, Skills, Categories
-                await context.ExpertSkills.IgnoreQueryFilters().ExecuteDeleteAsync();
-                await context.Skills.IgnoreQueryFilters().ExecuteDeleteAsync();
-                await context.Categories.IgnoreQueryFilters().ExecuteDeleteAsync();
-
-                // Tầng 6: Reviews (Projects đã được xóa ở tầng 2)
-                await context.Reviews.IgnoreQueryFilters().ExecuteDeleteAsync();
-
-                // Tầng 7: Profiles, Communications & Support
-                await context.ExpertProfiles.IgnoreQueryFilters().ExecuteDeleteAsync();
-                await context.ClientProfiles.IgnoreQueryFilters().ExecuteDeleteAsync();
-                await context.Notifications.IgnoreQueryFilters().ExecuteDeleteAsync();
-                await context.Messages.IgnoreQueryFilters().ExecuteDeleteAsync();
-                await context.Conversations.IgnoreQueryFilters().ExecuteDeleteAsync();
-
-                // Tầng 8: Wallets & Users (Root nodes)
-                await context.Wallets.IgnoreQueryFilters().ExecuteDeleteAsync();
-                await context.Users.IgnoreQueryFilters().ExecuteDeleteAsync();
+                Console.WriteLine("Database tables truncated successfully using CASCADE DELETE.");
             }
         }
 
