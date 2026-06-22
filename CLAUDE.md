@@ -13,7 +13,7 @@
 
 ## 📋 Tổng quan dự án
 
-**Aivora** là nền tảng marketplace kết nối Client (người thuê) với Expert (chuyên gia AI/tech) để thực hiện dự án theo milestone, có escrow payment, dispute resolution, và review.
+**Aivora** là nền tảng marketplace kết nối Client (người thuê) với Expert (chuyên gia AI/tech) để thực hiện dự án theo milestone, có simulated direct-transfer payment, dispute resolution, và review.
 
 **Base URL:** `/api/v1`
 **Auth:** JWT Bearer token
@@ -173,7 +173,7 @@ dotnet ef database update --startup-project ../Aivora.api
 | `Aivora.api/Program.cs` | Service registration, middleware pipeline, database migration |
 | `docs/ENV.md` | All environment variables |
 | `docs/architecture/IMPROVEMENTS.md` | Known architectural debt & planned improvements |
-| `docs/flows/MAINFLOW.md` | 4 main business flows (source of truth) |
+| `docs/flows/MainFlows-new.md` | 4 main business flows (source of truth) |
 | `docs/flows/API_BY_FLOW.md` | Complete API endpoint reference |
 | `Aivora.Repositories/Data/Configurations/` | EF Core entity configurations |
 | `Aivora.Repositories/Data/Interceptors/AuditableEntityInterceptor.cs` | Auto-set CreatedAt/UpdatedAt |
@@ -199,5 +199,5 @@ dotnet ef database update --startup-project ../Aivora.api
 
 - [Environment Variables](docs/ENV.md)
 - [Architecture Improvements](docs/architecture/IMPROVEMENTS.md)
-- [4 Main Business Flows](docs/flows/MAINFLOW.md)
+- [4 Main Business Flows](docs/flows/MainFlows-new.md)
 - [Complete API Reference](docs/flows/API_BY_FLOW.md)

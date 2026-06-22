@@ -50,7 +50,7 @@ public class MilestoneController : ControllerBase
     {
         var userId = this.GetUserId();
         var result = await _milestoneService.FundMilestoneAsync(userId, id);
-        return Ok(ApiResponseFactory.SuccessResponse(result, "Milestone funded successfully", HttpContext.TraceIdentifier));
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Milestone direct transfer recorded successfully", HttpContext.TraceIdentifier));
     }
 
     [HttpPut("{id}/approve")]
@@ -59,7 +59,7 @@ public class MilestoneController : ControllerBase
     {
         var userId = this.GetUserId();
         var result = await _milestoneService.ApproveMilestoneAsync(userId, id);
-        return Ok(ApiResponseFactory.SuccessResponse(result, "Milestone approved and payment released", HttpContext.TraceIdentifier));
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Milestone approved and payment record completed", HttpContext.TraceIdentifier));
     }
 
     [HttpPut("{id}/request-revision")]

@@ -1,6 +1,6 @@
 # Aivora Backend
 
-> Nền tảng kết nối **Client** với **Expert** cho các dự án AI/tech — đăng tin, nhận proposal, quản lý milestone, thanh toán escrow bằng AICoin.
+> Nền tảng kết nối **Client** với **Expert** cho các dự án AI/tech — đăng tin, nhận proposal, quản lý milestone, thanh toán trực tiếp mô phỏng bằng AICoin.
 
 ---
 
@@ -118,7 +118,7 @@ dotnet run --project Aivora.api
 | `Jobs` | Đăng tin, publish, cancel, tìm kiếm job | Mixed |
 | `Proposals` | Nhận/Gửi/Accept proposal | Role-based |
 | `Projects` | Danh sách & chi tiết project | Participant |
-| `Milestones` | Fund milestone (escrow), nộp deliverable, approve | Role-based |
+| `Milestones` | Fund milestone (ghi nhận chuyển tiền), nộp deliverable, approve | Role-based |
 | `Deliverables` | Nộp bàn giao milestone | Expert |
 | `Wallet` | Xem số dư ví AICoin | Authenticated |
 | `Payments` | Lịch sử giao dịch | Authenticated |
@@ -191,7 +191,7 @@ Flow đăng nhập:
 
 ## Tài liệu chi tiết
 
-- **[Business Flow](./docs/flows/MAINFLOW.md)** — Chi tiết 4 luồng nghiệp vụ chính.
+- **[Business Flow](./docs/flows/MainFlows-new.md)** — Chi tiết 4 luồng nghiệp vụ chính.
 - **[API Reference](./docs/flows/API_BY_FLOW.md)** — Danh sách API theo từng luồng nghiệp vụ.
 - **[Kiến trúc hệ thống](#kiến-trúc)** — Tổng quan về cấu trúc code.
 

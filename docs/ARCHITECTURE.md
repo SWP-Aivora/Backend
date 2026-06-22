@@ -45,7 +45,6 @@ No circular references. `Aivora.Repositories` and `Aivora.Services` have **no up
 | `CategoryService` | `ICategoryService`, `Service` | Job categories CRUD |
 | `DeliverableService` | `IDeliverableService`, `Service` | Milestone deliverables |
 | `DisputeService` | `IDisputeService`, `Service` | Dispute creation and resolution |
-| `FinancialLedger` | (files) | Financial audit trail |
 | `HiringService` | `IHiringService`, `Service` | Job hiring workflow |
 | `IdentityService` | `IIdentityService`, `Service` | User identity management |
 | `JobService` | `IJobService`, `Service` | Job CRUD and search |
@@ -62,16 +61,16 @@ No circular references. `Aivora.Repositories` and `Aivora.Services` have **no up
 | `SkillService` | `ISkillService`, `Service` | Skill catalog management |
 | `Treasury` | (files) | Platform treasury operations |
 | `WalletService` | `IWalletService`, `Service` | User wallet and transactions |
-| `Base/` | `ServiceBase` | Common service utilities |
+| `Base/` | `BaseModels` | Common base request/response models |
 
 ### Aivora.Repositories (Data Access)
 **SDK:** `Microsoft.NET.Sdk` (class library)
 
 | Folder | Contents |
 |--------|----------|
-| `Abstractions/` | Generic repository interface `IRepository<T>` |
+| `Abstractions/` | `BaseEntity`, `IAuditableEntity` — Entity base class and auditing interface |
 | `Data/` | `AivoraDbContext`, `AuditableEntityInterceptor` (auto-set timestamps) |
-| `Entities/` | All EF Core entities (`Job`, `Proposal`, `Project`, `Milestone`, `Payment`, `Deliverable`, `Review`, `Skill`, `Category`, `User`, `Conversation`, `Message`, `Notification`, `FinancialLedgerEntry`, `Dispute`, `Wallet`, `Transaction`) |
+| `Entities/` | All EF Core entities (`Job`, `Proposal`, `Project`, `Milestone`, `Payment`, `Deliverable`, `Review`, `Skill`, `Category`, `User`, `Conversation`, `Message`, `Notification`, `Dispute`, `Wallet`, `Transaction`) |
 | `Enums/` | `JobStatus`, `ProposalStatus`, `ProjectStatus`, `MilestoneStatus`, `PaymentStatus`, `DeliverableStatus`, `DisputeStatus`, `UserRole`, etc. |
 | `Configurations/` | Fluent API entity configurations |
 | `Migrations/` | EF Core migrations |
@@ -208,7 +207,6 @@ Milestone
   └── Payment (1:1)
 
 Payment — Records financial transactions
-FinancialLedgerEntry — Immutable audit trail
 Dispute — Linked to project or milestone
 ```
 

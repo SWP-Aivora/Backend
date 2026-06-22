@@ -29,7 +29,7 @@ public class Service : IService
             throw new UnauthorizedException("You are not authorized to open a dispute for this project.");
 
         var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestone.Id && p.Status == PaymentStatus.HELD);
-        if (payment == null) throw new ValidationException("Only funded milestones with held payments can be disputed.");
+        if (payment == null) throw new ValidationException("Only funded milestones with initiated direct transfers can be disputed.");
 
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try

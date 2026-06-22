@@ -13,6 +13,8 @@ public class Response
         public decimal TotalEarned { get; set; }
         public string Currency { get; set; } = null!;
         public DateTimeOffset? UpdatedAt { get; set; }
+        public string BalanceType => "SIMULATED_DEMO_BALANCE";
+        public string Explanation => "This wallet displays simulated demo balances for platform testing and preview purposes only.";
     }
 
     public class TransactionResponse
@@ -27,6 +29,17 @@ public class Response
         public decimal BalanceAfter { get; set; }
         public string? Description { get; set; }
         public DateTimeOffset CreatedAt { get; set; }
+        public string BusinessMeaning => Type switch
+        {
+            WalletTransactionType.ESCROW_HOLD => "Simulated Direct Transfer Initiated",
+            WalletTransactionType.PAYMENT_RELEASE => "Receipt/payment record completed",
+            WalletTransactionType.DEMO_DEPOSIT => "Demo balance deposited",
+            WalletTransactionType.REFUND => "Simulated transfer reversed",
+            WalletTransactionType.WITHDRAWAL_REQUEST => "Withdrawal request (Demo)",
+            WalletTransactionType.WITHDRAWAL_COMPLETED => "Withdrawal completed (Demo)",
+            _ => Type.ToString()
+        };
+        public string Explanation => "This ledger tracks simulated events and demo-balance movements.";
     }
 
     public class DepositResultResponse
