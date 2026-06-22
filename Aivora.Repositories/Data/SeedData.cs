@@ -167,39 +167,80 @@ public static class SeedData
             await SeedDemoData(context, userIds);
         }
 
+        private static async Task SeedAdditionalData(AivoraDbContext context, Dictionary<string, Guid> userIds)
+        {
+            // ── 3. Categories & Skills ─────────────────────────────────────
+            var devCategory = new Category { Name = "Software Development", Description = "Custom software development" };
+            var aiCategory = new Category { Name = "AI/ML", Description = "Machine learning and AI solutions" };
+            var dataCategory = new Category { Name = "Data Science", Description = "Data analysis and analytics" };
+            var designCategory = new Category { Name = "Design", Description = "UI/UX and graphic design" };
+
+            context.Categories.AddRange(devCategory, aiCategory, dataCategory, designCategory);
+            await SaveChangesWithDuplicateHandling(context);
+
+            var skills = new List<Skill>
+            {
+                new Skill { Name = "C#", Level = SkillLevel.EXPERT },
+                new Skill { Name = ".NET Core", Level = SkillLevel.EXPERT },
+                new Skill { Name = "JavaScript", Level = SkillLevel.INTERMEDIATE },
+                new Skill { Name = "React", Level = SkillLevel.INTERMEDIATE },
+                new Skill { Name = "Python", Level = SkillLevel.EXPERT },
+                new Skill { Name = "Machine Learning", Level = SkillLevel.EXPERT },
+                new Skill { Name = "Data Analysis", Level = SkillLevel.INTERMEDIATE },
+                new Skill { Name = "UI/UX Design", Level = SkillLevel.INTERMEDIATE }
+            };
+            context.Skills.AddRange(skills);
+            await SaveChangesWithDuplicateHandling(context);
+
+            // ── 4. User-Skills Mapping ───────────────────────────────────
+            // Expert skills mapping
+            context.ExpertSkills.AddRange(
+                new ExpertSkill { ExpertId = userIds["expert.senior.ai@demo.com"], SkillId = skills.Find(s => s.Name == "Python").Id, Verified = true },
+                new ExpertSkill { ExpertId = userIds["expert.senior.ai@demo.com"], SkillId = skills.Find(s => s.Name == "Machine Learning").Id, Verified = true },
+                new ExpertSkill { ExpertId = userIds["expert.fullstack@demo.com"], SkillId = skills.Find(s => s.Name == "C#").Id, Verified = true },
+                new ExpertSkill { ExpertId = userIds["expert.fullstack@demo.com"], SkillId = skills.Find(s => s.Name == ".NET Core").Id, Verified = true },
+                new ExpertSkill { ExpertId = userIds["expert.fullstack@demo.com"], SkillId = skills.Find(s => s.Name == "JavaScript").Id, Verified = true },
+                new ExpertSkill { ExpertId = userIds["expert.data.scientist@demo.com"], SkillId = skills.Find(s => s.Name == "Python").Id, Verified = true },
+                new ExpertSkill { ExpertId = userIds["expert.data.scientist@demo.com"], SkillId = skills.Find(s => s.Name == "Data Analysis").Id, Verified = true },
+                new ExpertSkill { ExpertId = userIds["expert.automation@demo.com"], SkillId = skills.Find(s => s.Name == "JavaScript").Id, Verified = true },
+                new ExpertSkill { ExpertId = userIds["expert.junior.ai@demo.com"], SkillId = skills.Find(s => s.Name == "Python").Id, Verified = false }
+            );
+            await SaveChangesWithDuplicateHandling(context);
+        }
+
 
     private static async Task SeedDemoData(AivoraDbContext context, Dictionary<string, Guid> userIds)
     {
         // Get user references
-        var clientStartup = context.Users.First(u => u.Email == client.startup@demo.com);
-        var clientEcommerce = context.Users.First(u => u.Email == client.ecommerce@demo.com);
-        var clientResearch = context.Users.First(u => u.Email == client.research@demo.com);
-        var expertSeniorAI = context.Users.First(u => u.Email == expert.senior.ai@demo.com);
-        var expertFullstack = context.Users.First(u => u.Email == expert.fullstack@demo.com);
-        var expertDataScientist = context.Users.First(u => u.Email == expert.data.scientist@demo.com);
-        var expertAutomation = context.Users.First(u => u.Email == expert.automation@demo.com);
+        var clientStartup = context.Users.First(u => u.Email == "client.startup@demo.com");
+        var clientEcommerce = context.Users.First(u => u.Email == "client.ecommerce@demo.com");
+        var clientResearch = context.Users.First(u => u.Email == "client.research@demo.com");
+        var expertSeniorAI = context.Users.First(u => u.Email == "expert.senior.ai@demo.com");
+        var expertFullstack = context.Users.First(u => u.Email == "expert.fullstack@demo.com");
+        var expertDataScientist = context.Users.First(u => u.Email == "expert.data.scientist@demo.com");
+        var expertAutomation = context.Users.First(u => u.Email == "expert.automation@demo.com");
 
         // ── 1. Jobs & Proposals ───────────────────────────────────────
         var jobChatbot = new JobPost
         {
             ClientId = clientStartup.Id,
-            Title = Build a Customer Support Chatbot for a SaaS Product,
-            OriginalDescription = We need an intelligent chatbot that can answer user questions based on our knowledge base.,
-            FinalDescription = We need an intelligent chatbot that can answer user questions based on our knowledge base.,
+            Title = "Build a Customer Support Chatbot for a SaaS Product",
+            OriginalDescription = "We need an intelligent chatbot that can answer user questions based on our knowledge base.",
+            FinalDescription = "We need an intelligent chatbot that can answer user questions based on our knowledge base.",
             Status = JobStatus.OPEN,
             BudgetMin = 2000,
             BudgetMax = 5000,
-            Currency = AICOIN
+            Currency = "AICOIN"
         };
         context.JobPosts.Add(jobChatbot);
         await SaveChangesWithDuplicateHandling(context);
 
         context.Proposals.AddRange(
-            new Proposal { JobId = jobChatbot.Id, ExpertId = expertSeniorAI.Id, CoverLetter = I have extensive experience building chatbots with RAG and LangChain., ProposedBudget = 4500 },
-            new Proposal { JobId = jobChatbot.Id, ExpertId = expertFullstack.Id, CoverLetter = I can build and integrate this chatbot into your existing platform., ProposedBudget = 3000 }
+            new Proposal { JobId = jobChatbot.Id, ExpertId = expertSeniorAI.Id, CoverLetter = "I have extensive experience building chatbots with RAG and LangChain.", ProposedBudget = 4500 },
+            new Proposal { JobId = jobChatbot.Id, ExpertId = expertFullstack.Id, CoverLetter = "I can build and integrate this chatbot into your existing platform.", ProposedBudget = 3000 }
         );
         await SaveChangesWithDuplicateHandling(context);
 
-        Console.WriteLine(Demo data seeded successfully!);
+        Console.WriteLine("Demo data seeded successfully!");
     }
 }
