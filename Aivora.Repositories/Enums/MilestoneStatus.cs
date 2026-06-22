@@ -9,6 +9,7 @@ public enum MilestoneStatus
     REVISION_REQUESTED,
     APPROVED,
     DISPUTED,
-    PAID,
+    COMPLETED,
+    RELEASED,
     REFUNDED
 }

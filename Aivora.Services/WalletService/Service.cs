@@ -109,7 +109,7 @@ public class Service : IService
                 Type = WalletTransactionType.DEPOSIT,
                 Direction = TransactionDirection.CREDIT,
                 Description = request.Description ?? $"Deposit via {request.PaymentMethod}",
-                PaymentId = $"PAY_{Guid.NewGuid().ToString().Substring(0, 8)}", // Mock payment ID
+                PaymentId = null,
                 BalanceBefore = balanceBefore,
                 BalanceAfter = wallet.AvailableBalance
             };
@@ -157,7 +157,7 @@ public class Service : IService
                 Type = WalletTransactionType.WITHDRAWAL,
                 Direction = TransactionDirection.DEBIT,
                 Description = request.Description ?? $"Withdrawal via {request.PaymentMethod}",
-                PaymentId = $"WD_{Guid.NewGuid().ToString().Substring(0, 8)}", // Mock withdrawal ID
+                PaymentId = null,
                 BalanceBefore = balanceBefore,
                 BalanceAfter = wallet.AvailableBalance
             };
@@ -219,7 +219,7 @@ public class Service : IService
                 Type = WalletTransactionType.TRANSFER,
                 Direction = TransactionDirection.DEBIT,
                 Description = request.Description ?? $"Transfer to expert",
-                PaymentId = $"TRF_{Guid.NewGuid().ToString().Substring(0, 8)}",
+                PaymentId = null,
                 BalanceBefore = clientBalanceBefore,
                 BalanceAfter = wallet.AvailableBalance
             };
@@ -292,7 +292,7 @@ public class Service : IService
                 Amount = milestone.Amount,
                 Type = WalletTransactionType.MILESTONE_RELEASE,
                 Direction = TransactionDirection.CREDIT,
-                PaymentId = $"MIL_{milestoneId.ToString().Substring(0, 8)}",
+                PaymentId = null,
                 Description = $"Milestone payment release for {milestone.Title}",
                 BalanceBefore = balanceBefore,
                 BalanceAfter = expertWallet.AvailableBalance

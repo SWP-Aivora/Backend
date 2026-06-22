@@ -91,7 +91,7 @@ public class MilestoneServiceTests
         var result = await service.ApproveMilestoneAsync(clientId, milestoneId);
 
         // Assert
-        result.Status.Should().Be(MilestoneStatus.PAID);
+        result.Status.Should().Be(MilestoneStatus.RELEASED);
 
         var updatedClientWallet = await dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == clientId);
         updatedClientWallet!.HeldBalance.Should().Be(0);

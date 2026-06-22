@@ -1,4 +1,5 @@
 using Aivora.api.Extensions;
+using Aivora.Repositories.Enums;
 using Aivora.Services.Base;
 using Aivora.Services.JobService;
 using Aivora.Services.Models;

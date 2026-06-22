@@ -179,7 +179,7 @@ public class E2EBusinessFlowTests
         // 5. E2E Step 4.2 & 4.3 — Client Reviews & Approves Deliverable (Khang)
         // ----------------------------------------------------
         var approvedMilestone = await milestoneService.ApproveMilestoneAsync(clientId, milestone.Id);
-        approvedMilestone.Status.Should().Be(MilestoneStatus.PAID);
+        approvedMilestone.Status.Should().Be(MilestoneStatus.RELEASED);
 
         // ----------------------------------------------------
         // 6. E2E Step 4.4 & 4.5 — System Releases Payment & Completes Project

@@ -202,9 +202,7 @@ public class Service : IService
             .Include(p => p.User)
             .Include(p => p.ExpertSkills)
                 .ThenInclude(es => es.Skill)
-            .Include(p => p.User.UserSkills)
-                .ThenInclude(us => us.Skill)
-            .AsQueryable();
+                        .AsQueryable();
 
         // Apply keyword search
         if (!string.IsNullOrWhiteSpace(request.Keyword))
@@ -214,8 +212,7 @@ public class Service : IService
                 p.User.FullName.ToLower().Contains(keyword) ||
                 p.Title.ToLower().Contains(keyword) ||
                 p.Bio.ToLower().Contains(keyword) ||
-                p.ExpertSkills.Any(es => es.Skill.Name.ToLower().Contains(keyword)) ||
-                p.User.UserSkills.Any(us => us.Skill.Name.ToLower().Contains(keyword)));
+                p.ExpertSkills.Any(es => es.Skill.Name.ToLower().Contains(keyword)));
         }
 
         // Apply category filter
@@ -255,13 +252,8 @@ public class Service : IService
             {
                 SkillId = es.SkillId,
                 SkillName = es.Skill.Name,
-                ProficiencyLevel = es.ProficiencyLevel
-            }).Concat(p.User.UserSkills.Select(us => new Response.ExpertSkillResponse
-            {
-                SkillId = us.SkillId,
-                SkillName = us.Skill.Name,
-                ProficiencyLevel = us.ProficiencyLevel
-            })).ToList()
+                ProficiencyLevel = (int)es.Level
+            }).ToList()
         }).ToList();
 
         return new Response.PaginatedExpertListResponse

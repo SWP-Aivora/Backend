@@ -18,6 +18,7 @@ public class Milestone : AuditableBaseEntity
     public DateTimeOffset? SubmittedAt { get; set; }
     public DateTimeOffset? ApprovedAt { get; set; }
     public DateTimeOffset? PaidAt { get; set; }
+    public DateTimeOffset? ReleasedAt { get; set; }
 
     // Navigation Properties
     public virtual Project Project { get; set; } = null!;

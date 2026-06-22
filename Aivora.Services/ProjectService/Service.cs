@@ -113,7 +113,7 @@ public class Service : IService
 
         // Update project status
         project.Status = ProjectStatus.COMPLETED;
-        project.EndDate = DateTimeOffset.UtcNow;
+        project.EndDate = DateOnly.FromDateTime(DateTimeOffset.UtcNow.DateTime);
         project.CompletedAt = DateTimeOffset.UtcNow;
 
         // Release all milestone payments to expert
