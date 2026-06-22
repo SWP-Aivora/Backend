@@ -238,7 +238,7 @@ POST /api/v1/ai/job-assistant/{suggestionId}/accept
 | Field | Type | Required | Ghi chú |
 |-------|------|----------|---------|
 | `categoryId` | Guid? | **Yes** | Category phải tồn tại |
-| `selectedSkillIds` | List\<Guid\>? | No | Skill IDs từ seed data |
+| `selectedSkillIds` | List\<Guid\>? | No | IDs của các kỹ năng được chọn |
 
 **Side effects:**
 - `AIJobSuggestions.Status = ACCEPTED`.

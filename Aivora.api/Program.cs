@@ -44,8 +44,6 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHub<Aivora.api.Hubs.ChatHub>("/api/v1/chat");
 
-await app.MigrateAndSeedDatabaseAsync();
-
 app.Run();
 
 public partial class Program { }
