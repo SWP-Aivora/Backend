@@ -13,12 +13,10 @@ public static class DatabaseStartupExtensions
         var context = services.GetRequiredService<AivoraDbContext>();
         var forceReset = app.Configuration.GetValue<bool>("SeedForceReset");
 
-        // TODO: Tạm thời cho phép SeedForceReset trong Production để fix lỗi seeding
-        // Sẽ revert lại khi seeding production ổn định
-        if (forceReset && !app.Environment.IsDevelopment())
+        // Khi SeedForceReset=true, luôn xóa database và seed lại đầy đủ
+        if (forceReset)
         {
-            // throw new InvalidOperationException("SeedForceReset can only be used in Development.");
-            Console.WriteLine("WARNING: SeedForceReset is being used in Production!");
+            Console.WriteLine("WARNING: SeedForceReset=true - Database will be reset and fully reseeded!");
         }
 
         try
