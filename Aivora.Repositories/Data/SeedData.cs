@@ -12,46 +12,89 @@ public static class SeedData
         // 1. Kiểm tra Reset nếu cần
         if (forceReset)
         {
-            // Finance & Communication (Leaf nodes)
-            context.WalletTransactions.RemoveRange(context.WalletTransactions);
-            context.Payments.RemoveRange(context.Payments);
-            context.Notifications.RemoveRange(context.Notifications);
-            context.Messages.RemoveRange(context.Messages);
-            context.Conversations.RemoveRange(context.Conversations);
-            context.Reviews.RemoveRange(context.Reviews);
-            context.DisputeEvidences.RemoveRange(context.DisputeEvidences);
-            context.Disputes.RemoveRange(context.Disputes);
+            if (context.Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory")
+            {
+                // Fallback cho InMemory database trong môi trường test (không hỗ trợ ExecuteDeleteAsync)
+                context.WalletTransactions.RemoveRange(context.WalletTransactions);
+                context.Payments.RemoveRange(context.Payments);
+                context.Notifications.RemoveRange(context.Notifications);
+                context.Messages.RemoveRange(context.Messages);
+                context.Conversations.RemoveRange(context.Conversations);
+                context.Reviews.RemoveRange(context.Reviews);
+                context.DisputeEvidences.RemoveRange(context.DisputeEvidences);
+                context.Disputes.RemoveRange(context.Disputes);
 
-            // Projects & Proposals
-            context.Deliverables.RemoveRange(context.Deliverables);
-            context.Milestones.RemoveRange(context.Milestones);
-            context.Projects.RemoveRange(context.Projects);
-            context.ProposalMilestones.RemoveRange(context.ProposalMilestones);
-            context.Proposals.RemoveRange(context.Proposals);
+                context.Deliverables.RemoveRange(context.Deliverables);
+                context.Milestones.RemoveRange(context.Milestones);
+                context.Projects.RemoveRange(context.Projects);
+                context.ProposalMilestones.RemoveRange(context.ProposalMilestones);
+                context.Proposals.RemoveRange(context.Proposals);
 
-            // Jobs
-            context.JobPostMilestones.RemoveRange(context.JobPostMilestones);
-            context.JobSkills.RemoveRange(context.JobSkills);
-            context.AIJobSuggestions.RemoveRange(context.AIJobSuggestions);
-            context.JobPosts.RemoveRange(context.JobPosts);
-            context.RecommendationResults.RemoveRange(context.RecommendationResults);
+                context.JobPostMilestones.RemoveRange(context.JobPostMilestones);
+                context.JobSkills.RemoveRange(context.JobSkills);
+                context.AIJobSuggestions.RemoveRange(context.AIJobSuggestions);
+                context.JobPosts.RemoveRange(context.JobPosts);
+                context.RecommendationResults.RemoveRange(context.RecommendationResults);
 
-            // Profiles & Taxonomy
-            context.ExpertSkills.RemoveRange(context.ExpertSkills);
-            context.Skills.RemoveRange(context.Skills);
-            context.Categories.RemoveRange(context.Categories);
-            context.ExpertProfiles.RemoveRange(context.ExpertProfiles);
-            context.ClientProfiles.RemoveRange(context.ClientProfiles);
+                context.ExpertSkills.RemoveRange(context.ExpertSkills);
+                context.Skills.RemoveRange(context.Skills);
+                context.Categories.RemoveRange(context.Categories);
+                context.ExpertProfiles.RemoveRange(context.ExpertProfiles);
+                context.ClientProfiles.RemoveRange(context.ClientProfiles);
 
-            // Identity (Root nodes)
-            context.Wallets.RemoveRange(context.Wallets);
-            context.Users.RemoveRange(context.Users);
+                context.Wallets.RemoveRange(context.Wallets);
+                context.Users.RemoveRange(context.Users);
 
-            await context.SaveChangesAsync();
+                await context.SaveChangesAsync();
+            }
+            else
+            {
+                // Xóa vật lý (Hard Delete) sử dụng ExecuteDeleteAsync() và IgnoreQueryFilters() để bypass Soft Delete interceptor trên PostgreSQL
+                // Sắp xếp thứ tự để tránh vi phạm khóa ngoại (Foreign Key Constraints)
+                
+                // Tầng 1: Các bảng chứa dữ liệu trung gian / bằng chứng tranh chấp / giao dịch ví
+                await context.DisputeEvidences.IgnoreQueryFilters().ExecuteDeleteAsync();
+                await context.Disputes.IgnoreQueryFilters().ExecuteDeleteAsync();
+                await context.WalletTransactions.IgnoreQueryFilters().ExecuteDeleteAsync();
+                await context.Payments.IgnoreQueryFilters().ExecuteDeleteAsync();
+                
+                // Tầng 2: Deliverables, Milestones và Projects
+                await context.Deliverables.IgnoreQueryFilters().ExecuteDeleteAsync();
+                await context.Milestones.IgnoreQueryFilters().ExecuteDeleteAsync();
+                await context.Projects.IgnoreQueryFilters().ExecuteDeleteAsync();
+                
+                // Tầng 3: Proposal Milestones, Proposals
+                await context.ProposalMilestones.IgnoreQueryFilters().ExecuteDeleteAsync();
+                await context.Proposals.IgnoreQueryFilters().ExecuteDeleteAsync();
+                
+                // Tầng 4: JobPost Milestones, Job Skills, AI Job Suggestions, Recommendation Results và JobPosts
+                await context.JobPostMilestones.IgnoreQueryFilters().ExecuteDeleteAsync();
+                await context.JobSkills.IgnoreQueryFilters().ExecuteDeleteAsync();
+                await context.AIJobSuggestions.IgnoreQueryFilters().ExecuteDeleteAsync();
+                await context.RecommendationResults.IgnoreQueryFilters().ExecuteDeleteAsync();
+                await context.JobPosts.IgnoreQueryFilters().ExecuteDeleteAsync();
+                
+                // Tầng 5: Expert Skills, Skills, Categories
+                await context.ExpertSkills.IgnoreQueryFilters().ExecuteDeleteAsync();
+                await context.Skills.IgnoreQueryFilters().ExecuteDeleteAsync();
+                await context.Categories.IgnoreQueryFilters().ExecuteDeleteAsync();
+                
+                // Tầng 6: Profiles, Reviews, Communications & Support
+                await context.ExpertProfiles.IgnoreQueryFilters().ExecuteDeleteAsync();
+                await context.ClientProfiles.IgnoreQueryFilters().ExecuteDeleteAsync();
+                await context.Reviews.IgnoreQueryFilters().ExecuteDeleteAsync();
+                await context.Notifications.IgnoreQueryFilters().ExecuteDeleteAsync();
+                await context.Messages.IgnoreQueryFilters().ExecuteDeleteAsync();
+                await context.Conversations.IgnoreQueryFilters().ExecuteDeleteAsync();
+                
+                // Tầng 7: Wallets & Users (Root nodes)
+                await context.Wallets.IgnoreQueryFilters().ExecuteDeleteAsync();
+                await context.Users.IgnoreQueryFilters().ExecuteDeleteAsync();
+            }
         }
 
-        // 2. Chế độ an toàn: Chỉ seed nếu chưa có User nào
-        if (await context.Users.AnyAsync())
+        // 2. Chế độ an toàn: Chỉ seed nếu chưa có User nào (Sử dụng IgnoreQueryFilters để quét toàn bộ kể cả soft-deleted users)
+        if (await context.Users.IgnoreQueryFilters().AnyAsync())
         {
             return;
         }
