@@ -65,13 +65,6 @@ dotnet ef migrations add MigrationName --project Aivora.Repositories --startup-p
 dotnet ef database update --project Aivora.Repositories --startup-project Aivora.api
 ```
 
-### 6. Force re-seed (optional)
-To wipe all data and re-seed:
-```bash
-dotnet user-secrets set "SeedForceReset" "true"
-dotnet run
-# Remove or set to "false" afterward to avoid re-seeding on every startup
-```
 
 ---
 

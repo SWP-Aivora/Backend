@@ -297,7 +297,6 @@ All endpoints return a consistent envelope:
 | `RateLimit` | `Strict/Wnd/Limit` | ❌ | Auth endpoint limits |
 | `RateLimit` | `AI/Wnd/Limit` | ❌ | AI endpoint limits |
 | `RateLimit` | `General/Wnd/Limit` | ❌ | General endpoint limits |
-| `SeedForceReset` | — | ❌ | `true` = wipe + re-seed |
 
 ---
 
