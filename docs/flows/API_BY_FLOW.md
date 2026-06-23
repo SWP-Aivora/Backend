@@ -15,6 +15,8 @@
 >- `Wallets` means simulated demo balance only.
 >- `Payments` means milestone direct-transfer tracking record.
 >- `WalletTransactions` means simulated transfer/event ledger.
+>
+> Runtime verification note (updated 2026-06-23): `Verification: TRUE` means the endpoint was executed successfully against the ASP.NET Core `WebApplicationFactory` test host with seeded data. This verifies routing, auth, status code, and the basic response wrapper; it does not verify external providers. Media endpoints use a fake media service in tests, so Cloudinary integration is not exercised by this runtime check.
 
 ---
 
@@ -30,6 +32,8 @@
 ```
 POST /api/v1/ai/job-assistant
 ```
+
+**Verification: TRUE**
 
 **Auth:** `ClientPolicy`.  **Rate Limit:** `AI` (20 req/min).
 
@@ -131,6 +135,8 @@ POST /api/v1/ai/job-assistant
 GET /api/v1/ai/job-assistant/{suggestionId}
 ```
 
+**Verification: TRUE**
+
 **Auth:** `ClientPolicy`, phải là chủ suggestion.
 
 **Status:** `200` (thành công), `404` (không tìm thấy).
@@ -151,6 +157,8 @@ GET /api/v1/ai/job-assistant/{suggestionId}
 ```
 PATCH /api/v1/ai/job-assistant/{suggestionId}
 ```
+
+**Verification: TRUE**
 
 **Auth:** `ClientPolicy`. Chỉ cập nhật các field được gửi lên (partial update).
 
@@ -197,6 +205,8 @@ PATCH /api/v1/ai/job-assistant/{suggestionId}
 POST /api/v1/ai/job-assistant/{suggestionId}/refine
 ```
 
+**Verification: TRUE**
+
 **Auth:** `ClientPolicy`. Gửi message để AI cải thiện suggestion.
 
 **Request body (`RefineSuggestionRequest`):**
@@ -234,6 +244,8 @@ POST /api/v1/ai/job-assistant/{suggestionId}/refine
 ```
 POST /api/v1/ai/job-assistant/{suggestionId}/accept
 ```
+
+**Verification: TRUE**
 
 **Auth:** `ClientPolicy`.
 
@@ -280,6 +292,8 @@ POST /api/v1/ai/job-assistant/{suggestionId}/accept
 POST /api/v1/ai/job-assistant/{suggestionId}/reject
 ```
 
+**Verification: TRUE**
+
 **Auth:** `ClientPolicy`.
 
 **Request body (`RejectSuggestionRequest`):**
@@ -314,6 +328,8 @@ POST /api/v1/ai/job-assistant/{suggestionId}/reject
 ```
 POST /api/v1/ai/service-generator
 ```
+
+**Verification: TRUE**
 
 **Auth:** `ExpertPolicy`.  **Rate Limit:** `AI` (20 req/min).
 
@@ -439,6 +455,8 @@ Toan bộ 7 endpoint AI service da đuợc test thực tế với database Postg
 POST /api/v1/jobs
 ```
 
+**Verification: TRUE** (Note: Request body uses `finalDescription` instead of `enhancedDescription`.)
+
 **Auth:** `ClientPolicy`.
 
 **Request body:**
@@ -446,7 +464,7 @@ POST /api/v1/jobs
 {
   "title": "Xây dựng Chatbot AI",
   "originalDescription": "Tôi muốn chatbot AI cho shop bán mỹ phẩm.",
-  "enhancedDescription": "Mô tả chi tiết...",
+  "finalDescription": "Mô tả chi tiết...",
   "budgetMin": 800,
   "budgetMax": 1500,
   "timelineDays": 21,
@@ -466,6 +484,8 @@ POST /api/v1/jobs
 PUT /api/v1/jobs/{jobId}
 ```
 
+**Verification: TRUE**
+
 **Auth:** `ClientPolicy`, chủ job. Chỉ cho phép khi Status = `DRAFT`.
 
 ## 1.9. Publish job
@@ -474,9 +494,11 @@ PUT /api/v1/jobs/{jobId}
 POST /api/v1/jobs/{jobId}/publish
 ```
 
+**Verification: TRUE**
+
 **Auth:** `ClientPolicy`, chủ job.
 
-**Validation:** Job phải có `title` và `enhancedDescription` (hoặc `originalDescription`).
+**Current code behavior:** owner `DRAFT` job can be published; `title` is normalized with fallback and `finalDescription` is optional.
 
 **Status transition:** `DRAFT → OPEN`.
 
@@ -490,6 +512,8 @@ POST /api/v1/jobs/{jobId}/publish
 GET /api/v1/jobs?status=OPEN&categoryId=&skillId=&pageIndex=1&pageSize=20
 ```
 
+**Verification: TRUE**
+
 **Auth:** không bắt buộc.
 
 ## 1.11. Xem chi tiết job
@@ -498,6 +522,8 @@ GET /api/v1/jobs?status=OPEN&categoryId=&skillId=&pageIndex=1&pageSize=20
 GET /api/v1/jobs/{jobId}
 ```
 
+**Verification: TRUE**
+
 **Auth:** không bắt buộc (public cho OPEN job).
 
 ## 1.12. Hủy job
@@ -505,6 +531,8 @@ GET /api/v1/jobs/{jobId}
 ```
 POST /api/v1/jobs/{jobId}/cancel
 ```
+
+**Verification: TRUE**
 
 **Auth:** `ClientPolicy`, chủ job.
 
@@ -516,6 +544,8 @@ POST /api/v1/jobs/{jobId}/cancel
 DELETE /api/v1/jobs/{jobId}
 ```
 
+**Verification: TRUE**
+
 **Auth:** `ClientPolicy`, chủ job. Chỉ khi Status = `DRAFT`.
 
 ## 1.14. Tính toán expert recommendations
@@ -523,6 +553,8 @@ DELETE /api/v1/jobs/{jobId}
 ```
 POST /api/v1/jobs/{jobId}/recommendations/generate
 ```
+
+**Verification: TRUE**
 
 **Auth:** `ClientPolicy`, chủ job.
 
@@ -539,6 +571,8 @@ POST /api/v1/jobs/{jobId}/recommendations/generate
 ```
 GET /api/v1/jobs/{jobId}/recommendations
 ```
+
+**Verification: TRUE**
 
 **Auth:** `ClientPolicy`, chủ job.
 
@@ -603,6 +637,8 @@ GET /api/v1/jobs/{jobId}/recommendations
 POST /api/v1/jobs/{jobId}/proposals
 ```
 
+**Verification: TRUE**
+
 **Auth:** `ExpertPolicy`.
 
 **Request body:**
@@ -651,6 +687,8 @@ POST /api/v1/jobs/{jobId}/proposals
 GET /api/v1/jobs/{jobId}/proposals
 ```
 
+**Verification: TRUE**
+
 **Auth:** `ClientPolicy`, chủ job.
 
 ## 2.3. Xem chi tiết proposal
@@ -658,6 +696,8 @@ GET /api/v1/jobs/{jobId}/proposals
 ```
 GET /api/v1/proposals/{proposalId}
 ```
+
+**Verification: TRUE**
 
 **Auth:** `ClientPolicy` (chủ job) hoặc `ExpertPolicy` (chủ proposal).
 
@@ -667,6 +707,8 @@ GET /api/v1/proposals/{proposalId}
 GET /api/v1/proposals/me
 ```
 
+**Verification: TRUE**
+
 **Auth:** `ExpertPolicy`.
 
 ## 2.5. Rút proposal
@@ -674,6 +716,8 @@ GET /api/v1/proposals/me
 ```
 PUT /api/v1/proposals/{proposalId}/withdraw
 ```
+
+**Verification: TRUE**
 
 **Auth:** `ExpertPolicy`, chủ proposal.
 
@@ -685,6 +729,8 @@ PUT /api/v1/proposals/{proposalId}/withdraw
 PUT /api/v1/proposals/{proposalId}/shortlist
 ```
 
+**Verification: TRUE**
+
 **Auth:** `ClientPolicy`, chủ job.
 
 **Status transition:** `SUBMITTED → SHORTLISTED`.
@@ -695,6 +741,8 @@ PUT /api/v1/proposals/{proposalId}/shortlist
 PUT /api/v1/proposals/{proposalId}/reject
 ```
 
+**Verification: TRUE**
+
 **Auth:** `ClientPolicy`, chủ job.
 
 **Status transition:** `SUBMITTED / SHORTLISTED → REJECTED`.
@@ -704,6 +752,8 @@ PUT /api/v1/proposals/{proposalId}/reject
 ```
 PUT /api/v1/proposals/{proposalId}/accept
 ```
+
+**Verification: TRUE**
 
 **Auth:** `ClientPolicy`, chủ job.
 
@@ -766,6 +816,8 @@ PUT /api/v1/proposals/{proposalId}/accept
 GET /api/v1/projects?status=&pageIndex=1&pageSize=20
 ```
 
+**Verification: TRUE**
+
 **Auth:** `ClientPolicy` hoặc `ExpertPolicy` (chỉ xem project mình tham gia).
 
 ## 3.2. Xem chi tiết project
@@ -773,6 +825,8 @@ GET /api/v1/projects?status=&pageIndex=1&pageSize=20
 ```
 GET /api/v1/projects/{projectId}
 ```
+
+**Verification: TRUE**
 
 **Auth:** tham gia project.
 
@@ -807,6 +861,8 @@ GET /api/v1/projects/{projectId}
 PUT /api/v1/projects/{projectId}/cancel
 ```
 
+**Verification: TRUE**
+
 **Auth:** `ClientPolicy`, chủ project.
 
 ## 3.4. Tạo milestone thủ công
@@ -814,6 +870,8 @@ PUT /api/v1/projects/{projectId}/cancel
 ```
 POST /api/v1/projects/{projectId}/milestones
 ```
+
+**Verification: TRUE**
 
 **Auth:** `ClientPolicy`, chủ project.
 
@@ -837,6 +895,8 @@ POST /api/v1/projects/{projectId}/milestones
 GET /api/v1/milestones/{milestoneId}
 ```
 
+**Verification: TRUE**
+
 **Auth:** tham gia project.
 
 ## 3.6. Cập nhật milestone
@@ -845,6 +905,8 @@ GET /api/v1/milestones/{milestoneId}
 PUT /api/v1/milestones/{milestoneId}
 ```
 
+**Verification: TRUE**
+
 **Auth:** `ClientPolicy`, chủ project. Chỉ khi Status = `CREATED`.
 
 ## 3.7. Demo deposit (nạp tiền ảo)
@@ -852,6 +914,8 @@ PUT /api/v1/milestones/{milestoneId}
 ```
 POST /api/v1/wallet/deposit-demo
 ```
+
+**Verification: TRUE**
 
 **Auth:** `ClientPolicy`.
 
@@ -870,6 +934,8 @@ POST /api/v1/wallet/deposit-demo
 GET /api/v1/wallet/me
 ```
 
+**Verification: TRUE**
+
 **Auth:** bắt buộc.
 
 **Response:**
@@ -885,6 +951,8 @@ GET /api/v1/wallet/me
 ```
 PUT /api/v1/milestones/{milestoneId}/fund
 ```
+
+**Verification: TRUE**
 
 **Auth:** `ClientPolicy`, chủ project.
 
@@ -926,6 +994,8 @@ PUT /api/v1/milestones/{milestoneId}/fund
 GET /api/v1/payments/history?pageIndex=1&pageSize=20
 ```
 
+**Verification: TRUE**
+
 **Auth:** bắt buộc.
 
 ## 3.11. Nộp deliverable
@@ -933,6 +1003,8 @@ GET /api/v1/payments/history?pageIndex=1&pageSize=20
 ```
 POST /api/v1/milestones/{milestoneId}/deliverables
 ```
+
+**Verification: TRUE**
 
 **Auth:** `ExpertPolicy`, expert được assign vào project.
 
@@ -977,6 +1049,8 @@ POST /api/v1/milestones/{milestoneId}/deliverables
 GET /api/v1/milestones/{milestoneId}/deliverables
 ```
 
+**Verification: TRUE**
+
 **Auth:** tham gia project.
 
 ## 3.13. Approve deliverable (atomic — bắt buộc transaction)
@@ -984,6 +1058,8 @@ GET /api/v1/milestones/{milestoneId}/deliverables
 ```
 PUT /api/v1/milestones/{milestoneId}/approve
 ```
+
+**Verification: TRUE**
 
 **Auth:** `ClientPolicy`, chủ project.
 
@@ -1027,6 +1103,8 @@ PUT /api/v1/milestones/{milestoneId}/approve
 PUT /api/v1/milestones/{milestoneId}/request-revision
 ```
 
+**Verification: TRUE**
+
 **Auth:** `ClientPolicy`, chủ project.
 
 **Request body:**
@@ -1045,6 +1123,8 @@ PUT /api/v1/milestones/{milestoneId}/request-revision
 ```
 POST /api/v1/milestones/{milestoneId}/dispute
 ```
+
+**Verification: TRUE**
 
 **Auth:** `ClientPolicy`, chủ project.
 
@@ -1108,6 +1188,8 @@ POST /api/v1/milestones/{milestoneId}/dispute
 POST /api/v1/disputes
 ```
 
+**Verification: TRUE**
+
 **Auth:** `ClientPolicy` hoặc `ExpertPolicy`. Cho phép mở dispute mà không cần qua milestone endpoint.
 
 ## 4.2. Xem danh sách disputes của user
@@ -1115,6 +1197,8 @@ POST /api/v1/disputes
 ```
 GET /api/v1/disputes
 ```
+
+**Verification: TRUE**
 
 **Auth:** bắt buộc. Trả về disputes mà user tham gia.
 
@@ -1124,6 +1208,8 @@ GET /api/v1/disputes
 GET /api/v1/disputes/{disputeId}
 ```
 
+**Verification: TRUE**
+
 **Auth:** tham gia dispute.
 
 ## 4.4. Thêm evidence
@@ -1131,6 +1217,8 @@ GET /api/v1/disputes/{disputeId}
 ```
 POST /api/v1/disputes/{disputeId}/evidence
 ```
+
+**Verification: TRUE**
 
 **Auth:** tham gia dispute (Client/Expert/Admin).
 
@@ -1148,6 +1236,8 @@ POST /api/v1/disputes/{disputeId}/evidence
 PUT /api/v1/disputes/{disputeId}/resolve
 ```
 
+**Verification: TRUE** (Note: Request body uses `releaseAmount` and `refundAmount` instead of `splitPercentage`.)
+
 **Auth:** `AdminPolicy`.
 
 **Request body:**
@@ -1155,7 +1245,8 @@ PUT /api/v1/disputes/{disputeId}/resolve
 {
   "resolutionType": "RELEASE_TO_EXPERT",
   "resolutionNote": "Expert đã đạt 80% acceptance criteria, release toàn bộ payment.",
-  "splitPercentage": null
+  "releaseAmount": 1000,
+  "refundAmount": 0
 }
 ```
 
@@ -1176,7 +1267,7 @@ PUT /api/v1/disputes/{disputeId}/resolve
 
 **Resolution C — `SPLIT_PAYMENT`:**
 - `Payment: FROZEN → PARTIALLY_RELEASED`.
-- `splitPercentage` bắt buộc (phần trăm release cho expert, ví dụ 60 = expert 60%, client 40%).
+- `releaseAmount` và `refundAmount` được dùng để chia payment; `splitPercentage` không còn trong request model hiện tại.
 
 **Resolution D — `REQUEST_REVISION`:**
 - `Payment: FROZEN → HELD`.
@@ -1197,6 +1288,8 @@ PUT /api/v1/disputes/{disputeId}/resolve
 ```
 POST /api/v1/reviews
 ```
+
+**Verification: TRUE**
 
 **Auth:** bắt buộc, tham gia project.
 
@@ -1240,6 +1333,8 @@ POST /api/v1/reviews
 GET /api/v1/users/{userId}/reviews?pageIndex=1&pageSize=20
 ```
 
+**Verification: TRUE**
+
 **Auth:** không bắt buộc (public).
 
 ## Flow 4 — API Summary
@@ -1274,6 +1369,8 @@ GET /api/v1/users/{userId}/reviews?pageIndex=1&pageSize=20
 | 8 | GET | `/profiles/experts/featured` | — | `ExpertProfiles` |
 | 9 | PUT | `/users/me` | Any | `Users` |
 
+**Runtime verification:** all endpoints in this table are `TRUE`.
+
 ## Skills & Categories
 
 | # | Method | Endpoint | Auth | Tables |
@@ -1287,6 +1384,8 @@ GET /api/v1/users/{userId}/reviews?pageIndex=1&pageSize=20
 | 7 | POST | `/skills/expert/me` | Expert | `ExpertSkills` |
 | 8 | DELETE | `/skills/expert/me/{skillId}` | Expert | `ExpertSkills` |
 
+**Runtime verification:** all endpoints in this table are `TRUE`.
+
 ## Messaging
 
 | # | Method | Endpoint | Auth | Tables |
@@ -1295,6 +1394,8 @@ GET /api/v1/users/{userId}/reviews?pageIndex=1&pageSize=20
 | 2 | GET | `/conversations` | Any | `Conversations` |
 | 3 | GET | `/conversations/{id}/messages` | Participant | `Messages` |
 | 4 | POST | `/conversations/{id}/read` | Participant | `Messages` |
+
+**Runtime verification:** all endpoints in this table are `TRUE`.
 
 **SignalR Hub:** `/api/v1/chat`
 - `SendMessage(conversationId, content)` → `ReceiveMessage`, `ReadConfirmation`, `Error`
@@ -1311,6 +1412,8 @@ GET /api/v1/users/{userId}/reviews?pageIndex=1&pageSize=20
 | 6 | PUT | `/notifications/{id}/read` | Any | `Notifications` |
 | 7 | PUT | `/notifications/read-all` | Any | `Notifications` |
 
+**Runtime verification:** all endpoints in this table are `TRUE`; media endpoints use a fake media service in the test host.
+
 ## Admin
 
 | # | Method | Endpoint | Auth | Tables |
@@ -1320,11 +1423,15 @@ GET /api/v1/users/{userId}/reviews?pageIndex=1&pageSize=20
 | 3 | PUT | `/admin/users/{id}/suspend` | Admin | `Users` |
 | 4 | PUT | `/admin/users/{id}/unsuspend` | Admin | `Users` |
 
+**Runtime verification:** all endpoints in this table are `TRUE`.
+
 ## Service Publishing (Optional MVP)
 
 | # | Method | Endpoint | Auth | Tables |
 |---|--------|----------|------|--------|
 | 1 | POST | `/ai/service-generator` | Expert | — |
+
+**Runtime verification:** all endpoints in this table are `TRUE`.
 
 ---
 
