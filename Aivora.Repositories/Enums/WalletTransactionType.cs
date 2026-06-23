@@ -8,6 +8,8 @@ public enum WalletTransactionType
     PAYMENT_RELEASE,
     REFUND,
     WITHDRAWAL,
+    WITHDRAWAL_REQUEST,
+    WITHDRAWAL_COMPLETED,
     TRANSFER,
     MILESTONE_RELEASE
 }
