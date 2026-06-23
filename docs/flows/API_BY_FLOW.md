@@ -1173,16 +1173,16 @@ POST /api/v1/milestones/{milestoneId}/dispute
 
 ---
 
-# FLOW 4: Completion, Payment, and Review
+# FLOW 3B: Dispute Resolution and Review
 
 > **Mục tiêu:** System release payment, complete project, handle dispute (nếu có), cho phép review.
 > **Actors:** Client, Expert, System. Admin chỉ tham gia khi có dispute.
 > **Status:** `Project: COMPLETED`, `Job: COMPLETED`, `Payment: RELEASED`, `Reviews: created`
 > **Tables:** `Projects`, `JobPosts`, `Milestones`, `Payments`, `Wallets`, `WalletTransactions`, `Reviews`, `Disputes`, `DisputeEvidence`
 
-> **Lưu ý:** Các API release payment, approve deliverable, request revision, open dispute đã liệt kê ở Flow 3. Flow 4 tập trung vào **dispute resolution** và **review**.
+> **Lưu ý:** Theo `MainFlows-new.md`, dispute resolution và review là nhánh tiếp nối của Flow 3, không còn tách thành flow riêng.
 
-## 4.1. Mở dispute trực tiếp
+## 3.16. Mở dispute trực tiếp
 
 ```
 POST /api/v1/disputes
@@ -1192,7 +1192,7 @@ POST /api/v1/disputes
 
 **Auth:** `ClientPolicy` hoặc `ExpertPolicy`. Cho phép mở dispute mà không cần qua milestone endpoint.
 
-## 4.2. Xem danh sách disputes của user
+## 3.17. Xem danh sách disputes của user
 
 ```
 GET /api/v1/disputes
@@ -1202,7 +1202,7 @@ GET /api/v1/disputes
 
 **Auth:** bắt buộc. Trả về disputes mà user tham gia.
 
-## 4.3. Xem chi tiết dispute
+## 3.18. Xem chi tiết dispute
 
 ```
 GET /api/v1/disputes/{disputeId}
@@ -1212,7 +1212,7 @@ GET /api/v1/disputes/{disputeId}
 
 **Auth:** tham gia dispute.
 
-## 4.4. Thêm evidence
+## 3.19. Thêm evidence
 
 ```
 POST /api/v1/disputes/{disputeId}/evidence
@@ -1230,7 +1230,7 @@ POST /api/v1/disputes/{disputeId}/evidence
 }
 ```
 
-## 4.5. Resolve dispute (atomic — bắt buộc transaction)
+## 3.20. Resolve dispute (atomic — bắt buộc transaction)
 
 ```
 PUT /api/v1/disputes/{disputeId}/resolve
@@ -1283,7 +1283,7 @@ PUT /api/v1/disputes/{disputeId}/resolve
 - `ResolutionNote` bắt buộc.
 - Payment FROZEN không thể release/refund 2 lần.
 
-## 4.6. Tạo review
+## 3.21. Tạo review
 
 ```
 POST /api/v1/reviews
@@ -1327,7 +1327,7 @@ POST /api/v1/reviews
 }
 ```
 
-## 4.7. Xem reviews của user
+## 3.22. Xem reviews của user
 
 ```
 GET /api/v1/users/{userId}/reviews?pageIndex=1&pageSize=20
@@ -1337,7 +1337,7 @@ GET /api/v1/users/{userId}/reviews?pageIndex=1&pageSize=20
 
 **Auth:** không bắt buộc (public).
 
-## Flow 4 — API Summary
+## Flow 3B — Dispute & Review API Summary
 
 | # | Method | Endpoint | Auth | Tables |
 |---|--------|----------|------|--------|
@@ -1353,7 +1353,7 @@ GET /api/v1/users/{userId}/reviews?pageIndex=1&pageSize=20
 
 # Supporting APIs (Cross-flow)
 
-> Các API không thuộc trực tiếp 4 main flows nhưng cần thiết để hệ thống hoạt động.
+> Các API không thuộc trực tiếp 3 main flows nhưng cần thiết để hệ thống hoạt động.
 
 ## Auth & Profile
 
@@ -1491,7 +1491,7 @@ SUBMITTED → REJECTED
 | `PUT /milestones/{id}/fund` | Flow 3 | Update wallet + create payment + update milestone + update project |
 | `PUT /milestones/{id}/approve` | Flow 3 | Approve deliverable + release payment + update wallets + update milestone + update project + update job |
 | `POST /milestones/{id}/dispute` | Flow 3 | Create dispute + update milestone + freeze payment + update project |
-| `PUT /disputes/{id}/resolve` | Flow 4 | Update dispute + update payment + update wallets + update milestone + update project |
+| `PUT /disputes/{id}/resolve` | Flow 3 | Update dispute + update payment + update wallets + update milestone + update project |
 
 ---
 

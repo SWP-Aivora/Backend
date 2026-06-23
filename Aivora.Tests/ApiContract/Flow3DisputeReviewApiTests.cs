@@ -9,18 +9,18 @@ using Xunit;
 
 namespace Aivora.Tests.ApiContract;
 
-public class Flow4DisputeReviewApiTests : IClassFixture<ApiContractTestFactory>
+public class Flow3DisputeReviewApiTests : IClassFixture<ApiContractTestFactory>
 {
     private readonly ApiContractTestFactory _factory;
 
-    public Flow4DisputeReviewApiTests(ApiContractTestFactory factory)
+    public Flow3DisputeReviewApiTests(ApiContractTestFactory factory)
     {
         _factory = factory;
         _factory.SeedDatabase();
     }
 
     [Fact]
-    public async Task Run_Flow4_API_Verification_Sequence()
+    public async Task Run_Flow3_DisputeReview_API_Verification_Sequence()
     {
         var client = new ApiContractClient(_factory.CreateClient());
 
@@ -28,7 +28,7 @@ public class Flow4DisputeReviewApiTests : IClassFixture<ApiContractTestFactory>
         await client.LoginAsClientAsync();
         var createJobReq = new
         {
-            title = "Flow 4 Job",
+            title = "Flow 3 Dispute Review Job",
             originalDescription = "Job for checking disputes and reviews",
             categoryId = ApiContractTestData.CategoryId,
             budgetType = "FIXED",
@@ -49,12 +49,12 @@ public class Flow4DisputeReviewApiTests : IClassFixture<ApiContractTestFactory>
         var createProposalReq = new
         {
             jobId = jobId,
-            coverLetter = "Proposal for flow 4.",
+            coverLetter = "Proposal for flow 3 dispute review.",
             proposedBudget = 1000,
             proposedTimelineDays = 10,
             milestones = new List<object>
             {
-                new { title = "Flow 4 M1", description = "Deliverable 1", amount = 1000, dueDays = 5, orderIndex = 1, acceptanceCriteria = "Criteria 1" }
+                new { title = "Flow 3 Dispute Review M1", description = "Deliverable 1", amount = 1000, dueDays = 5, orderIndex = 1, acceptanceCriteria = "Criteria 1" }
             }
         };
         var (_, propBody) = await client.PostAsync($"/api/v1/jobs/{jobId}/proposals", createProposalReq);
@@ -87,7 +87,7 @@ public class Flow4DisputeReviewApiTests : IClassFixture<ApiContractTestFactory>
         Guid.TryParse(disputeIdStr, out var disputeId);
 
         ApiVerificationTracker.Record(
-            "Flow 4",
+            "Flow 3",
             "POST",
             "/api/v1/disputes",
             200,
@@ -101,7 +101,7 @@ public class Flow4DisputeReviewApiTests : IClassFixture<ApiContractTestFactory>
         listDisRes.StatusCode.Should().Be(HttpStatusCode.OK);
         bool listDisSuccess = listDisBody?.GetProperty("success").GetBoolean() ?? false;
         ApiVerificationTracker.Record(
-            "Flow 4",
+            "Flow 3",
             "GET",
             "/api/v1/disputes",
             200,
@@ -115,7 +115,7 @@ public class Flow4DisputeReviewApiTests : IClassFixture<ApiContractTestFactory>
         getDisRes.StatusCode.Should().Be(HttpStatusCode.OK);
         bool getDisSuccess = getDisBody?.GetProperty("success").GetBoolean() ?? false;
         ApiVerificationTracker.Record(
-            "Flow 4",
+            "Flow 3",
             "GET",
             "/api/v1/disputes/{id}",
             200,
@@ -134,7 +134,7 @@ public class Flow4DisputeReviewApiTests : IClassFixture<ApiContractTestFactory>
         addEvRes.StatusCode.Should().Be(HttpStatusCode.OK);
         bool addEvSuccess = addEvBody?.GetProperty("success").GetBoolean() ?? false;
         ApiVerificationTracker.Record(
-            "Flow 4",
+            "Flow 3",
             "POST",
             "/api/v1/disputes/{id}/evidence",
             200,
@@ -156,7 +156,7 @@ public class Flow4DisputeReviewApiTests : IClassFixture<ApiContractTestFactory>
         resolveRes.StatusCode.Should().Be(HttpStatusCode.OK);
         bool resolveSuccess = resolveBody?.GetProperty("success").GetBoolean() ?? false;
         ApiVerificationTracker.Record(
-            "Flow 4",
+            "Flow 3",
             "PUT",
             "/api/v1/disputes/{id}/resolve",
             200,
@@ -181,7 +181,7 @@ public class Flow4DisputeReviewApiTests : IClassFixture<ApiContractTestFactory>
         reviewRes.StatusCode.Should().Be(HttpStatusCode.OK);
         bool reviewSuccess = reviewBody?.GetProperty("success").GetBoolean() ?? false;
         ApiVerificationTracker.Record(
-            "Flow 4",
+            "Flow 3",
             "POST",
             "/api/v1/reviews",
             200,
@@ -195,7 +195,7 @@ public class Flow4DisputeReviewApiTests : IClassFixture<ApiContractTestFactory>
         getReviewsRes.StatusCode.Should().Be(HttpStatusCode.OK);
         bool getReviewsSuccess = getReviewsBody?.GetProperty("success").GetBoolean() ?? false;
         ApiVerificationTracker.Record(
-            "Flow 4",
+            "Flow 3",
             "GET",
             "/api/v1/users/{id}/reviews",
             200,
