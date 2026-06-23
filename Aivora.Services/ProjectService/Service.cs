@@ -95,6 +95,41 @@ public class Service : IService
         return MapToResponse(project);
     }
 
+    public async Task<Response.ProjectResponse> CompleteProjectAsync(Guid userId, Guid projectId)
+    {
+        var project = await _dbContext.Projects
+            .Include(p => p.Milestones)
+            .FirstOrDefaultAsync(p => p.Id == projectId && p.ClientId == userId);
+
+        if (project == null) throw new NotFoundException("Project not found or access denied.");
+
+        // Business Rule: Can only complete if all milestones are COMPLETED
+        if (!project.Milestones.All(m => m.Status == MilestoneStatus.COMPLETED))
+            throw new ValidationException("Cannot complete project until all milestones are completed.");
+
+        // Business Rule: Cannot complete if already completed
+        if (project.Status == ProjectStatus.COMPLETED)
+            throw new ValidationException("Project is already completed.");
+
+        // Update project status
+        project.Status = ProjectStatus.COMPLETED;
+        project.EndDate = DateOnly.FromDateTime(DateTimeOffset.UtcNow.DateTime);
+        project.CompletedAt = DateTimeOffset.UtcNow;
+
+        // Release all milestone payments to expert
+        foreach (var milestone in project.Milestones)
+        {
+            if (milestone.Status == MilestoneStatus.COMPLETED)
+            {
+                milestone.Status = MilestoneStatus.RELEASED;
+                milestone.ReleasedAt = DateTimeOffset.UtcNow;
+            }
+        }
+
+        await _dbContext.SaveChangesAsync();
+        return MapToResponse(project);
+    }
+
     private static Response.ProjectResponse MapToResponse(Project p)
     {
         return new Response.ProjectResponse

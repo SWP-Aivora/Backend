@@ -145,7 +145,7 @@ public class Treasury : ITreasury
             });
 
             // 4. Update Milestone & Project
-            milestone.Status = MilestoneStatus.PAID;
+            milestone.Status = MilestoneStatus.RELEASED;
             milestone.ApprovedAt = DateTimeOffset.UtcNow;
             milestone.PaidAt = DateTimeOffset.UtcNow;
 
@@ -270,7 +270,7 @@ public class Treasury : ITreasury
             });
 
             // 4. Update Milestone
-            milestone.Status = releaseToExpertAmount > 0 ? MilestoneStatus.PAID : MilestoneStatus.REFUNDED;
+            milestone.Status = releaseToExpertAmount > 0 ? MilestoneStatus.RELEASED : MilestoneStatus.REFUNDED;
 
             await _dbContext.SaveChangesAsync();
             await SyncProjectStatusAsync(milestone.ProjectId);
@@ -325,7 +325,7 @@ public class Treasury : ITreasury
         if (project == null) return;
 
         // Terminal milestones are PAID or REFUNDED
-        var allSettled = project.Milestones.All(m => m.Status == MilestoneStatus.PAID || m.Status == MilestoneStatus.REFUNDED);
+        var allSettled = project.Milestones.All(m => m.Status == MilestoneStatus.RELEASED || m.Status == MilestoneStatus.REFUNDED);
 
         if (allSettled && project.Milestones.Any())
         {

@@ -30,5 +30,22 @@ public class Response
         public int TotalReviews { get; set; }
         public int CompletedProjects { get; set; }
         public decimal SuccessRate { get; set; }
+        public List<ExpertSkillResponse> Skills { get; set; } = null!;
+    }
+
+    public class ExpertSkillResponse
+    {
+        public Guid SkillId { get; set; }
+        public string SkillName { get; set; } = null!;
+        public int ProficiencyLevel { get; set; }
+    }
+
+    public class PaginatedExpertListResponse
+    {
+        public List<ExpertProfileResponse> Experts { get; set; } = null!;
+        public int TotalCount { get; set; }
+        public int Page { get; set; }
+        public int PageSize { get; set; }
+        public int TotalPages { get; set; }
     }
 }

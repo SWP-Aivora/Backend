@@ -1,4 +1,5 @@
 using Aivora.api.Extensions;
+using Aivora.Repositories.Enums;
 using Aivora.Services.Base;
 using Aivora.Services.JobService;
 using Aivora.Services.Models;
@@ -104,6 +105,15 @@ public class JobController : ControllerBase
         var clientId = this.GetUserId();
         var result = await _recommendationService.GetRecommendationsAsync(clientId, id);
         return Ok(ApiResponseFactory.SuccessResponse(result, "Expert recommendations retrieved", HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("my")]
+    [Authorize(Policy = JwtExtensions.ClientPolicy)]
+    public async Task<IActionResult> GetMyJobs([FromQuery] Aivora.Services.Base.Request.PageRequest pageRequest, [FromQuery] JobStatus? status)
+    {
+        var clientId = this.GetUserId();
+        var result = await _jobService.GetMyJobsAsync(clientId, pageRequest, status);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "My jobs retrieved successfully", HttpContext.TraceIdentifier));
     }
 
     // --- Nested Proposal Endpoints ---

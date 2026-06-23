@@ -160,12 +160,48 @@ public class Service : IService
 
         if (!string.IsNullOrWhiteSpace(pageRequest.SearchTerm))
         {
-            query = query.Where(j => j.Title.Contains(pageRequest.SearchTerm) || j.FinalDescription!.Contains(pageRequest.SearchTerm));
+            query = query.Where(j => j.Title.Contains(pageRequest.SearchTerm) || (j.FinalDescription != null && j.FinalDescription.Contains(pageRequest.SearchTerm)));
         }
 
         var totalItems = await query.CountAsync();
         var items = await query
             .OrderByDescending(j => j.PublishedAt)
+            .Skip((pageRequest.PageIndex - 1) * pageRequest.PageSize)
+            .Take(pageRequest.PageSize)
+            .Select(j => MapToResponse(j))
+            .ToListAsync();
+
+        return new Aivora.Services.Base.Response.PageResult<Response.JobResponse>
+        {
+            Items = items,
+            TotalItems = totalItems,
+            PageIndex = pageRequest.PageIndex,
+            PageSize = pageRequest.PageSize
+        };
+    }
+
+    public async Task<Aivora.Services.Base.Response.PageResult<Response.JobResponse>> GetMyJobsAsync(Guid clientId, Aivora.Services.Base.Request.PageRequest pageRequest, Aivora.Repositories.Enums.JobStatus? status = null)
+    {
+        var query = _dbContext.JobPosts
+            .Include(j => j.Client)
+            .Include(j => j.Category)
+            .Include(j => j.JobSkills).ThenInclude(js => js.Skill)
+            .Include(j => j.Milestones)
+            .Where(j => j.ClientId == clientId);
+
+        if (status.HasValue)
+        {
+            query = query.Where(j => j.Status == status.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(pageRequest.SearchTerm))
+        {
+            query = query.Where(j => j.Title.Contains(pageRequest.SearchTerm) || (j.FinalDescription != null && j.FinalDescription.Contains(pageRequest.SearchTerm)));
+        }
+
+        var totalItems = await query.CountAsync();
+        var items = await query
+            .OrderByDescending(j => j.CreatedAt)
             .Skip((pageRequest.PageIndex - 1) * pageRequest.PageSize)
             .Take(pageRequest.PageSize)
             .Select(j => MapToResponse(j))
