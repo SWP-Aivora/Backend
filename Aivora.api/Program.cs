@@ -21,6 +21,7 @@ builder.Services.AddAivoraApplicationServices(builder.Configuration);
 builder.Services.AddAivoraRealtime();
 builder.Services.AddAivoraControllers();
 builder.Services.AddOpenApiServices();
+builder.Services.AddAivoraDataSeeder();
 
 var app = builder.Build();
 
@@ -43,6 +44,17 @@ app.UseAuthorization();
 
 app.MapControllers();
 app.MapHub<Aivora.api.Hubs.ChatHub>("/api/v1/chat");
+
+// Seed data on startup
+try
+{
+    await app.SeedDataAsync();
+}
+catch (Exception ex)
+{
+    // Log the error but don't crash the application
+    Console.WriteLine($"Error during data seeding: {ex.Message}");
+}
 
 app.Run();
 
