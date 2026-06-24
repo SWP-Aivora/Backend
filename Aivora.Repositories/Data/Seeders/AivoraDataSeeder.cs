@@ -842,7 +842,7 @@ public class AivoraDataSeeder : IAivoraDataSeeder
             Description = "Frontend development progress",
             FileUrl = "/files/react-app-progress.zip",
             Status = DeliverableStatus.SUBMITTED,
-                        CreatedAt = DateTimeOffset.UtcNow,
+            CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         };
 
