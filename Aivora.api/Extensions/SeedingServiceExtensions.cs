@@ -8,7 +8,7 @@ public static class SeedingServiceExtensions
     public static async Task SeedDataAsync(this IApplicationBuilder app)
     {
         using var scope = app.ApplicationServices.CreateScope();
-        var seeder = scope.ServiceProvider.GetRequiredService<AivoraDataSeeder>();
+        var seeder = scope.ServiceProvider.GetRequiredService<IAivoraDataSeeder>();
         await seeder.SeedAsync();
     }
 
