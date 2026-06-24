@@ -32,7 +32,7 @@ jobs:
       - name: Run Review Bot
         env:
           GEMINI_AI_KEY: ${{ secrets.GEMINI_AI_KEY }}
-          BOT_GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           REPO: ${{ github.repository }}

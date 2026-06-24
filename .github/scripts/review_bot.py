@@ -23,7 +23,7 @@ def main():
     
     # Read environment variables
     gemini_key = os.environ.get("GEMINI_AI_KEY")
-    gh_token = os.environ.get("BOT_GITHUB_TOKEN") or os.environ.get("GITHUB_TOKEN")
+    gh_token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
     pr_number = os.environ.get("PR_NUMBER")
     repo = os.environ.get("REPO")
     head_sha = os.environ.get("HEAD_SHA")
@@ -35,7 +35,7 @@ def main():
         print("::error::Missing GEMINI_AI_KEY environment variable")
         sys.exit(1)
     if not gh_token:
-        print("::error::Missing BOT_GITHUB_TOKEN/GITHUB_TOKEN environment variable")
+        print("::error::Missing GH_TOKEN/GITHUB_TOKEN environment variable")
         sys.exit(1)
     if not pr_number or not repo or not head_sha:
         print("::error::Missing PR metadata (PR_NUMBER, REPO, HEAD_SHA)")
