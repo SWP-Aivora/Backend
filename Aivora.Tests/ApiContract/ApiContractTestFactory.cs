@@ -28,19 +28,19 @@ public class ApiContractTestFactory : WebApplicationFactory<Program>
 
     private static readonly Dictionary<string, string> TestEnvVars = new()
     {
-        ["ConnectionStrings__DefaultConnection"]  = "Host=test;Database=test;Username=test;Password=test",
-        ["JwtSettings__Secret"]                   = "super-secret-test-key-that-is-long-enough-32chars!",
-        ["JwtSettings__Issuer"]                   = "aivora-test",
-        ["JwtSettings__Audience"]                 = "aivora-test-api",
-        ["JwtSettings__ExpiryInMinutes"]          = "60",
-        ["CloudinaryOptions__CloudName"]          = "fake-cloud",
-        ["CloudinaryOptions__ApiKey"]             = "fake-key",
-        ["CloudinaryOptions__ApiSecret"]          = "fake-secret",
-        ["AIProvider__Provider"]                  = "Mock",
-        ["RateLimit__Strict__PermitLimit"]        = "1000",
-        ["RateLimit__AI__PermitLimit"]            = "1000",
-        ["RateLimit__General__PermitLimit"]       = "1000",
-        ["ASPNETCORE_ENVIRONMENT"]                = "Development"
+        ["ConnectionStrings__DefaultConnection"] = "Host=test;Database=test;Username=test;Password=test",
+        ["JwtSettings__Secret"] = "super-secret-test-key-that-is-long-enough-32chars!",
+        ["JwtSettings__Issuer"] = "aivora-test",
+        ["JwtSettings__Audience"] = "aivora-test-api",
+        ["JwtSettings__ExpiryInMinutes"] = "60",
+        ["CloudinaryOptions__CloudName"] = "fake-cloud",
+        ["CloudinaryOptions__ApiKey"] = "fake-key",
+        ["CloudinaryOptions__ApiSecret"] = "fake-secret",
+        ["AIProvider__Provider"] = "Mock",
+        ["RateLimit__Strict__PermitLimit"] = "1000",
+        ["RateLimit__AI__PermitLimit"] = "1000",
+        ["RateLimit__General__PermitLimit"] = "1000",
+        ["ASPNETCORE_ENVIRONMENT"] = "Development"
     };
 
     public ApiContractTestFactory()

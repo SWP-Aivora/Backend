@@ -113,8 +113,11 @@ public class Flow1JobAndAiApiTests : IClassFixture<ApiContractTestFactory>
         {
             rawInput = "I will build a React frontend",
             skills = new List<string> { "React" },
-            priceFrom = 500, deliveryDays = 7,
-            tone = "professional", targetClient = "startup", language = "en"
+            priceFrom = 500,
+            deliveryDays = 7,
+            tone = "professional",
+            targetClient = "startup",
+            language = "en"
         };
         var (serviceRes, serviceBody) = await client.PostAsync("/api/v1/ai/service-generator", generateServiceReq);
         serviceRes.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -133,8 +136,12 @@ public class Flow1JobAndAiApiTests : IClassFixture<ApiContractTestFactory>
             title = "Manual Job Post",
             originalDescription = "Building custom backend in .NET",
             categoryId = ApiContractTestData.CategoryId,
-            budgetType = "FIXED", budgetMin = 1000, budgetMax = 2000,
-            currency = "AICOIN", timelineDays = 30, experienceLevel = "ADVANCED",
+            budgetType = "FIXED",
+            budgetMin = 1000,
+            budgetMax = 2000,
+            currency = "AICOIN",
+            timelineDays = 30,
+            experienceLevel = "ADVANCED",
             visibility = "PUBLIC",
             skillIds = new List<Guid> { ApiContractTestData.SkillId }
         };

@@ -27,8 +27,12 @@ public class Flow2ProposalProjectApiTests : IClassFixture<ApiContractTestFactory
             title = "Flow 2 Job",
             originalDescription = "Job for checking proposals and projects",
             categoryId = ApiContractTestData.CategoryId,
-            budgetType = "FIXED", budgetMin = 1000, budgetMax = 2000,
-            currency = "AICOIN", timelineDays = 14, visibility = "PUBLIC",
+            budgetType = "FIXED",
+            budgetMin = 1000,
+            budgetMax = 2000,
+            currency = "AICOIN",
+            timelineDays = 14,
+            visibility = "PUBLIC",
             skillIds = new List<Guid> { ApiContractTestData.SkillId }
         };
         var (jobRes, jobBody) = await client.PostAsync("/api/v1/jobs", createJobReq);
@@ -43,7 +47,8 @@ public class Flow2ProposalProjectApiTests : IClassFixture<ApiContractTestFactory
         {
             jobId = jobId,
             coverLetter = "I am a skilled React engineer.",
-            proposedBudget = 1500, proposedTimelineDays = 10,
+            proposedBudget = 1500,
+            proposedTimelineDays = 10,
             milestones = new List<object>
             {
                 new { title = "Milestone 1", description = "Deliver mockups", amount = 500, dueDays = 3, orderIndex = 1, acceptanceCriteria = "Accept criteria 1" },
@@ -103,10 +108,15 @@ public class Flow2ProposalProjectApiTests : IClassFixture<ApiContractTestFactory
         // 7. Expert withdraws proposal
         var createJobReq2 = new
         {
-            title = "Flow 2 Job 2", originalDescription = "Job for checking proposal withdraw",
+            title = "Flow 2 Job 2",
+            originalDescription = "Job for checking proposal withdraw",
             categoryId = ApiContractTestData.CategoryId,
-            budgetType = "FIXED", budgetMin = 1000, budgetMax = 2000,
-            currency = "AICOIN", timelineDays = 14, visibility = "PUBLIC",
+            budgetType = "FIXED",
+            budgetMin = 1000,
+            budgetMax = 2000,
+            currency = "AICOIN",
+            timelineDays = 14,
+            visibility = "PUBLIC",
             skillIds = new List<Guid> { ApiContractTestData.SkillId }
         };
         var (_, jobBody2) = await client.PostAsync("/api/v1/jobs", createJobReq2);
@@ -117,8 +127,10 @@ public class Flow2ProposalProjectApiTests : IClassFixture<ApiContractTestFactory
         client = new ApiContractClient(_factory.CreateAuthenticatedClient(UserRole.EXPERT));
         var createProposalReq2 = new
         {
-            jobId = jobId2, coverLetter = "Proposal for withdraw test.",
-            proposedBudget = 1000, proposedTimelineDays = 5,
+            jobId = jobId2,
+            coverLetter = "Proposal for withdraw test.",
+            proposedBudget = 1000,
+            proposedTimelineDays = 5,
             milestones = new List<object>
             {
                 new { title = "M1", description = "D1", amount = 1000, dueDays = 5, orderIndex = 1, acceptanceCriteria = "A1" }
@@ -140,10 +152,15 @@ public class Flow2ProposalProjectApiTests : IClassFixture<ApiContractTestFactory
         client = new ApiContractClient(_factory.CreateAuthenticatedClient(UserRole.CLIENT));
         var createJobReq3 = new
         {
-            title = "Flow 2 Job 3", originalDescription = "Job for checking proposal reject",
+            title = "Flow 2 Job 3",
+            originalDescription = "Job for checking proposal reject",
             categoryId = ApiContractTestData.CategoryId,
-            budgetType = "FIXED", budgetMin = 1000, budgetMax = 2000,
-            currency = "AICOIN", timelineDays = 14, visibility = "PUBLIC",
+            budgetType = "FIXED",
+            budgetMin = 1000,
+            budgetMax = 2000,
+            currency = "AICOIN",
+            timelineDays = 14,
+            visibility = "PUBLIC",
             skillIds = new List<Guid> { ApiContractTestData.SkillId }
         };
         var (_, jobBody3) = await client.PostAsync("/api/v1/jobs", createJobReq3);
@@ -154,8 +171,10 @@ public class Flow2ProposalProjectApiTests : IClassFixture<ApiContractTestFactory
         client = new ApiContractClient(_factory.CreateAuthenticatedClient(UserRole.EXPERT));
         var createProposalReq3 = new
         {
-            jobId = jobId3, coverLetter = "Proposal for reject test.",
-            proposedBudget = 1000, proposedTimelineDays = 5,
+            jobId = jobId3,
+            coverLetter = "Proposal for reject test.",
+            proposedBudget = 1000,
+            proposedTimelineDays = 5,
             milestones = new List<object>
             {
                 new { title = "M1", description = "D1", amount = 1000, dueDays = 5, orderIndex = 1, acceptanceCriteria = "A1" }

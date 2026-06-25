@@ -16,7 +16,7 @@ public static class ApiContractTestData
     public static readonly Guid SkillWebId = new("a0000000-0000-0000-0000-000000000012");
 
     // Aliases for flow test compatibility
-    public static Guid SkillId  => SkillAiId;
+    public static Guid SkillId => SkillAiId;
     public static Guid SkillId2 => SkillWebId;
 
     public static readonly Guid ClientWalletId = new("a0000000-0000-0000-0000-000000000020");

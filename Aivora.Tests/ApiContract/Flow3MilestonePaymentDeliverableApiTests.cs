@@ -24,10 +24,15 @@ public class Flow3MilestonePaymentDeliverableApiTests : IClassFixture<ApiContrac
         // 1. Setup: create job, accept proposal → project with milestones
         var createJobReq = new
         {
-            title = "Flow 3 Job", originalDescription = "Job for checking milestones and deliverables",
+            title = "Flow 3 Job",
+            originalDescription = "Job for checking milestones and deliverables",
             categoryId = ApiContractTestData.CategoryId,
-            budgetType = "FIXED", budgetMin = 1000, budgetMax = 2000,
-            currency = "AICOIN", timelineDays = 14, visibility = "PUBLIC",
+            budgetType = "FIXED",
+            budgetMin = 1000,
+            budgetMax = 2000,
+            currency = "AICOIN",
+            timelineDays = 14,
+            visibility = "PUBLIC",
             skillIds = new List<Guid> { ApiContractTestData.SkillId }
         };
         var (_, jobBody) = await client.PostAsync("/api/v1/jobs", createJobReq);
@@ -38,8 +43,10 @@ public class Flow3MilestonePaymentDeliverableApiTests : IClassFixture<ApiContrac
         client = new ApiContractClient(_factory.CreateAuthenticatedClient(UserRole.EXPERT));
         var createProposalReq = new
         {
-            jobId = jobId, coverLetter = "Proposal for flow 3.",
-            proposedBudget = 1200, proposedTimelineDays = 10,
+            jobId = jobId,
+            coverLetter = "Proposal for flow 3.",
+            proposedBudget = 1200,
+            proposedTimelineDays = 10,
             milestones = new List<object>
             {
                 new { title = "Flow 3 M1", description = "Deliverable 1", amount = 1200, dueDays = 5, orderIndex = 1, acceptanceCriteria = "Criteria 1" }
@@ -79,8 +86,11 @@ public class Flow3MilestonePaymentDeliverableApiTests : IClassFixture<ApiContrac
         // 4. POST /api/v1/projects/{id}/milestones
         var createMreq = new
         {
-            title = "Custom Milestone", description = "Extra phase",
-            amount = 500, dueDate = DateOnly.FromDateTime(DateTime.Today.AddDays(20)), orderIndex = 2
+            title = "Custom Milestone",
+            description = "Extra phase",
+            amount = 500,
+            dueDate = DateOnly.FromDateTime(DateTime.Today.AddDays(20)),
+            orderIndex = 2
         };
         var (createMres, createMbody) = await client.PostAsync($"/api/v1/projects/{projectId}/milestones", createMreq);
         createMres.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -196,10 +206,15 @@ public class Flow3MilestonePaymentDeliverableApiTests : IClassFixture<ApiContrac
         // 15. Setup fresh project for approval flow
         var createJobReq2 = new
         {
-            title = "Flow 3 Job 2", originalDescription = "Job for checking approval",
+            title = "Flow 3 Job 2",
+            originalDescription = "Job for checking approval",
             categoryId = ApiContractTestData.CategoryId,
-            budgetType = "FIXED", budgetMin = 500, budgetMax = 500,
-            currency = "AICOIN", timelineDays = 14, visibility = "PUBLIC",
+            budgetType = "FIXED",
+            budgetMin = 500,
+            budgetMax = 500,
+            currency = "AICOIN",
+            timelineDays = 14,
+            visibility = "PUBLIC",
             skillIds = new List<Guid> { ApiContractTestData.SkillId }
         };
         var (_, jobBody2) = await client.PostAsync("/api/v1/jobs", createJobReq2);
@@ -210,8 +225,10 @@ public class Flow3MilestonePaymentDeliverableApiTests : IClassFixture<ApiContrac
         client = new ApiContractClient(_factory.CreateAuthenticatedClient(UserRole.EXPERT));
         var createProposalReq2 = new
         {
-            jobId = jobId2, coverLetter = "Proposal for flow 3 approval.",
-            proposedBudget = 500, proposedTimelineDays = 10,
+            jobId = jobId2,
+            coverLetter = "Proposal for flow 3 approval.",
+            proposedBudget = 500,
+            proposedTimelineDays = 10,
             milestones = new List<object>
             {
                 new { title = "Flow 3 M2", description = "Deliverable 2", amount = 500, dueDays = 5, orderIndex = 1, acceptanceCriteria = "Criteria 2" }
@@ -247,10 +264,15 @@ public class Flow3MilestonePaymentDeliverableApiTests : IClassFixture<ApiContrac
         // 17. Cancel project
         var createJobReq3 = new
         {
-            title = "Flow 3 Job 3", originalDescription = "Job for checking project cancellation",
+            title = "Flow 3 Job 3",
+            originalDescription = "Job for checking project cancellation",
             categoryId = ApiContractTestData.CategoryId,
-            budgetType = "FIXED", budgetMin = 300, budgetMax = 300,
-            currency = "AICOIN", timelineDays = 14, visibility = "PUBLIC",
+            budgetType = "FIXED",
+            budgetMin = 300,
+            budgetMax = 300,
+            currency = "AICOIN",
+            timelineDays = 14,
+            visibility = "PUBLIC",
             skillIds = new List<Guid> { ApiContractTestData.SkillId }
         };
         var (_, jobBody3) = await client.PostAsync("/api/v1/jobs", createJobReq3);
@@ -261,7 +283,10 @@ public class Flow3MilestonePaymentDeliverableApiTests : IClassFixture<ApiContrac
         client = new ApiContractClient(_factory.CreateAuthenticatedClient(UserRole.EXPERT));
         var (_, propBody3) = await client.PostAsync($"/api/v1/jobs/{jobId3}/proposals", new
         {
-            jobId = jobId3, coverLetter = "Proposal for flow 3 cancel.", proposedBudget = 300, proposedTimelineDays = 10,
+            jobId = jobId3,
+            coverLetter = "Proposal for flow 3 cancel.",
+            proposedBudget = 300,
+            proposedTimelineDays = 10,
             milestones = new List<object>
             {
                 new { title = "Flow 3 M3", description = "Deliverable 3", amount = 300, dueDays = 5, orderIndex = 1, acceptanceCriteria = "Criteria 3" }
