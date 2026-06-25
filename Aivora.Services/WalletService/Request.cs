@@ -23,6 +23,11 @@ public class Request
         public string? Description { get; set; }
     }
 
+    public class VnPayDepositRequest
+    {
+        public decimal Amount { get; set; }
+    }
+
     public class TransferRequest
     {
         public Guid RecipientId { get; set; }

@@ -30,7 +30,8 @@ public class WalletServiceTests
         dbContext.Wallets.Add(wallet);
         await dbContext.SaveChangesAsync();
 
-        var service = new Service(dbContext);
+        var vnPayServiceMock = new Mock<IVNPayService>();
+        var service = new Service(dbContext, vnPayServiceMock.Object);
         var request = new Request.DepositDemoRequest { Amount = 500, Description = "Test Deposit" };
 
         // Act

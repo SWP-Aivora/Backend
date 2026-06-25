@@ -54,6 +54,31 @@ public class WalletController : ControllerBase
         return Ok(ApiResponseFactory.SuccessResponse(result, "Deposit processed successfully", HttpContext.TraceIdentifier));
     }
 
+    [HttpPost("vnpay/deposit")]
+    [Authorize(Policy = JwtExtensions.ClientPolicy)]
+    public async Task<IActionResult> VnPayDeposit([FromBody] Request.VnPayDepositRequest request)
+    {
+        var userId = this.GetUserId();
+        var result = await _walletService.DepositViaVNPayAsync(userId, request);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "VNPay payment URL created", HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("vnpay-ipn")]
+    [AllowAnonymous]
+    public async Task<IActionResult> VnPayIpnCallback()
+    {
+        var queryParams = HttpContext.Request.Query
+            .ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString());
+
+        var vnPayService = HttpContext.RequestServices.GetRequiredService<IVNPayService>();
+        var result = await vnPayService.ProcessIpnCallbackAsync(queryParams);
+
+        if (!result.IsSuccess)
+            return Ok(new { RspCode = "99", Message = result.Message });
+
+        return Ok(new { RspCode = "00", Message = result.Message });
+    }
+
     [HttpPost("withdraw")]
     [Authorize(Policy = JwtExtensions.ClientPolicy)]
     public async Task<IActionResult> Withdraw([FromBody] Request.WithdrawRequest request)

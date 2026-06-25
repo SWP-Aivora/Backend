@@ -168,6 +168,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Aivora.Services.ProjectService.IService, Aivora.Services.ProjectService.Service>();
         services.AddScoped<Aivora.Services.MilestoneService.IService, Aivora.Services.MilestoneService.Service>();
         services.AddScoped<Aivora.Services.DeliverableService.IService, Aivora.Services.DeliverableService.Service>();
+        services.AddScoped<Aivora.Services.WalletService.IVNPayService, Aivora.Services.WalletService.VNPayService>();
         services.AddScoped<Aivora.Services.WalletService.IService, Aivora.Services.WalletService.Service>();
         services.AddScoped<Aivora.Services.ReviewService.IService, Aivora.Services.ReviewService.Service>();
         services.AddScoped<Aivora.Services.MessageService.IService, Aivora.Services.MessageService.Service>();

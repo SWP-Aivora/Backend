@@ -34,4 +34,10 @@ public class Response
         public WalletResponse Wallet { get; set; } = null!;
         public TransactionResponse Transaction { get; set; } = null!;
     }
+
+    public class VnPayDepositResponse
+    {
+        public string PaymentUrl { get; set; } = null!;
+        public string TxnRef { get; set; } = null!;
+    }
 }
