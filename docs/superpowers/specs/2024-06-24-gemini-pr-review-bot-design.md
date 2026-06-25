@@ -76,7 +76,11 @@ var skipPatterns = new[]
     @"\.env\.example$", @"\.gitignore$", @"\.gitattributes$",
     @"\.png$", @"\.jpg$", @"\.woff2?$",
     @"^bin/", @"^obj/", @"^node_modules/",
-    @"\.cs$", @"\.csproj$", @"\.json$"  // Example of files to review
+    @"\.Designer\.cs$",   // Generated files
+    @"\.g\.cs$",          // Source generators  
+    @"Migrations/",       // EF migrations (too much noise)
+    @"test$", @"spec$",   // Test files
+    @"Tests/", @"Specs/"  // Test folders
 };
 ```
 
