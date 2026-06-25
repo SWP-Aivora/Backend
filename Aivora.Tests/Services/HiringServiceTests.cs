@@ -2,6 +2,7 @@ using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.HiringService;
+using Aivora.Services.Exceptions;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
@@ -79,5 +80,69 @@ public class HiringServiceTests
         // Assert
         var updated = await dbContext.Proposals.FindAsync(proposal.Id);
         updated!.Status.Should().Be(ProposalStatus.SHORTLISTED);
+    }
+
+    [Fact]
+    public async Task UnshortlistProposalAsync_UpdatesStatus()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var job = new JobPost { Id = Guid.NewGuid(), ClientId = clientId, Title = "J", Status = JobStatus.OPEN, OriginalDescription = "X" };
+        var proposal = new Proposal { Id = Guid.NewGuid(), JobId = job.Id, ExpertId = Guid.NewGuid(), Status = ProposalStatus.SHORTLISTED, CoverLetter = "L" };
+
+        dbContext.JobPosts.Add(job);
+        dbContext.Proposals.Add(proposal);
+        await dbContext.SaveChangesAsync();
+
+        var service = new Aivora.Services.HiringService.HiringService(dbContext);
+
+        // Act
+        await service.UnshortlistProposalAsync(clientId, proposal.Id);
+
+        // Assert
+        var updated = await dbContext.Proposals.FindAsync(proposal.Id);
+        updated!.Status.Should().Be(ProposalStatus.SUBMITTED);
+    }
+
+    [Fact]
+    public async Task UnshortlistProposalAsync_ThrowsWhenNotShortlisted()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var job = new JobPost { Id = Guid.NewGuid(), ClientId = clientId, Title = "J", Status = JobStatus.OPEN, OriginalDescription = "X" };
+        var proposal = new Proposal { Id = Guid.NewGuid(), JobId = job.Id, ExpertId = Guid.NewGuid(), Status = ProposalStatus.SUBMITTED, CoverLetter = "L" };
+
+        dbContext.JobPosts.Add(job);
+        dbContext.Proposals.Add(proposal);
+        await dbContext.SaveChangesAsync();
+
+        var service = new Aivora.Services.HiringService.HiringService(dbContext);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            service.UnshortlistProposalAsync(clientId, proposal.Id));
+    }
+
+    [Fact]
+    public async Task UnshortlistProposalAsync_ThrowsWhenUnauthorized()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var anotherClientId = Guid.NewGuid();
+        var job = new JobPost { Id = Guid.NewGuid(), ClientId = clientId, Title = "J", Status = JobStatus.OPEN, OriginalDescription = "X" };
+        var proposal = new Proposal { Id = Guid.NewGuid(), JobId = job.Id, ExpertId = Guid.NewGuid(), Status = ProposalStatus.SHORTLISTED, CoverLetter = "L" };
+
+        dbContext.JobPosts.Add(job);
+        dbContext.Proposals.Add(proposal);
+        await dbContext.SaveChangesAsync();
+
+        var service = new Aivora.Services.HiringService.HiringService(dbContext);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<UnauthorizedException>(() =>
+            service.UnshortlistProposalAsync(anotherClientId, proposal.Id));
     }
 }
