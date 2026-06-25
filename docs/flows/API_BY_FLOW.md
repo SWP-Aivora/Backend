@@ -606,14 +606,14 @@ POST /api/v1/jobs/{jobId}/proposals
       "title": "Phân tích yêu cầu & prototype",
       "description": "Thu thập yêu cầu, thiết kế luồng hội thoại, xây dựng prototype",
       "amount": 500.00,
-      "dueDay": 7,
+      "dueDays": 7,
       "acceptanceCriteria": "Prototype chạy được với 10 intent cơ bản"
     },
     {
       "title": "Tích hợp website & testing",
       "description": "Tích hợp chatbot vào website, viết test case",
       "amount": 700.00,
-      "dueDay": 18,
+      "dueDays": 18,
       "acceptanceCriteria": "Chatbot hoạt động trên website, pass 90% test cases"
     }
   ]
@@ -746,7 +746,7 @@ PUT /api/v1/proposals/{proposalId}/accept
 > **Actors:** Client, Expert.
 > **Status:**
 > - `Project: CREATED → PENDING_PAYMENT → ACTIVE → IN_REVIEW → COMPLETED` (hoặc `DISPUTED`)
-> - `Milestone: CREATED → FUNDED → SUBMITTED → APPROVED → PAID` (revision: `SUBMITTED → REVISION_REQUESTED → SUBMITTED`, dispute: `SUBMITTED → DISPUTED`)
+> - `Milestone: CREATED → FUNDED → SUBMITTED → APPROVED → RELEASED` (revision: `SUBMITTED → REVISION_REQUESTED → SUBMITTED`, dispute: `SUBMITTED → DISPUTED`)
 > - `Payment: NULL → PENDING → HELD → RELEASED` (dispute: `HELD → FROZEN`)
 > **Tables:** `Projects`, `Milestones`, `Payments`, `Wallets`, `WalletTransactions`, `Deliverables`, `Disputes`, `DisputeEvidence`
 
@@ -837,10 +837,10 @@ PUT /api/v1/milestones/{milestoneId}
 
 **Auth:** `ClientPolicy`, chủ project. Chỉ khi Status = `CREATED`.
 
-## 3.7. Demo deposit (nạp tiền ảo)
+## 3.7. Nạp tiền qua VNPay
 
 ```
-POST /api/v1/wallet/deposit-demo
+POST /api/v1/wallet/deposit
 ```
 
 **Auth:** `ClientPolicy`.
@@ -850,9 +850,34 @@ POST /api/v1/wallet/deposit-demo
 { "amount": 5000.00 }
 ```
 
+**Response 200:**
+```json
+{
+  "success": true,
+  "data": { "paymentUrl": "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html?...", "txnRef": "guid" }
+}
+```
+
 **Side effects:**
-- `Wallet.AvailableBalance += amount`.
-- Tạo `WalletTransactions` (Type = `DEMO_DEPOSIT`, Direction = `CREDIT`).
+- Tạo `WalletTransactions` (Type = `DEPOSIT`, Direction = `CREDIT`, Status = `PENDING`).
+- Client redirect sang VNPay để thanh toán.
+- Sau khi thanh toán thành công, VNPay gọi IPN callback.
+
+## 3.7b. VNPay IPN Callback
+
+```
+GET /api/v1/wallet/vnpay-ipn
+```
+
+**Auth:** không (callback từ VNPay).
+
+**Query params:** VNPay gửi đầy đủ tham số (vnp_TxnRef, vnp_Amount, vnp_ResponseCode, vnp_SecureHash, ...).
+
+**Xử lý:**
+- Verify `vnp_SecureHash`.
+- Nếu `vnp_ResponseCode == "00"`: `Wallet.AvailableBalance += amount`.
+- Cập nhật `WalletTransactions` (Status = `COMPLETED`).
+- Duplicate `vnp_TxnRef` → trả success nhưng không cộng tiền.
 
 ## 3.8. Xem số dư ví
 
@@ -991,8 +1016,8 @@ PUT /api/v1/milestones/{milestoneId}/approve
 7. Tạo `WalletTransactions`:
    - Client: Type = `PAYMENT_RELEASE`, Direction = `DEBIT`.
    - Expert: Type = `PAYMENT_RELEASE`, Direction = `CREDIT`.
-8. `Milestone.Status = PAID`, `PaidAt = UTC now`.
-9. Nếu tất cả milestones đều `PAID` → `Project.Status = COMPLETED`, `JobPosts.Status = COMPLETED`.
+8. `Milestone.Status = RELEASED`, `PaidAt = UTC now`.
+9. Nếu tất cả milestones đều `RELEASED` → `Project.Status = COMPLETED`, `JobPosts.Status = COMPLETED`.
 10. Ngược lại → `Project.Status = ACTIVE`.
 11. Commit.
 
@@ -1002,7 +1027,7 @@ PUT /api/v1/milestones/{milestoneId}/approve
   "success": true,
   "data": {
     "milestoneId": "guid",
-    "status": "PAID",
+    "status": "RELEASED",
     "paymentId": "guid",
     "releasedAmount": 500.00,
     "projectId": "guid",
@@ -1077,9 +1102,10 @@ POST /api/v1/milestones/{milestoneId}/dispute
 | 10 | POST | `/milestones/{id}/dispute` | Client | `Disputes`, `Milestones`, `Payments`, `Projects` |
 | 11 | GET | `/milestones/{id}/deliverables` | Participant | `Deliverables` |
 | 12 | POST | `/milestones/{id}/deliverables` | Expert | `Deliverables`, `Milestones`, `Projects` |
-| 13 | POST | `/wallet/deposit-demo` | Client | `Wallets`, `WalletTransactions` |
-| 14 | GET | `/wallet/me` | Any | `Wallets` |
-| 15 | GET | `/payments/history` | Any | `Payments` |
+| 13 | POST | `/wallet/deposit` | Client | `Wallets`, `WalletTransactions` |
+| 14 | GET | `/wallet/vnpay-ipn` | — | `Wallets`, `WalletTransactions` |
+| 15 | GET | `/wallet/me` | Any | `Wallets` |
+| 16 | GET | `/payments/history` | Any | `Payments` |
 
 ---
 
@@ -1156,7 +1182,7 @@ PUT /api/v1/disputes/{disputeId}/resolve
 - `Expert.Wallet.AvailableBalance += Amount`.
 - `Expert.Wallet.TotalEarned += Amount`.
 - `Client.Wallet.HeldBalance -= Amount`.
-- `Milestone: DISPUTED → PAID`.
+- `Milestone: DISPUTED → RELEASED`.
 
 **Resolution B — `REFUND_TO_CLIENT`:**
 - `Payment: FROZEN → REFUNDED`.
@@ -1344,9 +1370,9 @@ DISPUTED → ACTIVE / IN_REVIEW / COMPLETED / CANCELLED
 
 ## Milestone
 ```
-CREATED → FUNDED → SUBMITTED → APPROVED → PAID
+CREATED → FUNDED → SUBMITTED → APPROVED → RELEASED
 SUBMITTED → REVISION_REQUESTED → SUBMITTED
-SUBMITTED → DISPUTED → PAID / REFUNDED / REVISION_REQUESTED
+SUBMITTED → DISPUTED → RELEASED / REFUNDED / REVISION_REQUESTED
 ```
 
 ## Payment
