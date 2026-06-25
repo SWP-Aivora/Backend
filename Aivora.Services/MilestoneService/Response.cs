@@ -38,6 +38,14 @@ public class Response
         public string Currency { get; set; } = null!;
         public string Status { get; set; } = null!;
         public DateTimeOffset? HeldAt { get; set; }
+        public string BusinessMeaning => Status switch
+        {
+            "HELD" => "Direct transfer initiated / waiting receipt confirmation",
+            "RELEASED" => "Receipt/payment completed",
+            "PENDING" => "Direct transfer record created",
+            _ => Status
+        };
+        public string Explanation => "This is a direct-transfer tracking record (legacy technical field: Payment).";
     }
 
     public class WalletInfo
