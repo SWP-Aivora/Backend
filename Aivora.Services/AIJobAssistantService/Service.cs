@@ -47,6 +47,7 @@ public class Service : IService
         request.BusinessDomain = NormalizeLimited(request.BusinessDomain, 255);
         request.ExpectedOutcome = NormalizeLimited(request.ExpectedOutcome, 1000);
         request.Currency = AIJsonParser.NormalizeCurrency(request.Currency);
+        ValidateBudgetAndTimeline(request.BudgetMin, request.BudgetMax, request.TimelineDays);
 
         var draft = await _suggestionProvider.GenerateSuggestionAsync(request, cancellationToken);
         var suggestion = new AIJobSuggestion
@@ -57,6 +58,7 @@ public class Service : IService
         };
 
         ApplyDraft(suggestion, draft, updateRiskWarnings: true);
+        ValidateSuggestionShape(suggestion);
         _dbContext.AIJobSuggestions.Add(suggestion);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
@@ -86,9 +88,10 @@ public class Service : IService
         if (request.SuggestedTimelineDays.HasValue) suggestion.SuggestedTimelineDays = request.SuggestedTimelineDays.Value;
         if (request.ExperienceLevel.HasValue) suggestion.SuggestedExperienceLevel = request.ExperienceLevel.Value;
         if (request.SuggestedSkills is not null) suggestion.SuggestedSkillsJson = SerializeList(NormalizeStringList(request.SuggestedSkills));
-        if (request.SuggestedMilestones is not null) suggestion.SuggestedMilestonesJson = SerializeList(request.SuggestedMilestones);
+        if (request.SuggestedMilestones is not null) suggestion.SuggestedMilestonesJson = SerializeList(NormalizeMilestones(request.SuggestedMilestones));
         if (request.ClarifyingAnswers is not null) suggestion.ClarifyingAnswersJson = SerializeList(request.ClarifyingAnswers);
 
+        ValidateSuggestionShape(suggestion);
         await _dbContext.SaveChangesAsync(cancellationToken);
         return MapToResponse(suggestion);
     }
@@ -108,6 +111,7 @@ public class Service : IService
         if (refinement.ChangedFields.Count > 0)
         {
             ApplyDraft(suggestion, refinement.Suggestion, updateRiskWarnings: true);
+            ValidateSuggestionShape(suggestion);
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
 
@@ -127,6 +131,7 @@ public class Service : IService
         }
 
         var suggestion = await LoadGeneratedSuggestionAsync(clientId, suggestionId, cancellationToken);
+        ValidateSuggestionShape(suggestion);
 
         using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
         try
@@ -146,7 +151,7 @@ public class Service : IService
                 TimelineDays = suggestion.SuggestedTimelineDays,
                 ExperienceLevel = suggestion.SuggestedExperienceLevel,
                 Visibility = JobVisibility.PRIVATE,
-                SkillIds = request.SelectedSkillIds ?? new List<Guid>(),
+                SkillIds = NormalizeGuidList(request.SelectedSkillIds),
                 Milestones = DeserializeList<Response.SuggestedMilestone>(suggestion.SuggestedMilestonesJson)
                     .Select((m, index) => new JobService.Request.CreateJobMilestoneRequest
                     {
@@ -241,7 +246,7 @@ public class Service : IService
         suggestion.SuggestedTimelineDays = draft.SuggestedTimelineDays;
         suggestion.SuggestedExperienceLevel = draft.ExperienceLevel;
         suggestion.SuggestedSkillsJson = SerializeList(draft.SuggestedSkills);
-        suggestion.SuggestedMilestonesJson = SerializeList(draft.SuggestedMilestones);
+        suggestion.SuggestedMilestonesJson = SerializeList(NormalizeMilestones(draft.SuggestedMilestones));
         suggestion.ClarifyingQuestionsJson = SerializeList(draft.ClarifyingQuestions);
         suggestion.ClarifyingAnswersJson = SerializeList(draft.ClarifyingAnswers);
         suggestion.AIModel = draft.AIModel;
@@ -392,5 +397,77 @@ public class Service : IService
         {
             return new List<T>();
         }
+    }
+
+    private static void ValidateSuggestionShape(AIJobSuggestion suggestion)
+    {
+        if (string.IsNullOrWhiteSpace(suggestion.SuggestedTitle))
+        {
+            throw new ValidationException("SuggestedTitle is required.");
+        }
+
+        ValidateBudgetAndTimeline(suggestion.SuggestedBudgetMin, suggestion.SuggestedBudgetMax, suggestion.SuggestedTimelineDays);
+        var milestones = NormalizeMilestones(DeserializeList<Response.SuggestedMilestone>(suggestion.SuggestedMilestonesJson));
+        suggestion.SuggestedMilestonesJson = SerializeList(milestones);
+    }
+
+    private static void ValidateBudgetAndTimeline(decimal? budgetMin, decimal? budgetMax, int? timelineDays)
+    {
+        if (budgetMin.HasValue && budgetMin.Value <= 0)
+        {
+            throw new ValidationException("SuggestedBudgetMin must be greater than 0.");
+        }
+
+        if (budgetMax.HasValue && budgetMax.Value <= 0)
+        {
+            throw new ValidationException("SuggestedBudgetMax must be greater than 0.");
+        }
+
+        if (budgetMin.HasValue && budgetMax.HasValue && budgetMin.Value > budgetMax.Value)
+        {
+            throw new ValidationException("SuggestedBudgetMin must be less than or equal to SuggestedBudgetMax.");
+        }
+
+        if (timelineDays.HasValue && (timelineDays.Value < 1 || timelineDays.Value > 3650))
+        {
+            throw new ValidationException("SuggestedTimelineDays must be between 1 and 3650.");
+        }
+    }
+
+    private static List<Response.SuggestedMilestone> NormalizeMilestones(IEnumerable<Response.SuggestedMilestone>? milestones)
+    {
+        var normalized = (milestones ?? Enumerable.Empty<Response.SuggestedMilestone>())
+            .Select((milestone, index) => new Response.SuggestedMilestone
+            {
+                Title = NormalizeRequiredLimited(milestone.Title, $"Milestone {index + 1}", 255),
+                Description = NormalizeLimited(milestone.Description, 2000),
+                Amount = milestone.Amount,
+                DueDays = milestone.DueDays,
+                AcceptanceCriteria = NormalizeLimited(milestone.AcceptanceCriteria, 2000)
+            })
+            .ToList();
+
+        foreach (var milestone in normalized)
+        {
+            if (milestone.Amount <= 0)
+            {
+                throw new ValidationException("Suggested milestone amounts must be greater than 0.");
+            }
+
+            if (milestone.DueDays < 1 || milestone.DueDays > 3650)
+            {
+                throw new ValidationException("Suggested milestone due days must be between 1 and 3650.");
+            }
+        }
+
+        return normalized;
+    }
+
+    private static List<Guid> NormalizeGuidList(IEnumerable<Guid>? values)
+    {
+        return (values ?? Enumerable.Empty<Guid>())
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToList();
     }
 }
