@@ -50,7 +50,7 @@ Do not use the old 6-flow version as the main version.
 
 2. Expert views the job, submits a proposal, and Client reviews proposals to select the most suitable expert. The System then creates a project from the accepted proposal.
 
-3. Client and Expert confirm milestones. Client funds each milestone using simulated escrow. Expert completes the work and submits deliverables. Client reviews the deliverable and either approves, requests revision, or opens a dispute.
+3. Client and Expert confirm milestones. Client funds each milestone using escrow. Expert completes the work and submits deliverables. Client reviews the deliverable and either approves, requests revision, or opens a dispute.
 
 4. If a dispute occurs, Admin reviews evidence and resolves payment. After all milestones are completed, the project is marked as completed and both Client and Expert can review each other.
 ```
@@ -58,7 +58,7 @@ Do not use the old 6-flow version as the main version.
 One-line description:
 
 ```text
-AITasker has four main business flows: job creation and expert matching, proposal and project creation, milestone-based delivery with simulated escrow, and dispute resolution with project completion and review.
+AITasker has four main business flows: job creation and expert matching, proposal and project creation, milestone-based delivery with escrow, and dispute resolution with project completion and review.
 ```
 
 ---
@@ -373,12 +373,12 @@ After this flow, AITasker starts managing real project delivery.
 
 ## Internal system capability
 
-**Milestone tracking, simulated escrow, deliverable management**
+**Milestone tracking, escrow, deliverable management**
 
 ## Goal
 
 Client and Expert confirm project milestones.  
-Client funds a milestone using simulated escrow.  
+Client funds a milestone using escrow.  
 Expert completes the work and submits deliverable.  
 Client reviews the deliverable.
 
@@ -388,7 +388,7 @@ Client reviews the deliverable.
 1. Project exists.
 2. Project is linked to one accepted proposal.
 3. Project has Client and Expert.
-4. Client has wallet.
+4. Client has wallet with sufficient balance (deposited via VNPay Sandbox).
 5. Expert has wallet.
 6. Milestone plan exists or can be created from proposal/job suggestion.
 ```
@@ -474,13 +474,13 @@ Client reviews the deliverable.
 
 5. Payment status becomes RELEASED.
 
-6. Milestone status becomes PAID.
+6. Milestone status becomes RELEASED.
 
 7. Expert earning increases.
 
 8. If there are remaining milestones, Client continues funding the next milestone.
 
-9. If all milestones are PAID, Project becomes COMPLETED.
+9. If all milestones are RELEASED, Project becomes COMPLETED.
 ```
 
 ## Case B: Request Revision
@@ -534,7 +534,7 @@ or
 ACTIVE / IN_REVIEW → DISPUTED
 
 Milestone:
-CREATED → FUNDED → SUBMITTED → APPROVED → PAID
+CREATED → FUNDED → SUBMITTED → APPROVED → RELEASED
 
 Milestone revision path:
 SUBMITTED → REVISION_REQUESTED → SUBMITTED
@@ -687,7 +687,7 @@ Expected database result:
 |---|---|---|
 | `Payments` | `Status` | `RELEASED` |
 | `Payments` | `ReleasedAt` | Not null |
-| `Milestones` | `Status` | `PAID` |
+| `Milestones` | `Status` | `RELEASED` |
 | `Milestones` | `PaidAt` | Not null |
 | `WalletTransactions` | `Type` | `PAYMENT_RELEASE` |
 | `WalletTransactions` | `Direction` | `CREDIT` for Expert |
@@ -712,7 +712,7 @@ After payment release:
 System checks:
 
 ```text
-If all milestones are PAID, mark project as COMPLETED.
+If all milestones are RELEASED, mark project as COMPLETED.
 ```
 
 Expected database result:
@@ -827,7 +827,7 @@ Client or Expert opens a dispute from a submitted milestone/deliverable.
 
 | Admin Decision | Payment Result | Milestone Result | Project Result |
 |---|---|---|---|
-| `RELEASE_TO_EXPERT` | `RELEASED` | `PAID` | Continue or `COMPLETED` if all milestones paid |
+| `RELEASE_TO_EXPERT` | `RELEASED` | `RELEASED` | Continue or `COMPLETED` if all milestones released |
 | `REFUND_TO_CLIENT` | `REFUNDED` | `REFUNDED` | Continue, cancel, or close depending on business rule |
 | `SPLIT_PAYMENT` | `PARTIALLY_RELEASED` | Resolved according to split rule | Continue or close |
 | `REQUEST_REVISION` | Remains `HELD` | `REVISION_REQUESTED` | Back to active/review cycle |
@@ -842,7 +842,7 @@ Happy path final state:
 |---|---|
 | `JobPosts.Status` | `COMPLETED` |
 | `Projects.Status` | `COMPLETED` |
-| `Milestones.Status` | `PAID` |
+| `Milestones.Status` | `RELEASED` |
 | `Deliverables.Status` | `APPROVED` |
 | `Payments.Status` | `RELEASED` |
 | `Reviews` | 2 reviews created |
@@ -857,8 +857,8 @@ Happy path final state:
 1. Expert can submit deliverable.
 2. Client can approve deliverable.
 3. Payment is released only after approval.
-4. Milestone changes to PAID after payment release.
-5. Project changes to COMPLETED after all milestones are paid.
+4. Milestone changes to RELEASED after payment release.
+5. Project changes to COMPLETED after all milestones are released.
 6. Client can review Expert.
 7. Expert can review Client.
 8. Review rating must be between 1 and 5.
@@ -918,7 +918,7 @@ Use this scenario for presentation and testing:
 15. Expert submits deliverable.
 16. Client approves deliverable.
 17. System releases payment.
-18. Milestone becomes PAID.
+18. Milestone becomes RELEASED.
 19. Project becomes COMPLETED.
 20. Client reviews Expert.
 21. Expert reviews Client.
@@ -975,7 +975,7 @@ DISPUTED → ACTIVE / IN_REVIEW / COMPLETED / CANCELLED
 ## Milestone Status
 
 ```text
-CREATED → FUNDED → SUBMITTED → APPROVED → PAID
+CREATED → FUNDED → SUBMITTED → APPROVED → RELEASED
 ```
 
 Revision path:
@@ -988,7 +988,7 @@ Dispute path:
 
 ```text
 SUBMITTED → DISPUTED
-DISPUTED → PAID / REFUNDED / REVISION_REQUESTED
+DISPUTED → RELEASED / REFUNDED / REVISION_REQUESTED
 ```
 
 ## Payment Status
@@ -1046,7 +1046,7 @@ POST /jobs
 POST /ai/job-assistant
 PUT /jobs/{id}
 POST /jobs/{id}/publish
-GET /recommendations/experts?jobId={id}
+GET /api/v1/jobs/{id}/recommendations
 GET /experts/{id}
 ```
 
@@ -1071,20 +1071,18 @@ POST /projects/{id}/milestones
 PUT /milestones/{id}/fund
 POST /milestones/{id}/deliverables
 GET /milestones/{id}/deliverables
-PUT /deliverables/{id}/approve
-PUT /deliverables/{id}/request-revision
+PUT /api/v1/milestones/{id}/approve
+PUT /api/v1/milestones/{id}/request-revision
 POST /milestones/{id}/dispute
 ```
 
 ## Flow 4 — Completion, Payment, and Review
 
 ```text
-PUT /deliverables/{id}/approve
-POST /payments/{id}/release
-POST /reviews
-GET /admin/disputes
-GET /admin/disputes/{id}
-PUT /admin/disputes/{id}/resolve
+POST /api/v1/reviews
+GET /api/v1/disputes
+GET /api/v1/disputes/{id}
+PUT /api/v1/disputes/{id}/resolve
 ```
 
 Note:
@@ -1140,7 +1138,7 @@ Payment must become FROZEN during dispute.
 ## Rule 4: Project completion depends on milestones
 
 ```text
-Project becomes COMPLETED only when all milestones are PAID.
+Project becomes COMPLETED only when all milestones are RELEASED.
 ```
 
 ## Rule 5: Review depends on completed project
@@ -1168,10 +1166,9 @@ These features can exist, but they are not part of the 4 final main flows:
 2. AI Service Generator
 3. Advanced Analytics
 4. Withdraw real money
-5. Real payment gateway
-6. Real-time chat
-7. Complex notification system
-8. KYC / identity verification
+5. Real-time chat
+6. Complex notification system
+7. KYC / identity verification
 ```
 
 They can be treated as secondary flows or future work.
