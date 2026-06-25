@@ -76,13 +76,4 @@ public class ProposalController : ControllerBase
         var result = await _hiringService.AcceptProposalAsync(userId, id);
         return Ok(ApiResponseFactory.SuccessResponse(result, "Proposal accepted and project initialized", HttpContext.TraceIdentifier));
     }
-
-    [HttpPost("{id}/unshortlist")]
-    [Authorize(Policy = JwtExtensions.ClientPolicy)]
-    public async Task<IActionResult> UnshortlistProposal(Guid id)
-    {
-        var userId = this.GetUserId();
-        await _hiringService.UnshortlistProposalAsync(userId, id);
-        return Ok(ApiResponseFactory.SuccessResponse(true, "Proposal unshortlisted successfully", HttpContext.TraceIdentifier));
-    }
 }
