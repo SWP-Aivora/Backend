@@ -14,10 +14,12 @@ namespace Aivora.api.Controllers;
 public class WalletController : ControllerBase
 {
     private readonly IService _walletService;
+    private readonly IVNPayService _vnPayService;
 
-    public WalletController(IService walletService)
+    public WalletController(IService walletService, IVNPayService vnPayService)
     {
         _walletService = walletService;
+        _vnPayService = vnPayService;
     }
 
     [HttpGet("me")]
@@ -73,8 +75,7 @@ public class WalletController : ControllerBase
         var queryParams = HttpContext.Request.Query
             .ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString());
 
-        var vnPayService = HttpContext.RequestServices.GetRequiredService<IVNPayService>();
-        var result = await vnPayService.ProcessIpnCallbackAsync(queryParams);
+        var result = await _vnPayService.ProcessIpnCallbackAsync(queryParams);
 
         if (!result.IsSuccess)
             return Ok(new { RspCode = "99", Message = result.Message });

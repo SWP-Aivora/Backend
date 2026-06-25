@@ -4,6 +4,7 @@ using System.Text;
 using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 
@@ -13,11 +14,13 @@ public class VNPayService : IVNPayService
 {
     private readonly IConfiguration _configuration;
     private readonly AivoraDbContext _dbContext;
+    private readonly IHttpContextAccessor _httpContextAccessor;
 
-    public VNPayService(IConfiguration configuration, AivoraDbContext dbContext)
+    public VNPayService(IConfiguration configuration, AivoraDbContext dbContext, IHttpContextAccessor httpContextAccessor)
     {
         _configuration = configuration;
         _dbContext = dbContext;
+        _httpContextAccessor = httpContextAccessor;
     }
 
     public string CreatePaymentUrl(Guid userId, decimal amount, string orderInfo)
@@ -43,7 +46,7 @@ public class VNPayService : IVNPayService
             { "vnp_Amount", ((long)(amount * 100)).ToString() },
             { "vnp_CreateDate", createDate },
             { "vnp_CurrCode", "VND" },
-            { "vnp_IpAddr", "127.0.0.1" },
+            { "vnp_IpAddr", GetClientIpAddress() },
             { "vnp_Locale", "vn" },
             { "vnp_OrderInfo", orderInfo },
             { "vnp_OrderType", "other" },
@@ -184,6 +187,18 @@ public class VNPayService : IVNPayService
         var dataBytes = Encoding.UTF8.GetBytes(data);
         using var hmac = new HMACSHA512(keyBytes);
         var hashBytes = hmac.ComputeHash(dataBytes);
-        return BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
+        return Convert.ToHexString(hashBytes).ToLowerInvariant();
+    }
+
+    private string GetClientIpAddress()
+    {
+        var httpContext = _httpContextAccessor.HttpContext;
+        if (httpContext == null) return "127.0.0.1";
+
+        var forwardedFor = httpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault();
+        if (!string.IsNullOrEmpty(forwardedFor))
+            return forwardedFor.Split(',')[0].Trim();
+
+        return httpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
     }
 }
