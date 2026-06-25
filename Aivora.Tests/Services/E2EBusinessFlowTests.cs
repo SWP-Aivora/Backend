@@ -365,7 +365,7 @@ public class E2EBusinessFlowTests
         // 5. Expert Submits and Client Approves -> Payment Released
         // ----------------------------------------------------
         var deliverableService = new Aivora.Services.DeliverableService.Service(dbContext, treasury);
-        await deliverableService.SubmitDeliverableAsync(expertId, milestone.Id, new Aivora.Services.DeliverableService.Request.SubmitDeliverableRequest { Description = "Done" });
+        await deliverableService.SubmitDeliverableAsync(expertId, milestone.Id, new Aivora.Services.DeliverableService.Request.SubmitDeliverableRequest { Description = "Done", FileUrl = "https://example.com/deliverable.zip" });
         await milestoneService.ApproveMilestoneAsync(clientId, milestone.Id);
 
         // Assert Final state

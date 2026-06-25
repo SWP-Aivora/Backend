@@ -33,6 +33,21 @@ public class Service : IService
         if (request.RevieweeId == reviewerId)
             throw new ValidationException("You cannot review yourself.");
 
+        if (request.Rating < 1 || request.Rating > 5)
+            throw new ValidationException("Rating must be between 1 and 5.");
+
+        if (request.CommunicationRating.HasValue && (request.CommunicationRating.Value < 1 || request.CommunicationRating.Value > 5))
+            throw new ValidationException("Communication rating must be between 1 and 5.");
+
+        if (request.QualityRating.HasValue && (request.QualityRating.Value < 1 || request.QualityRating.Value > 5))
+            throw new ValidationException("Quality rating must be between 1 and 5.");
+
+        if (request.DeadlineRating.HasValue && (request.DeadlineRating.Value < 1 || request.DeadlineRating.Value > 5))
+            throw new ValidationException("Deadline rating must be between 1 and 5.");
+
+        if (request.RequirementClarityRating.HasValue && (request.RequirementClarityRating.Value < 1 || request.RequirementClarityRating.Value > 5))
+            throw new ValidationException("Requirement clarity rating must be between 1 and 5.");
+
         var existingReview = await _dbContext.Reviews
             .FirstOrDefaultAsync(r => r.ProjectId == request.ProjectId && r.ReviewerId == reviewerId);
         if (existingReview != null)
