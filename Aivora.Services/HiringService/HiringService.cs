@@ -151,4 +151,18 @@ public class HiringService : IHiringService
 
         return proposal;
     }
+
+    public async Task<bool> UnshortlistProposalAsync(Guid clientId, Guid proposalId)
+    {
+        var proposal = await GetProposalWithOwnerCheckAsync(clientId, proposalId);
+
+        if (proposal.Status != ProposalStatus.SHORTLISTED)
+            throw new ValidationException("Only shortlisted proposals can be unshortlisted.");
+
+        proposal.Status = ProposalStatus.SUBMITTED;
+        proposal.UpdatedAt = DateTimeOffset.UtcNow;
+
+        await _dbContext.SaveChangesAsync();
+        return true;
+    }
 }
