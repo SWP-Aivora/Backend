@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 namespace Aivora.Services.Treasury;
 
 /// <summary>
-/// The Treasury (Kho bạc) - Deep Module chịu trách nhiệm duy nhất về tính toàn vẹn tài chính.
+/// The Treasury (Kho bạc) - Deep Module chịu trách nhiệm duy nhất về tính toàn vẹn tài chính mô phỏng.
 /// Hợp nhất toàn bộ logic từ FinancialLedger cũ để đảm bảo tính Locality và Leverage.
 /// </summary>
 public class Treasury : ITreasury
@@ -61,7 +61,7 @@ public class Treasury : ITreasury
                 Amount = milestone.Amount,
                 Type = WalletTransactionType.ESCROW_HOLD,
                 Direction = TransactionDirection.DEBIT,
-                Description = $"Funding milestone: {milestone.Title}",
+                Description = $"Recording direct transfer for milestone: {milestone.Title}",
                 BalanceBefore = wallet.AvailableBalance + milestone.Amount,
                 BalanceAfter = wallet.AvailableBalance,
                 PaymentId = payment.Id
@@ -80,12 +80,12 @@ public class Treasury : ITreasury
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
-            _logger.LogInformation("✅ Milestone {MilestoneId} funded successfully by Client {ClientId}", milestoneId, clientId);
+            _logger.LogInformation("✅ Milestone {MilestoneId} direct transfer recorded by Client {ClientId}", milestoneId, clientId);
         }
         catch (Exception ex)
         {
             await transaction.RollbackAsync();
-            _logger.LogError(ex, "❌ Failed to fund milestone {MilestoneId}", milestoneId);
+            _logger.LogError(ex, "❌ Failed to record direct transfer for milestone {MilestoneId}", milestoneId);
             throw;
         }
     }
@@ -94,19 +94,18 @@ public class Treasury : ITreasury
     {
         var milestone = await GetMilestoneWithProjectAsync(milestoneId);
 
-        if (milestone.Project.ClientId != clientId) throw new UnauthorizedException("Only the client can approve and release funds.");
-        if (milestone.Status != MilestoneStatus.SUBMITTED) throw new ValidationException("Milestone must be in SUBMITTED status to be released.");
+        if (milestone.Project.ClientId != clientId) throw new UnauthorizedException("Only the client can approve milestone and complete direct transfer.");
+        if (milestone.Status != MilestoneStatus.SUBMITTED) throw new ValidationException("Milestone must be in SUBMITTED status to be approved and completed.");
 
         var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestoneId && p.Status == PaymentStatus.HELD);
-        if (payment == null) throw new NotFoundException("Held payment not found for this milestone.");
-
+        if (payment == null) throw new NotFoundException("Direct transfer tracking record not found for this milestone.");
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
             var payerWallet = await GetWalletAsync(payment.PayerId);
             var payeeWallet = await GetWalletAsync(payment.PayeeId);
 
-            if (payerWallet.HeldBalance < payment.Amount) throw new ValidationException("Insufficient held funds in payer wallet.");
+            if (payerWallet.HeldBalance < payment.Amount) throw new ValidationException("Insufficient held balance in payer wallet.");
 
             // 1. Move money
             payerWallet.HeldBalance -= payment.Amount;
@@ -125,7 +124,7 @@ public class Treasury : ITreasury
                 Amount = payment.Amount,
                 Type = WalletTransactionType.PAYMENT_RELEASE,
                 Direction = TransactionDirection.DEBIT,
-                Description = $"Payment released for milestone: {milestone.Title}",
+                Description = $"Direct transfer completed for milestone: {milestone.Title}",
                 BalanceBefore = payerWallet.HeldBalance + payment.Amount,
                 BalanceAfter = payerWallet.HeldBalance,
                 PaymentId = payment.Id
@@ -138,7 +137,7 @@ public class Treasury : ITreasury
                 Amount = payment.Amount,
                 Type = WalletTransactionType.PAYMENT_RELEASE,
                 Direction = TransactionDirection.CREDIT,
-                Description = $"Payment received for milestone: {milestone.Title}",
+                Description = $"Direct transfer received for milestone: {milestone.Title}",
                 BalanceBefore = payeeWallet.AvailableBalance - payment.Amount,
                 BalanceAfter = payeeWallet.AvailableBalance,
                 PaymentId = payment.Id
@@ -154,12 +153,12 @@ public class Treasury : ITreasury
 
             await transaction.CommitAsync();
 
-            _logger.LogInformation("✅ Funds released for Milestone {MilestoneId}", milestoneId);
+            _logger.LogInformation("✅ Direct transfer completed for Milestone {MilestoneId}", milestoneId);
         }
         catch (Exception ex)
         {
             await transaction.RollbackAsync();
-            _logger.LogError(ex, "❌ Failed to release funds for Milestone {MilestoneId}", milestoneId);
+            _logger.LogError(ex, "❌ Failed to complete direct transfer for Milestone {MilestoneId}", milestoneId);
             throw;
         }
     }
@@ -169,13 +168,13 @@ public class Treasury : ITreasury
         var milestone = await GetMilestoneWithProjectAsync(milestoneId);
         var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestoneId && (p.Status == PaymentStatus.HELD || p.Status == PaymentStatus.FROZEN));
 
-        if (payment == null) throw new NotFoundException("Held/Frozen payment not found for refund.");
+        if (payment == null) throw new NotFoundException("Direct transfer tracking record not found for reversal.");
 
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
             var payerWallet = await GetWalletAsync(payment.PayerId);
-            if (payerWallet.HeldBalance < amount) throw new ValidationException("Insufficient held funds for refund.");
+            if (payerWallet.HeldBalance < amount) throw new ValidationException("Insufficient held balance for transfer reversal.");
 
             // 1. Move money back
             payerWallet.HeldBalance -= amount;
@@ -193,7 +192,7 @@ public class Treasury : ITreasury
                 Amount = amount,
                 Type = WalletTransactionType.REFUND,
                 Direction = TransactionDirection.CREDIT,
-                Description = $"Refund for milestone: {reason}",
+                Description = $"Direct transfer reversal for milestone: {reason}",
                 BalanceBefore = payerWallet.AvailableBalance - amount,
                 BalanceAfter = payerWallet.AvailableBalance,
                 PaymentId = payment.Id
@@ -207,12 +206,12 @@ public class Treasury : ITreasury
 
             await transaction.CommitAsync();
 
-            _logger.LogInformation("✅ Refunded {Amount} for Milestone {MilestoneId}", amount, milestoneId);
+            _logger.LogInformation("✅ Reversed transfer of {Amount} for Milestone {MilestoneId}", amount, milestoneId);
         }
         catch (Exception ex)
         {
             await transaction.RollbackAsync();
-            _logger.LogError(ex, "❌ Failed to refund milestone {MilestoneId}", milestoneId);
+            _logger.LogError(ex, "❌ Failed to reverse transfer for milestone {MilestoneId}", milestoneId);
             throw;
         }
     }
@@ -222,9 +221,9 @@ public class Treasury : ITreasury
         var milestone = await GetMilestoneWithProjectAsync(milestoneId);
         var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestoneId && (p.Status == PaymentStatus.HELD || p.Status == PaymentStatus.FROZEN));
 
-        if (payment == null) throw new NotFoundException("Held/Frozen payment not found for split.");
+        if (payment == null) throw new NotFoundException("Direct transfer tracking record not found for split resolution.");
         if (releaseToExpertAmount + refundToClientAmount != payment.Amount)
-            throw new ValidationException("Total split amounts must equal payment amount.");
+            throw new ValidationException("Total split amounts must equal transaction amount.");
 
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
@@ -252,7 +251,7 @@ public class Treasury : ITreasury
                 Amount = refundToClientAmount,
                 Type = WalletTransactionType.REFUND,
                 Direction = TransactionDirection.CREDIT,
-                Description = $"Dispute split: Refunded part. {reason}",
+                Description = $"Dispute split: Reversed part. {reason}",
                 BalanceAfter = payerWallet.AvailableBalance,
                 PaymentId = payment.Id
             });
@@ -264,7 +263,7 @@ public class Treasury : ITreasury
                 Amount = releaseToExpertAmount,
                 Type = WalletTransactionType.PAYMENT_RELEASE,
                 Direction = TransactionDirection.CREDIT,
-                Description = $"Dispute split: Released part. {reason}",
+                Description = $"Dispute split: Completed part. {reason}",
                 BalanceAfter = payeeWallet.AvailableBalance,
                 PaymentId = payment.Id
             });
@@ -280,7 +279,7 @@ public class Treasury : ITreasury
         catch (Exception ex)
         {
             await transaction.RollbackAsync();
-            _logger.LogError(ex, "❌ Failed to split funds for milestone {MilestoneId}", milestoneId);
+            _logger.LogError(ex, "❌ Failed to split transaction for milestone {MilestoneId}", milestoneId);
             throw;
         }
     }
@@ -288,8 +287,8 @@ public class Treasury : ITreasury
     public async Task FreezeFundsAsync(Guid milestoneId, string reason)
     {
         var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestoneId);
-        if (payment == null) throw new NotFoundException("Payment not found.");
-        if (payment.Status != PaymentStatus.HELD) throw new ValidationException("Only HELD payments can be frozen.");
+        if (payment == null) throw new NotFoundException("Direct transfer tracking record not found.");
+        if (payment.Status != PaymentStatus.HELD) throw new ValidationException("Only HELD transfer records can be frozen.");
 
         payment.Status = PaymentStatus.FROZEN;
         payment.UpdatedAt = DateTimeOffset.UtcNow;
@@ -297,14 +296,14 @@ public class Treasury : ITreasury
         await _dbContext.SaveChangesAsync();
         await MarkProjectDisputedAsync(payment.ProjectId);
 
-        _logger.LogInformation("❄️ Funds frozen for Milestone {MilestoneId}. Reason: {Reason}", milestoneId, reason);
+        _logger.LogInformation("❄️ Direct transfer record frozen for Milestone {MilestoneId}. Reason: {Reason}", milestoneId, reason);
     }
 
     public async Task UnfreezeFundsAsync(Guid milestoneId, string reason)
     {
         var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestoneId);
-        if (payment == null) throw new NotFoundException("Payment not found.");
-        if (payment.Status != PaymentStatus.FROZEN) throw new ValidationException("Only FROZEN payments can be unfrozen.");
+        if (payment == null) throw new NotFoundException("Direct transfer tracking record not found.");
+        if (payment.Status != PaymentStatus.FROZEN) throw new ValidationException("Only FROZEN transfer records can be unfrozen.");
 
         payment.Status = PaymentStatus.HELD;
         payment.UpdatedAt = DateTimeOffset.UtcNow;
@@ -312,7 +311,7 @@ public class Treasury : ITreasury
         await _dbContext.SaveChangesAsync();
         await SyncProjectStatusAsync(payment.ProjectId);
 
-        _logger.LogInformation("🔥 Funds unfrozen for Milestone {MilestoneId}. Reason: {Reason}", milestoneId, reason);
+        _logger.LogInformation("🔥 Direct transfer record unfrozen for Milestone {MilestoneId}. Reason: {Reason}", milestoneId, reason);
     }
 
     public async Task SyncProjectStatusAsync(Guid projectId)

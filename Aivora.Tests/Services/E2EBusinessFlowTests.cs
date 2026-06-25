@@ -416,7 +416,7 @@ public class E2EBusinessFlowTests
         // ----------------------------------------------------
         Func<Task> releaseBeforeApproval = async () => await milestoneService.ApproveMilestoneAsync(clientId, milestone.Id);
         await releaseBeforeApproval.Should().ThrowAsync<ValidationException>()
-            .WithMessage("Milestone must be in SUBMITTED status to be released.");
+            .WithMessage("Milestone must be in SUBMITTED status to be approved and completed.");
 
         // ----------------------------------------------------
         // Negative Test 2: Review before project is completed
@@ -505,7 +505,8 @@ public class E2EBusinessFlowTests
         var disputedProject = await dbContext.Projects.FindAsync(project.Id);
         disputedProject!.Status.Should().Be(ProjectStatus.DISPUTED);
 
-        var frozenPayment = await dbContext.Payments.FindAsync(payment.Id);
-        frozenPayment!.Status.Should().Be(PaymentStatus.FROZEN);
+        var updatedPayment = await dbContext.Payments.FindAsync(payment.Id);
+        // Payment stays HELD (no auto-freeze on dispute)
+        updatedPayment!.Status.Should().Be(PaymentStatus.HELD);
     }
 }

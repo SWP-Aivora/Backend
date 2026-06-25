@@ -21,7 +21,7 @@ public class Response
         public int TotalJobs { get; set; }
         public int ActiveProjects { get; set; }
         public int OpenDisputes { get; set; }
-        public decimal TotalEscrowAmount { get; set; }
+        public decimal TotalSimulatedTransferAmount { get; set; }
     }
 }
 
