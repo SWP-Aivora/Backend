@@ -67,6 +67,9 @@ public class WalletController : ControllerBase
     [AllowAnonymous]
     public async Task<IActionResult> VnPayIpnCallback()
     {
+        // NOTE: This endpoint intentionally does NOT use ApiResponse wrapper.
+        // VNPay IPN protocol requires the response format {"RspCode": "00", "Message": "..."}
+        // to confirm successful recording of the transaction.
         var queryParams = HttpContext.Request.Query
             .ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString());
 

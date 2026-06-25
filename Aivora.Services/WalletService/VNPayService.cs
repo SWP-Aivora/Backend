@@ -115,9 +115,10 @@ public class VNPayService : IVNPayService
         if (underscoreIndex < 0 || !Guid.TryParse(txnRef[..underscoreIndex], out var userId))
             return new VnPayIpnResult { IsSuccess = false, Message = "Invalid vnp_TxnRef format." };
 
-        // 4. Check duplicate
+        // 4. Check duplicate via exact match on known description format
+        var expectedDescription = $"VNPay deposit. TxnRef: {txnRef}";
         var isDuplicate = await _dbContext.WalletTransactions
-            .AnyAsync(t => t.Description != null && t.Description.Contains(txnRef));
+            .AnyAsync(t => t.Description == expectedDescription);
 
         if (isDuplicate)
             return new VnPayIpnResult
