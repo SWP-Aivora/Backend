@@ -28,4 +28,9 @@ public interface IHiringService
     /// Expert tự rút lại Proposal của mình.
     /// </summary>
     Task<bool> WithdrawProposalAsync(Guid expertId, Guid proposalId);
+
+    /// <summary>
+    /// Client rút một Proposal khỏi danh sách shortlist.
+    /// </summary>
+    Task<bool> UnshortlistProposalAsync(Guid clientId, Guid proposalId);
 }
