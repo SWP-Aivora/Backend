@@ -1,5 +1,8 @@
+using System.Text.Json.Serialization;
+
 namespace Aivora.Repositories.Enums;
 
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum WalletTransactionType
 {
     DEMO_DEPOSIT,
@@ -8,6 +11,8 @@ public enum WalletTransactionType
     PAYMENT_RELEASE,
     REFUND,
     WITHDRAWAL,
+    WITHDRAWAL_REQUEST,
+    WITHDRAWAL_COMPLETED,
     TRANSFER,
     MILESTONE_RELEASE
 }

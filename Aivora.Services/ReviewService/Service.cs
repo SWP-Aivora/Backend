@@ -33,6 +33,12 @@ public class Service : IService
         if (request.RevieweeId == reviewerId)
             throw new ValidationException("You cannot review yourself.");
 
+        ValidateRating(request.Rating, "Rating");
+        ValidateRating(request.CommunicationRating, "Communication rating");
+        ValidateRating(request.QualityRating, "Quality rating");
+        ValidateRating(request.DeadlineRating, "Deadline rating");
+        ValidateRating(request.RequirementClarityRating, "Requirement clarity rating");
+
         var existingReview = await _dbContext.Reviews
             .FirstOrDefaultAsync(r => r.ProjectId == request.ProjectId && r.ReviewerId == reviewerId);
         if (existingReview != null)
@@ -109,6 +115,12 @@ public class Service : IService
             PageIndex = pageRequest.PageIndex,
             PageSize = pageRequest.PageSize
         };
+    }
+
+    private static void ValidateRating(int? rating, string fieldName)
+    {
+        if (rating.HasValue && (rating.Value < 1 || rating.Value > 5))
+            throw new ValidationException($"{fieldName} must be between 1 and 5.");
     }
 
     private static Response.ReviewResponse MapToResponse(Review r, string reviewerName)

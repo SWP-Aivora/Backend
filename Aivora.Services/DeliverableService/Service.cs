@@ -32,6 +32,14 @@ public class Service : IService
             milestone.Status != MilestoneStatus.REVISION_REQUESTED)
             throw new ValidationException("Cannot submit deliverable for this milestone status.");
 
+        if (string.IsNullOrWhiteSpace(request.FileUrl) &&
+            string.IsNullOrWhiteSpace(request.DemoUrl) &&
+            string.IsNullOrWhiteSpace(request.SourceCodeUrl) &&
+            string.IsNullOrWhiteSpace(request.Note))
+        {
+            throw new ValidationException("At least one evidence field (FileUrl, DemoUrl, SourceCodeUrl, Note) must be provided.");
+        }
+
         var latestRevision = await _dbContext.Deliverables
             .Where(d => d.MilestoneId == milestoneId)
             .OrderByDescending(d => d.RevisionNumber)
@@ -99,10 +107,10 @@ public class Service : IService
             MilestoneId = d.MilestoneId,
             ExpertId = d.ExpertId,
             Description = d.Description ?? "",
-            FileUrl = null, // These were missing in the entity but present in response, setting null for now
-            DemoUrl = null,
-            SourceCodeUrl = null,
-            Note = null,
+            FileUrl = d.FileUrl,
+            DemoUrl = d.DemoUrl,
+            SourceCodeUrl = d.SourceCodeUrl,
+            Note = d.Note,
             RevisionNumber = d.RevisionNumber,
             Status = d.Status,
             SubmittedAt = d.CreatedAt,
