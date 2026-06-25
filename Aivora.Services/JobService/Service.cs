@@ -248,7 +248,7 @@ public class Service : IService
             BusinessDomain = job.BusinessDomain,
             ExpectedOutcome = job.ExpectedOutcome,
             ClientId = job.ClientId,
-            ClientName = job.Client.FullName,
+            ClientName = job.Client?.FullName ?? "Unknown",
             CategoryId = job.CategoryId,
             CategoryName = job.Category?.Name,
             BudgetType = job.BudgetType,
@@ -264,7 +264,7 @@ public class Service : IService
             Skills = job.JobSkills.Select(js => new Response.SkillInfo
             {
                 Id = js.SkillId,
-                Name = js.Skill.Name
+                Name = js.Skill?.Name ?? "Unknown"
             }).ToList(),
             Milestones = job.Milestones?.Select(m => new Response.JobMilestoneResponse
             {
