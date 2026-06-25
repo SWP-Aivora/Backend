@@ -143,9 +143,18 @@ public class Service : IService
         var orderInfo = $"Nap tien Aivora - User {userId}";
         var paymentUrl = _vnPayService.CreatePaymentUrl(userId, request.Amount, orderInfo);
 
+        // Extract TxnRef from URL without extra dependencies
+        var txnRef = string.Empty;
         var uri = new Uri(paymentUrl);
-        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
-        var txnRef = query["vnp_TxnRef"] ?? string.Empty;
+        if (!string.IsNullOrEmpty(uri.Query))
+        {
+            txnRef = uri.Query.TrimStart('?')
+                .Split('&')
+                .Select(p => p.Split('=', 2))
+                .Where(parts => parts.Length == 2 && parts[0] == "vnp_TxnRef")
+                .Select(parts => Uri.UnescapeDataString(parts[1]))
+                .FirstOrDefault() ?? string.Empty;
+        }
 
         return new Response.VnPayDepositResponse
         {

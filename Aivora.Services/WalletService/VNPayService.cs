@@ -32,7 +32,8 @@ public class VNPayService : IVNPayService
             ?? throw new InvalidOperationException("VNPay:ReturnUrl is not configured.");
 
         var txnRef = $"{userId:N}_{DateTimeOffset.UtcNow:yyyyMMddHHmmssfff}";
-        var createDate = DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmss");
+        var vnTime = DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(7));
+        var createDate = vnTime.ToString("yyyyMMddHHmmss");
 
         var vnpParams = new SortedDictionary<string, string>
         {
