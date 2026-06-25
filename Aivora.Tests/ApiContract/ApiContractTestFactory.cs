@@ -28,11 +28,11 @@ public class ApiContractTestFactory : WebApplicationFactory<Program>
         {
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["JwtSettings:Secret"]                  = "super-secret-test-key-that-is-long-enough-32chars!",
-                ["JwtSettings:Issuer"]                  = "aivora-test",
-                ["JwtSettings:Audience"]                = "aivora-test-api",
+                ["JwtSettings:Secret"] = "super-secret-test-key-that-is-long-enough-32chars!",
+                ["JwtSettings:Issuer"] = "aivora-test",
+                ["JwtSettings:Audience"] = "aivora-test-api",
                 ["JwtSettings:AccessTokenExpiryMinutes"] = "60",
-                ["ConnectionStrings:DefaultConnection"]  = "Host=test;Database=test;Username=test;Password=test"
+                ["ConnectionStrings:DefaultConnection"] = "Host=test;Database=test;Username=test;Password=test"
             });
         });
 

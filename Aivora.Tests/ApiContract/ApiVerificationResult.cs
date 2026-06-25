@@ -37,10 +37,15 @@ public static class ApiVerificationTracker
         var result = (actualStatus == expectedStatus && requestMatchesDoc && responseMatchesDoc) ? "TRUE" : "FALSE";
         Results.Add(new ApiVerificationResult
         {
-            Flow = flow, Method = method, Path = path,
-            ExpectedStatus = expectedStatus, ActualStatus = actualStatus,
-            RequestMatchesDoc = requestMatchesDoc, ResponseMatchesDoc = responseMatchesDoc,
-            Result = result, FailureReason = failureReason
+            Flow = flow,
+            Method = method,
+            Path = path,
+            ExpectedStatus = expectedStatus,
+            ActualStatus = actualStatus,
+            RequestMatchesDoc = requestMatchesDoc,
+            ResponseMatchesDoc = responseMatchesDoc,
+            Result = result,
+            FailureReason = failureReason
         });
     }
 
