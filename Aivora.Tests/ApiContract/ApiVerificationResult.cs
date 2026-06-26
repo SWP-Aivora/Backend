@@ -55,7 +55,11 @@ public class ApiVerificationTracker
         var orderedResults = _results
             .OrderBy(r => r.Flow).ThenBy(r => r.Path).ThenBy(r => r.Method).ThenBy(r => r.ExpectedStatus).ToList();
         var json = JsonSerializer.Serialize(orderedResults, new JsonSerializerOptions { WriteIndented = true });
-        File.WriteAllText(outputPath, json);
+
+        // Use FileShare.Write to handle concurrent access
+        using var fileStream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.Write);
+        using var writer = new StreamWriter(fileStream);
+        writer.Write(json);
     }
 
     public IReadOnlyCollection<ApiVerificationResult> GetResults() => _results;

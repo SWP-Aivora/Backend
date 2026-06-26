@@ -5,7 +5,6 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Aivora.Repositories.Enums;
 using FluentAssertions;
-using Aivora.Repositories.Enums;
 using Xunit;
 
 using Microsoft.Extensions.DependencyInjection;
