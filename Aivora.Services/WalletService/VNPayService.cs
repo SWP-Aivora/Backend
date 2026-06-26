@@ -80,13 +80,13 @@ public class VNPayService : IVNPayService
         };
     }
 
-    public async Task<VnPayIpnResult> ProcessIpnCallbackAsync(Dictionary<string, string> queryParams)
+    public async Task<VnPayIpnResult> ProcessIpnCallbackAsync(Dictionary<string, string?> queryParams)
     {
         var hashSecret = _configuration["VNPay:HashSecret"]
             ?? throw new InvalidOperationException("VNPay:HashSecret is not configured.");
 
         // 1. Verify secure hash
-        if (!queryParams.TryGetValue("vnp_SecureHash", out var receivedHash))
+        if (!queryParams.TryGetValue("vnp_SecureHash", out var receivedHash) || string.IsNullOrEmpty(receivedHash))
             return new VnPayIpnResult { IsSuccess = false, Message = "Missing vnp_SecureHash." };
 
         var signData = new StringBuilder();
@@ -113,7 +113,10 @@ public class VNPayService : IVNPayService
 
         // 3. Extract data
         var txnRef = queryParams.GetValueOrDefault("vnp_TxnRef", string.Empty);
-        if (!queryParams.TryGetValue("vnp_Amount", out var amountStr))
+        if (string.IsNullOrEmpty(txnRef))
+            return new VnPayIpnResult { IsSuccess = false, Message = "Missing vnp_TxnRef." };
+
+        if (!queryParams.TryGetValue("vnp_Amount", out var amountStr) || string.IsNullOrEmpty(amountStr))
             return new VnPayIpnResult { IsSuccess = false, Message = "Missing vnp_Amount." };
 
         if (!decimal.TryParse(amountStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var amountRaw))
@@ -130,6 +133,24 @@ public class VNPayService : IVNPayService
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
+            // Check for existing transaction FIRST to prevent race conditions
+            var existingTransaction = await _dbContext.WalletTransactions
+                .FirstOrDefaultAsync(t => t.ExternalTxnRef == txnRef);
+
+            if (existingTransaction != null)
+            {
+                await transaction.RollbackAsync();
+                return new VnPayIpnResult
+                {
+                    IsSuccess = true,
+                    Message = "Duplicate transaction - already processed.",
+                    UserId = userId,
+                    Amount = amount,
+                    TxnRef = txnRef,
+                    IsDuplicate = true
+                };
+            }
+
             var wallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
             if (wallet == null)
             {

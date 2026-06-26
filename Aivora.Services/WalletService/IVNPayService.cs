@@ -10,7 +10,7 @@ public interface IVNPayService
     /// <summary>
     /// Xác thực chữ ký và xử lý IPN callback từ VNPay
     /// </summary>
-    Task<VnPayIpnResult> ProcessIpnCallbackAsync(Dictionary<string, string> queryParams);
+    Task<VnPayIpnResult> ProcessIpnCallbackAsync(Dictionary<string, string?> queryParams);
 }
 
 public class VnPayPaymentResult
