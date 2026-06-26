@@ -3,6 +3,7 @@ using System;
 using Aivora.Repositories.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Aivora.Repositories.Data.Migrations
 {
     [DbContext(typeof(AivoraDbContext))]
-    partial class AivoraDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260626123130_AddExternalTxnRefToWalletTransaction")]
+    partial class AddExternalTxnRefToWalletTransaction
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1400,8 +1403,7 @@ namespace Aivora.Repositories.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ExternalTxnRef")
-                        .IsUnique();
+                    b.HasIndex("ExternalTxnRef");
 
                     b.HasIndex("PaymentId");
 

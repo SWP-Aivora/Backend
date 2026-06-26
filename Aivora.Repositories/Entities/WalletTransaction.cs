@@ -14,6 +14,7 @@ public class WalletTransaction : AuditableBaseEntity
     public decimal BalanceBefore { get; set; }
     public decimal BalanceAfter { get; set; }
     public string? Description { get; set; }
+    public string? ExternalTxnRef { get; set; }
 
     // Navigation Properties
     public virtual Wallet Wallet { get; set; } = null!;

@@ -9,10 +9,12 @@ namespace Aivora.Services.WalletService;
 public class Service : IService
 {
     private readonly AivoraDbContext _dbContext;
+    private readonly IVNPayService _vnPayService;
 
-    public Service(AivoraDbContext dbContext)
+    public Service(AivoraDbContext dbContext, IVNPayService vnPayService)
     {
         _dbContext = dbContext;
+        _vnPayService = vnPayService;
     }
 
     public async Task<Response.WalletResponse> GetWalletAsync(Guid userId)
@@ -129,6 +131,23 @@ public class Service : IService
             await transaction.RollbackAsync();
             throw new ValidationException($"Transaction failed: {ex.Message}");
         }
+    }
+
+    public async Task<Response.VnPayDepositResponse> DepositViaVNPayAsync(Guid userId, Request.VnPayDepositRequest request)
+    {
+        if (request.Amount <= 0) throw new ValidationException("Amount must be greater than 0.");
+
+        var wallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
+        if (wallet == null) throw new NotFoundException("Wallet not found.");
+
+        var orderInfo = $"Nap tien Aivora - User {userId}";
+        var result = _vnPayService.CreatePaymentUrl(userId, request.Amount, orderInfo, wallet);
+
+        return new Response.VnPayDepositResponse
+        {
+            PaymentUrl = result.PaymentUrl,
+            TxnRef = result.TxnRef
+        };
     }
 
     public async Task<Response.DepositResultResponse> WithdrawAsync(Guid userId, Request.WithdrawRequest request)

@@ -45,4 +45,21 @@ public class Response
         public WalletResponse Wallet { get; set; } = null!;
         public TransactionResponse Transaction { get; set; } = null!;
     }
+
+    public class VnPayDepositResponse
+    {
+        public string PaymentUrl { get; set; } = null!;
+        public string TxnRef { get; set; } = null!;
+    }
+
+    /// <summary>
+    ///   VNPay IPN callback response format.
+    ///   Required by VNPay protocol: {RspCode, Message}.
+    ///   Intentionally does NOT use ApiResponse wrapper.
+    /// </summary>
+    public class VnPayIpnResponse
+    {
+        public string RspCode { get; set; } = null!;
+        public string Message { get; set; } = null!;
+    }
 }
