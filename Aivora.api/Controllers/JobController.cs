@@ -9,6 +9,9 @@ using Microsoft.AspNetCore.RateLimiting;
 
 namespace Aivora.api.Controllers;
 
+/// <summary>
+/// Job controller handling job posting, searching, and management
+/// </summary>
 [ApiController]
 [Route("api/v1/jobs")]
 [EnableRateLimiting("General")]
@@ -18,6 +21,12 @@ public class JobController : ControllerBase
     private readonly Aivora.Services.RecommendationService.IService _recommendationService;
     private readonly Aivora.Services.ProposalService.IService _proposalService;
 
+    /// <summary>
+    /// Initializes a new instance of the JobController
+    /// </summary>
+    /// <param name="jobService">Job service for job operations</param>
+    /// <param name="recommendationService">Recommendation service for expert matching</param>
+    /// <param name="proposalService">Proposal service for proposal management</param>
     public JobController(
         IService jobService,
         Aivora.Services.RecommendationService.IService recommendationService,
@@ -28,6 +37,12 @@ public class JobController : ControllerBase
         _proposalService = proposalService;
     }
 
+    /// <summary>
+    /// Get list of jobs with pagination and optional category filter
+    /// </summary>
+    /// <param name="pageRequest">Pagination parameters</param>
+    /// <param name="categoryId">Optional category filter</param>
+    /// <returns>Paginated list of jobs</returns>
     [HttpGet]
     [AllowAnonymous]
     public async Task<IActionResult> GetJobs([FromQuery] Aivora.Services.Base.Request.PageRequest pageRequest, [FromQuery] Guid? categoryId)
@@ -36,6 +51,11 @@ public class JobController : ControllerBase
         return Ok(ApiResponseFactory.SuccessResponse(result, "Jobs retrieved successfully", HttpContext.TraceIdentifier));
     }
 
+    /// <summary>
+    /// Get job by ID
+    /// </summary>
+    /// <param name="id">Job ID</param>
+    /// <returns>Job details</returns>
     [HttpGet("{id}")]
     [AllowAnonymous]
     public async Task<IActionResult> GetJob(Guid id)
@@ -44,6 +64,11 @@ public class JobController : ControllerBase
         return Ok(ApiResponseFactory.SuccessResponse(result, "Job retrieved successfully", HttpContext.TraceIdentifier));
     }
 
+    /// <summary>
+    /// Create a new job draft
+    /// </summary>
+    /// <param name="request">Job creation data</param>
+    /// <returns>Created job information</returns>
     [HttpPost]
     [Authorize(Policy = JwtExtensions.ClientPolicy)]
     public async Task<IActionResult> CreateJob([FromBody] Aivora.Services.JobService.Request.CreateJobRequest request)
@@ -53,6 +78,12 @@ public class JobController : ControllerBase
         return Ok(ApiResponseFactory.SuccessResponse(result, "Job created successfully as draft", HttpContext.TraceIdentifier));
     }
 
+    /// <summary>
+    /// Update an existing job
+    /// </summary>
+    /// <param name="id">Job ID</param>
+    /// <param name="request">Job update data</param>
+    /// <returns>Updated job information</returns>
     [HttpPut("{id}")]
     [Authorize(Policy = JwtExtensions.ClientPolicy)]
     public async Task<IActionResult> UpdateJob(Guid id, [FromBody] Aivora.Services.JobService.Request.UpdateJobRequest request)

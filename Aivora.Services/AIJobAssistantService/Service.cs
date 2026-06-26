@@ -8,6 +8,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Aivora.Services.AIJobAssistantService;
 
+/// <summary>
+/// AI Job Assistant service for generating job suggestions, refinements, and service descriptions
+/// </summary>
 public class Service : IService
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
@@ -21,6 +24,14 @@ public class Service : IService
     private readonly IAIJobRefinementProvider _refinementProvider;
     private readonly IAIServiceDescriptionProvider _serviceDescriptionProvider;
 
+    /// <summary>
+    /// Initializes a new instance of the AI Job Assistant service
+    /// </summary>
+    /// <param name="dbContext">Database context</param>
+    /// <param name="jobService">Job service for job operations</param>
+    /// <param name="suggestionProvider">AI provider for job suggestions</param>
+    /// <param name="refinementProvider">AI provider for job refinements</param>
+    /// <param name="serviceDescriptionProvider">AI provider for service descriptions</param>
     public Service(
         AivoraDbContext dbContext,
         JobService.IService jobService,
@@ -35,6 +46,13 @@ public class Service : IService
         _serviceDescriptionProvider = serviceDescriptionProvider;
     }
 
+    /// <summary>
+/// Generate AI-powered job suggestions based on client requirements
+/// </summary>
+/// <param name="clientId">Client user ID</param>
+/// <param name="request">Job suggestion generation request</param>
+/// <param name="cancellationToken">Cancellation token</param>
+/// <returns>Job suggestion response with AI-generated options</returns>
     public async Task<Response.SuggestionResponse> GenerateSuggestionAsync(Guid clientId, Request.GenerateSuggestionRequest request, CancellationToken cancellationToken = default)
     {
         if (request is null) throw new ValidationException("Request body is required.");
