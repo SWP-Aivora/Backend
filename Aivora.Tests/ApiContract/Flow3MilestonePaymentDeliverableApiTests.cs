@@ -6,6 +6,7 @@ using Xunit;
 
 namespace Aivora.Tests.ApiContract;
 
+[Collection("ApiContract")]
 public class Flow3MilestonePaymentDeliverableApiTests : IClassFixture<ApiContractTestFactory>
 {
     private readonly ApiContractTestFactory _factory;
