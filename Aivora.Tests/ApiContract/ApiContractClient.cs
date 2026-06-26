@@ -39,6 +39,8 @@ public class ApiContractClient
         _http.DefaultRequestHeaders.Authorization = null;
     }
 
+    public void Logout() => ClearToken();
+
     private void ApplyAuth(HttpRequestMessage request)
     {
         if (!string.IsNullOrEmpty(_token))
