@@ -505,7 +505,8 @@ public class E2EBusinessFlowTests
         var disputedProject = await dbContext.Projects.FindAsync(project.Id);
         disputedProject!.Status.Should().Be(ProjectStatus.DISPUTED);
 
-        var frozenPayment = await dbContext.Payments.FindAsync(payment.Id);
-        frozenPayment!.Status.Should().Be(PaymentStatus.FROZEN);
+        var updatedPayment = await dbContext.Payments.FindAsync(payment.Id);
+        // Payment stays HELD (no auto-freeze on dispute)
+        updatedPayment!.Status.Should().Be(PaymentStatus.HELD);
     }
 }

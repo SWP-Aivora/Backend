@@ -22,7 +22,7 @@ public class DisputeServiceTests
     }
 
     [Fact]
-    public async Task OpenDisputeAsync_FreesPaymentsAndUpdatesStatuses()
+    public async Task OpenDisputeAsync_UpdatesMilestoneAndProjectStatuses()
     {
         // Arrange
         var dbContext = GetDbContext();
@@ -59,8 +59,9 @@ public class DisputeServiceTests
         var updatedProject = await dbContext.Projects.FindAsync(projectId);
         updatedProject!.Status.Should().Be(ProjectStatus.DISPUTED);
 
+        // Payment stays HELD (no auto-freeze on dispute)
         var updatedPayment = await dbContext.Payments.FindAsync(payment.Id);
-        updatedPayment!.Status.Should().Be(PaymentStatus.FROZEN);
+        updatedPayment!.Status.Should().Be(PaymentStatus.HELD);
     }
 
     [Fact]

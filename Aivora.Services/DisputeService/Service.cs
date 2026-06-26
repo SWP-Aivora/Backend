@@ -51,8 +51,12 @@ public class Service : IService
             milestone.Status = MilestoneStatus.DISPUTED;
             milestone.Project.Status = ProjectStatus.DISPUTED;
 
-            // Centralized payment state management via Treasury
-            await _treasury.FreezeFundsAsync(milestone.Id, $"Dispute opened: {request.Reason}");
+            // NOTE: FreezeFundsAsync is intentionally NOT called here.
+            // Financial integrity is protected by the milestone status check in
+            // Treasury.ReleaseMilestoneAsync (only SUBMITTED milestones can be released).
+            // Payment stays HELD during dispute; all resolution methods accept HELD.
+            // The milestone-level status guard is sufficient — an additional
+            // payment-level freeze (HELD→FROZEN) adds no extra barrier.
 
             _dbContext.Disputes.Add(dispute);
             await _dbContext.SaveChangesAsync();
