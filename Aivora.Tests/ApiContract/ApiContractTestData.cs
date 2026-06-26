@@ -23,8 +23,8 @@ public static class ApiContractTestData
     public static readonly Guid ExpertWalletId = new("a0000000-0000-0000-0000-000000000021");
     public static readonly Guid AdminWalletId = new("a0000000-0000-0000-0000-000000000022");
 
-    // ── Test password hash (not a real hash — only for in‑memory tests) ──
-    public const string TestPasswordHash = "$2a$11$TEST_HASH_NOT_REAL_DO_NOT_USE_IN_PROD";
+    // Real BCrypt hash of "password123" for login endpoint support
+    private static readonly string TestPasswordHash = BCrypt.Net.BCrypt.HashPassword("password123");
 
     // ── Seed ──────────────────────────────────────────────────────
     public static void Seed(AivoraDbContext db)
@@ -36,7 +36,7 @@ public static class ApiContractTestData
             new User
             {
                 Id = ClientUserId,
-                Email = "client@aivora.test",
+                Email = "client@aivora.com",
                 PasswordHash = TestPasswordHash,
                 FullName = "Test Client",
                 Role = UserRole.CLIENT,
@@ -45,7 +45,7 @@ public static class ApiContractTestData
             new User
             {
                 Id = ExpertUserId,
-                Email = "expert@aivora.test",
+                Email = "expert@aivora.com",
                 PasswordHash = TestPasswordHash,
                 FullName = "Test Expert",
                 Role = UserRole.EXPERT,
@@ -54,7 +54,7 @@ public static class ApiContractTestData
             new User
             {
                 Id = AdminUserId,
-                Email = "admin@aivora.test",
+                Email = "admin@aivora.com",
                 PasswordHash = TestPasswordHash,
                 FullName = "Test Admin",
                 Role = UserRole.ADMIN,
