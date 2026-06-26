@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace Aivora.Tests.ApiContract;
@@ -28,12 +29,6 @@ public class ApiContractTestFactory : WebApplicationFactory<Program>
         .AddEntityFrameworkInMemoryDatabase()
         .BuildServiceProvider();
 
-    // ── Test config overrides ─────────────────────────────────────
-    // .NET config hierarchy: env vars > appsettings.json.
-    // ConfigureAppConfiguration cannot override appsettings.json because
-    // WebApplicationFactory adds sources before Program.cs loads it.
-    // Environment variables are the only reliable override mechanism.
-    // All factories in the [Collection("ApiContract")] use identical values.
     static ApiContractTestFactory()
     {
         Environment.SetEnvironmentVariable("ConnectionStrings__DefaultConnection", "Host=00000000;Database=00000000;Username=00000000;Password=00000000");
