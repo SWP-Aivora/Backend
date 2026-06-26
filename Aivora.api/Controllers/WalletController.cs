@@ -67,6 +67,7 @@ public class WalletController : ControllerBase
 
     [HttpGet("vnpay-ipn")]
     [AllowAnonymous]
+    [EnableRateLimiting("General")]
     public async Task<IActionResult> VnPayIpnCallback()
     {
         // NOTE: This endpoint intentionally does NOT use ApiResponse wrapper.
