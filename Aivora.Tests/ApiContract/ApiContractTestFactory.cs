@@ -29,26 +29,12 @@ public class ApiContractTestFactory : WebApplicationFactory<Program>
         .AddEntityFrameworkInMemoryDatabase()
         .BuildServiceProvider();
 
-    static ApiContractTestFactory()
-    {
-        Environment.SetEnvironmentVariable("ConnectionStrings__DefaultConnection", "Host=00000000;Database=00000000;Username=00000000;Password=00000000");
-        Environment.SetEnvironmentVariable("JwtSettings__Secret", "00000000000000000000000000000000");
-        Environment.SetEnvironmentVariable("JwtSettings__Issuer", "00000000");
-        Environment.SetEnvironmentVariable("JwtSettings__Audience", "00000000");
-        Environment.SetEnvironmentVariable("JwtSettings__ExpiryInMinutes", "60");
-        Environment.SetEnvironmentVariable("CloudinaryOptions__CloudName", "00000000");
-        Environment.SetEnvironmentVariable("CloudinaryOptions__ApiKey", "00000000");
-        Environment.SetEnvironmentVariable("CloudinaryOptions__ApiSecret", "00000000");
-        Environment.SetEnvironmentVariable("AIProvider__Provider", "Mock");
-        Environment.SetEnvironmentVariable("RateLimit__Strict__PermitLimit", "1000");
-        Environment.SetEnvironmentVariable("RateLimit__AI__PermitLimit", "1000");
-        Environment.SetEnvironmentVariable("RateLimit__General__PermitLimit", "1000");
-    }
-
     // ── Config ────────────────────────────────────────────────────
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.UseEnvironment("Development");
+        // Use "Test" environment so the host loads appsettings.Test.json
+        // which overrides placeholder values from appsettings.json.
+        builder.UseEnvironment("Test");
 
         builder.ConfigureServices(services =>
         {
