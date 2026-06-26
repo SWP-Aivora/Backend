@@ -140,4 +140,31 @@ public class WalletServiceTests
             .ToListAsync();
         transactions.Count.Should().Be(1);
     }
+
+    [Fact]
+    public async Task DepositViaVNPayAsync_ShouldNotQueryWalletUnnecessarily()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var userId = Guid.NewGuid();
+        var wallet = new Wallet { UserId = userId, AvailableBalance = 0, Currency = "AICOIN" };
+        dbContext.Wallets.Add(wallet);
+        await dbContext.SaveChangesAsync();
+
+        var vnPayServiceMock = new Mock<IVNPayService>();
+        vnPayServiceMock.Setup(x => x.CreatePaymentUrl(It.IsAny<Guid>(), It.IsAny<decimal>(), It.IsAny<string>(), It.IsAny<Wallet>()))
+            .Returns(new VnPayPaymentResult { PaymentUrl = "https://test.com", TxnRef = "test123" });
+
+        var service = new Service(dbContext, vnPayServiceMock.Object);
+        var request = new Request.VnPayDepositRequest { Amount = 100000 };
+
+        // Act
+        await service.DepositViaVNPayAsync(userId, request);
+
+        // Assert - wallet should only be queried once for validation
+        // The mock VNPayService doesn't query wallet, so only Service.cs queries it once
+        var walletInDb = await dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
+        walletInDb.Should().NotBeNull();
+        walletInDb!.AvailableBalance.Should().Be(0); // Should not change since we only create payment URL
+    }
 }

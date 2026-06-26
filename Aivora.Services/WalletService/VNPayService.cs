@@ -24,7 +24,7 @@ public class VNPayService : IVNPayService
         _httpContextAccessor = httpContextAccessor;
     }
 
-    public VnPayPaymentResult CreatePaymentUrl(Guid userId, decimal amount, string orderInfo)
+    public VnPayPaymentResult CreatePaymentUrl(Guid userId, decimal amount, string orderInfo, Wallet wallet)
     {
         var tmnCode = _configuration["VNPay:TmnCode"]
             ?? throw new InvalidOperationException("VNPay:TmnCode is not configured.");

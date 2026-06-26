@@ -141,7 +141,7 @@ public class Service : IService
         if (wallet == null) throw new NotFoundException("Wallet not found.");
 
         var orderInfo = $"Nap tien Aivora - User {userId}";
-        var result = _vnPayService.CreatePaymentUrl(userId, request.Amount, orderInfo);
+        var result = _vnPayService.CreatePaymentUrl(userId, request.Amount, orderInfo, wallet);
 
         return new Response.VnPayDepositResponse
         {

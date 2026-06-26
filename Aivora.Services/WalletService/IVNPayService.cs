@@ -1,3 +1,5 @@
+using Aivora.Repositories.Entities;
+
 namespace Aivora.Services.WalletService;
 
 public interface IVNPayService
@@ -5,7 +7,7 @@ public interface IVNPayService
     /// <summary>
     /// Tạo URL thanh toán VNPay Sandbox
     /// </summary>
-    VnPayPaymentResult CreatePaymentUrl(Guid userId, decimal amount, string orderInfo);
+    VnPayPaymentResult CreatePaymentUrl(Guid userId, decimal amount, string orderInfo, Wallet wallet);
 
     /// <summary>
     /// Xác thực chữ ký và xử lý IPN callback từ VNPay
