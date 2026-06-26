@@ -261,6 +261,7 @@ public class Service : IService
             Status = job.Status,
             Visibility = job.Visibility,
             CreatedAt = job.CreatedAt,
+            PublishedAt = job.PublishedAt,
             Skills = job.JobSkills.Select(js => new Response.SkillInfo
             {
                 Id = js.SkillId,

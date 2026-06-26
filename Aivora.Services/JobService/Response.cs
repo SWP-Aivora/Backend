@@ -27,6 +27,7 @@ public class Response
         public JobStatus Status { get; set; }
         public JobVisibility Visibility { get; set; }
         public DateTimeOffset CreatedAt { get; set; }
+        public DateTimeOffset? PublishedAt { get; set; }
         public List<SkillInfo> Skills { get; set; } = new();
         public List<JobMilestoneResponse> Milestones { get; set; } = new();
     }
