@@ -32,7 +32,7 @@ public class ApiContractTestFactory : WebApplicationFactory<Program>
                 ["JwtSettings:Issuer"] = "aivora-test",
                 ["JwtSettings:Audience"] = "aivora-test-api",
                 ["JwtSettings:AccessTokenExpiryMinutes"] = "60",
-                ["ConnectionStrings:DefaultConnection"] = "Host=test;Database=test;Username=test;Password=test"
+                ["ConnectionStrings:DefaultConnection"] = "Host=test-contract-inmemory;Database=test-contract;Username=test;Password=test"
             });
         });
 

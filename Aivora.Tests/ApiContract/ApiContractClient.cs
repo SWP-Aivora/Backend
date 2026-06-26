@@ -65,8 +65,9 @@ public class ApiContractClient
     // ── PUT ───────────────────────────────────────────────────────
     public async Task<HttpResponseMessage> PutAsync(string path, object? body = null)
     {
-        var json = JsonSerializer.Serialize(body ?? new { }, JsonOptions);
-        var content = new StringContent(json, Encoding.UTF8, "application/json");
+        var content = body is not null
+            ? new StringContent(JsonSerializer.Serialize(body, JsonOptions), Encoding.UTF8, "application/json")
+            : null;
         return await _http.PutAsync(path, content);
     }
 
