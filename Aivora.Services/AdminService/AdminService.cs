@@ -84,7 +84,7 @@ public class AdminService : IAdminService
             TotalJobs = await _dbContext.JobPosts.CountAsync(),
             ActiveProjects = await _dbContext.Projects.CountAsync(p => p.Status == ProjectStatus.ACTIVE),
             OpenDisputes = await _dbContext.Disputes.CountAsync(d => d.Status == DisputeStatus.OPEN),
-            TotalSimulatedTransferAmount = await _dbContext.Wallets.SumAsync(w => w.HeldBalance)
+            TotalEscrowAmount = await _dbContext.Wallets.SumAsync(w => w.HeldBalance)
         };
     }
 

@@ -416,7 +416,7 @@ public class E2EBusinessFlowTests
         // ----------------------------------------------------
         Func<Task> releaseBeforeApproval = async () => await milestoneService.ApproveMilestoneAsync(clientId, milestone.Id);
         await releaseBeforeApproval.Should().ThrowAsync<ValidationException>()
-            .WithMessage("Milestone must be in SUBMITTED status to be approved and completed.");
+            .WithMessage("Milestone must be in SUBMITTED status to be released.");
 
         // ----------------------------------------------------
         // Negative Test 2: Review before project is completed
