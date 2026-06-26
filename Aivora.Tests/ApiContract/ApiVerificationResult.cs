@@ -51,7 +51,7 @@ public static class ApiVerificationTracker
 
     public static void ExportResults()
     {
-        var outputPath = Path.Combine(AppContext.BaseDirectory, "verification_results.json");
+        var outputPath = Path.Combine(Path.GetTempPath(), "aivora_verification_results.json");
         var orderedResults = Results
             .OrderBy(r => r.Flow).ThenBy(r => r.Path).ThenBy(r => r.Method).ThenBy(r => r.ExpectedStatus).ToList();
         var json = JsonSerializer.Serialize(orderedResults, new JsonSerializerOptions { WriteIndented = true });
