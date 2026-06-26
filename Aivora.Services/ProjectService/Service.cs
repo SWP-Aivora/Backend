@@ -103,9 +103,9 @@ public class Service : IService
 
         if (project == null) throw new NotFoundException("Project not found or access denied.");
 
-        // Business Rule: Can only complete if all milestones are COMPLETED
-        if (!project.Milestones.All(m => m.Status == MilestoneStatus.COMPLETED))
-            throw new ValidationException("Cannot complete project until all milestones are completed.");
+        // Business Rule: Can only complete if all milestones are RELEASED or REFUNDED
+        if (!project.Milestones.All(m => m.Status == MilestoneStatus.RELEASED || m.Status == MilestoneStatus.REFUNDED))
+            throw new ValidationException("Cannot complete project until all milestones are released or refunded.");
 
         // Business Rule: Cannot complete if already completed
         if (project.Status == ProjectStatus.COMPLETED)

@@ -95,7 +95,7 @@ public class Treasury : ITreasury
         var milestone = await GetMilestoneWithProjectAsync(milestoneId);
 
         if (milestone.Project.ClientId != clientId) throw new UnauthorizedException("Only the client can approve and release funds.");
-        if (milestone.Status != MilestoneStatus.SUBMITTED) throw new ValidationException("Milestone must be in SUBMITTED status to be released.");
+        if (milestone.Status != MilestoneStatus.SUBMITTED && milestone.Status != MilestoneStatus.DISPUTED) throw new ValidationException("Milestone must be in SUBMITTED or DISPUTED status to be released.");
 
         var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestoneId && p.Status == PaymentStatus.HELD);
         if (payment == null) throw new NotFoundException("Held payment not found for this milestone.");

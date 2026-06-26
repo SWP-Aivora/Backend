@@ -236,6 +236,11 @@ public class Service : IService
                 case DisputeResolutionType.SPLIT_PAYMENT:
                     await _treasury.SplitMilestoneFundsAsync(milestone.Id, request.ReleaseAmount ?? 0, request.RefundAmount ?? 0, $"Dispute resolved: Split payment. Ref: {dispute.Id}");
                     break;
+
+                case DisputeResolutionType.REQUEST_REVISION:
+                    milestone.Status = MilestoneStatus.REVISION_REQUESTED;
+                    await _treasury.UnfreezeFundsAsync(milestone.Id, $"Dispute resolved: Request revision. Ref: {dispute.Id}");
+                    break;
             }
 
             await _dbContext.SaveChangesAsync();
