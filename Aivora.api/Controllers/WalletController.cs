@@ -78,9 +78,9 @@ public class WalletController : ControllerBase
         var result = await _vnPayService.ProcessIpnCallbackAsync(queryParams);
 
         if (!result.IsSuccess)
-            return Ok(new { RspCode = "99", Message = result.Message });
+            return Ok(new Response.VnPayIpnResponse { RspCode = "99", Message = result.Message });
 
-        return Ok(new { RspCode = "00", Message = result.Message });
+        return Ok(new Response.VnPayIpnResponse { RspCode = "00", Message = result.Message });
     }
 
     [HttpPost("withdraw")]
