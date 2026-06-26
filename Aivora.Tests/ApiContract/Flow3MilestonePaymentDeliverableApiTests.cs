@@ -65,7 +65,7 @@ public class Flow3MilestonePaymentDeliverableApiTests : IClassFixture<ApiContrac
         var (listProjectsRes, listProjectsBody) = await client.GetAsync("/api/v1/projects?page=1&pageSize=10");
         listProjectsRes.StatusCode.Should().Be(HttpStatusCode.OK);
         bool listProjectsSuccess = listProjectsBody?.GetProperty("success").GetBoolean() ?? false;
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 3", "GET", "/api/v1/projects", 200, (int)listProjectsRes.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: listProjectsSuccess
         );
@@ -78,7 +78,7 @@ public class Flow3MilestonePaymentDeliverableApiTests : IClassFixture<ApiContrac
         var milestoneIdStr = milestonesArray?[0].GetProperty("id").GetString();
         Guid.TryParse(milestoneIdStr, out var milestoneId);
 
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 3", "GET", "/api/v1/projects/{id}", 200, (int)getProjRes.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: getProjSuccess
         );
@@ -98,7 +98,7 @@ public class Flow3MilestonePaymentDeliverableApiTests : IClassFixture<ApiContrac
         var customMilestoneIdStr = createMbody?.GetProperty("data").GetProperty("id").GetString();
         Guid.TryParse(customMilestoneIdStr, out var customMilestoneId);
 
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 3", "POST", "/api/v1/projects/{id}/milestones", 200, (int)createMres.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: createMsuccess
         );
@@ -107,7 +107,7 @@ public class Flow3MilestonePaymentDeliverableApiTests : IClassFixture<ApiContrac
         var (getMres, getMbody) = await client.GetAsync($"/api/v1/milestones/{milestoneId}");
         getMres.StatusCode.Should().Be(HttpStatusCode.OK);
         bool getMsuccess = getMbody?.GetProperty("success").GetBoolean() ?? false;
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 3", "GET", "/api/v1/milestones/{id}", 200, (int)getMres.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: getMsuccess
         );
@@ -117,7 +117,7 @@ public class Flow3MilestonePaymentDeliverableApiTests : IClassFixture<ApiContrac
         var (updateMres, updateMbody) = await client.PutAsync($"/api/v1/milestones/{customMilestoneId}", updateMreq);
         updateMres.StatusCode.Should().Be(HttpStatusCode.OK);
         bool updateMsuccess = updateMbody?.GetProperty("success").GetBoolean() ?? false;
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 3", "PUT", "/api/v1/milestones/{id}", 200, (int)updateMres.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: updateMsuccess
         );
@@ -127,7 +127,7 @@ public class Flow3MilestonePaymentDeliverableApiTests : IClassFixture<ApiContrac
         var (depRes, depBody) = await client.PostAsync("/api/v1/wallet/deposit-demo", depositReq);
         depRes.StatusCode.Should().Be(HttpStatusCode.OK);
         bool depSuccess = depBody?.GetProperty("success").GetBoolean() ?? false;
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 3", "POST", "/api/v1/wallet/deposit-demo", 200, (int)depRes.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: depSuccess
         );
@@ -136,7 +136,7 @@ public class Flow3MilestonePaymentDeliverableApiTests : IClassFixture<ApiContrac
         var (wRes, wBody) = await client.GetAsync("/api/v1/wallet/me");
         wRes.StatusCode.Should().Be(HttpStatusCode.OK);
         bool wSuccess = wBody?.GetProperty("success").GetBoolean() ?? false;
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 3", "GET", "/api/v1/wallet/me", 200, (int)wRes.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: wSuccess
         );
@@ -145,7 +145,7 @@ public class Flow3MilestonePaymentDeliverableApiTests : IClassFixture<ApiContrac
         var (fundRes, fundBody) = await client.PutEmptyAsync($"/api/v1/milestones/{milestoneId}/fund");
         fundRes.StatusCode.Should().Be(HttpStatusCode.OK);
         bool fundSuccess = fundBody?.GetProperty("success").GetBoolean() ?? false;
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 3", "PUT", "/api/v1/milestones/{id}/fund", 200, (int)fundRes.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: fundSuccess
         );
@@ -154,7 +154,7 @@ public class Flow3MilestonePaymentDeliverableApiTests : IClassFixture<ApiContrac
         var (payHistoryRes, payHistoryBody) = await client.GetAsync("/api/v1/payments/history?page=1&pageSize=10");
         payHistoryRes.StatusCode.Should().Be(HttpStatusCode.OK);
         bool payHistorySuccess = payHistoryBody?.GetProperty("success").GetBoolean() ?? false;
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 3", "GET", "/api/v1/payments/history", 200, (int)payHistoryRes.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: payHistorySuccess
         );
@@ -170,7 +170,7 @@ public class Flow3MilestonePaymentDeliverableApiTests : IClassFixture<ApiContrac
         var (delRes, delBody) = await client.PostAsync($"/api/v1/milestones/{milestoneId}/deliverables", submitDelReq);
         delRes.StatusCode.Should().Be(HttpStatusCode.OK);
         bool delSuccess = delBody?.GetProperty("success").GetBoolean() ?? false;
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 3", "POST", "/api/v1/milestones/{id}/deliverables", 200, (int)delRes.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: delSuccess
         );
@@ -180,7 +180,7 @@ public class Flow3MilestonePaymentDeliverableApiTests : IClassFixture<ApiContrac
         var (getDelsRes, getDelsBody) = await client.GetAsync($"/api/v1/milestones/{milestoneId}/deliverables");
         getDelsRes.StatusCode.Should().Be(HttpStatusCode.OK);
         bool getDelsSuccess = getDelsBody?.GetProperty("success").GetBoolean() ?? false;
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 3", "GET", "/api/v1/milestones/{id}/deliverables", 200, (int)getDelsRes.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: getDelsSuccess
         );
@@ -189,7 +189,7 @@ public class Flow3MilestonePaymentDeliverableApiTests : IClassFixture<ApiContrac
         var (revRes, revBody) = await client.PutAsync($"/api/v1/milestones/{milestoneId}/request-revision", "Need dark mode layout");
         revRes.StatusCode.Should().Be(HttpStatusCode.OK);
         bool revSuccess = revBody?.GetProperty("success").GetBoolean() ?? false;
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 3", "PUT", "/api/v1/milestones/{id}/request-revision", 200, (int)revRes.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: revSuccess
         );
@@ -198,7 +198,7 @@ public class Flow3MilestonePaymentDeliverableApiTests : IClassFixture<ApiContrac
         var (dispRes, dispBody) = await client.PostAsync($"/api/v1/milestones/{milestoneId}/dispute", "Dispute milestone revision requests");
         dispRes.StatusCode.Should().Be(HttpStatusCode.OK);
         bool dispSuccess = dispBody?.GetProperty("success").GetBoolean() ?? false;
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 3", "POST", "/api/v1/milestones/{id}/dispute", 200, (int)dispRes.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: dispSuccess
         );
@@ -256,7 +256,7 @@ public class Flow3MilestonePaymentDeliverableApiTests : IClassFixture<ApiContrac
         var (appRes, appBody) = await client.PutEmptyAsync($"/api/v1/milestones/{milestoneId2}/approve");
         appRes.StatusCode.Should().Be(HttpStatusCode.OK);
         bool appSuccess = appBody?.GetProperty("success").GetBoolean() ?? false;
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 3", "PUT", "/api/v1/milestones/{id}/approve", 200, (int)appRes.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: appSuccess
         );
@@ -303,11 +303,11 @@ public class Flow3MilestonePaymentDeliverableApiTests : IClassFixture<ApiContrac
         var (cancelProjRes, cancelProjBody) = await client.PutAsync($"/api/v1/projects/{projectId3}/cancel", "Project cancelled by client");
         cancelProjRes.StatusCode.Should().Be(HttpStatusCode.OK);
         bool cancelProjSuccess = cancelProjBody?.GetProperty("success").GetBoolean() ?? false;
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 3", "PUT", "/api/v1/projects/{id}/cancel", 200, (int)cancelProjRes.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: cancelProjSuccess
         );
 
-        ApiVerificationTracker.ExportResults();
+        _factory.Tracker.ExportResults();
     }
 }

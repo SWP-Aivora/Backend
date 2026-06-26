@@ -42,7 +42,7 @@ public class Flow1JobAndAiApiTests : IClassFixture<ApiContractTestFactory>
         var suggestionIdStr = suggestionData?.GetProperty("id").GetString();
         Guid.TryParse(suggestionIdStr, out var suggestionId).Should().BeTrue();
 
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 1", "POST", "/api/v1/ai/job-assistant", 201, (int)genRes.StatusCode,
             requestMatchesDoc: true,
             responseMatchesDoc: genSuccess && suggestionId != Guid.Empty
@@ -52,7 +52,7 @@ public class Flow1JobAndAiApiTests : IClassFixture<ApiContractTestFactory>
         var (getRes, getBody) = await client.GetAsync($"/api/v1/ai/job-assistant/{suggestionId}");
         getRes.StatusCode.Should().Be(HttpStatusCode.OK);
         bool getSuccess = getBody?.GetProperty("success").GetBoolean() ?? false;
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 1", "GET", "/api/v1/ai/job-assistant/{id}", 200, (int)getRes.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: getSuccess
         );
@@ -62,7 +62,7 @@ public class Flow1JobAndAiApiTests : IClassFixture<ApiContractTestFactory>
         var (patchRes, patchBody) = await client.PatchAsync($"/api/v1/ai/job-assistant/{suggestionId}", patchReq);
         patchRes.StatusCode.Should().Be(HttpStatusCode.OK);
         bool patchSuccess = patchBody?.GetProperty("success").GetBoolean() ?? false;
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 1", "PATCH", "/api/v1/ai/job-assistant/{id}", 200, (int)patchRes.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: patchSuccess
         );
@@ -72,7 +72,7 @@ public class Flow1JobAndAiApiTests : IClassFixture<ApiContractTestFactory>
         var (refineRes, refineBody) = await client.PostAsync($"/api/v1/ai/job-assistant/{suggestionId}/refine", refineReq);
         refineRes.StatusCode.Should().Be(HttpStatusCode.OK);
         bool refineSuccess = refineBody?.GetProperty("success").GetBoolean() ?? false;
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 1", "POST", "/api/v1/ai/job-assistant/{id}/refine", 200, (int)refineRes.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: refineSuccess
         );
@@ -90,7 +90,7 @@ public class Flow1JobAndAiApiTests : IClassFixture<ApiContractTestFactory>
         var jobIdStr = jobDraftData?.GetProperty("id").GetString();
         Guid.TryParse(jobIdStr, out var jobId).Should().BeTrue();
 
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 1", "POST", "/api/v1/ai/job-assistant/{id}/accept", 201, (int)acceptRes.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: acceptSuccess && jobId != Guid.Empty
         );
@@ -102,7 +102,7 @@ public class Flow1JobAndAiApiTests : IClassFixture<ApiContractTestFactory>
         var (rejectRes, rejectBody) = await client.PostAsync($"/api/v1/ai/job-assistant/{sugId2}/reject", rejectReq);
         rejectRes.StatusCode.Should().Be(HttpStatusCode.OK);
         bool rejectSuccess = rejectBody?.GetProperty("success").GetBoolean() ?? false;
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 1", "POST", "/api/v1/ai/job-assistant/{id}/reject", 200, (int)rejectRes.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: rejectSuccess
         );
@@ -122,7 +122,7 @@ public class Flow1JobAndAiApiTests : IClassFixture<ApiContractTestFactory>
         var (serviceRes, serviceBody) = await client.PostAsync("/api/v1/ai/service-generator", generateServiceReq);
         serviceRes.StatusCode.Should().Be(HttpStatusCode.Created);
         bool serviceSuccess = serviceBody?.GetProperty("success").GetBoolean() ?? false;
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 1", "POST", "/api/v1/ai/service-generator", 201, (int)serviceRes.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: serviceSuccess
         );
@@ -151,7 +151,7 @@ public class Flow1JobAndAiApiTests : IClassFixture<ApiContractTestFactory>
         var manualJobIdStr = createJobBody?.GetProperty("data").GetProperty("id").GetString();
         Guid.TryParse(manualJobIdStr, out var manualJobId).Should().BeTrue();
 
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 1", "POST", "/api/v1/jobs", 200, (int)createJobRes.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: createJobSuccess
         );
@@ -161,7 +161,7 @@ public class Flow1JobAndAiApiTests : IClassFixture<ApiContractTestFactory>
         var (updateJobRes, updateJobBody) = await client.PutAsync($"/api/v1/jobs/{manualJobId}", updateJobReq);
         updateJobRes.StatusCode.Should().Be(HttpStatusCode.OK);
         bool updateJobSuccess = updateJobBody?.GetProperty("success").GetBoolean() ?? false;
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 1", "PUT", "/api/v1/jobs/{id}", 200, (int)updateJobRes.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: updateJobSuccess
         );
@@ -170,7 +170,7 @@ public class Flow1JobAndAiApiTests : IClassFixture<ApiContractTestFactory>
         var (publishRes, publishBody) = await client.PostAsync($"/api/v1/jobs/{manualJobId}/publish", new { });
         publishRes.StatusCode.Should().Be(HttpStatusCode.OK);
         bool publishSuccess = publishBody?.GetProperty("success").GetBoolean() ?? false;
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 1", "POST", "/api/v1/jobs/{id}/publish", 200, (int)publishRes.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: publishSuccess
         );
@@ -179,7 +179,7 @@ public class Flow1JobAndAiApiTests : IClassFixture<ApiContractTestFactory>
         var (listJobsRes, listJobsBody) = await client.GetAsync("/api/v1/jobs?page=1&pageSize=10");
         listJobsRes.StatusCode.Should().Be(HttpStatusCode.OK);
         bool listJobsSuccess = listJobsBody?.GetProperty("success").GetBoolean() ?? false;
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 1", "GET", "/api/v1/jobs", 200, (int)listJobsRes.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: listJobsSuccess
         );
@@ -188,7 +188,7 @@ public class Flow1JobAndAiApiTests : IClassFixture<ApiContractTestFactory>
         var (getJobRes, getJobBody) = await client.GetAsync($"/api/v1/jobs/{manualJobId}");
         getJobRes.StatusCode.Should().Be(HttpStatusCode.OK);
         bool getJobSuccess = getJobBody?.GetProperty("success").GetBoolean() ?? false;
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 1", "GET", "/api/v1/jobs/{id}", 200, (int)getJobRes.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: getJobSuccess
         );
@@ -197,7 +197,7 @@ public class Flow1JobAndAiApiTests : IClassFixture<ApiContractTestFactory>
         var (cancelRes, cancelBody) = await client.PostAsync($"/api/v1/jobs/{manualJobId}/cancel", "Budget cuts");
         cancelRes.StatusCode.Should().Be(HttpStatusCode.OK);
         bool cancelSuccess = cancelBody?.GetProperty("success").GetBoolean() ?? false;
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 1", "POST", "/api/v1/jobs/{id}/cancel", 200, (int)cancelRes.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: cancelSuccess
         );
@@ -208,7 +208,7 @@ public class Flow1JobAndAiApiTests : IClassFixture<ApiContractTestFactory>
         var (deleteRes, deleteBody) = await client.DeleteAsync($"/api/v1/jobs/{delJobIdStr}");
         deleteRes.StatusCode.Should().Be(HttpStatusCode.OK);
         bool deleteSuccess = deleteBody?.GetProperty("success").GetBoolean() ?? false;
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 1", "DELETE", "/api/v1/jobs/{id}", 200, (int)deleteRes.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: deleteSuccess
         );
@@ -218,7 +218,7 @@ public class Flow1JobAndAiApiTests : IClassFixture<ApiContractTestFactory>
         var (genRecRes, genRecBody) = await client.PostAsync($"/api/v1/jobs/{jobId}/recommendations/generate", new { });
         genRecRes.StatusCode.Should().Be(HttpStatusCode.Created);
         bool genRecSuccess = genRecBody?.GetProperty("success").GetBoolean() ?? false;
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 1", "POST", "/api/v1/jobs/{id}/recommendations/generate", 201, (int)genRecRes.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: genRecSuccess
         );
@@ -227,11 +227,11 @@ public class Flow1JobAndAiApiTests : IClassFixture<ApiContractTestFactory>
         var (getRecRes, getRecBody) = await client.GetAsync($"/api/v1/jobs/{jobId}/recommendations");
         getRecRes.StatusCode.Should().Be(HttpStatusCode.OK);
         bool getRecSuccess = getRecBody?.GetProperty("success").GetBoolean() ?? false;
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 1", "GET", "/api/v1/jobs/{id}/recommendations", 200, (int)getRecRes.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: getRecSuccess
         );
 
-        ApiVerificationTracker.ExportResults();
+        _factory.Tracker.ExportResults();
     }
 }

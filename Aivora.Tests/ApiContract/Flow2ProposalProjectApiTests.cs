@@ -61,7 +61,7 @@ public class Flow2ProposalProjectApiTests : IClassFixture<ApiContractTestFactory
         var proposalIdStr = propBody?.GetProperty("data").GetProperty("id").GetString();
         Guid.TryParse(proposalIdStr, out var proposalId);
 
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 2", "POST", "/api/v1/jobs/{id}/proposals", 200, (int)propRes.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: propSuccess && proposalId != Guid.Empty
         );
@@ -71,7 +71,7 @@ public class Flow2ProposalProjectApiTests : IClassFixture<ApiContractTestFactory
         var (getPropsRes, getPropsBody) = await client.GetAsync($"/api/v1/jobs/{jobId}/proposals");
         getPropsRes.StatusCode.Should().Be(HttpStatusCode.OK);
         bool getPropsSuccess = getPropsBody?.GetProperty("success").GetBoolean() ?? false;
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 2", "GET", "/api/v1/jobs/{id}/proposals", 200, (int)getPropsRes.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: getPropsSuccess
         );
@@ -80,7 +80,7 @@ public class Flow2ProposalProjectApiTests : IClassFixture<ApiContractTestFactory
         var (getPropRes, getPropBody) = await client.GetAsync($"/api/v1/proposals/{proposalId}");
         getPropRes.StatusCode.Should().Be(HttpStatusCode.OK);
         bool getPropSuccess = getPropBody?.GetProperty("success").GetBoolean() ?? false;
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 2", "GET", "/api/v1/proposals/{id}", 200, (int)getPropRes.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: getPropSuccess
         );
@@ -90,7 +90,7 @@ public class Flow2ProposalProjectApiTests : IClassFixture<ApiContractTestFactory
         var (getMyPropsRes, getMyPropsBody) = await client.GetAsync("/api/v1/proposals/me");
         getMyPropsRes.StatusCode.Should().Be(HttpStatusCode.OK);
         bool getMyPropsSuccess = getMyPropsBody?.GetProperty("success").GetBoolean() ?? false;
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 2", "GET", "/api/v1/proposals/me", 200, (int)getMyPropsRes.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: getMyPropsSuccess
         );
@@ -100,7 +100,7 @@ public class Flow2ProposalProjectApiTests : IClassFixture<ApiContractTestFactory
         var (slRes, slBody) = await client.PutEmptyAsync($"/api/v1/proposals/{proposalId}/shortlist");
         slRes.StatusCode.Should().Be(HttpStatusCode.OK);
         bool slSuccess = slBody?.GetProperty("success").GetBoolean() ?? false;
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 2", "PUT", "/api/v1/proposals/{id}/shortlist", 200, (int)slRes.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: slSuccess
         );
@@ -143,7 +143,7 @@ public class Flow2ProposalProjectApiTests : IClassFixture<ApiContractTestFactory
         var (wRes, wBody) = await client.PutEmptyAsync($"/api/v1/proposals/{proposalId2}/withdraw");
         wRes.StatusCode.Should().Be(HttpStatusCode.OK);
         bool wSuccess = wBody?.GetProperty("success").GetBoolean() ?? false;
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 2", "PUT", "/api/v1/proposals/{id}/withdraw", 200, (int)wRes.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: wSuccess
         );
@@ -188,7 +188,7 @@ public class Flow2ProposalProjectApiTests : IClassFixture<ApiContractTestFactory
         var (rejRes, rejBody) = await client.PutEmptyAsync($"/api/v1/proposals/{proposalId3}/reject");
         rejRes.StatusCode.Should().Be(HttpStatusCode.OK);
         bool rejSuccess = rejBody?.GetProperty("success").GetBoolean() ?? false;
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 2", "PUT", "/api/v1/proposals/{id}/reject", 200, (int)rejRes.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: rejSuccess
         );
@@ -200,7 +200,7 @@ public class Flow2ProposalProjectApiTests : IClassFixture<ApiContractTestFactory
         var projectIdStr = accBody?.GetProperty("data").GetProperty("projectId").GetString();
         Guid.TryParse(projectIdStr, out var projectId);
 
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 2", "PUT", "/api/v1/proposals/{id}/accept", 200, (int)accRes.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: accSuccess && projectId != Guid.Empty
         );
@@ -209,11 +209,11 @@ public class Flow2ProposalProjectApiTests : IClassFixture<ApiContractTestFactory
         var (projRes, projBody) = await client.GetAsync($"/api/v1/projects/{projectId}");
         projRes.StatusCode.Should().Be(HttpStatusCode.OK);
         bool projSuccess = projBody?.GetProperty("success").GetBoolean() ?? false;
-        ApiVerificationTracker.Record(
+        _factory.Tracker.Record(
             "Flow 2", "GET", "/api/v1/projects/{id}", 200, (int)projRes.StatusCode,
             requestMatchesDoc: true, responseMatchesDoc: projSuccess
         );
 
-        ApiVerificationTracker.ExportResults();
+        _factory.Tracker.ExportResults();
     }
 }

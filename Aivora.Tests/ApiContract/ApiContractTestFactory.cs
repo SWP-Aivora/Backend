@@ -22,6 +22,7 @@ public class ApiContractTestFactory : WebApplicationFactory<Program>
 {
     private readonly string _dbName = Guid.NewGuid().ToString();
     private bool _seeded;
+    public readonly ApiVerificationTracker Tracker = new();
 
     private readonly ServiceProvider _inMemoryProvider = new ServiceCollection()
         .AddEntityFrameworkInMemoryDatabase()
