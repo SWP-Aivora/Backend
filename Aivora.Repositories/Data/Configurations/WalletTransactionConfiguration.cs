@@ -13,7 +13,7 @@ public class WalletTransactionConfiguration : IEntityTypeConfiguration<WalletTra
 
         builder.Property(x => x.Description).HasMaxLength(500);
         builder.Property(x => x.ExternalTxnRef).HasMaxLength(100);
-        builder.HasIndex(x => x.ExternalTxnRef);
+        builder.HasIndex(x => x.ExternalTxnRef).IsUnique();
         builder.Property(x => x.Type).HasConversion<string>().IsRequired();
         builder.Property(x => x.Direction).HasConversion<string>().IsRequired();
 

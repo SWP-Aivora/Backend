@@ -7,6 +7,7 @@ using Aivora.Repositories.Enums;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Npgsql;
 
 namespace Aivora.Services.WalletService;
 
@@ -125,22 +126,7 @@ public class VNPayService : IVNPayService
         if (underscoreIndex < 0 || !Guid.TryParse(txnRef[..underscoreIndex], out var userId))
             return new VnPayIpnResult { IsSuccess = false, Message = "Invalid vnp_TxnRef format." };
 
-        // 4. Check duplicate via ExternalTxnRef
-        var isDuplicate = await _dbContext.WalletTransactions
-            .AnyAsync(t => t.ExternalTxnRef == txnRef);
-
-        if (isDuplicate)
-            return new VnPayIpnResult
-            {
-                IsSuccess = true,
-                Message = "Duplicate transaction - already processed.",
-                UserId = userId,
-                Amount = amount,
-                TxnRef = txnRef,
-                IsDuplicate = true
-            };
-
-        // 5. Process payment
+        // 4. Process payment atomically (unique constraint on ExternalTxnRef prevents duplicates)
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
@@ -179,6 +165,19 @@ public class VNPayService : IVNPayService
                 Amount = amount,
                 TxnRef = txnRef,
                 IsDuplicate = false
+            };
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException pgEx && pgEx.SqlState == "23505")
+        {
+            await transaction.RollbackAsync();
+            return new VnPayIpnResult
+            {
+                IsSuccess = true,
+                Message = "Duplicate transaction - already processed.",
+                UserId = userId,
+                Amount = amount,
+                TxnRef = txnRef,
+                IsDuplicate = true
             };
         }
         catch (Exception)
