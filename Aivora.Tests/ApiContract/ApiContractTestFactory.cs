@@ -28,15 +28,14 @@ public class ApiContractTestFactory : WebApplicationFactory<Program>
         .AddEntityFrameworkInMemoryDatabase()
         .BuildServiceProvider();
 
-    // ── Config ────────────────────────────────────────────────────
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    // ── Test config overrides ─────────────────────────────────────
+    // .NET config hierarchy: env vars > appsettings.json.
+    // ConfigureAppConfiguration cannot override appsettings.json because
+    // WebApplicationFactory adds sources before Program.cs loads it.
+    // Environment variables are the only reliable override mechanism.
+    // All factories in the [Collection("ApiContract")] use identical values.
+    static ApiContractTestFactory()
     {
-        builder.UseEnvironment("Development");
-
-        // Override placeholders from appsettings.json.
-        // Environment variables take precedence over JSON configs in .NET's default
-        // configuration hierarchy, so they reliably override appsettings.json values.
-        // All test factories use identical values — no risk of parallel-test conflicts.
         Environment.SetEnvironmentVariable("ConnectionStrings__DefaultConnection", "Host=test-inmemory;Database=test-contract;Username=test;Password=test");
         Environment.SetEnvironmentVariable("JwtSettings__Secret", "test-jwt-secret-key-for-api-contract-tests-only-32chars!");
         Environment.SetEnvironmentVariable("JwtSettings__Issuer", "aivora-test");
@@ -49,6 +48,12 @@ public class ApiContractTestFactory : WebApplicationFactory<Program>
         Environment.SetEnvironmentVariable("RateLimit__Strict__PermitLimit", "1000");
         Environment.SetEnvironmentVariable("RateLimit__AI__PermitLimit", "1000");
         Environment.SetEnvironmentVariable("RateLimit__General__PermitLimit", "1000");
+    }
+
+    // ── Config ────────────────────────────────────────────────────
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        builder.UseEnvironment("Development");
 
         builder.ConfigureServices(services =>
         {
