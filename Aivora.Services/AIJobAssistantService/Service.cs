@@ -133,7 +133,7 @@ public class Service : IService
         var suggestion = await LoadGeneratedSuggestionAsync(clientId, suggestionId, cancellationToken);
         ValidateSuggestionShape(suggestion);
 
-        using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
         try
         {
             var createJobRequest = new JobService.Request.CreateJobRequest
