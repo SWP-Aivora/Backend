@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -26,33 +27,27 @@ public class ApiContractTestFactory : WebApplicationFactory<Program>
         .AddEntityFrameworkInMemoryDatabase()
         .BuildServiceProvider();
 
-    private static readonly Dictionary<string, string> TestEnvVars = new()
-    {
-        ["ConnectionStrings__DefaultConnection"] = "Host=test;Database=test;Username=test;Password=test",
-        ["JwtSettings__Secret"] = "super-secret-test-key-that-is-long-enough-32chars!",
-        ["JwtSettings__Issuer"] = "aivora-test",
-        ["JwtSettings__Audience"] = "aivora-test-api",
-        ["JwtSettings__ExpiryInMinutes"] = "60",
-        ["CloudinaryOptions__CloudName"] = "fake-cloud",
-        ["CloudinaryOptions__ApiKey"] = "fake-key",
-        ["CloudinaryOptions__ApiSecret"] = "fake-secret",
-        ["AIProvider__Provider"] = "Mock",
-        ["RateLimit__Strict__PermitLimit"] = "1000",
-        ["RateLimit__AI__PermitLimit"] = "1000",
-        ["RateLimit__General__PermitLimit"] = "1000",
-        ["ASPNETCORE_ENVIRONMENT"] = "Development"
-    };
-
-    public ApiContractTestFactory()
-    {
-        foreach (var (key, value) in TestEnvVars)
-            Environment.SetEnvironmentVariable(key, value);
-    }
-
     // ── Config ────────────────────────────────────────────────────
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");
+
+        // Override placeholders from appsettings.json.
+        // Environment variables take precedence over JSON configs in .NET's default
+        // configuration hierarchy, so they reliably override appsettings.json values.
+        // All test factories use identical values — no risk of parallel-test conflicts.
+        Environment.SetEnvironmentVariable("ConnectionStrings__DefaultConnection", "Host=test-inmemory;Database=test-contract;Username=test;Password=test");
+        Environment.SetEnvironmentVariable("JwtSettings__Secret", "test-jwt-secret-key-for-api-contract-tests-only-32chars!");
+        Environment.SetEnvironmentVariable("JwtSettings__Issuer", "aivora-test");
+        Environment.SetEnvironmentVariable("JwtSettings__Audience", "aivora-test-api");
+        Environment.SetEnvironmentVariable("JwtSettings__ExpiryInMinutes", "60");
+        Environment.SetEnvironmentVariable("CloudinaryOptions__CloudName", "fake-cloud");
+        Environment.SetEnvironmentVariable("CloudinaryOptions__ApiKey", "fake-key");
+        Environment.SetEnvironmentVariable("CloudinaryOptions__ApiSecret", "fake-secret");
+        Environment.SetEnvironmentVariable("AIProvider__Provider", "Mock");
+        Environment.SetEnvironmentVariable("RateLimit__Strict__PermitLimit", "1000");
+        Environment.SetEnvironmentVariable("RateLimit__AI__PermitLimit", "1000");
+        Environment.SetEnvironmentVariable("RateLimit__General__PermitLimit", "1000");
 
         builder.ConfigureServices(services =>
         {
