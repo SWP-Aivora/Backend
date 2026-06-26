@@ -15,6 +15,10 @@ public static class ApiContractTestData
     public static readonly Guid SkillAiId = new("a0000000-0000-0000-0000-000000000011");
     public static readonly Guid SkillWebId = new("a0000000-0000-0000-0000-000000000012");
 
+    // Aliases for flow test compatibility
+    public static Guid SkillId => SkillAiId;
+    public static Guid SkillId2 => SkillWebId;
+
     public static readonly Guid ClientWalletId = new("a0000000-0000-0000-0000-000000000020");
     public static readonly Guid ExpertWalletId = new("a0000000-0000-0000-0000-000000000021");
     public static readonly Guid AdminWalletId = new("a0000000-0000-0000-0000-000000000022");
@@ -78,6 +82,10 @@ public static class ApiContractTestData
             new Wallet { Id = ExpertWalletId, UserId = ExpertUserId, AvailableBalance = 0, Currency = "AICOIN" },
             new Wallet { Id = AdminWalletId, UserId = AdminUserId, AvailableBalance = 0, Currency = "AICOIN" }
         );
+
+        // Profiles (required by several endpoints)
+        db.ClientProfiles.Add(new ClientProfile { UserId = ClientUserId, CompanyName = "Test Client Inc." });
+        db.ExpertProfiles.Add(new ExpertProfile { UserId = ExpertUserId, Title = "Test Expert" });
 
         db.SaveChanges();
     }

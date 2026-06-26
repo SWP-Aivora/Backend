@@ -1,78 +1,96 @@
 using System.Net.Http.Headers;
 using Aivora.Repositories.Data;
+using Aivora.Repositories.Data.Interceptors;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.JwtService;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace Aivora.Tests.ApiContract;
 
 /// <summary>
 ///   WebApplicationFactory dùng cho API contract tests.
-///   Dùng InMemory database, FakeMediaService, và JWT test config.
+///   Dùng InMemory database (với dedicated service provider), FakeMediaService, và env-var test config.
 /// </summary>
 public class ApiContractTestFactory : WebApplicationFactory<Program>
 {
     private readonly string _dbName = Guid.NewGuid().ToString();
     private bool _seeded;
+    public readonly ApiVerificationTracker Tracker = new();
+
+    private readonly ServiceProvider _inMemoryProvider = new ServiceCollection()
+        .AddEntityFrameworkInMemoryDatabase()
+        .BuildServiceProvider();
 
     // ── Config ────────────────────────────────────────────────────
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.ConfigureAppConfiguration((_, config) =>
+        // Use "Test" environment so the host loads appsettings.Test.json
+        // which provides all config values for the test run.
+        builder.UseEnvironment("Test");
+
+        builder.ConfigureServices(services =>
         {
-            config.AddInMemoryCollection(new Dictionary<string, string?>
+            // Enable console logging for test debugging
+            services.AddLogging(logging => logging.AddConsole().SetMinimumLevel(LogLevel.Error));
+
+            // Remove all DbContext registrations (PostgreSQL-based)
+            var descriptors = services
+                .Where(d => d.ServiceType == typeof(AivoraDbContext)
+                         || d.ServiceType == typeof(DbContextOptions<AivoraDbContext>)
+                         || d.ServiceType == typeof(DbContextOptions))
+                .ToList();
+            foreach (var d in descriptors) services.Remove(d);
+
+            // Add InMemory DbContext with dedicated service provider + interceptor
+            services.AddDbContext<AivoraDbContext>((sp, options) =>
             {
-                ["JwtSettings:Secret"] = "super-secret-test-key-that-is-long-enough-32chars!",
-                ["JwtSettings:Issuer"] = "aivora-test",
-                ["JwtSettings:Audience"] = "aivora-test-api",
-                ["JwtSettings:AccessTokenExpiryMinutes"] = "60",
-                ["ConnectionStrings:DefaultConnection"] = "Host=test-contract-inmemory;Database=test-contract;Username=test;Password=test"
+                var interceptor = sp.GetRequiredService<AuditableEntityInterceptor>();
+                options.UseInMemoryDatabase(_dbName)
+                    .UseInternalServiceProvider(_inMemoryProvider)
+                    .ConfigureWarnings(x => x.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+                    .AddInterceptors(interceptor);
             });
-        });
 
-        builder.ConfigureTestServices(services =>
-        {
-            // Thay DbContext (PostgreSQL → InMemory)
-            var dbDescriptor = services.SingleOrDefault(
-                d => d.ServiceType == typeof(DbContextOptions<AivoraDbContext>));
-            if (dbDescriptor is not null) services.Remove(dbDescriptor);
+            // Disable default DataSeeder (test data controls its own seed)
+            var seederDescriptor = services.SingleOrDefault(
+                d => d.ServiceType == typeof(Aivora.Repositories.IAivoraDataSeeder));
+            if (seederDescriptor is not null) services.Remove(seederDescriptor);
 
-            services.AddDbContext<AivoraDbContext>(options =>
-                options.UseInMemoryDatabase(_dbName));
-
-            // Thay MediaService thật → FakeMediaService
+            // Replace MediaService
             var mediaDescriptor = services.SingleOrDefault(
                 d => d.ServiceType == typeof(Aivora.Services.MediaService.IService));
             if (mediaDescriptor is not null) services.Remove(mediaDescriptor);
-
             services.AddScoped<Aivora.Services.MediaService.IService, FakeMediaService>();
         });
     }
 
-    // ── Seed helpers ──────────────────────────────────────────────
+    // ── Seed ──────────────────────────────────────────────────────
     private void EnsureSeeded()
     {
         if (_seeded) return;
 
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AivoraDbContext>();
+        db.Database.EnsureDeleted();
         db.Database.EnsureCreated();
         ApiContractTestData.Seed(db);
         _seeded = true;
     }
 
+    public void SeedDatabase() => EnsureSeeded();
+
     // ── Public API ────────────────────────────────────────────────
-    /// <summary>Tạo HttpClient đã gắn JWT token cho role tương ứng.</summary>
     public HttpClient CreateAuthenticatedClient(UserRole role)
     {
         EnsureSeeded();
-
         var client = CreateClient();
         var token = GenerateToken(role);
         client.DefaultRequestHeaders.Authorization =
@@ -80,23 +98,22 @@ public class ApiContractTestFactory : WebApplicationFactory<Program>
         return client;
     }
 
-    /// <summary>Tạo HttpClient không có auth (anonymous).</summary>
     public HttpClient CreateUnauthenticatedClient()
     {
         EnsureSeeded();
         return CreateClient();
     }
 
-    /// <summary>Tạo một DbContext riêng để kiểm tra dữ liệu trực tiếp.</summary>
     public AivoraDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<AivoraDbContext>()
             .UseInMemoryDatabase(_dbName)
+            .UseInternalServiceProvider(_inMemoryProvider)
+            .ConfigureWarnings(x => x.Ignore(InMemoryEventId.TransactionIgnoredWarning))
             .Options;
         return new AivoraDbContext(options);
     }
 
-    /// <summary>Sinh JWT token cho role, dùng user đã seed.</summary>
     public string GenerateToken(UserRole role)
     {
         using var scope = Services.CreateScope();
@@ -107,5 +124,11 @@ public class ApiContractTestFactory : WebApplicationFactory<Program>
             ?? throw new InvalidOperationException($"No seeded user found for role {role}.");
 
         return jwt.GenerateAccessToken(user, role.ToString());
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing) _inMemoryProvider.Dispose();
+        base.Dispose(disposing);
     }
 }

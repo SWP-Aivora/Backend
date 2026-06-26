@@ -20,11 +20,11 @@ public class ApiVerificationResult
     public string? FailureReason { get; set; }
 }
 
-public static class ApiVerificationTracker
+public class ApiVerificationTracker
 {
-    private static readonly ConcurrentBag<ApiVerificationResult> Results = new();
+    private readonly ConcurrentBag<ApiVerificationResult> _results = new();
 
-    public static void Record(
+    public void Record(
         string flow,
         string method,
         string path,
@@ -35,7 +35,7 @@ public static class ApiVerificationTracker
         string? failureReason = null)
     {
         var result = (actualStatus == expectedStatus && requestMatchesDoc && responseMatchesDoc) ? "TRUE" : "FALSE";
-        Results.Add(new ApiVerificationResult
+        _results.Add(new ApiVerificationResult
         {
             Flow = flow,
             Method = method,
@@ -49,14 +49,14 @@ public static class ApiVerificationTracker
         });
     }
 
-    public static void ExportResults()
+    public void ExportResults()
     {
         var outputPath = Path.Combine(Path.GetTempPath(), "aivora_verification_results.json");
-        var orderedResults = Results
+        var orderedResults = _results
             .OrderBy(r => r.Flow).ThenBy(r => r.Path).ThenBy(r => r.Method).ThenBy(r => r.ExpectedStatus).ToList();
         var json = JsonSerializer.Serialize(orderedResults, new JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(outputPath, json);
     }
 
-    public static IReadOnlyCollection<ApiVerificationResult> GetResults() => Results;
+    public IReadOnlyCollection<ApiVerificationResult> GetResults() => _results;
 }
