@@ -4,6 +4,7 @@ using System.Text;
 using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
+using Aivora.Services.Utils;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -222,11 +223,7 @@ public class VNPayService : IVNPayService
 
     private static string ComputeHmacSha512(string key, string data)
     {
-        var keyBytes = Encoding.UTF8.GetBytes(key);
-        var dataBytes = Encoding.UTF8.GetBytes(data);
-        using var hmac = new HMACSHA512(keyBytes);
-        var hashBytes = hmac.ComputeHash(dataBytes);
-        return Convert.ToHexString(hashBytes).ToLowerInvariant();
+        return HashUtil.ComputeHmacSha512(key, data);
     }
 
     private string GetClientIpAddress()
