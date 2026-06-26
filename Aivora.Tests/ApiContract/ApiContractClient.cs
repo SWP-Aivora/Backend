@@ -187,11 +187,15 @@ public class ApiContractClient
             using var doc = JsonDocument.Parse(content);
             return doc.RootElement.Clone();
         }
-        catch (Exception ex) when (ex is JsonException or InvalidOperationException or HttpRequestException)
+        catch (JsonException)
         {
-            // Intentional: TryReadBodyAsync is a best-effort helper. Empty body, malformed
-            // JSON, or network errors all return null. Callers check the HTTP status code
-            // separately for contract verification.
+            // Response body is not valid JSON (e.g., plain text, HTML error page, or empty).
+            // This is expected for some endpoints — callers check HTTP status codes separately.
+            return null;
+        }
+        catch (HttpRequestException)
+        {
+            // Network or HTTP-level error during body read — best-effort helper, not fatal.
             return null;
         }
     }

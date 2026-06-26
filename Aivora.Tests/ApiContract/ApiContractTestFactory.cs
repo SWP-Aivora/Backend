@@ -33,7 +33,7 @@ public class ApiContractTestFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         // Use "Test" environment so the host loads appsettings.Test.json
-        // which overrides placeholder values from appsettings.json.
+        // which provides all config values for the test run.
         builder.UseEnvironment("Test");
 
         builder.ConfigureServices(services =>
