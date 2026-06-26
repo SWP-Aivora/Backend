@@ -5,12 +5,18 @@ public interface IVNPayService
     /// <summary>
     /// Tạo URL thanh toán VNPay Sandbox
     /// </summary>
-    string CreatePaymentUrl(Guid userId, decimal amount, string orderInfo);
+    VnPayPaymentResult CreatePaymentUrl(Guid userId, decimal amount, string orderInfo);
 
     /// <summary>
     /// Xác thực chữ ký và xử lý IPN callback từ VNPay
     /// </summary>
     Task<VnPayIpnResult> ProcessIpnCallbackAsync(Dictionary<string, string> queryParams);
+}
+
+public class VnPayPaymentResult
+{
+    public string PaymentUrl { get; set; } = string.Empty;
+    public string TxnRef { get; set; } = string.Empty;
 }
 
 public class VnPayIpnResult

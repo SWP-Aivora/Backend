@@ -23,7 +23,7 @@ public class VNPayService : IVNPayService
         _httpContextAccessor = httpContextAccessor;
     }
 
-    public string CreatePaymentUrl(Guid userId, decimal amount, string orderInfo)
+    public VnPayPaymentResult CreatePaymentUrl(Guid userId, decimal amount, string orderInfo)
     {
         var tmnCode = _configuration["VNPay:TmnCode"]
             ?? throw new InvalidOperationException("VNPay:TmnCode is not configured.");
@@ -72,7 +72,11 @@ public class VNPayService : IVNPayService
         var queryString = string.Join('&', vnpParams.Select(kvp =>
             $"{kvp.Key}={Uri.EscapeDataString(kvp.Value)}"));
 
-        return $"{baseUrl}?{queryString}";
+        return new VnPayPaymentResult
+        {
+            PaymentUrl = $"{baseUrl}?{queryString}",
+            TxnRef = txnRef
+        };
     }
 
     public async Task<VnPayIpnResult> ProcessIpnCallbackAsync(Dictionary<string, string> queryParams)
@@ -111,7 +115,10 @@ public class VNPayService : IVNPayService
         if (!queryParams.TryGetValue("vnp_Amount", out var amountStr))
             return new VnPayIpnResult { IsSuccess = false, Message = "Missing vnp_Amount." };
 
-        var amount = decimal.Parse(amountStr) / 100m;
+        if (!decimal.TryParse(amountStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var amountRaw))
+            return new VnPayIpnResult { IsSuccess = false, Message = "Invalid vnp_Amount format." };
+
+        var amount = amountRaw / 100m;
 
         // Parse userId from txnRef: "{userId}_{timestamp}"
         var underscoreIndex = txnRef.IndexOf('_');
@@ -174,10 +181,10 @@ public class VNPayService : IVNPayService
                 IsDuplicate = false
             };
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             await transaction.RollbackAsync();
-            return new VnPayIpnResult { IsSuccess = false, Message = $"Transaction failed: {ex.Message}" };
+            return new VnPayIpnResult { IsSuccess = false, Message = "Internal error processing payment." };
         }
     }
 

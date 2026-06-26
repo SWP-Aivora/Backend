@@ -141,25 +141,12 @@ public class Service : IService
         if (wallet == null) throw new NotFoundException("Wallet not found.");
 
         var orderInfo = $"Nap tien Aivora - User {userId}";
-        var paymentUrl = _vnPayService.CreatePaymentUrl(userId, request.Amount, orderInfo);
-
-        // Extract TxnRef from URL without extra dependencies
-        var txnRef = string.Empty;
-        var uri = new Uri(paymentUrl);
-        if (!string.IsNullOrEmpty(uri.Query))
-        {
-            txnRef = uri.Query.TrimStart('?')
-                .Split('&')
-                .Select(p => p.Split('=', 2))
-                .Where(parts => parts.Length == 2 && parts[0] == "vnp_TxnRef")
-                .Select(parts => Uri.UnescapeDataString(parts[1]))
-                .FirstOrDefault() ?? string.Empty;
-        }
+        var result = _vnPayService.CreatePaymentUrl(userId, request.Amount, orderInfo);
 
         return new Response.VnPayDepositResponse
         {
-            PaymentUrl = paymentUrl,
-            TxnRef = txnRef
+            PaymentUrl = result.PaymentUrl,
+            TxnRef = result.TxnRef
         };
     }
 
