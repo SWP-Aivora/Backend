@@ -125,10 +125,9 @@ public class VNPayService : IVNPayService
         if (underscoreIndex < 0 || !Guid.TryParse(txnRef[..underscoreIndex], out var userId))
             return new VnPayIpnResult { IsSuccess = false, Message = "Invalid vnp_TxnRef format." };
 
-        // 4. Check duplicate via exact match on known description format
-        var expectedDescription = $"VNPay deposit. TxnRef: {txnRef}";
+        // 4. Check duplicate via ExternalTxnRef
         var isDuplicate = await _dbContext.WalletTransactions
-            .AnyAsync(t => t.Description == expectedDescription);
+            .AnyAsync(t => t.ExternalTxnRef == txnRef);
 
         if (isDuplicate)
             return new VnPayIpnResult
@@ -163,6 +162,7 @@ public class VNPayService : IVNPayService
                 Type = WalletTransactionType.DEPOSIT,
                 Direction = TransactionDirection.CREDIT,
                 Description = $"VNPay deposit. TxnRef: {txnRef}",
+                ExternalTxnRef = txnRef,
                 BalanceBefore = balanceBefore,
                 BalanceAfter = wallet.AvailableBalance
             };

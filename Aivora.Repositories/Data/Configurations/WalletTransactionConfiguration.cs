@@ -12,6 +12,8 @@ public class WalletTransactionConfiguration : IEntityTypeConfiguration<WalletTra
         builder.HasKey(x => x.Id);
 
         builder.Property(x => x.Description).HasMaxLength(500);
+        builder.Property(x => x.ExternalTxnRef).HasMaxLength(100);
+        builder.HasIndex(x => x.ExternalTxnRef);
         builder.Property(x => x.Type).HasConversion<string>().IsRequired();
         builder.Property(x => x.Direction).HasConversion<string>().IsRequired();
 
