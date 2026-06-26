@@ -24,16 +24,27 @@ public class VNPayService : IVNPayService
         _httpContextAccessor = httpContextAccessor;
     }
 
+    private void ValidateVnPayConfiguration()
+    {
+        _ = _configuration["VNPay:TmnCode"]
+            ?? throw new InvalidOperationException("VNPay:TmnCode is not configured.");
+
+        _ = _configuration["VNPay:HashSecret"]
+            ?? throw new InvalidOperationException("VNPay:HashSecret is not configured.");
+
+        _ = _configuration["VNPay:ReturnUrl"]
+            ?? throw new InvalidOperationException("VNPay:ReturnUrl is not configured.");
+    }
+
     public VnPayPaymentResult CreatePaymentUrl(Guid userId, decimal amount, string orderInfo, Wallet wallet)
     {
-        var tmnCode = _configuration["VNPay:TmnCode"]
-            ?? throw new InvalidOperationException("VNPay:TmnCode is not configured.");
-        var hashSecret = _configuration["VNPay:HashSecret"]
-            ?? throw new InvalidOperationException("VNPay:HashSecret is not configured.");
+        ValidateVnPayConfiguration();
+
+        var tmnCode = _configuration["VNPay:TmnCode"];
+        var hashSecret = _configuration["VNPay:HashSecret"];
         var baseUrl = _configuration["VNPay:BaseUrl"]
             ?? "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html";
-        var returnUrl = _configuration["VNPay:ReturnUrl"]
-            ?? throw new InvalidOperationException("VNPay:ReturnUrl is not configured.");
+        var returnUrl = _configuration["VNPay:ReturnUrl"];
 
         var txnRef = $"{userId:N}_{DateTimeOffset.UtcNow:yyyyMMddHHmmssfff}";
         var vnTime = DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(7));
@@ -82,8 +93,9 @@ public class VNPayService : IVNPayService
 
     public async Task<VnPayIpnResult> ProcessIpnCallbackAsync(Dictionary<string, string?> queryParams)
     {
-        var hashSecret = _configuration["VNPay:HashSecret"]
-            ?? throw new InvalidOperationException("VNPay:HashSecret is not configured.");
+        ValidateVnPayConfiguration();
+
+        var hashSecret = _configuration["VNPay:HashSecret"];
 
         // 1. Verify secure hash
         if (!queryParams.TryGetValue("vnp_SecureHash", out var receivedHash) || string.IsNullOrEmpty(receivedHash))
