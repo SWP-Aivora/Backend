@@ -47,12 +47,12 @@ public class Service : IService
     }
 
     /// <summary>
-/// Generate AI-powered job suggestions based on client requirements
-/// </summary>
-/// <param name="clientId">Client user ID</param>
-/// <param name="request">Job suggestion generation request</param>
-/// <param name="cancellationToken">Cancellation token</param>
-/// <returns>Job suggestion response with AI-generated options</returns>
+    /// Generate AI-powered job suggestions based on client requirements
+    /// </summary>
+    /// <param name="clientId">Client user ID</param>
+    /// <param name="request">Job suggestion generation request</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Job suggestion response with AI-generated options</returns>
     public async Task<Response.SuggestionResponse> GenerateSuggestionAsync(Guid clientId, Request.GenerateSuggestionRequest request, CancellationToken cancellationToken = default)
     {
         if (request is null) throw new ValidationException("Request body is required.");
