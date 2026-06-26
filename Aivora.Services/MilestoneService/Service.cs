@@ -118,7 +118,8 @@ public class Service : IService
     public async Task<Response.MilestoneResponse> ApproveMilestoneAsync(Guid userId, Guid milestoneId)
     {
         // Validate milestone status at service layer before delegating to Treasury
-        var milestone = await _dbContext.Milestones.FirstAsync(m => m.Id == milestoneId);
+        var milestone = await _dbContext.Milestones.FirstOrDefaultAsync(m => m.Id == milestoneId);
+        if (milestone == null) throw new NotFoundException("Milestone not found.");
         if (milestone.Status != MilestoneStatus.SUBMITTED && milestone.Status != MilestoneStatus.DISPUTED)
             throw new ValidationException("Milestone must be in SUBMITTED or DISPUTED status to be approved.");
 
@@ -126,7 +127,8 @@ public class Service : IService
         await _treasury.ReleaseMilestoneAsync(userId, milestoneId);
 
         // Refresh milestone after Treasury processing
-        milestone = await _dbContext.Milestones.FirstAsync(m => m.Id == milestoneId);
+        milestone = await _dbContext.Milestones.FirstOrDefaultAsync(m => m.Id == milestoneId);
+        if (milestone == null) throw new NotFoundException("Milestone not found after release.");
         return MapToResponse(milestone);
     }
 
