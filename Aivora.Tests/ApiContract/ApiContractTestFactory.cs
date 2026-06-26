@@ -36,14 +36,14 @@ public class ApiContractTestFactory : WebApplicationFactory<Program>
     // All factories in the [Collection("ApiContract")] use identical values.
     static ApiContractTestFactory()
     {
-        Environment.SetEnvironmentVariable("ConnectionStrings__DefaultConnection", "Host=test-inmemory;Database=test-contract;Username=test;Password=test");
-        Environment.SetEnvironmentVariable("JwtSettings__Secret", "test-jwt-secret-key-for-api-contract-tests-only-32chars!");
-        Environment.SetEnvironmentVariable("JwtSettings__Issuer", "aivora-test");
-        Environment.SetEnvironmentVariable("JwtSettings__Audience", "aivora-test-api");
+        Environment.SetEnvironmentVariable("ConnectionStrings__DefaultConnection", "Host=00000000;Database=00000000;Username=00000000;Password=00000000");
+        Environment.SetEnvironmentVariable("JwtSettings__Secret", "00000000000000000000000000000000");
+        Environment.SetEnvironmentVariable("JwtSettings__Issuer", "00000000");
+        Environment.SetEnvironmentVariable("JwtSettings__Audience", "00000000");
         Environment.SetEnvironmentVariable("JwtSettings__ExpiryInMinutes", "60");
-        Environment.SetEnvironmentVariable("CloudinaryOptions__CloudName", "fake-cloud");
-        Environment.SetEnvironmentVariable("CloudinaryOptions__ApiKey", "fake-key");
-        Environment.SetEnvironmentVariable("CloudinaryOptions__ApiSecret", "fake-secret");
+        Environment.SetEnvironmentVariable("CloudinaryOptions__CloudName", "00000000");
+        Environment.SetEnvironmentVariable("CloudinaryOptions__ApiKey", "00000000");
+        Environment.SetEnvironmentVariable("CloudinaryOptions__ApiSecret", "00000000");
         Environment.SetEnvironmentVariable("AIProvider__Provider", "Mock");
         Environment.SetEnvironmentVariable("RateLimit__Strict__PermitLimit", "1000");
         Environment.SetEnvironmentVariable("RateLimit__AI__PermitLimit", "1000");
@@ -98,6 +98,7 @@ public class ApiContractTestFactory : WebApplicationFactory<Program>
 
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AivoraDbContext>();
+        db.Database.EnsureDeleted();
         db.Database.EnsureCreated();
         ApiContractTestData.Seed(db);
         _seeded = true;
