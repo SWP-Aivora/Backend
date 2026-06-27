@@ -109,7 +109,8 @@ public class WalletServiceTests
             {
                 ["VNPay:TmnCode"] = "test_tmn_code",
                 ["VNPay:HashSecret"] = "test_hash_secret",
-                ["VNPay:ReturnUrl"] = "https://test.com/return"
+                ["VNPay:ReturnUrl"] = "https://test.com/return",
+                ["VNPay:IpnUrl"] = "https://test.com/ipn"
             }).Build(),
             dbContext,
             new Mock<IHttpContextAccessor>().Object);

@@ -10,6 +10,9 @@ public class AivoraDbContextFactory : IDesignTimeDbContextFactory<AivoraDbContex
 {
     public AivoraDbContext CreateDbContext(string[] args)
     {
+        // Load .env file for EF CLI tools (migrations, etc.)
+        DotNetEnv.Env.Load();
+
         var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production";
 
         IConfigurationRoot configuration = new ConfigurationBuilder()

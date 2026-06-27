@@ -84,6 +84,31 @@ public class WalletController : ControllerBase
         return Ok(new Response.VnPayIpnResponse { RspCode = "00", Message = result.Message });
     }
 
+    [HttpGet("vnpay-return")]
+    [AllowAnonymous]
+    public IActionResult VnPayReturn()
+    {
+        // VNPAY redirects the user's browser here after payment.
+        // Only forward known safe VNPAY parameters to the frontend.
+        var safeParams = new List<string>();
+        var safeKeys = new HashSet<string>
+        {
+            "vnp_Amount", "vnp_ResponseCode", "vnp_TransactionStatus",
+            "vnp_TxnRef", "vnp_OrderInfo", "vnp_BankCode",
+            "vnp_PayDate", "vnp_TransactionNo"
+        };
+
+        foreach (var key in HttpContext.Request.Query.Keys)
+        {
+            if (safeKeys.Contains(key!))
+                safeParams.Add($"{key}={Uri.EscapeDataString(HttpContext.Request.Query[key]!)}");
+        }
+
+        var queryString = safeParams.Count > 0 ? "?" + string.Join("&", safeParams) : "";
+        var frontendUrl = $"https://{Request.Host}/payment-result{queryString}";
+        return Redirect(frontendUrl);
+    }
+
     [HttpPost("withdraw")]
     [Authorize(Policy = JwtExtensions.ClientPolicy)]
     public async Task<IActionResult> Withdraw([FromBody] Request.WithdrawRequest request)
