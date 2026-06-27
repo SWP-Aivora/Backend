@@ -35,6 +35,9 @@ public class VNPayService : IVNPayService
 
         _ = _configuration["VNPay:ReturnUrl"]
             ?? throw new InvalidOperationException("VNPay:ReturnUrl is not configured.");
+
+        _ = _configuration["VNPay:IpnUrl"]
+            ?? throw new InvalidOperationException("VNPay:IpnUrl is not configured.");
     }
 
     public VnPayPaymentResult CreatePaymentUrl(Guid userId, decimal amount, string orderInfo, Wallet wallet)
@@ -46,6 +49,7 @@ public class VNPayService : IVNPayService
         var baseUrl = _configuration["VNPay:BaseUrl"]
             ?? "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html";
         var returnUrl = _configuration["VNPay:ReturnUrl"];
+        var ipnUrl = _configuration["VNPay:IpnUrl"];
 
         var txnRef = $"{userId:N}_{DateTimeOffset.UtcNow:yyyyMMddHHmmssfff}";
         var vnTime = DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(7));
@@ -67,6 +71,12 @@ public class VNPayService : IVNPayService
             { "vnp_TxnRef", txnRef }
         };
 
+        // Only include IpnUrl if configured; VNPAY sandbox may reject custom IpnUrl
+        if (!string.IsNullOrEmpty(ipnUrl))
+        {
+            vnpParams["vnp_IpnUrl"] = ipnUrl;
+        }
+
         var signData = new StringBuilder();
         foreach (var kvp in vnpParams)
         {
@@ -75,7 +85,7 @@ public class VNPayService : IVNPayService
                 if (signData.Length > 0) signData.Append('&');
                 signData.Append(kvp.Key);
                 signData.Append('=');
-                signData.Append(Uri.EscapeDataString(kvp.Value));
+                signData.Append(VnPayUrlEncode(kvp.Value));
             }
         }
 
@@ -83,7 +93,7 @@ public class VNPayService : IVNPayService
         vnpParams["vnp_SecureHash"] = secureHash;
 
         var queryString = string.Join('&', vnpParams.Select(kvp =>
-            $"{kvp.Key}={Uri.EscapeDataString(kvp.Value)}"));
+            $"{kvp.Key}={VnPayUrlEncode(kvp.Value)}"));
 
         return new VnPayPaymentResult
         {
@@ -112,7 +122,7 @@ public class VNPayService : IVNPayService
                 if (signData.Length > 0) signData.Append('&');
                 signData.Append(kvp.Key);
                 signData.Append('=');
-                signData.Append(Uri.EscapeDataString(kvp.Value));
+                signData.Append(VnPayUrlEncode(kvp.Value));
             }
         }
 
@@ -221,6 +231,16 @@ public class VNPayService : IVNPayService
         }
     }
 
+    /// <summary>
+    /// URL-encodes a value using PHP-compatible urlencode (spaces as '+')
+    /// Note: VNPAY server uses PHP urlencode which encodes spaces as '+'.
+    /// We must NOT use Uri.EscapeDataString directly because it encodes spaces as '%20'.
+    /// </summary>
+    private static string VnPayUrlEncode(string value)
+    {
+        return Uri.EscapeDataString(value).Replace("%20", "+");
+    }
+
     private static string ComputeHmacSha512(string key, string data)
     {
         return HashUtil.ComputeHmacSha512(key, data);
@@ -233,8 +253,16 @@ public class VNPayService : IVNPayService
 
         var forwardedFor = httpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault();
         if (!string.IsNullOrEmpty(forwardedFor))
-            return forwardedFor.Split(',')[0].Trim();
+        {
+            var ip = forwardedFor.Split(',')[0].Trim();
+            // VNPAY requires IPv4; map IPv6 loopback to IPv4
+            return ip == "::1" ? "127.0.0.1" : ip;
+        }
 
-        return httpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+        var remoteIp = httpContext.Connection.RemoteIpAddress;
+        if (remoteIp == null) return "127.0.0.1";
+
+        // Map IPv6 loopback to IPv4 for VNPAY compatibility
+        return remoteIp.ToString() == "::1" ? "127.0.0.1" : remoteIp.ToString();
     }
 }

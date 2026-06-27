@@ -42,3 +42,6 @@ docs/architecture/
 
 # Environment-specific settings (contains secrets)
 appsettings.Development.json
+
+# Playwright test artifacts
+.playwright-mcp/
