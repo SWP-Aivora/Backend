@@ -45,9 +45,10 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHub<Aivora.api.Hubs.ChatHub>("/api/v1/chat");
 
-// Seed data on startup
+// Run migrations and seed data on startup
 try
 {
+    await app.MigrateDatabaseAsync();
     await app.SeedDataAsync();
 }
 catch (Exception ex)
