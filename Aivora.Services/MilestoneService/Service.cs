@@ -86,10 +86,23 @@ public class Service : IService
         // Sử dụng Treasury để xử lý logic phức tạp
         await _treasury.FundMilestoneAsync(userId, milestoneId);
 
-        // Lấy lại dữ liệu sau khi Treasury xử lý xong để trả về cho UI
-        var milestone = await _dbContext.Milestones.FirstAsync(m => m.Id == milestoneId);
-        var clientWallet = await _dbContext.Wallets.FirstAsync(w => w.UserId == userId);
-        var payment = await _dbContext.Payments.FirstAsync(p => p.MilestoneId == milestoneId && p.Status == PaymentStatus.HELD);
+        // Lấy dữ liệu từ change tracker sau khi Treasury xử lý xong.
+        // Treasury đã load/create các entity này trong cùng một DbContext (scoped),
+        // nên chúng đã được tracked. Dùng .Local thay vì query DB để tránh
+        // lỗi "Sequence contains no elements" do connection pool / transaction visibility.
+        var milestone = _dbContext.Milestones.Local
+            .FirstOrDefault(m => m.Id == milestoneId);
+        var clientWallet = _dbContext.Wallets.Local
+            .FirstOrDefault(w => w.UserId == userId);
+        var payment = _dbContext.Payments.Local
+            .FirstOrDefault(p => p.MilestoneId == milestoneId && p.Status == PaymentStatus.HELD);
+
+        if (milestone == null)
+            throw new InvalidOperationException($"Milestone {milestoneId} not tracked after funding.");
+        if (clientWallet == null)
+            throw new InvalidOperationException($"Wallet for user {userId} not tracked after funding.");
+        if (payment == null)
+            throw new InvalidOperationException($"Payment for milestone {milestoneId} not tracked after funding.");
 
         return new Response.FundResultResponse
         {
