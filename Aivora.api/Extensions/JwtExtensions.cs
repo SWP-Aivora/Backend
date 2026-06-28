@@ -11,6 +11,7 @@ public static class JwtExtensions
     public const string ClientPolicy = "ClientPolicy";
     public const string ExpertPolicy = "ExpertPolicy";
     public const string AdminPolicy = "AdminPolicy";
+    public const string WithdrawPolicy = "WithdrawPolicy";
 
     public static void AddJwtServices(this IServiceCollection services, IConfiguration configuration)
     {
@@ -44,6 +45,7 @@ public static class JwtExtensions
             options.AddPolicy(ClientPolicy, policy => policy.RequireRole("CLIENT"));
             options.AddPolicy(ExpertPolicy, policy => policy.RequireRole("EXPERT"));
             options.AddPolicy(AdminPolicy, policy => policy.RequireRole("ADMIN"));
+            options.AddPolicy(WithdrawPolicy, policy => policy.RequireRole("CLIENT", "EXPERT"));
         });
     }
 }
