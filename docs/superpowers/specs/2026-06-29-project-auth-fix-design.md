@@ -68,6 +68,12 @@ public async Task<IActionResult> GetProject(Guid id)
 [HttpGet("{id}")]
 [Authorize]  // ← Remove AdminPolicy, allow all authenticated users
 public async Task<IActionResult> GetProject(Guid id)
+{
+    var userId = User.GetUserId();
+    var userRole = User.GetUserRole();  // Extract from claims in Controller layer
+    var result = await _projectService.GetProjectByIdAsync(userId, id, userRole);
+    return Ok(result);
+}
 ```
 
 **Rationale:**
@@ -87,35 +93,21 @@ if (project.ClientId != userId && project.ExpertId != userId)
     throw new UnauthorizedException("Access denied to this project.");
 
 // AFTER
-// Get role from JWT claims - NO DB round-trip (performance optimized)
-var userRole = _httpContextAccessor.HttpContext.User.GetUserRole();
-
 // Null-safe ExpertId check - handles unassigned projects
+// C# behavior: null != Guid always returns true (correct for our use case)
 if (userRole != UserRole.ADMIN && 
     project.ClientId != userId && 
     project.ExpertId != userId)
     throw new UnauthorizedException("Access denied to this project.");
 ```
 
-**Dependency Update:**
+**Updated signature (pass-through parameter):**
 ```csharp
-// Add to constructor
-private readonly IHttpContextAccessor _httpContextAccessor;
-
-public Service(AivoraDbContext dbContext, IHttpContextAccessor httpContextAccessor)
-{
-    _dbContext = dbContext;
-    _httpContextAccessor = httpContextAccessor;
-}
-```
-
-**Alternative approach (if IHttpContextAccessor not available):**
-```csharp
-// Pass role from Controller
+// Add UserRole parameter - extracted from claims in Controller
 public async Task<Response.ProjectResponse> GetProjectByIdAsync(
     Guid userId, 
     Guid projectId, 
-    UserRole userRole)  // <-- Pass from Controller
+    UserRole userRole)
 {
     var project = await _dbContext.Projects...
     
@@ -136,28 +128,25 @@ public async Task<Response.ProjectResponse> GetProjectByIdAsync(
 
 ```csharp
 // Test 1: Admin access to any project
-var adminUser = new User { Role = UserRole.ADMIN };
-await service.GetProjectByIdAsync(adminUser.Id, anyProjectId, UserRole.ADMIN); // Should succeed
+await service.GetProjectByIdAsync(adminUserId, anyProjectId, UserRole.ADMIN); // Should succeed
 
 // Test 2: Client accessing their own project  
-var clientUser = new User { Role = UserRole.CLIENT };
-await service.GetProjectByIdAsync(clientUser.Id, clientProjectId, UserRole.CLIENT); // Should succeed
+await service.GetProjectByIdAsync(clientUserId, clientProjectId, UserRole.CLIENT); // Should succeed
 
 // Test 3: Expert accessing their own project
-var expertUser = new User { Role = UserRole.EXPERT };
-await service.GetProjectByIdAsync(expertUser.Id, expertProjectId, UserRole.EXPERT); // Should succeed
+await service.GetProjectByIdAsync(expertUserId, expertProjectId, UserRole.EXPERT); // Should succeed
 
 // Test 4a: Client accessing other's project (Expert exists)
-await service.GetProjectByIdAsync(clientUser.Id, projectWithExpertId, UserRole.CLIENT); // Should throw 403
+await service.GetProjectByIdAsync(clientUserId, projectWithExpertId, UserRole.CLIENT); // Should throw 403
 
 // Test 4b: Client accessing unassigned project (Expert null)
-await service.GetProjectByIdAsync(clientUser.Id, projectWithoutExpertId, UserRole.CLIENT); // Should throw 403
+await service.GetProjectByIdAsync(clientUserId, projectWithoutExpertId, UserRole.CLIENT); // Should throw 403
 
 // Test 5a: Expert accessing other's project (Client exists)
-await service.GetProjectByIdAsync(expertUser.Id, projectWithClientId, UserRole.EXPERT); // Should throw 403
+await service.GetProjectByIdAsync(expertUserId, projectWithClientId, UserRole.EXPERT); // Should throw 403
 
 // Test 5b: Expert accessing unassigned project
-await service.GetProjectByIdAsync(expertUser.Id, projectWithoutExpertId, UserRole.EXPERT); // Should throw 403
+await service.GetProjectByIdAsync(expertUserId, projectWithoutExpertId, UserRole.EXPERT); // Should throw 403
 ```
 
 ### Integration Tests
@@ -257,12 +246,18 @@ clientOtherResponse.StatusCode.Should().Be(HttpStatusCode.Forbidden);
 
 ---
 
-## 📝 Checklist
+## 📋 Design Checklist (✅ Completed)
 
 - [x] Identify root cause (AdminPolicy vs Service conflict)
 - [x] Design solution (remove policy, use claims)
-- [x] Implement Controller change
-- [x] Implement Service enhancement
+- [x] Create architecture diagrams
+- [x] Review security considerations
+- [x] Define success criteria
+
+## 📝 Implementation Checklist (⏳ Pending)
+
+- [ ] Implement Controller change
+- [ ] Implement Service enhancement
 - [ ] Write comprehensive tests
 - [ ] Update documentation
 - [ ] Review with team
