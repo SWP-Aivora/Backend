@@ -888,6 +888,41 @@ public class AivoraDataSeeder : IAivoraDataSeeder
         // Seed Wallets for users
         var wallets = new List<Wallet>
         {
+            // Admin wallets
+            new Wallet
+            {
+                UserId = users.FirstOrDefault(u => u.Email == "admin@aivora.com")!.Id,
+                AvailableBalance = 100000,
+                Currency = "AICOIN",
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
+            },
+            new Wallet
+            {
+                UserId = users.FirstOrDefault(u => u.Email == "ahihi@aivora.com")!.Id,
+                AvailableBalance = 50000,
+                Currency = "AICOIN",
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
+            },
+            // Client wallets
+            new Wallet
+            {
+                UserId = users.FirstOrDefault(u => u.Email == "client1@example.com")!.Id,
+                AvailableBalance = 10000,
+                Currency = "AICOIN",
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
+            },
+            new Wallet
+            {
+                UserId = users.FirstOrDefault(u => u.Email == "client2@example.com")!.Id,
+                AvailableBalance = 8000,
+                Currency = "AICOIN",
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
+            },
+            // Expert wallets
             new Wallet
             {
                 UserId = users.FirstOrDefault(u => u.Email == "expert1@example.com")!.Id,
