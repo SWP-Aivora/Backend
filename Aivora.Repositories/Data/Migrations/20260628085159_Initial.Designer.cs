@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Aivora.Repositories.Data.Migrations
 {
     [DbContext(typeof(AivoraDbContext))]
-    [Migration("20260611101158_AddDueDaysAndAcceptanceCriteriaToJobPostMilestones")]
-    partial class AddDueDaysAndAcceptanceCriteriaToJobPostMilestones
+    [Migration("20260628085159_Initial")]
+    partial class Initial
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -785,6 +785,9 @@ namespace Aivora.Repositories.Data.Migrations
                     b.Property<Guid>("ProjectId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTimeOffset?>("ReleasedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("text");
@@ -1375,6 +1378,10 @@ namespace Aivora.Repositories.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("ExternalTxnRef")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
@@ -1395,6 +1402,9 @@ namespace Aivora.Repositories.Data.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ExternalTxnRef")
+                        .IsUnique();
 
                     b.HasIndex("PaymentId");
 

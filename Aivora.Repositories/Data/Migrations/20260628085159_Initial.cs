@@ -183,6 +183,32 @@ namespace Aivora.Repositories.Data.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "Notifications",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Title = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
+                    Message = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: false),
+                    LinkUrl = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    IsRead = table.Column<bool>(type: "boolean", nullable: false),
+                    Type = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
+                    IsDeleted = table.Column<bool>(type: "boolean", nullable: false),
+                    CreatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    UpdatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Notifications", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Notifications_Users_UserId",
+                        column: x => x.UserId,
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Wallets",
                 columns: table => new
                 {
@@ -250,12 +276,19 @@ namespace Aivora.Repositories.Data.Migrations
                     SuggestedBudgetMin = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: true),
                     SuggestedBudgetMax = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: true),
                     SuggestedTimelineDays = table.Column<int>(type: "integer", nullable: true),
+                    SuggestedBudgetType = table.Column<string>(type: "text", nullable: false, defaultValue: "FIXED"),
+                    Currency = table.Column<string>(type: "character varying(10)", maxLength: 10, nullable: false, defaultValue: "AICOIN"),
+                    SuggestedExperienceLevel = table.Column<string>(type: "text", nullable: true),
+                    SuggestedBusinessDomain = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
+                    SuggestedExpectedOutcome = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
                     SuggestedSkillsJson = table.Column<string>(type: "text", nullable: true),
                     SuggestedMilestonesJson = table.Column<string>(type: "text", nullable: true),
                     ClarifyingQuestionsJson = table.Column<string>(type: "text", nullable: true),
+                    ClarifyingAnswersJson = table.Column<string>(type: "text", nullable: true),
                     RiskWarningsJson = table.Column<string>(type: "text", nullable: true),
                     AIModel = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
                     Status = table.Column<string>(type: "text", nullable: false),
+                    RejectionReason = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
                     IsDeleted = table.Column<bool>(type: "boolean", nullable: false),
                     CreatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
                     UpdatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true)
@@ -275,6 +308,33 @@ namespace Aivora.Repositories.Data.Migrations
                         principalTable: "Users",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "JobPostMilestones",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    JobPostId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Title = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
+                    Description = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
+                    Amount = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
+                    DueDays = table.Column<int>(type: "integer", nullable: false),
+                    AcceptanceCriteria = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
+                    OrderIndex = table.Column<int>(type: "integer", nullable: false),
+                    IsDeleted = table.Column<bool>(type: "boolean", nullable: false),
+                    CreatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    UpdatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_JobPostMilestones", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_JobPostMilestones_JobPosts_JobPostId",
+                        column: x => x.JobPostId,
+                        principalTable: "JobPosts",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -514,6 +574,7 @@ namespace Aivora.Repositories.Data.Migrations
                     SubmittedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
                     ApprovedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
                     PaidAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    ReleasedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
                     IsDeleted = table.Column<bool>(type: "boolean", nullable: false),
                     CreatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
                     UpdatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true)
@@ -757,6 +818,7 @@ namespace Aivora.Repositories.Data.Migrations
                     BalanceBefore = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
                     BalanceAfter = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
                     Description = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    ExternalTxnRef = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
                     IsDeleted = table.Column<bool>(type: "boolean", nullable: false),
                     CreatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
                     UpdatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true)
@@ -918,6 +980,11 @@ namespace Aivora.Repositories.Data.Migrations
                 column: "SkillId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_JobPostMilestones_JobPostId",
+                table: "JobPostMilestones",
+                column: "JobPostId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_JobPosts_CategoryId",
                 table: "JobPosts",
                 column: "CategoryId");
@@ -952,6 +1019,11 @@ namespace Aivora.Repositories.Data.Migrations
                 name: "IX_Milestones_ProjectId",
                 table: "Milestones",
                 column: "ProjectId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Notifications_UserId",
+                table: "Notifications",
+                column: "UserId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Payments_MilestoneId",
@@ -1053,6 +1125,12 @@ namespace Aivora.Repositories.Data.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_WalletTransactions_ExternalTxnRef",
+                table: "WalletTransactions",
+                column: "ExternalTxnRef",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_WalletTransactions_PaymentId",
                 table: "WalletTransactions",
                 column: "PaymentId");
@@ -1087,10 +1165,16 @@ namespace Aivora.Repositories.Data.Migrations
                 name: "ExpertSkills");
 
             migrationBuilder.DropTable(
+                name: "JobPostMilestones");
+
+            migrationBuilder.DropTable(
                 name: "JobSkills");
 
             migrationBuilder.DropTable(
                 name: "Messages");
+
+            migrationBuilder.DropTable(
+                name: "Notifications");
 
             migrationBuilder.DropTable(
                 name: "ProposalMilestones");
