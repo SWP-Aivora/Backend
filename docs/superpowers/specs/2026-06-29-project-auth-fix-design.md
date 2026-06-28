@@ -228,7 +228,7 @@ clientOtherResponse.StatusCode.Should().Be(HttpStatusCode.Forbidden);
 
 ### Phase 1: Development
 1. Implement Controller change
-2. Add IHttpContextAccessor to Service
+2. Update Service method signature (add UserRole parameter)
 3. Update authorization logic
 4. Write unit tests
 
