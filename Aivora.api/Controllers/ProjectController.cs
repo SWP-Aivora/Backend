@@ -35,6 +35,7 @@ public class ProjectController : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [Authorize(Policy = JwtExtensions.AdminPolicy)]
     public async Task<IActionResult> GetProject(Guid id)
     {
         var userId = this.GetUserId();

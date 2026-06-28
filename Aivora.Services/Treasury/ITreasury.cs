@@ -38,6 +38,11 @@ public interface ITreasury
     Task UnfreezeFundsAsync(Guid milestoneId, string reason);
 
     /// <summary>
+    /// Yêu cầu sửa chữa milestone - cập nhật trạng thái thành REVISION_REQUESTED.
+    /// </summary>
+    Task RequestRevisionAsync(Guid milestoneId, string reason);
+
+    /// <summary>
     /// Đồng bộ trạng thái Project dựa trên trạng thái các Milestone.
     /// Giải quyết bug 'hanging project' bằng cách tính cả Milestone đã REFUNDED.
     /// </summary>

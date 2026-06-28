@@ -316,6 +316,43 @@ public class Treasury : ITreasury
         _logger.LogInformation("🔥 Funds unfrozen for Milestone {MilestoneId}. Reason: {Reason}", milestoneId, reason);
     }
 
+    public async Task RequestRevisionAsync(Guid milestoneId, string reason)
+    {
+        var milestone = await GetMilestoneWithProjectAsync(milestoneId);
+
+        if (milestone.Status != MilestoneStatus.DISPUTED && milestone.Status != MilestoneStatus.FUNDED)
+            throw new ValidationException("Only disputed or funded milestones can be revised.");
+
+        using var transaction = await _dbContext.Database.BeginTransactionAsync();
+        try
+        {
+            // Update milestone status to revision requested
+            milestone.Status = MilestoneStatus.REVISION_REQUESTED;
+            milestone.UpdatedAt = DateTimeOffset.UtcNow;
+
+            // Find and update payment status
+            var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestoneId);
+            if (payment != null)
+            {
+                payment.Status = PaymentStatus.HELD; // Back to HELD for revision
+                payment.UpdatedAt = DateTimeOffset.UtcNow;
+            }
+
+            // Sync project status
+            await SyncProjectStatusAsync(milestone.ProjectId);
+
+            await transaction.CommitAsync();
+
+            _logger.LogInformation("🔄 Revision requested for Milestone {MilestoneId}. Reason: {Reason}", milestoneId, reason);
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            _logger.LogError(ex, "❌ Failed to request revision for Milestone {MilestoneId}", milestoneId);
+            throw;
+        }
+    }
+
     public async Task SyncProjectStatusAsync(Guid projectId)
     {
         var project = await _dbContext.Projects
