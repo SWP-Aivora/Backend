@@ -110,7 +110,7 @@ public class WalletController : ControllerBase
     }
 
     [HttpPost("withdraw")]
-    [Authorize(Policy = JwtExtensions.ClientPolicy)]
+    [Authorize(Roles = "CLIENT,EXPERT")]
     public async Task<IActionResult> Withdraw([FromBody] Request.WithdrawRequest request)
     {
         var userId = this.GetUserId();
