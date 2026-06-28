@@ -1,17 +1,14 @@
 using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
-using Microsoft.AspNetCore.Identity;
+using BCrypt.Net;
 using Microsoft.EntityFrameworkCore;
-using System.Security.Cryptography;
-using System.Text;
 
 namespace Aivora.Repositories;
 
 public class AivoraDataSeeder : IAivoraDataSeeder
 {
     private readonly AivoraDbContext _context;
-    private readonly PasswordHasher<User> _passwordHasher = new PasswordHasher<User>();
 
     public AivoraDataSeeder(AivoraDbContext context)
     {
@@ -973,8 +970,7 @@ public class AivoraDataSeeder : IAivoraDataSeeder
 
     private string HashPassword(string password)
     {
-        // Create a dummy user instance for password hashing
-        var dummyUser = new User();
-        return _passwordHasher.HashPassword(dummyUser, password);
+        // Use BCrypt for consistent password hashing with IdentityService
+        return BCrypt.Net.BCrypt.HashPassword(password);
     }
 }
