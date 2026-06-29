@@ -16,7 +16,7 @@ public class Service : IService
         _dbContext = dbContext;
     }
 
-    public async Task<Response.ProjectResponse> GetProjectByIdAsync(Guid userId, Guid projectId)
+    public async Task<Response.ProjectResponse> GetProjectByIdAsync(Guid userId, Guid projectId, UserRole userRole)
     {
         var project = await _dbContext.Projects
             .Include(p => p.Client)
@@ -26,11 +26,26 @@ public class Service : IService
 
         if (project == null) throw new NotFoundException("Project not found.");
 
-        // Security check
-        if (project.ClientId != userId && project.ExpertId != userId)
-            throw new UnauthorizedException("Access denied to this project.");
+        // Updated authorization logic
+        // Admin always has access
+        // Client can only access their own projects
+        // Expert can only access assigned projects
+        if (userRole == UserRole.ADMIN)
+        {
+            return MapToResponse(project);
+        }
 
-        return MapToResponse(project);
+        if (userRole == UserRole.CLIENT && project.ClientId == userId)
+        {
+            return MapToResponse(project);
+        }
+
+        if (userRole == UserRole.EXPERT && project.ExpertId == userId)
+        {
+            return MapToResponse(project);
+        }
+
+        throw new UnauthorizedException("Access denied to this project.");
     }
 
     public async Task<Aivora.Services.Base.Response.PageResult<Response.ProjectResponse>> GetProjectsAsync(Guid userId, UserRole role, Aivora.Services.Base.Request.PageRequest pageRequest, ProjectStatus? status = null)

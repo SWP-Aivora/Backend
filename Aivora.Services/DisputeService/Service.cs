@@ -215,47 +215,38 @@ public class Service : IService
         if (dispute == null) throw new NotFoundException("Dispute not found.");
         if (dispute.Status == DisputeStatus.RESOLVED) throw new ValidationException("Dispute is already resolved.");
 
-        using var transaction = await _dbContext.Database.BeginTransactionAsync();
-        try
+        var project = dispute.Project;
+        var milestone = dispute.Milestone;
+
+        // Let Treasury handle the transaction - don't open nested transactions
+        switch (request.ResolutionType)
         {
-            dispute.Status = DisputeStatus.RESOLVED;
-            dispute.ResolutionType = request.ResolutionType;
-            dispute.ResolutionNote = request.ResolutionNote;
-            dispute.ResolvedAt = DateTimeOffset.UtcNow;
-            dispute.AdminId = adminId;
+            case DisputeResolutionType.RELEASE_TO_EXPERT:
+                await _treasury.ReleaseMilestoneAsync(milestone.Project.ClientId, milestone.Id);
+                break;
 
-            var project = dispute.Project;
-            var milestone = dispute.Milestone;
+            case DisputeResolutionType.REFUND_TO_CLIENT:
+                await _treasury.RefundMilestoneAsync(adminId, milestone.Id, dispute.Payment.Amount, $"Dispute resolved: Refund to client. Ref: {dispute.Id}");
+                break;
 
-            switch (request.ResolutionType)
-            {
-                case DisputeResolutionType.RELEASE_TO_EXPERT:
-                    await _treasury.ReleaseMilestoneAsync(milestone.Project.ClientId, milestone.Id);
-                    break;
+            case DisputeResolutionType.SPLIT_PAYMENT:
+                await _treasury.SplitMilestoneFundsAsync(milestone.Id, request.ReleaseAmount ?? 0, request.RefundAmount ?? 0, $"Dispute resolved: Split payment. Ref: {dispute.Id}");
+                break;
 
-                case DisputeResolutionType.REFUND_TO_CLIENT:
-                    await _treasury.RefundMilestoneAsync(adminId, milestone.Id, dispute.Payment.Amount, $"Dispute resolved: Refund to client. Ref: {dispute.Id}");
-                    break;
-
-                case DisputeResolutionType.SPLIT_PAYMENT:
-                    await _treasury.SplitMilestoneFundsAsync(milestone.Id, request.ReleaseAmount ?? 0, request.RefundAmount ?? 0, $"Dispute resolved: Split payment. Ref: {dispute.Id}");
-                    break;
-
-                case DisputeResolutionType.REQUEST_REVISION:
-                    milestone.Status = MilestoneStatus.REVISION_REQUESTED;
-                    await _treasury.UnfreezeFundsAsync(milestone.Id, $"Dispute resolved: Request revision. Ref: {dispute.Id}");
-                    break;
-            }
-
-            await _dbContext.SaveChangesAsync();
-            await transaction.CommitAsync();
-
-            return await GetDisputeByIdAsync(adminId, disputeId);
+            case DisputeResolutionType.REQUEST_REVISION:
+                await _treasury.RequestRevisionAsync(milestone.Id, $"Dispute resolved: Request revision. Ref: {dispute.Id}");
+                break;
         }
-        catch (Exception)
-        {
-            await transaction.RollbackAsync();
-            throw;
-        }
+
+        // Update dispute status after successful Treasury operation
+        dispute.Status = DisputeStatus.RESOLVED;
+        dispute.ResolutionType = request.ResolutionType;
+        dispute.ResolutionNote = request.ResolutionNote;
+        dispute.ResolvedAt = DateTimeOffset.UtcNow;
+        dispute.AdminId = adminId;
+
+        await _dbContext.SaveChangesAsync();
+
+        return await GetDisputeByIdAsync(adminId, disputeId);
     }
 }
