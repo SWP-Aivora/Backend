@@ -61,4 +61,31 @@ public class DisputeController : ControllerBase
         var result = await _disputeService.ResolveDisputeAsync(adminId, id, request);
         return Ok(ApiResponseFactory.SuccessResponse(result, "Dispute resolved successfully", HttpContext.TraceIdentifier));
     }
+
+    [HttpPut("{id}/close")]
+    [Authorize]
+    public async Task<IActionResult> CloseDispute(Guid id)
+    {
+        var userId = this.GetUserId();
+        var result = await _disputeService.CloseDisputeAsync(userId, id);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Dispute closed successfully", HttpContext.TraceIdentifier));
+    }
+
+    [HttpPut("{id}/request-evidence")]
+    [Authorize(Policy = JwtExtensions.AdminPolicy)]
+    public async Task<IActionResult> RequestEvidence(Guid id, [FromBody] Request.RequestEvidenceRequest request)
+    {
+        var adminId = this.GetUserId();
+        var result = await _disputeService.RequestEvidenceAsync(adminId, id, request);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Evidence requested successfully", HttpContext.TraceIdentifier));
+    }
+
+    [HttpDelete("{disputeId}/evidence/{evidenceId}")]
+    [Authorize]
+    public async Task<IActionResult> DeleteEvidence(Guid disputeId, Guid evidenceId)
+    {
+        var userId = this.GetUserId();
+        await _disputeService.DeleteEvidenceAsync(userId, disputeId, evidenceId);
+        return Ok(ApiResponseFactory.SuccessResponse(null, "Evidence deleted successfully", HttpContext.TraceIdentifier));
+    }
 }

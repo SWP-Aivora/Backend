@@ -44,7 +44,8 @@ public class DisputeServiceTests
         await dbContext.SaveChangesAsync();
 
         var treasury = new Aivora.Services.Treasury.Treasury(dbContext, Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>());
-        var service = new Service(dbContext, treasury);
+        var notificationService = new MockNotificationService();
+        var service = new Service(dbContext, treasury, notificationService);
         var request = new Request.OpenDisputeRequest { MilestoneId = milestoneId, Reason = "Poor quality" };
 
         // Act
@@ -95,7 +96,8 @@ public class DisputeServiceTests
         await dbContext.SaveChangesAsync();
 
         var treasury = new Aivora.Services.Treasury.Treasury(dbContext, Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>());
-        var service = new Service(dbContext, treasury);
+        var notificationService = new MockNotificationService();
+        var service = new Service(dbContext, treasury, notificationService);
         var resolveRequest = new Request.ResolveDisputeRequest
         {
             ResolutionType = DisputeResolutionType.REFUND_TO_CLIENT,
@@ -115,5 +117,32 @@ public class DisputeServiceTests
 
         var updatedDispute = await dbContext.Disputes.FindAsync(dispute.Id);
         updatedDispute!.Status.Should().Be(DisputeStatus.RESOLVED);
+    }
+
+    private class MockNotificationService : Aivora.Services.NotificationService.IService
+    {
+        public Task<Aivora.Services.NotificationService.Response.NotificationResponse> SendNotificationAsync(Guid userId, string title, string message, string? type = null, string? linkUrl = null)
+            => Task.FromResult(new Aivora.Services.NotificationService.Response.NotificationResponse
+            {
+                Id = Guid.NewGuid(),
+                Title = title,
+                Message = message,
+                Type = type,
+                LinkUrl = linkUrl,
+                IsRead = false,
+                CreatedAt = DateTimeOffset.UtcNow
+            });
+
+        public Task<Aivora.Services.Base.Response.PageResult<Aivora.Services.NotificationService.Response.NotificationResponse>> GetUserNotificationsAsync(Guid userId, Aivora.Services.Base.Request.PageRequest pageRequest)
+            => throw new NotImplementedException();
+
+        public Task<bool> MarkAsReadAsync(Guid userId, Guid notificationId)
+            => throw new NotImplementedException();
+
+        public Task<bool> MarkAllAsReadAsync(Guid userId)
+            => throw new NotImplementedException();
+
+        public Task<int> GetUnreadCountAsync(Guid userId)
+            => throw new NotImplementedException();
     }
 }

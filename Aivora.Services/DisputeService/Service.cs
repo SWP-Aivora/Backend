@@ -2,6 +2,7 @@ using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.Exceptions;
+using Aivora.Services.NotificationService;
 using Aivora.Services.Treasury;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,11 +12,13 @@ public class Service : IService
 {
     private readonly AivoraDbContext _dbContext;
     private readonly ITreasury _treasury;
+    private readonly NotificationService.IService _notificationService;
 
-    public Service(AivoraDbContext dbContext, ITreasury treasury)
+    public Service(AivoraDbContext dbContext, ITreasury treasury, NotificationService.IService notificationService)
     {
         _dbContext = dbContext;
         _treasury = treasury;
+        _notificationService = notificationService;
     }
 
     public async Task<Response.DisputeResponse> OpenDisputeAsync(Guid userId, Request.OpenDisputeRequest request)
@@ -248,5 +251,87 @@ public class Service : IService
         await _dbContext.SaveChangesAsync();
 
         return await GetDisputeByIdAsync(adminId, disputeId);
+    }
+
+    public async Task<Response.DisputeResponse> CloseDisputeAsync(Guid userId, Guid disputeId)
+    {
+        var dispute = await _dbContext.Disputes
+            .Include(d => d.Project)
+            .Include(d => d.Milestone)
+            .FirstOrDefaultAsync(d => d.Id == disputeId);
+
+        if (dispute == null) throw new NotFoundException("Dispute not found.");
+        if (dispute.OpenedBy != userId)
+            throw new UnauthorizedException("You are not authorized to close this dispute.");
+        if (dispute.Status == DisputeStatus.RESOLVED)
+            throw new ValidationException("Dispute is already resolved.");
+        if (dispute.Status == DisputeStatus.CLOSED)
+            throw new ValidationException("Dispute is already closed.");
+
+        dispute.Status = DisputeStatus.CLOSED;
+
+        await _dbContext.SaveChangesAsync();
+
+        return await GetDisputeByIdAsync(userId, disputeId);
+    }
+
+    public async Task<Response.DisputeResponse> RequestEvidenceAsync(Guid adminId, Guid disputeId, Request.RequestEvidenceRequest request)
+    {
+        var dispute = await _dbContext.Disputes
+            .Include(d => d.Project)
+            .Include(d => d.Milestone)
+            .FirstOrDefaultAsync(d => d.Id == disputeId);
+
+        if (dispute == null) throw new NotFoundException("Dispute not found.");
+        if (dispute.Status == DisputeStatus.RESOLVED)
+            throw new ValidationException("Dispute is already resolved.");
+        if (dispute.Status == DisputeStatus.CLOSED)
+            throw new ValidationException("Dispute is already closed.");
+
+        if (dispute.Status == DisputeStatus.OPEN)
+        {
+            dispute.Status = DisputeStatus.UNDER_REVIEW;
+        }
+
+        // Send notification to the dispute opener
+        try
+        {
+            await _notificationService.SendNotificationAsync(
+                dispute.OpenedBy,
+                "Yêu cầu bổ sung bằng chứng",
+                request.Note,
+                "DISPUTE",
+                $"/disputes/{disputeId}"
+            );
+        }
+        catch
+        {
+            // Notification failure should not block the main business flow
+        }
+
+        await _dbContext.SaveChangesAsync();
+
+        return await GetDisputeByIdAsync(adminId, disputeId);
+    }
+
+    public async Task DeleteEvidenceAsync(Guid userId, Guid disputeId, Guid evidenceId)
+    {
+        var evidence = await _dbContext.DisputeEvidences
+            .Include(e => e.Dispute)
+            .FirstOrDefaultAsync(e => e.Id == evidenceId);
+
+        if (evidence == null || evidence.DisputeId != disputeId)
+            throw new NotFoundException("Evidence not found.");
+
+        if (evidence.Dispute.OpenedBy != userId && evidence.SubmittedBy != userId)
+            throw new UnauthorizedException("You are not authorized to delete evidence from this dispute.");
+
+        if (evidence.Dispute.Status == DisputeStatus.RESOLVED)
+            throw new ValidationException("Cannot delete evidence from a closed dispute.");
+        if (evidence.Dispute.Status == DisputeStatus.CLOSED)
+            throw new ValidationException("Cannot delete evidence from a closed dispute.");
+
+        _dbContext.DisputeEvidences.Remove(evidence);
+        await _dbContext.SaveChangesAsync();
     }
 }

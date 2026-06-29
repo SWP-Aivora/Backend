@@ -24,4 +24,9 @@ public class Request
         public decimal? ReleaseAmount { get; set; }
         public decimal? RefundAmount { get; set; }
     }
+
+    public class RequestEvidenceRequest
+    {
+        public string Note { get; set; } = null!;
+    }
 }
