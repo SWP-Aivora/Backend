@@ -60,9 +60,9 @@ public class DisputeServiceTests
         var updatedProject = await dbContext.Projects.FindAsync(projectId);
         updatedProject!.Status.Should().Be(ProjectStatus.DISPUTED);
 
-        // Payment stays HELD (no auto-freeze on dispute)
+        // Payment is FROZEN when dispute is opened
         var updatedPayment = await dbContext.Payments.FindAsync(payment.Id);
-        updatedPayment!.Status.Should().Be(PaymentStatus.HELD);
+        updatedPayment!.Status.Should().Be(PaymentStatus.FROZEN);
     }
 
     [Fact]

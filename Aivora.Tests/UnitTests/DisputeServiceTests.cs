@@ -26,6 +26,7 @@ namespace Aivora.Tests.UnitTests
         {
             var options = new DbContextOptionsBuilder<AivoraDbContext>()
                 .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+                .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning))
                 .Options;
 
             _dbContext = new AivoraDbContext(options);
@@ -108,6 +109,83 @@ namespace Aivora.Tests.UnitTests
             Assert.Equal(DisputeStatus.RESOLVED.ToString(), response.Status);
         }
 
+        // ==================== OpenDispute Tests ====================
+
+        [Fact]
+        public async Task OpenDispute_ShouldFreezePayment()
+        {
+            // Arrange
+            var client = await SeedUserAsync(UserRole.CLIENT, "client@test.com");
+            var expert = await SeedUserAsync(UserRole.EXPERT, "expert@test.com");
+
+            var project = new Project
+            {
+                Id = Guid.NewGuid(),
+                ClientId = client.Id,
+                ExpertId = expert.Id,
+                Status = ProjectStatus.ACTIVE,
+                Title = "Test Project"
+            };
+            _dbContext.Projects.Add(project);
+
+            var milestone = new Milestone
+            {
+                Id = Guid.NewGuid(),
+                ProjectId = project.Id,
+                Title = "Test Milestone",
+                Amount = 1000,
+                Status = MilestoneStatus.FUNDED
+            };
+            _dbContext.Milestones.Add(milestone);
+
+            var payment = new Payment
+            {
+                Id = Guid.NewGuid(),
+                MilestoneId = milestone.Id,
+                ProjectId = project.Id,
+                PayerId = client.Id,
+                PayeeId = expert.Id,
+                Amount = 1000,
+                Status = PaymentStatus.HELD
+            };
+            _dbContext.Payments.Add(payment);
+            await _dbContext.SaveChangesAsync();
+
+            var request = new Aivora.Services.DisputeService.Request.OpenDisputeRequest
+            {
+                MilestoneId = milestone.Id,
+                Reason = "Test dispute reason"
+            };
+
+            // Act
+            var response = await _disputeService.OpenDisputeAsync(client.Id, request);
+
+            // Assert
+            Assert.NotNull(response);
+            var updatedPayment = await _dbContext.Payments.FindAsync(payment.Id);
+            Assert.Equal(PaymentStatus.FROZEN, updatedPayment!.Status);
+        }
+
+        [Fact]
+        public async Task OpenDispute_WithClosedDispute_ShouldThrowValidation()
+        {
+            // Arrange
+            var client = await SeedUserAsync(UserRole.CLIENT, "client@test.com");
+            var expert = await SeedUserAsync(UserRole.EXPERT, "expert@test.com");
+            var dispute = await SeedDisputeAsync(client.Id, expert.Id, DisputeStatus.CLOSED);
+
+            var request = new Aivora.Services.DisputeService.Request.OpenDisputeRequest
+            {
+                MilestoneId = dispute.MilestoneId,
+                Reason = "Second dispute"
+            };
+
+            // Act & Assert
+            var ex = await Assert.ThrowsAsync<ValidationException>(
+                () => _disputeService.OpenDisputeAsync(client.Id, request));
+            Assert.Contains("already closed", ex.Message.ToLower());
+        }
+
         // ==================== CloseDispute Tests ====================
 
         [Fact]
@@ -132,6 +210,27 @@ namespace Aivora.Tests.UnitTests
             var dbMilestone = await _dbContext.Milestones.FindAsync(dispute.MilestoneId);
             Assert.NotNull(dbMilestone);
             Assert.Equal(MilestoneStatus.IN_PROGRESS, dbMilestone!.Status);
+        }
+
+        [Fact]
+        public async Task CloseDispute_WithFrozenPayment_ShouldUnfreezeToHeld()
+        {
+            // Arrange
+            var client = await SeedUserAsync(UserRole.CLIENT, "client@test.com");
+            var expert = await SeedUserAsync(UserRole.EXPERT, "expert@test.com");
+            var dispute = await SeedDisputeAsync(client.Id, expert.Id, DisputeStatus.OPEN);
+
+            // Simulate payment frozen by OpenDispute (Change 2)
+            var payment = await _dbContext.Payments.FindAsync(dispute.PaymentId);
+            payment!.Status = PaymentStatus.FROZEN;
+            await _dbContext.SaveChangesAsync();
+
+            // Act
+            await _disputeService.CloseDisputeAsync(client.Id, dispute.Id);
+
+            // Assert
+            var updatedPayment = await _dbContext.Payments.FindAsync(dispute.PaymentId);
+            Assert.Equal(PaymentStatus.HELD, updatedPayment!.Status);
         }
 
         [Fact]
@@ -532,14 +631,22 @@ namespace Aivora.Tests.UnitTests
 
             public async Task FreezeFundsAsync(Guid milestoneId, string reason)
             {
-                // Mock implementation
-                await Task.CompletedTask;
+                var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestoneId);
+                if (payment != null && payment.Status == PaymentStatus.HELD)
+                {
+                    payment.Status = PaymentStatus.FROZEN;
+                    await _dbContext.SaveChangesAsync();
+                }
             }
 
             public async Task UnfreezeFundsAsync(Guid milestoneId, string reason)
             {
-                // Mock implementation
-                await Task.CompletedTask;
+                var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestoneId);
+                if (payment != null && payment.Status == PaymentStatus.FROZEN)
+                {
+                    payment.Status = PaymentStatus.HELD;
+                    await _dbContext.SaveChangesAsync();
+                }
             }
 
             public async Task RequestRevisionAsync(Guid milestoneId, string reason)

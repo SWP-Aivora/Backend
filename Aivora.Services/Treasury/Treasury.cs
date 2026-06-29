@@ -320,8 +320,8 @@ public class Treasury : ITreasury
     {
         var milestone = await GetMilestoneWithProjectAsync(milestoneId);
 
-        if (milestone.Status != MilestoneStatus.DISPUTED && milestone.Status != MilestoneStatus.FUNDED)
-            throw new ValidationException("Only disputed or funded milestones can be revised.");
+        if (milestone.Status != MilestoneStatus.FUNDED)
+            throw new ValidationException("Only funded milestones can be revised.");
 
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
