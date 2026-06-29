@@ -409,7 +409,8 @@ public class E2EBusinessFlowTests
         var treasury = new Treasury(dbContext, Mock.Of<ILogger<Treasury>>());
         var milestoneService = new Aivora.Services.MilestoneService.Service(dbContext, treasury);
         var reviewService = new Aivora.Services.ReviewService.Service(dbContext);
-        var disputeService = new Aivora.Services.DisputeService.Service(dbContext, treasury);
+        var notificationService = new MockNotificationService();
+        var disputeService = new Aivora.Services.DisputeService.Service(dbContext, treasury, notificationService);
 
         // ----------------------------------------------------
         // Negative Test 1: Release payment before deliverable approval (Milestone is FUNDED, not SUBMITTED)
@@ -508,5 +509,32 @@ public class E2EBusinessFlowTests
         var updatedPayment = await dbContext.Payments.FindAsync(payment.Id);
         // Payment stays HELD (no auto-freeze on dispute)
         updatedPayment!.Status.Should().Be(PaymentStatus.HELD);
+    }
+
+    private class MockNotificationService : Aivora.Services.NotificationService.IService
+    {
+        public Task<Aivora.Services.NotificationService.Response.NotificationResponse> SendNotificationAsync(Guid userId, string title, string message, string? type = null, string? linkUrl = null)
+            => Task.FromResult(new Aivora.Services.NotificationService.Response.NotificationResponse
+            {
+                Id = Guid.NewGuid(),
+                Title = title,
+                Message = message,
+                Type = type,
+                LinkUrl = linkUrl,
+                IsRead = false,
+                CreatedAt = DateTimeOffset.UtcNow
+            });
+
+        public Task<Aivora.Services.Base.Response.PageResult<Aivora.Services.NotificationService.Response.NotificationResponse>> GetUserNotificationsAsync(Guid userId, Aivora.Services.Base.Request.PageRequest pageRequest)
+            => throw new NotImplementedException();
+
+        public Task<bool> MarkAsReadAsync(Guid userId, Guid notificationId)
+            => throw new NotImplementedException();
+
+        public Task<bool> MarkAllAsReadAsync(Guid userId)
+            => throw new NotImplementedException();
+
+        public Task<int> GetUnreadCountAsync(Guid userId)
+            => throw new NotImplementedException();
     }
 }
