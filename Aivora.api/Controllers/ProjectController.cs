@@ -35,11 +35,11 @@ public class ProjectController : ControllerBase
     }
 
     [HttpGet("{id}")]
-    [Authorize(Policy = JwtExtensions.AdminPolicy)]
     public async Task<IActionResult> GetProject(Guid id)
     {
         var userId = this.GetUserId();
-        var result = await _projectService.GetProjectByIdAsync(userId, id);
+        var role = this.GetUserRole();
+        var result = await _projectService.GetProjectByIdAsync(userId, id, role);
         return Ok(ApiResponseFactory.SuccessResponse(result, "Project retrieved successfully", HttpContext.TraceIdentifier));
     }
 
