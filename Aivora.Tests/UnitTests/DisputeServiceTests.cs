@@ -7,6 +7,7 @@ using Aivora.Services.Treasury;
 using Aivora.Services.Exceptions;
 using Aivora.Repositories.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Xunit;
 
 namespace Aivora.Tests.UnitTests
@@ -21,6 +22,7 @@ namespace Aivora.Tests.UnitTests
         {
             var options = new DbContextOptionsBuilder<AivoraDbContext>()
                 .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+                .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
                 .Options;
 
             _dbContext = new AivoraDbContext(options);
