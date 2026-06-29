@@ -1158,7 +1158,86 @@ POST /api/v1/disputes/{disputeId}/evidence
 }
 ```
 
-## 4.5. Resolve dispute (atomic — bắt buộc transaction)
+## 4.5. Close dispute (người mở dispute tự close)
+
+```
+PUT /api/v1/disputes/{disputeId}/close
+```
+
+**Auth:** bắt buộc. Chỉ người mở dispute (`OpenedBy`) mới được close.
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "data": { "id": "guid", "status": "CLOSED", "...": "..." }
+}
+```
+
+**Side effects:**
+- `Disputes.Status = CLOSED`.
+
+**Validation:**
+- Chỉ `OpenedBy` mới close được.
+- Dispute đã `RESOLVED` hoặc `CLOSED` thì không close lại được.
+
+---
+
+## 4.6. Admin yêu cầu bổ sung bằng chứng
+
+```
+PUT /api/v1/disputes/{disputeId}/request-evidence
+```
+
+**Auth:** `AdminPolicy`.
+
+**Request body:**
+```json
+{
+  "note": "Vui lòng cung cấp thêm ảnh chụp màn hình giao dịch"
+}
+```
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "data": { "id": "guid", "status": "UNDER_REVIEW", "...": "..." }
+}
+```
+
+**Side effects:**
+- Nếu `Disputes.Status == OPEN` → `UNDER_REVIEW`.
+- Tạo `Notification` gửi cho người mở dispute (`OpenedBy`) với `Type = DISPUTE`.
+
+**Validation:**
+- Dispute đã `RESOLVED` hoặc `CLOSED` thì không request được.
+
+---
+
+## 4.7. Xóa dispute evidence
+
+```
+DELETE /api/v1/disputes/{disputeId}/evidence/{evidenceId}
+```
+
+**Auth:** bắt buộc. Chỉ người mở dispute (`OpenedBy`) hoặc người upload evidence (`SubmittedBy`) mới được xóa.
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "message": "Evidence deleted successfully"
+}
+```
+
+**Validation:**
+- Evidence phải thuộc dispute.
+- Dispute đã `RESOLVED` hoặc `CLOSED` thì không xóa được.
+
+---
+
+## 4.8. Resolve dispute (atomic — bắt buộc transaction)
 
 ```
 PUT /api/v1/disputes/{disputeId}/resolve
@@ -1208,7 +1287,7 @@ PUT /api/v1/disputes/{disputeId}/resolve
 - `ResolutionNote` bắt buộc.
 - Payment FROZEN không thể release/refund 2 lần.
 
-## 4.6. Tạo review
+## 4.9. Tạo review
 
 ```
 POST /api/v1/reviews
@@ -1250,7 +1329,7 @@ POST /api/v1/reviews
 }
 ```
 
-## 4.7. Xem reviews của user
+## 4.10. Xem reviews của user
 
 ```
 GET /api/v1/users/{userId}/reviews?pageIndex=1&pageSize=20
@@ -1266,9 +1345,12 @@ GET /api/v1/users/{userId}/reviews?pageIndex=1&pageSize=20
 | 2 | GET | `/disputes` | Client/Expert | `Disputes` |
 | 3 | GET | `/disputes/{id}` | Participant | `Disputes`, `DisputeEvidence` |
 | 4 | POST | `/disputes/{id}/evidence` | Participant | `DisputeEvidence` |
-| 5 | PUT | `/disputes/{id}/resolve` | Admin | `Disputes`, `Payments`, `Wallets`, `WalletTransactions`, `Milestones`, `Projects` |
-| 6 | POST | `/reviews` | Participant | `Reviews`, `ExpertProfiles` |
-| 7 | GET | `/users/{id}/reviews` | — | `Reviews` |
+| 5 | PUT | `/disputes/{id}/close` | Opener | `Disputes` |
+| 6 | PUT | `/disputes/{id}/request-evidence` | Admin | `Disputes`, `Notifications` |
+| 7 | DELETE | `/disputes/{did}/evidence/{eid}` | Opener/Submitter | `DisputeEvidence` |
+| 8 | PUT | `/disputes/{id}/resolve` | Admin | `Disputes`, `Payments`, `Wallets`, `WalletTransactions`, `Milestones`, `Projects` |
+| 9 | POST | `/reviews` | Participant | `Reviews`, `ExpertProfiles` |
+| 10 | GET | `/users/{id}/reviews` | — | `Reviews` |
 
 ---
 
@@ -1386,6 +1468,14 @@ HELD → FROZEN → RELEASED / REFUNDED / PARTIALLY_RELEASED
 SUBMITTED → APPROVED
 SUBMITTED → REVISION_REQUESTED → SUBMITTED
 SUBMITTED → REJECTED
+```
+
+## Dispute
+```
+OPEN → UNDER_REVIEW → RESOLVED
+OPEN → UNDER_REVIEW → CLOSED
+OPEN → RESOLVED
+OPEN → CLOSED
 ```
 
 ---
