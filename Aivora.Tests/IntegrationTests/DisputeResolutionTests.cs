@@ -24,22 +24,12 @@ namespace Aivora.Tests.IntegrationTests
 
         public DisputeResolutionTests(WebApplicationFactory<Program> factory)
         {
+            // Set env vars BEFORE accessing factory (DotNetEnv.Env.Load() runs in Main)
+            TestWebHostHelper.SetupTestEnvironment();
+
             _factory = factory.WithWebHostBuilder(builder =>
             {
-                builder.ConfigureServices(services =>
-                {
-                    // Add in-memory database
-                    var descriptor = services.SingleOrDefault(
-                        d => d.ServiceType == typeof(DbContextOptions<AivoraDbContext>));
-
-                    if (descriptor != null)
-                    {
-                        services.Remove(descriptor);
-                    }
-
-                    services.AddDbContext<AivoraDbContext>(options =>
-                        options.UseInMemoryDatabase("DisputeResolutionTests"));
-                });
+                TestWebHostHelper.ConfigureTestHost(builder, "DisputeResolutionTests");
             });
         }
 
@@ -81,6 +71,12 @@ namespace Aivora.Tests.IntegrationTests
                 PasswordHash = "hashedpassword"
             };
             dbContext.Users.Add(expert);
+
+            // Create wallets (required by Treasury.ReleaseMilestoneAsync)
+            var clientWallet = new Wallet { Id = Guid.NewGuid(), UserId = client.Id, AvailableBalance = 5000, HeldBalance = 1000 };
+            var expertWallet = new Wallet { Id = Guid.NewGuid(), UserId = expert.Id, AvailableBalance = 0 };
+            dbContext.Wallets.Add(clientWallet);
+            dbContext.Wallets.Add(expertWallet);
 
             // Create project
             var project = new Project
@@ -206,6 +202,12 @@ namespace Aivora.Tests.IntegrationTests
                 PasswordHash = "hashedpassword"
             };
             dbContext.Users.Add(expert);
+
+            // Create wallets (required by Treasury.RequestRevisionAsync)
+            var clientWallet2 = new Wallet { Id = Guid.NewGuid(), UserId = client.Id, AvailableBalance = 5000, HeldBalance = 1000 };
+            var expertWallet2 = new Wallet { Id = Guid.NewGuid(), UserId = expert.Id, AvailableBalance = 0 };
+            dbContext.Wallets.Add(clientWallet2);
+            dbContext.Wallets.Add(expertWallet2);
 
             // Create project
             var project = new Project
