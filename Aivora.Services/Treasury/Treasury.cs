@@ -37,6 +37,10 @@ public class Treasury : ITreasury
         }
     }
 
+    /// <summary>
+    /// Core logic for funding a milestone. No transaction — caller must manage transaction.
+    /// WARNING: Do NOT add BeginTransactionAsync here. Call FundMilestoneAsync for standalone use.
+    /// </summary>
     public async Task FundMilestoneCoreAsync(Guid clientId, Guid milestoneId)
     {
         var milestone = await GetMilestoneWithProjectAsync(milestoneId);
@@ -104,6 +108,10 @@ public class Treasury : ITreasury
         }
     }
 
+    /// <summary>
+    /// Core logic for releasing a milestone. No transaction — caller must manage transaction.
+    /// WARNING: Do NOT add BeginTransactionAsync here. Call ReleaseMilestoneAsync for standalone use.
+    /// </summary>
     public async Task ReleaseMilestoneCoreAsync(Guid clientId, Guid milestoneId)
     {
         var milestone = await GetMilestoneWithProjectAsync(milestoneId);
@@ -129,19 +137,27 @@ public class Treasury : ITreasury
 
         _dbContext.WalletTransactions.Add(new WalletTransaction
         {
-            WalletId = payerWallet.Id, UserId = payerWallet.UserId, Amount = payment.Amount,
-            Type = WalletTransactionType.PAYMENT_RELEASE, Direction = TransactionDirection.DEBIT,
+            WalletId = payerWallet.Id,
+            UserId = payerWallet.UserId,
+            Amount = payment.Amount,
+            Type = WalletTransactionType.PAYMENT_RELEASE,
+            Direction = TransactionDirection.DEBIT,
             Description = $"Payment released for milestone: {milestone.Title}",
-            BalanceBefore = payerWallet.HeldBalance + payment.Amount, BalanceAfter = payerWallet.HeldBalance,
+            BalanceBefore = payerWallet.HeldBalance + payment.Amount,
+            BalanceAfter = payerWallet.HeldBalance,
             PaymentId = payment.Id
         });
 
         _dbContext.WalletTransactions.Add(new WalletTransaction
         {
-            WalletId = payeeWallet.Id, UserId = payeeWallet.UserId, Amount = payment.Amount,
-            Type = WalletTransactionType.PAYMENT_RELEASE, Direction = TransactionDirection.CREDIT,
+            WalletId = payeeWallet.Id,
+            UserId = payeeWallet.UserId,
+            Amount = payment.Amount,
+            Type = WalletTransactionType.PAYMENT_RELEASE,
+            Direction = TransactionDirection.CREDIT,
             Description = $"Payment received for milestone: {milestone.Title}",
-            BalanceBefore = payeeWallet.AvailableBalance - payment.Amount, BalanceAfter = payeeWallet.AvailableBalance,
+            BalanceBefore = payeeWallet.AvailableBalance - payment.Amount,
+            BalanceAfter = payeeWallet.AvailableBalance,
             PaymentId = payment.Id
         });
 
@@ -170,6 +186,10 @@ public class Treasury : ITreasury
         }
     }
 
+    /// <summary>
+    /// Core logic for refunding a milestone. No transaction — caller must manage transaction.
+    /// WARNING: Do NOT add BeginTransactionAsync here. Call RefundMilestoneAsync for standalone use.
+    /// </summary>
     public async Task RefundMilestoneCoreAsync(Guid adminId, Guid milestoneId, decimal amount, string reason)
     {
         var milestone = await GetMilestoneWithProjectAsync(milestoneId);
@@ -188,10 +208,14 @@ public class Treasury : ITreasury
 
         _dbContext.WalletTransactions.Add(new WalletTransaction
         {
-            WalletId = payerWallet.Id, UserId = payerWallet.UserId, Amount = amount,
-            Type = WalletTransactionType.REFUND, Direction = TransactionDirection.CREDIT,
+            WalletId = payerWallet.Id,
+            UserId = payerWallet.UserId,
+            Amount = amount,
+            Type = WalletTransactionType.REFUND,
+            Direction = TransactionDirection.CREDIT,
             Description = $"Refund for milestone: {reason}",
-            BalanceBefore = payerWallet.AvailableBalance - amount, BalanceAfter = payerWallet.AvailableBalance,
+            BalanceBefore = payerWallet.AvailableBalance - amount,
+            BalanceAfter = payerWallet.AvailableBalance,
             PaymentId = payment.Id
         });
 
@@ -218,6 +242,10 @@ public class Treasury : ITreasury
         }
     }
 
+    /// <summary>
+    /// Core logic for splitting milestone funds. No transaction — caller must manage transaction.
+    /// WARNING: Do NOT add BeginTransactionAsync here. Call SplitMilestoneFundsAsync for standalone use.
+    /// </summary>
     public async Task SplitMilestoneFundsCoreAsync(Guid milestoneId, decimal releaseToExpertAmount, decimal refundToClientAmount, string reason)
     {
         var milestone = await GetMilestoneWithProjectAsync(milestoneId);
@@ -242,18 +270,26 @@ public class Treasury : ITreasury
 
         _dbContext.WalletTransactions.Add(new WalletTransaction
         {
-            WalletId = payerWallet.Id, UserId = payerWallet.UserId, Amount = refundToClientAmount,
-            Type = WalletTransactionType.REFUND, Direction = TransactionDirection.CREDIT,
+            WalletId = payerWallet.Id,
+            UserId = payerWallet.UserId,
+            Amount = refundToClientAmount,
+            Type = WalletTransactionType.REFUND,
+            Direction = TransactionDirection.CREDIT,
             Description = $"Dispute split: Refunded part. {reason}",
-            BalanceAfter = payerWallet.AvailableBalance, PaymentId = payment.Id
+            BalanceAfter = payerWallet.AvailableBalance,
+            PaymentId = payment.Id
         });
 
         _dbContext.WalletTransactions.Add(new WalletTransaction
         {
-            WalletId = payeeWallet.Id, UserId = payeeWallet.UserId, Amount = releaseToExpertAmount,
-            Type = WalletTransactionType.PAYMENT_RELEASE, Direction = TransactionDirection.CREDIT,
+            WalletId = payeeWallet.Id,
+            UserId = payeeWallet.UserId,
+            Amount = releaseToExpertAmount,
+            Type = WalletTransactionType.PAYMENT_RELEASE,
+            Direction = TransactionDirection.CREDIT,
             Description = $"Dispute split: Released part. {reason}",
-            BalanceAfter = payeeWallet.AvailableBalance, PaymentId = payment.Id
+            BalanceAfter = payeeWallet.AvailableBalance,
+            PaymentId = payment.Id
         });
 
         milestone.Status = releaseToExpertAmount > 0 ? MilestoneStatus.RELEASED : MilestoneStatus.REFUNDED;
@@ -307,6 +343,10 @@ public class Treasury : ITreasury
         }
     }
 
+    /// <summary>
+    /// Core logic for requesting revision. No transaction — caller must manage transaction.
+    /// WARNING: Do NOT add BeginTransactionAsync here. Call RequestRevisionAsync for standalone use.
+    /// </summary>
     public async Task RequestRevisionCoreAsync(Guid milestoneId, string reason)
     {
         var milestone = await GetMilestoneWithProjectAsync(milestoneId);
