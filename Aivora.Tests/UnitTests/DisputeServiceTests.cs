@@ -127,6 +127,11 @@ namespace Aivora.Tests.UnitTests
 
             var dbDispute = await _dbContext.Disputes.FindAsync(dispute.Id);
             Assert.Equal(DisputeStatus.CLOSED, dbDispute!.Status);
+
+            // Milestone should revert from DISPUTED to IN_PROGRESS
+            var dbMilestone = await _dbContext.Milestones.FindAsync(dispute.MilestoneId);
+            Assert.NotNull(dbMilestone);
+            Assert.Equal(MilestoneStatus.IN_PROGRESS, dbMilestone!.Status);
         }
 
         [Fact]

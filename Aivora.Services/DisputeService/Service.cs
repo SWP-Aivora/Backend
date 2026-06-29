@@ -270,7 +270,14 @@ public class Service : IService
 
         dispute.Status = DisputeStatus.CLOSED;
 
+        // Revert milestone from DISPUTED back to IN_PROGRESS
+        // so the expert must resubmit the deliverable
+        dispute.Milestone.Status = MilestoneStatus.IN_PROGRESS;
+
         await _dbContext.SaveChangesAsync();
+
+        // Recalculate project status based on milestone states
+        await _treasury.SyncProjectStatusAsync(dispute.ProjectId);
 
         return await GetDisputeByIdAsync(userId, disputeId);
     }
