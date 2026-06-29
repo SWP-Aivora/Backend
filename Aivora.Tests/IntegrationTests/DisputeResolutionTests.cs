@@ -14,6 +14,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.DisputeService;
+using Aivora.Services.Exceptions;
 using Aivora.Services.Treasury;
 
 namespace Aivora.Tests.IntegrationTests
@@ -165,7 +166,7 @@ namespace Aivora.Tests.IntegrationTests
         }
 
         [Fact]
-        public async Task ResolveDispute_RequestRevision_ShouldMaintainPaymentStatusAsHeld()
+        public async Task ResolveDispute_RequestRevision_ShouldThrowValidation()
         {
             // Arrange - Create test data
             using var scope = _factory.Services.CreateScope();
@@ -203,7 +204,7 @@ namespace Aivora.Tests.IntegrationTests
             };
             dbContext.Users.Add(expert);
 
-            // Create wallets (required by Treasury.RequestRevisionAsync)
+            // Create wallets
             var clientWallet2 = new Wallet { Id = Guid.NewGuid(), UserId = client.Id, AvailableBalance = 5000, HeldBalance = 1000 };
             var expertWallet2 = new Wallet { Id = Guid.NewGuid(), UserId = expert.Id, AvailableBalance = 0 };
             dbContext.Wallets.Add(clientWallet2);
@@ -267,31 +268,18 @@ namespace Aivora.Tests.IntegrationTests
 
             // Get services
             var disputeService = serviceProvider.GetRequiredService<IService>();
-            var treasuryService = serviceProvider.GetRequiredService<ITreasury>();
 
-            // Act - Resolve dispute with REQUEST_REVISION
+            // Act - REQUEST_REVISION is no longer a valid resolution type
             var request = new Aivora.Services.DisputeService.Request.ResolveDisputeRequest
             {
                 ResolutionType = DisputeResolutionType.REQUEST_REVISION,
                 ResolutionNote = "Request revision for milestone"
             };
 
-            // Act
-            var response = await disputeService.ResolveDisputeAsync(admin.Id, dispute.Id, request);
-
-            // Assert - Should succeed
-            Assert.NotNull(response);
-            Assert.Equal(DisputeStatus.RESOLVED.ToString(), response.Status);
-
-            // Verify milestone is now REVISION_REQUESTED
-            var updatedMilestone = await dbContext.Milestones.FindAsync(milestone.Id);
-            Assert.NotNull(updatedMilestone);
-            Assert.Equal(MilestoneStatus.REVISION_REQUESTED, updatedMilestone.Status);
-
-            // Verify payment status should still be HELD (not changed to FROZEN)
-            var updatedPayment = await dbContext.Payments.FindAsync(payment.Id);
-            Assert.NotNull(updatedPayment);
-            Assert.Equal(PaymentStatus.HELD, updatedPayment.Status);
+            // Assert - Should throw ValidationException
+            var ex = await Assert.ThrowsAsync<ValidationException>(
+                () => disputeService.ResolveDisputeAsync(admin.Id, dispute.Id, request));
+            Assert.Contains("not a valid", ex.Message);
         }
     }
 }

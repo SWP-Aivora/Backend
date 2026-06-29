@@ -417,7 +417,7 @@ public class E2EBusinessFlowTests
         // ----------------------------------------------------
         Func<Task> releaseBeforeApproval = async () => await milestoneService.ApproveMilestoneAsync(clientId, milestone.Id);
         await releaseBeforeApproval.Should().ThrowAsync<ValidationException>()
-            .WithMessage("Milestone must be in SUBMITTED or DISPUTED status to be approved.");
+            .WithMessage("Milestone must be in SUBMITTED status to be approved.");
 
         // ----------------------------------------------------
         // Negative Test 2: Review before project is completed
@@ -507,8 +507,8 @@ public class E2EBusinessFlowTests
         disputedProject!.Status.Should().Be(ProjectStatus.DISPUTED);
 
         var updatedPayment = await dbContext.Payments.FindAsync(payment.Id);
-        // Payment stays HELD (no auto-freeze on dispute)
-        updatedPayment!.Status.Should().Be(PaymentStatus.HELD);
+        // Payment is FROZEN when dispute is opened
+        updatedPayment!.Status.Should().Be(PaymentStatus.FROZEN);
     }
 
     private class MockNotificationService : Aivora.Services.NotificationService.IService

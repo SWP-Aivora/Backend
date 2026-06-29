@@ -34,6 +34,12 @@ public class Service : IService
         var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestone.Id && p.Status == PaymentStatus.HELD);
         if (payment == null) throw new ValidationException("Only funded milestones with held payments can be disputed.");
 
+        // Block re-opening dispute after CLOSED
+        var hasClosedDispute = await _dbContext.Disputes
+            .AnyAsync(d => d.MilestoneId == milestone.Id && d.Status == DisputeStatus.CLOSED);
+        if (hasClosedDispute)
+            throw new ValidationException("A dispute for this milestone was already closed. Cannot open a new dispute.");
+
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
@@ -54,12 +60,8 @@ public class Service : IService
             milestone.Status = MilestoneStatus.DISPUTED;
             milestone.Project.Status = ProjectStatus.DISPUTED;
 
-            // NOTE: FreezeFundsAsync is intentionally NOT called here.
-            // Financial integrity is protected by the milestone status check in
-            // Treasury.ReleaseMilestoneAsync (only SUBMITTED milestones can be released).
-            // Payment stays HELD during dispute; all resolution methods accept HELD.
-            // The milestone-level status guard is sufficient — an additional
-            // payment-level freeze (HELD→FROZEN) adds no extra barrier.
+            // Freeze funds when dispute is opened
+            await _treasury.FreezeFundsAsync(milestone.Id, "Dispute opened");
 
             _dbContext.Disputes.Add(dispute);
             await _dbContext.SaveChangesAsync();
@@ -236,9 +238,8 @@ public class Service : IService
                 await _treasury.SplitMilestoneFundsAsync(milestone.Id, request.ReleaseAmount ?? 0, request.RefundAmount ?? 0, $"Dispute resolved: Split payment. Ref: {dispute.Id}");
                 break;
 
-            case DisputeResolutionType.REQUEST_REVISION:
-                await _treasury.RequestRevisionAsync(milestone.Id, $"Dispute resolved: Request revision. Ref: {dispute.Id}");
-                break;
+            default:
+                throw new ValidationException($"'{request.ResolutionType}' is not a valid resolution type. Use RELEASE_TO_EXPERT, REFUND_TO_CLIENT, or SPLIT_PAYMENT.");
         }
 
         // Update dispute status after successful Treasury operation
@@ -258,6 +259,7 @@ public class Service : IService
         var dispute = await _dbContext.Disputes
             .Include(d => d.Project)
             .Include(d => d.Milestone)
+            .Include(d => d.Payment)
             .FirstOrDefaultAsync(d => d.Id == disputeId);
 
         if (dispute == null) throw new NotFoundException("Dispute not found.");
@@ -268,9 +270,22 @@ public class Service : IService
         if (dispute.Status == DisputeStatus.CLOSED)
             throw new ValidationException("Dispute is already closed.");
 
+        // Unfreeze payment if it was frozen (backward compatible: old disputes have HELD)
+        if (dispute.Payment.Status == PaymentStatus.FROZEN)
+        {
+            await _treasury.UnfreezeFundsAsync(dispute.MilestoneId, "Dispute closed");
+        }
+
         dispute.Status = DisputeStatus.CLOSED;
 
+        // Revert milestone from DISPUTED back to IN_PROGRESS
+        // so the expert must resubmit the deliverable
+        dispute.Milestone.Status = MilestoneStatus.IN_PROGRESS;
+
         await _dbContext.SaveChangesAsync();
+
+        // Recalculate project status based on milestone states
+        await _treasury.SyncProjectStatusAsync(dispute.ProjectId);
 
         return await GetDisputeByIdAsync(userId, disputeId);
     }
