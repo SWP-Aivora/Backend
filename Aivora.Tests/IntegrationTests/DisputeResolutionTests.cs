@@ -71,10 +71,35 @@ namespace Aivora.Tests.IntegrationTests
             dbContext.Wallets.Add(clientWallet);
             dbContext.Wallets.Add(expertWallet);
 
+            // Create JobPost (required FK for Project)
+            var jobPost = new JobPost
+            {
+                Id = Guid.NewGuid(),
+                ClientId = client.Id,
+                Title = "Test Job",
+                OriginalDescription = "Test",
+                Status = JobStatus.IN_PROGRESS
+            };
+            dbContext.JobPosts.Add(jobPost);
+
+            // Create Proposal (required FK for Project)
+            var proposal = new Proposal
+            {
+                Id = Guid.NewGuid(),
+                JobId = jobPost.Id,
+                ExpertId = expert.Id,
+                CoverLetter = "Test proposal",
+                ProposedBudget = 1000,
+                Status = ProposalStatus.ACCEPTED
+            };
+            dbContext.Proposals.Add(proposal);
+
             // Create project
             var project = new Project
             {
                 Id = Guid.NewGuid(),
+                JobId = jobPost.Id,
+                AcceptedProposalId = proposal.Id,
                 Title = "Test Project",
                 Description = "Test Description",
                 ClientId = client.Id,
@@ -202,10 +227,35 @@ namespace Aivora.Tests.IntegrationTests
             dbContext.Wallets.Add(clientWallet2);
             dbContext.Wallets.Add(expertWallet2);
 
+            // Create JobPost (required FK for Project)
+            var jobPost2 = new JobPost
+            {
+                Id = Guid.NewGuid(),
+                ClientId = client.Id,
+                Title = "Test Job 2",
+                OriginalDescription = "Test",
+                Status = JobStatus.IN_PROGRESS
+            };
+            dbContext.JobPosts.Add(jobPost2);
+
+            // Create Proposal (required FK for Project)
+            var proposal2 = new Proposal
+            {
+                Id = Guid.NewGuid(),
+                JobId = jobPost2.Id,
+                ExpertId = expert.Id,
+                CoverLetter = "Test proposal",
+                ProposedBudget = 1000,
+                Status = ProposalStatus.ACCEPTED
+            };
+            dbContext.Proposals.Add(proposal2);
+
             // Create project
             var project = new Project
             {
                 Id = Guid.NewGuid(),
+                JobId = jobPost2.Id,
+                AcceptedProposalId = proposal2.Id,
                 Title = "Test Project",
                 Description = "Test Description",
                 ClientId = client.Id,
