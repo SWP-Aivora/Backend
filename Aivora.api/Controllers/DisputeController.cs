@@ -63,6 +63,7 @@ public class DisputeController : ControllerBase
     }
 
     [HttpPut("{id}/close")]
+    [Authorize]
     public async Task<IActionResult> CloseDispute(Guid id)
     {
         var userId = this.GetUserId();
@@ -80,6 +81,7 @@ public class DisputeController : ControllerBase
     }
 
     [HttpDelete("{disputeId}/evidence/{evidenceId}")]
+    [Authorize]
     public async Task<IActionResult> DeleteEvidence(Guid disputeId, Guid evidenceId)
     {
         var userId = this.GetUserId();
