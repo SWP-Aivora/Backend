@@ -294,13 +294,20 @@ public class Service : IService
         }
 
         // Send notification to the dispute opener
-        await _notificationService.SendNotificationAsync(
-            dispute.OpenedBy,
-            "Yêu cầu bổ sung bằng chứng",
-            request.Note,
-            "DISPUTE",
-            $"/disputes/{disputeId}"
-        );
+        try
+        {
+            await _notificationService.SendNotificationAsync(
+                dispute.OpenedBy,
+                "Yêu cầu bổ sung bằng chứng",
+                request.Note,
+                "DISPUTE",
+                $"/disputes/{disputeId}"
+            );
+        }
+        catch
+        {
+            // Notification failure should not block the main business flow
+        }
 
         await _dbContext.SaveChangesAsync();
 
@@ -316,7 +323,7 @@ public class Service : IService
         if (evidence == null || evidence.DisputeId != disputeId)
             throw new NotFoundException("Evidence not found.");
 
-        if (evidence.Dispute.OpenedBy != userId)
+        if (evidence.Dispute.OpenedBy != userId && evidence.SubmittedBy != userId)
             throw new UnauthorizedException("You are not authorized to delete evidence from this dispute.");
 
         if (evidence.Dispute.Status == DisputeStatus.RESOLVED)
