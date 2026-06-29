@@ -38,7 +38,7 @@ namespace Aivora.Tests.IntegrationTests
             var admin = new User
             {
                 Id = Guid.NewGuid(),
-                Email = "admin@test.com",
+                Email = $"admin-{Guid.NewGuid()}@test.com",
                 FullName = "Admin User",
                 Role = UserRole.ADMIN,
                 PasswordHash = "hashedpassword"
@@ -48,7 +48,7 @@ namespace Aivora.Tests.IntegrationTests
             var client = new User
             {
                 Id = Guid.NewGuid(),
-                Email = "client@test.com",
+                Email = $"client-{Guid.NewGuid()}@test.com",
                 FullName = "Client User",
                 Role = UserRole.CLIENT,
                 PasswordHash = "hashedpassword"
@@ -58,7 +58,7 @@ namespace Aivora.Tests.IntegrationTests
             var expert = new User
             {
                 Id = Guid.NewGuid(),
-                Email = "expert@test.com",
+                Email = $"expert-{Guid.NewGuid()}@test.com",
                 FullName = "Expert User",
                 Role = UserRole.EXPERT,
                 PasswordHash = "hashedpassword"
@@ -194,7 +194,7 @@ namespace Aivora.Tests.IntegrationTests
             var admin = new User
             {
                 Id = Guid.NewGuid(),
-                Email = "admin@test.com",
+                Email = $"admin-{Guid.NewGuid()}@test.com",
                 FullName = "Admin User",
                 Role = UserRole.ADMIN,
                 PasswordHash = "hashedpassword"
@@ -204,7 +204,7 @@ namespace Aivora.Tests.IntegrationTests
             var client = new User
             {
                 Id = Guid.NewGuid(),
-                Email = "client@test.com",
+                Email = $"client-{Guid.NewGuid()}@test.com",
                 FullName = "Client User",
                 Role = UserRole.CLIENT,
                 PasswordHash = "hashedpassword"
@@ -214,7 +214,7 @@ namespace Aivora.Tests.IntegrationTests
             var expert = new User
             {
                 Id = Guid.NewGuid(),
-                Email = "expert@test.com",
+                Email = $"expert-{Guid.NewGuid()}@test.com",
                 FullName = "Expert User",
                 Role = UserRole.EXPERT,
                 PasswordHash = "hashedpassword"
