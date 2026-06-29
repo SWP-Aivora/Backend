@@ -10,6 +10,21 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: aivora_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgrespw
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
     - uses: actions/checkout@v4
 
@@ -28,6 +43,16 @@ jobs:
       run: dotnet build Aivora.sln --no-restore -c Release
 
     - name: Test
+      env:
+        ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=aivora_test;Username=postgres;Password=postgrespw"
+        JwtSettings__Secret: "test-secret-key-at-least-32-characters-long!"
+        JwtSettings__Issuer: "test-issuer"
+        JwtSettings__Audience: "test-audience"
+        JwtSettings__ExpiryInMinutes: "60"
+        CloudinaryOptions__CloudName: "test-cloud"
+        CloudinaryOptions__ApiKey: "test-api-key"
+        CloudinaryOptions__ApiSecret: "test-api-secret"
+        AIProvider__Provider: "Mock"
       run: dotnet test Aivora.sln --no-build -c Release --verbosity normal
 
   deploy:

@@ -189,6 +189,18 @@ namespace Aivora.Tests.UnitTests
                 // Mock implementation
                 await Task.CompletedTask;
             }
+
+            // Core methods — same logic as public, no transaction wrapping
+            public async Task FundMilestoneCoreAsync(Guid clientId, Guid milestoneId)
+                => await FundMilestoneAsync(clientId, milestoneId);
+            public async Task ReleaseMilestoneCoreAsync(Guid clientId, Guid milestoneId)
+                => await ReleaseMilestoneAsync(clientId, milestoneId);
+            public async Task RefundMilestoneCoreAsync(Guid adminId, Guid milestoneId, decimal amount, string reason)
+                => await RefundMilestoneAsync(adminId, milestoneId, amount, reason);
+            public async Task SplitMilestoneFundsCoreAsync(Guid milestoneId, decimal releaseToExpertAmount, decimal refundToClientAmount, string reason)
+                => await SplitMilestoneFundsAsync(milestoneId, releaseToExpertAmount, refundToClientAmount, reason);
+            public async Task RequestRevisionCoreAsync(Guid milestoneId, string reason)
+                => await RequestRevisionAsync(milestoneId, reason);
         }
     }
 }

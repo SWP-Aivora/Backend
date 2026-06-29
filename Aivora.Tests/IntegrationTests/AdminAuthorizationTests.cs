@@ -2,7 +2,7 @@ using System;
 using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
-using Aivora.Tests.Helpers;
+
 using Xunit;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Aivora.api;
@@ -22,13 +22,7 @@ namespace Aivora.Tests.IntegrationTests
 
         public AdminAuthorizationTests(WebApplicationFactory<Program> factory)
         {
-            TestWebHostHelper.SetupTestEnvironment();
-
-            _factory = factory.WithWebHostBuilder(builder =>
-            {
-                TestWebHostHelper.ConfigureTestHost(builder, "AdminAuthTests");
-            });
-
+            _factory = factory;
             _client = _factory.CreateClient();
         }
 

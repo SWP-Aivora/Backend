@@ -4,7 +4,6 @@ using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
-using Aivora.Tests.Helpers;
 using Xunit;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Aivora.api;
@@ -24,13 +23,7 @@ namespace Aivora.Tests.IntegrationTests
 
         public DisputeResolutionTests(WebApplicationFactory<Program> factory)
         {
-            // Set env vars BEFORE accessing factory (DotNetEnv.Env.Load() runs in Main)
-            TestWebHostHelper.SetupTestEnvironment();
-
-            _factory = factory.WithWebHostBuilder(builder =>
-            {
-                TestWebHostHelper.ConfigureTestHost(builder, "DisputeResolutionTests");
-            });
+            _factory = factory;
         }
 
         [Fact]

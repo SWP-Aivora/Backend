@@ -52,4 +52,14 @@ public interface ITreasury
     /// Chuyển Project sang trạng thái DISPUTED.
     /// </summary>
     Task MarkProjectDisputedAsync(Guid projectId);
+
+    // --- Core methods (không tự mở transaction) ---
+    // Dùng khi được gọi từ một Service khác đang quản lý transaction bên ngoài.
+    // KHÔNG gọi trực tiếp từ Controller — dùng method Public (có transaction) thay thế.
+
+    Task FundMilestoneCoreAsync(Guid clientId, Guid milestoneId);
+    Task ReleaseMilestoneCoreAsync(Guid clientId, Guid milestoneId);
+    Task RefundMilestoneCoreAsync(Guid adminId, Guid milestoneId, decimal amount, string reason);
+    Task SplitMilestoneFundsCoreAsync(Guid milestoneId, decimal releaseToExpertAmount, decimal refundToClientAmount, string reason);
+    Task RequestRevisionCoreAsync(Guid milestoneId, string reason);
 }
