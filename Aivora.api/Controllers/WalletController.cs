@@ -4,6 +4,7 @@ using Aivora.Services.WalletService;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Configuration;
 
 namespace Aivora.api.Controllers;
 
@@ -15,11 +16,14 @@ public class WalletController : ControllerBase
 {
     private readonly IService _walletService;
     private readonly IVNPayService _vnPayService;
+    private readonly string _frontendUrl;
 
-    public WalletController(IService walletService, IVNPayService vnPayService)
+    public WalletController(IService walletService, IVNPayService vnPayService, IConfiguration configuration)
     {
         _walletService = walletService;
         _vnPayService = vnPayService;
+        _frontendUrl = configuration["FrontendUrl"]
+            ?? throw new InvalidOperationException("FrontendUrl is not configured.");
     }
 
     [HttpGet("me")]
@@ -105,7 +109,7 @@ public class WalletController : ControllerBase
         }
 
         var queryString = safeParams.Count > 0 ? "?" + string.Join("&", safeParams) : "";
-        var frontendUrl = $"https://{Request.Host}/payment-result{queryString}";
+        var frontendUrl = $"{_frontendUrl}/payment-result{queryString}";
         return Redirect(frontendUrl);
     }
 

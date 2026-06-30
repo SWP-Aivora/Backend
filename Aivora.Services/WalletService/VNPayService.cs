@@ -152,11 +152,36 @@ public class VNPayService : IVNPayService
         if (underscoreIndex < 0 || !Guid.TryParse(txnRef[..underscoreIndex], out var userId))
             return new VnPayIpnResult { IsSuccess = false, Message = "Invalid vnp_TxnRef format." };
 
-        // 4. Process payment atomically (unique constraint on ExternalTxnRef prevents duplicates)
+        // 4. Get or create wallet (outside main transaction to keep wallet creation
+        //    separate from payment recording — avoids losing a payment when two
+        //    IPN callbacks race to create the wallet for the same user).
+        var wallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
+        if (wallet == null)
+        {
+            wallet = new Wallet
+            {
+                UserId = userId,
+                AvailableBalance = 0,
+                Currency = "AICOIN"
+            };
+            _dbContext.Wallets.Add(wallet);
+            try
+            {
+                await _dbContext.SaveChangesAsync();
+            }
+            catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException pgEx && pgEx.SqlState == "23505")
+            {
+                // Another IPN callback created the wallet first — use that one.
+                _dbContext.Entry(wallet).State = EntityState.Detached;
+                wallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == userId)
+                    ?? throw new InvalidOperationException($"Wallet for user {userId} was removed after creation.");
+            }
+        }
+
+        // 5. Record payment atomically (unique constraint on ExternalTxnRef prevents duplicates)
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
-            // Check for existing transaction FIRST to prevent race conditions
             var existingTransaction = await _dbContext.WalletTransactions
                 .FirstOrDefaultAsync(t => t.ExternalTxnRef == txnRef);
 
@@ -172,13 +197,6 @@ public class VNPayService : IVNPayService
                     TxnRef = txnRef,
                     IsDuplicate = true
                 };
-            }
-
-            var wallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
-            if (wallet == null)
-            {
-                await transaction.RollbackAsync();
-                return new VnPayIpnResult { IsSuccess = false, Message = "Wallet not found." };
             }
 
             decimal balanceBefore = wallet.AvailableBalance;
