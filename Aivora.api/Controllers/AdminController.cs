@@ -28,6 +28,7 @@ public class AdminController : ControllerBase
     }
 
     [HttpGet("expert-reviews")]
+    [Authorize(Policy = JwtExtensions.AdminPolicy)]
     public async Task<IActionResult> GetExpertReviews([FromQuery] Aivora.Services.Base.Request.PageRequest pageRequest, [FromQuery] string? search)
     {
         var result = await _adminService.GetExpertReviewsAsync(pageRequest, search);
