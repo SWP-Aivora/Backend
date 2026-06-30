@@ -14,10 +14,14 @@ namespace Aivora.api.Controllers;
 public class AIController : ControllerBase
 {
     private readonly IService _aiService;
+    private readonly Aivora.Services.AIJobRefinementService.IService _aiJobRefinementService;
 
-    public AIController(IService aiService)
+    public AIController(
+        IService aiService,
+        Aivora.Services.AIJobRefinementService.IService aiJobRefinementService)
     {
         _aiService = aiService;
+        _aiJobRefinementService = aiJobRefinementService;
     }
 
     [HttpPost("job-assistant")]
@@ -72,6 +76,15 @@ public class AIController : ControllerBase
         var clientId = this.GetUserId();
         var result = await _aiService.RejectSuggestionAsync(clientId, id, request, cancellationToken);
         return Ok(ApiResponseFactory.SuccessResponse(result, "AI suggestion rejected", HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("jobs/{jobId}/refine")]
+    [Authorize(Policy = JwtExtensions.ClientPolicy)]
+    public async Task<IActionResult> RefineJob(Guid jobId, [FromBody] Aivora.Services.AIJobRefinementService.Request.RefineJobRequest request, CancellationToken cancellationToken)
+    {
+        var clientId = this.GetUserId();
+        var result = await _aiJobRefinementService.RefineJobAsync(clientId, jobId, request, cancellationToken);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Job refined successfully", HttpContext.TraceIdentifier));
     }
 
     [HttpPost("service-generator")]
