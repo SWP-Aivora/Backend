@@ -74,6 +74,53 @@ public class AdminService : IAdminService
         };
     }
 
+    public async Task<Aivora.Services.Base.Response.PageResult<Response.ExpertReviewResponse>> GetExpertReviewsAsync(Aivora.Services.Base.Request.PageRequest pageRequest, string? search = null)
+    {
+        var query = _dbContext.Reviews
+            .Include(r => r.Reviewer)
+            .Include(r => r.Reviewee)
+            .Include(r => r.Project)
+            .Where(r => r.Reviewee.Role == UserRole.EXPERT);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            query = query.Where(r =>
+                r.Reviewee.FullName.Contains(search) ||
+                r.Reviewer.FullName.Contains(search) ||
+                r.Project.Title.Contains(search));
+        }
+
+        var totalItems = await query.CountAsync();
+        var items = await query
+            .OrderByDescending(r => r.CreatedAt)
+            .Skip((pageRequest.PageIndex - 1) * pageRequest.PageSize)
+            .Take(pageRequest.PageSize)
+            .ToListAsync();
+
+        return new Aivora.Services.Base.Response.PageResult<Response.ExpertReviewResponse>
+        {
+            Items = items.Select(r => new Response.ExpertReviewResponse
+            {
+                Id = r.Id,
+                ProjectId = r.ProjectId,
+                ProjectTitle = r.Project.Title,
+                ReviewerId = r.ReviewerId,
+                ReviewerName = r.Reviewer.FullName,
+                RevieweeId = r.RevieweeId,
+                RevieweeName = r.Reviewee.FullName,
+                Rating = r.Rating,
+                Comment = r.Comment,
+                CommunicationRating = r.CommunicationRating,
+                QualityRating = r.QualityRating,
+                DeadlineRating = r.DeadlineRating,
+                CreatedAt = r.CreatedAt
+            }).ToList(),
+            TotalItems = totalItems,
+            PageIndex = pageRequest.PageIndex,
+            PageSize = pageRequest.PageSize
+        };
+    }
+
     public async Task<Response.DashboardStatsResponse> GetDashboardStatsAsync()
     {
         return new Response.DashboardStatsResponse
