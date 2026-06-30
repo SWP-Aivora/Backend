@@ -329,19 +329,34 @@ public class Service : IService
     private async Task<Wallet> GetOrCreateWalletAsync(Guid userId)
     {
         var wallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
-        if (wallet == null)
-        {
-            wallet = new Wallet
-            {
-                UserId = userId,
-                AvailableBalance = 0,
-                Currency = "AICOIN"
-            };
-            _dbContext.Wallets.Add(wallet);
-            await _dbContext.SaveChangesAsync();
-        }
+        if (wallet != null) return wallet;
 
-        return wallet;
+        wallet = new Wallet
+        {
+            UserId = userId,
+            AvailableBalance = 0,
+            Currency = "AICOIN"
+        };
+        _dbContext.Wallets.Add(wallet);
+
+        try
+        {
+            await _dbContext.SaveChangesAsync();
+            return wallet;
+        }
+        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+        {
+            // Race condition: another concurrent request created the wallet
+            // between our FirstOrDefaultAsync check and SaveChangesAsync.
+            // Detach the failed attempt and re-read the now-existing wallet.
+            _dbContext.Entry(wallet).State = EntityState.Detached;
+            return await _dbContext.Wallets.FirstAsync(w => w.UserId == userId);
+        }
+    }
+
+    private static bool IsUniqueViolation(DbUpdateException ex)
+    {
+        return ex.InnerException?.Message?.Contains("23505") == true;
     }
 
     private static Response.WalletResponse MapToResponse(Wallet w)
