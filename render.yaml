@@ -49,6 +49,8 @@ services:
         value: 100
       - key: RateLimit__General__WindowInMinutes
         value: 1
+      - key: FrontendUrl
+        value: https://frontend-beige-pi-17.vercel.app
       - key: SeedForceReset
         value: false
 
