@@ -15,9 +15,7 @@ services:
       # Connection string from Render managed database
       # Maps to ConnectionStrings:DefaultConnection in .NET config
       - key: ConnectionStrings__DefaultConnection
-        fromDatabase:
-          name: aivora-db
-          property: connectionString
+        sync: false # Set manually on Render Dashboard to avoid fromDatabase format issues with Npgsql
       - key: JwtSettings__Secret
         sync: false # Bạn sẽ cấu hình trên giao diện Render một lần
       - key: JwtSettings__Issuer
