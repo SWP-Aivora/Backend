@@ -34,6 +34,17 @@ public class Request
         public int OrderIndex { get; set; }
     }
 
+    public class UpdateJobMilestoneRequest
+    {
+        public string Title { get; set; } = null!;
+        public string? Description { get; set; }
+        public decimal Amount { get; set; }
+        public int DueDays { get; set; }
+        public string? AcceptanceCriteria { get; set; }
+        public int OrderIndex { get; set; }
+    }
+
+
     public class UpdateJobRequest
     {
         public string? Title { get; set; }
@@ -50,5 +61,6 @@ public class Request
         public SkillLevel? ExperienceLevel { get; set; }
         public JobVisibility? Visibility { get; set; }
         public List<Guid>? SkillIds { get; set; }
+        public List<UpdateJobMilestoneRequest>? Milestones { get; set; }
     }
 }

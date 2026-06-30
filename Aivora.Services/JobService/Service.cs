@@ -86,6 +86,7 @@ public class Service : IService
     {
         var job = await _dbContext.JobPosts
             .Include(j => j.JobSkills)
+            .Include(j => j.Milestones)
             .FirstOrDefaultAsync(j => j.Id == jobId && j.ClientId == clientId);
 
         if (job == null) throw new NotFoundException("Job not found or access denied.");
@@ -120,6 +121,29 @@ public class Service : IService
         {
             _dbContext.JobSkills.RemoveRange(job.JobSkills);
             job.JobSkills = NormalizeGuidList(request.SkillIds).Select(skillId => new JobSkill { SkillId = skillId }).ToList();
+        }
+
+        if (request.Milestones != null)
+        {
+            var validatedMilestones = NormalizeUpdateMilestones(request.Milestones);
+            // Clear old milestones and add new ones
+            foreach (var old in job.Milestones.ToList())
+            {
+                job.Milestones.Remove(old);
+            }
+            foreach (var m in validatedMilestones)
+            {
+                job.Milestones.Add(new JobPostMilestone
+                {
+                    JobPostId = jobId,
+                    Title = m.Title,
+                    Description = m.Description,
+                    Amount = m.Amount,
+                    DueDays = m.DueDays,
+                    AcceptanceCriteria = m.AcceptanceCriteria,
+                    OrderIndex = m.OrderIndex
+                });
+            }
         }
 
         await _dbContext.SaveChangesAsync();
@@ -378,4 +402,34 @@ public class Service : IService
 
         return normalized;
     }
+    private static List<Request.UpdateJobMilestoneRequest> NormalizeUpdateMilestones(IEnumerable<Request.UpdateJobMilestoneRequest>? milestones)
+    {
+        var normalized = (milestones ?? Enumerable.Empty<Request.UpdateJobMilestoneRequest>())
+            .Select((milestone, index) => new Request.UpdateJobMilestoneRequest
+            {
+                Title = NormalizeRequired(milestone.Title, string.Format("Milestone {0}", index + 1), 255),
+                Description = NormalizeLimited(milestone.Description, 2000),
+                Amount = milestone.Amount,
+                DueDays = milestone.DueDays,
+                AcceptanceCriteria = NormalizeLimited(milestone.AcceptanceCriteria, 2000),
+                OrderIndex = milestone.OrderIndex < 0 ? index : milestone.OrderIndex
+            })
+            .ToList();
+
+        foreach (var milestone in normalized)
+        {
+            if (milestone.Amount <= 0)
+            {
+                throw new ValidationException("Milestone amounts must be greater than 0.");
+            }
+
+            if (milestone.DueDays < 1 || milestone.DueDays > 3650)
+            {
+                throw new ValidationException("Milestone due days must be between 1 and 3650.");
+            }
+        }
+
+        return normalized;
+    }
+
 }
