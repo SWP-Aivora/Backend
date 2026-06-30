@@ -454,31 +454,16 @@ public class Service : IService
 
     private static List<Response.SuggestedMilestone> NormalizeMilestones(IEnumerable<Response.SuggestedMilestone>? milestones)
     {
-        var normalized = (milestones ?? Enumerable.Empty<Response.SuggestedMilestone>())
+        return (milestones ?? Enumerable.Empty<Response.SuggestedMilestone>())
             .Select((milestone, index) => new Response.SuggestedMilestone
             {
                 Title = NormalizeRequiredLimited(milestone.Title, $"Milestone {index + 1}", 255),
                 Description = NormalizeLimited(milestone.Description, 2000),
-                Amount = milestone.Amount,
-                DueDays = milestone.DueDays,
+                Amount = Math.Max(milestone.Amount, 1),
+                DueDays = Math.Clamp(milestone.DueDays, 1, 3650),
                 AcceptanceCriteria = NormalizeLimited(milestone.AcceptanceCriteria, 2000)
             })
             .ToList();
-
-        foreach (var milestone in normalized)
-        {
-            if (milestone.Amount <= 0)
-            {
-                throw new ValidationException("Suggested milestone amounts must be greater than 0.");
-            }
-
-            if (milestone.DueDays < 1 || milestone.DueDays > 3650)
-            {
-                throw new ValidationException("Suggested milestone due days must be between 1 and 3650.");
-            }
-        }
-
-        return normalized;
     }
 
     private static List<Guid> NormalizeGuidList(IEnumerable<Guid>? values)
