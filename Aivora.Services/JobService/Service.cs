@@ -122,6 +122,28 @@ public class Service : IService
             job.JobSkills = NormalizeGuidList(request.SkillIds).Select(skillId => new JobSkill { SkillId = skillId }).ToList();
         }
 
+        if (request.Milestones != null)
+        {
+            var validatedMilestones = NormalizeUpdateMilestones(request.Milestones);
+            // Delete old milestones via DbSet to avoid InMemory EF tracking issues
+            var oldMilestones = await _dbContext.JobPostMilestones
+                .Where(m => m.JobPostId == jobId)
+                .ToListAsync();
+            _dbContext.JobPostMilestones.RemoveRange(oldMilestones);
+            // Add new milestones via DbSet
+            var newMilestones = validatedMilestones.Select(m => new JobPostMilestone
+            {
+                JobPostId = jobId,
+                Title = m.Title,
+                Description = m.Description,
+                Amount = m.Amount,
+                DueDays = m.DueDays,
+                AcceptanceCriteria = m.AcceptanceCriteria,
+                OrderIndex = m.OrderIndex
+            }).ToList();
+            await _dbContext.JobPostMilestones.AddRangeAsync(newMilestones);
+        }
+
         await _dbContext.SaveChangesAsync();
 
         return await GetJobByIdAsync(job.Id);
@@ -378,4 +400,34 @@ public class Service : IService
 
         return normalized;
     }
+    private static List<Request.UpdateJobMilestoneRequest> NormalizeUpdateMilestones(IEnumerable<Request.UpdateJobMilestoneRequest>? milestones)
+    {
+        var normalized = (milestones ?? Enumerable.Empty<Request.UpdateJobMilestoneRequest>())
+            .Select((milestone, index) => new Request.UpdateJobMilestoneRequest
+            {
+                Title = NormalizeRequired(milestone.Title, string.Format("Milestone {0}", index + 1), 255),
+                Description = NormalizeLimited(milestone.Description, 2000),
+                Amount = milestone.Amount,
+                DueDays = milestone.DueDays,
+                AcceptanceCriteria = NormalizeLimited(milestone.AcceptanceCriteria, 2000),
+                OrderIndex = milestone.OrderIndex < 0 ? index : milestone.OrderIndex
+            })
+            .ToList();
+
+        foreach (var milestone in normalized)
+        {
+            if (milestone.Amount <= 0)
+            {
+                throw new ValidationException("Milestone amounts must be greater than 0.");
+            }
+
+            if (milestone.DueDays < 1 || milestone.DueDays > 3650)
+            {
+                throw new ValidationException("Milestone due days must be between 1 and 3650.");
+            }
+        }
+
+        return normalized;
+    }
+
 }

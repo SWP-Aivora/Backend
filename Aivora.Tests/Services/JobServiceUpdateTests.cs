@@ -1,0 +1,160 @@
+using Aivora.Repositories.Data;
+using Aivora.Repositories.Entities;
+using Aivora.Repositories.Enums;
+using Aivora.Services.Exceptions;
+using Aivora.Services.JobService;
+using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
+using Xunit;
+
+namespace Aivora.Tests.Services;
+
+public class JobServiceUpdateTests
+{
+    private static AivoraDbContext GetDbContext()
+    {
+        var options = new DbContextOptionsBuilder<AivoraDbContext>()
+            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .ConfigureWarnings(x => x.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning))
+            .Options;
+        return new AivoraDbContext(options);
+    }
+
+    private static (AivoraDbContext, User, Guid) SetupClient(AivoraDbContext dbContext)
+    {
+        var client = new User { FullName = "Test Client", Email = "test@test.com", PasswordHash = "hash" };
+        dbContext.Users.Add(client);
+        dbContext.SaveChanges();
+        return (dbContext, client, client.Id);
+    }
+
+    [Fact]
+    public async Task UpdateJobAsync_WithMilestones_ReplacesOldMilestones()
+    {
+        var dbContext = GetDbContext();
+        var (_, _, clientId) = SetupClient(dbContext);
+
+        var service = new Service(dbContext);
+        var categoryId = Guid.NewGuid();
+
+        var job = new JobPost
+        {
+            ClientId = clientId,
+            Title = "Test Job",
+            OriginalDescription = "Desc",
+            CategoryId = categoryId,
+            Status = JobStatus.DRAFT,
+            Milestones = new List<JobPostMilestone>
+            {
+                new() { Title = "Old M1", Amount = 100, DueDays = 5, OrderIndex = 0 },
+                new() { Title = "Old M2", Amount = 200, DueDays = 10, OrderIndex = 1 }
+            }
+        };
+        dbContext.JobPosts.Add(job);
+        await dbContext.SaveChangesAsync();
+
+        var request = new Request.UpdateJobRequest
+        {
+            Milestones = new List<Request.UpdateJobMilestoneRequest>
+            {
+                new() { Title = "New M1", Amount = 150, DueDays = 7, OrderIndex = 0 },
+                new() { Title = "New M2", Amount = 250, DueDays = 14, OrderIndex = 1 },
+                new() { Title = "New M3", Amount = 300, DueDays = 21, OrderIndex = 2 }
+            }
+        };
+
+        var result = await service.UpdateJobAsync(clientId, job.Id, request);
+
+        result.Milestones.Should().HaveCount(3);
+        result.Milestones[0].Title.Should().Be("New M1");
+        result.Milestones[0].Amount.Should().Be(150);
+        result.Milestones[1].Title.Should().Be("New M2");
+        result.Milestones[2].Title.Should().Be("New M3");
+    }
+
+    [Fact]
+    public async Task UpdateJobAsync_WithoutMilestones_KeepsExistingMilestones()
+    {
+        var dbContext = GetDbContext();
+        var (_, _, clientId) = SetupClient(dbContext);
+
+        var service = new Service(dbContext);
+
+        var job = new JobPost
+        {
+            ClientId = clientId,
+            Title = "Test Job",
+            OriginalDescription = "Desc",
+            CategoryId = Guid.NewGuid(),
+            Status = JobStatus.DRAFT,
+            Milestones = new List<JobPostMilestone>
+            {
+                new() { Title = "Keep Me", Amount = 100, DueDays = 5, OrderIndex = 0 }
+            }
+        };
+        dbContext.JobPosts.Add(job);
+        await dbContext.SaveChangesAsync();
+
+        var request = new Request.UpdateJobRequest { Title = "Updated Title" };
+
+        var result = await service.UpdateJobAsync(clientId, job.Id, request);
+
+        result.Title.Should().Be("Updated Title");
+        result.Milestones.Should().HaveCount(1);
+        result.Milestones[0].Title.Should().Be("Keep Me");
+    }
+
+    [Fact]
+    public async Task UpdateJobAsync_WithInvalidMilestoneAmount_ThrowsValidationException()
+    {
+        var dbContext = GetDbContext();
+        var (_, _, clientId) = SetupClient(dbContext);
+        var service = new Service(dbContext);
+
+        var job = new JobPost
+        {
+            ClientId = clientId,
+            Title = "Test Job",
+            OriginalDescription = "Desc",
+            CategoryId = Guid.NewGuid(),
+            Status = JobStatus.DRAFT
+        };
+        dbContext.JobPosts.Add(job);
+        await dbContext.SaveChangesAsync();
+
+        var request = new Request.UpdateJobRequest
+        {
+            Milestones = new List<Request.UpdateJobMilestoneRequest>
+            {
+                new() { Title = "Bad", Amount = 0, DueDays = 5, OrderIndex = 0 }
+            }
+        };
+
+        Func<Task> act = async () => await service.UpdateJobAsync(clientId, job.Id, request);
+        await act.Should().ThrowAsync<ValidationException>()
+            .WithMessage("Milestone amounts must be greater than 0.");
+    }
+
+    [Fact]
+    public async Task UpdateJobAsync_NotOwner_ThrowsNotFoundException()
+    {
+        var dbContext = GetDbContext();
+        var service = new Service(dbContext);
+
+        var job = new JobPost
+        {
+            ClientId = Guid.NewGuid(),
+            Title = "Test Job",
+            OriginalDescription = "Desc",
+            CategoryId = Guid.NewGuid(),
+            Status = JobStatus.DRAFT
+        };
+        dbContext.JobPosts.Add(job);
+        await dbContext.SaveChangesAsync();
+
+        var request = new Request.UpdateJobRequest { Title = "Hacked" };
+
+        Func<Task> act = async () => await service.UpdateJobAsync(Guid.NewGuid(), job.Id, request);
+        await act.Should().ThrowAsync<NotFoundException>();
+    }
+}

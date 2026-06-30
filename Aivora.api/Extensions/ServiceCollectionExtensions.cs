@@ -167,6 +167,22 @@ public static class ServiceCollectionExtensions
                 : sp.GetRequiredService<Aivora.Services.AIJobAssistantService.Providers.MockAIServiceDescriptionProvider>();
         });
         services.AddScoped<Aivora.Services.AIJobAssistantService.IService, Aivora.Services.AIJobAssistantService.Service>();
+
+        // AIJobRefinementService
+        services.AddScoped<Aivora.Services.AIJobRefinementService.Prompting.AIJobRefinementPromptBuilder>();
+        services.AddScoped<Aivora.Services.AIJobRefinementService.Parsing.AIJobRefinementParser>();
+        services.AddScoped<Aivora.Services.AIJobRefinementService.Providers.MockAIJobRefinementProvider>();
+        services.AddScoped<Aivora.Services.AIJobRefinementService.Providers.GeminiAIJobRefinementProvider>();
+        services.AddScoped<Aivora.Services.AIJobRefinementService.IAIJobRefinementProvider>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<AIProviderOptions>>().Value;
+            return string.Equals(options.Provider, "Gemini", StringComparison.OrdinalIgnoreCase)
+                   && !string.IsNullOrWhiteSpace(options.ApiKey)
+                ? sp.GetRequiredService<Aivora.Services.AIJobRefinementService.Providers.GeminiAIJobRefinementProvider>()
+                : sp.GetRequiredService<Aivora.Services.AIJobRefinementService.Providers.MockAIJobRefinementProvider>();
+        });
+        services.AddScoped<Aivora.Services.AIJobRefinementService.IService, Aivora.Services.AIJobRefinementService.Service>();
+
         services.AddScoped<Aivora.Services.RecommendationService.IService, Aivora.Services.RecommendationService.Service>();
         services.AddScoped<Aivora.Services.ProjectService.IService, Aivora.Services.ProjectService.Service>();
         services.AddScoped<Aivora.Services.MilestoneService.IService, Aivora.Services.MilestoneService.Service>();
