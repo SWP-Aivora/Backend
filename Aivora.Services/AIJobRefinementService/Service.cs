@@ -34,7 +34,6 @@ public class Service : IService
             .Include(j => j.Client)
             .Include(j => j.Category)
             .Include(j => j.JobSkills).ThenInclude(js => js.Skill)
-            .Include(j => j.Milestones)
             .FirstOrDefaultAsync(j => j.Id == jobId && j.ClientId == clientId, cancellationToken);
 
         if (job == null) throw new NotFoundException("Job not found or access denied.");
@@ -107,44 +106,47 @@ public class Service : IService
                 case "skills":
                     if (draft.Skills.Count > 0)
                     {
-                        // Xoa JobSkill cu truoc khi replace, lookup Skill bang name
+                        // Lookup existing skills by name — never create new Skill entities
+                        // (skill creation is a separate concern handled by Skill API)
+                        var skillNames = draft.Skills
+                            .Where(s => !string.IsNullOrWhiteSpace(s))
+                            .Select(s => s.Trim())
+                            .Distinct(StringComparer.OrdinalIgnoreCase)
+                            .ToList();
+                        var existingSkills = dbContext.Skills
+                            .Where(s => skillNames.Contains(s.Name))
+                            .ToList();
+                        // Remove old JobSkill links
                         foreach (var old in job.JobSkills.ToList())
                         {
                             job.JobSkills.Remove(old);
                         }
-                        foreach (var skillName in draft.Skills.Where(s => !string.IsNullOrWhiteSpace(s)))
+                        // Link only to existing skills
+                        foreach (var skill in existingSkills)
                         {
-                            var trimmed = skillName.Trim();
-                            var existingSkill = dbContext.Skills
-                                .FirstOrDefault(s => s.Name == trimmed);
-                            job.JobSkills.Add(new JobSkill
-                            {
-                                SkillId = existingSkill?.Id ?? Guid.Empty,
-                                Skill = existingSkill ?? new Skill { Name = trimmed }
-                            });
+                            job.JobSkills.Add(new JobSkill { SkillId = skill.Id });
                         }
                     }
                     break;
                 case "milestones":
                     if (draft.Milestones.Count > 0)
                     {
-                        // Xoa milestone cu truoc khi replace — tranh orphaned records
-                        foreach (var old in job.Milestones.ToList())
+                        // Delete old milestones via DbSet, then insert new ones
+                        var oldMilestones = dbContext.JobPostMilestones
+                            .Where(m => m.JobPostId == job.Id)
+                            .ToList();
+                        dbContext.JobPostMilestones.RemoveRange(oldMilestones);
+                        var newMilestones = draft.Milestones.Select(m => new JobPostMilestone
                         {
-                            job.Milestones.Remove(old);
-                        }
-                        foreach (var m in draft.Milestones)
-                        {
-                            job.Milestones.Add(new JobPostMilestone
-                            {
-                                Title = m.Title,
-                                Description = m.Description,
-                                Amount = Math.Max(m.Amount, 1),
-                                DueDays = Math.Clamp(m.DueDays, 1, 3650),
-                                AcceptanceCriteria = m.AcceptanceCriteria,
-                                OrderIndex = 0
-                            });
-                        }
+                            JobPostId = job.Id,
+                            Title = m.Title,
+                            Description = m.Description,
+                            Amount = Math.Max(m.Amount, 1),
+                            DueDays = Math.Clamp(m.DueDays, 1, 3650),
+                            AcceptanceCriteria = m.AcceptanceCriteria,
+                            OrderIndex = 0
+                        }).ToList();
+                        dbContext.JobPostMilestones.AddRange(newMilestones);
                     }
                     break;
             }
