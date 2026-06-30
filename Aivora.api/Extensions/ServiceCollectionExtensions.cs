@@ -33,23 +33,14 @@ public static class ServiceCollectionExtensions
             options.AddPolicy("AllowSpecificOrigin",
                 policy =>
                 {
-                    var origins = new List<string>
-                    {
-                        "http://localhost:5173",
-                        "https://aivora-pi.vercel.app",
-                        "https://frontend-group08.vercel.app",
-                        "https://client.scalar.com",
-                        "https://proxy.scalar.com"
-                    };
+                    var origins = configuration.GetSection("CorsSettings:Origins").Get<string[]>();
 
-                    // Allow additional origins from configuration (comma-separated in env or JSON array)
-                    var extraOrigins = configuration.GetSection("CorsSettings:ExtraOrigins").Get<string[]>();
-                    if (extraOrigins is { Length: > 0 })
+                    if (origins is not { Length: > 0 })
                     {
-                        origins.AddRange(extraOrigins);
+                        origins = ["http://localhost:5173"];
                     }
 
-                    policy.WithOrigins(origins.ToArray())
+                    policy.WithOrigins(origins)
                           .AllowAnyHeader()
                           .AllowAnyMethod()
                           .AllowCredentials();
