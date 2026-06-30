@@ -85,4 +85,13 @@ public class ProposalController : ControllerBase
         await _hiringService.UnshortlistProposalAsync(userId, id);
         return Ok(ApiResponseFactory.SuccessResponse(true, "Proposal unshortlisted successfully", HttpContext.TraceIdentifier));
     }
+
+    [HttpPut("{id}")]
+    [Authorize(Policy = JwtExtensions.ExpertPolicy)]
+    public async Task<IActionResult> UpdateProposal(Guid id, [FromBody] Aivora.Services.ProposalService.Request.UpdateProposalRequest request)
+    {
+        var expertId = this.GetUserId();
+        var result = await _proposalService.UpdateProposalAsync(expertId, id, request);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Proposal updated successfully", HttpContext.TraceIdentifier));
+    }
 }

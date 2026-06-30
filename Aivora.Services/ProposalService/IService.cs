@@ -8,4 +8,5 @@ public interface IService
     Task<Response.ProposalResponse> CreateProposalAsync(Guid expertId, Request.CreateProposalRequest request);
     Task<List<Response.ProposalResponse>> GetProposalsByJobIdAsync(Guid userId, Guid jobId);
     Task<List<Response.ProposalResponse>> GetExpertProposalsAsync(Guid expertId);
+    Task<Response.ProposalResponse> UpdateProposalAsync(Guid expertId, Guid proposalId, Request.UpdateProposalRequest request);
 }

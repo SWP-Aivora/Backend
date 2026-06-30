@@ -111,6 +111,60 @@ public class Service : IService
 
         return proposals.Select(MapToResponse).ToList();
     }
+    public async Task<Response.ProposalResponse> UpdateProposalAsync(Guid expertId, Guid proposalId, Request.UpdateProposalRequest request)
+    {
+        if (request is null) throw new ValidationException("Request body is required.");
+
+        var proposal = await _dbContext.Proposals
+            .Include(p => p.Milestones)
+            .FirstOrDefaultAsync(p => p.Id == proposalId);
+
+        if (proposal == null) throw new NotFoundException("Proposal not found.");
+
+        if (proposal.ExpertId != expertId)
+            throw new UnauthorizedException("You can only edit your own proposal.");
+
+        if (proposal.Status != ProposalStatus.SUBMITTED && proposal.Status != ProposalStatus.SHORTLISTED)
+            throw new ValidationException("Proposal can only be edited when it is submitted or shortlisted.");
+
+        if (request.ProposedBudget <= 0)
+            throw new ValidationException("ProposedBudget must be greater than 0.");
+
+        if (string.IsNullOrWhiteSpace(request.CoverLetter))
+            throw new ValidationException("CoverLetter is required.");
+
+        var validatedMilestones = NormalizeMilestones(request.Milestones);
+
+        proposal.CoverLetter = request.CoverLetter.Trim();
+        proposal.ProposedBudget = request.ProposedBudget;
+        proposal.ProposedTimelineDays = request.ProposedTimelineDays;
+        proposal.UpdatedAt = DateTimeOffset.UtcNow;
+
+        // Replace milestones: delete old, insert new
+        var oldMilestones = proposal.Milestones.ToList();
+        foreach (var old in oldMilestones)
+        {
+            proposal.Milestones.Remove(old);
+        }
+        foreach (var m in validatedMilestones)
+        {
+            proposal.Milestones.Add(new ProposalMilestone
+            {
+                Title = m.Title,
+                Description = m.Description,
+                Amount = m.Amount,
+                DueDays = m.DueDays,
+                AcceptanceCriteria = m.AcceptanceCriteria,
+                OrderIndex = m.OrderIndex
+            });
+        }
+
+        await _dbContext.SaveChangesAsync();
+
+        return await GetProposalByIdAsync(proposal.Id);
+    }
+
+
 
     private static Response.ProposalResponse MapToResponse(Proposal proposal)
     {
@@ -138,5 +192,35 @@ public class Service : IService
                 OrderIndex = m.OrderIndex
             }).OrderBy(m => m.OrderIndex).ToList()
         };
+    }
+
+    private static List<Request.UpdateProposalMilestoneRequest> NormalizeMilestones(IEnumerable<Request.UpdateProposalMilestoneRequest>? milestones)
+    {
+        var normalized = (milestones ?? Enumerable.Empty<Request.UpdateProposalMilestoneRequest>())
+            .Select((milestone, index) => new Request.UpdateProposalMilestoneRequest
+            {
+                Title = string.IsNullOrWhiteSpace(milestone.Title) ? string.Format("Milestone {0}", index + 1) : milestone.Title.Trim(),
+                Description = milestone.Description,
+                Amount = milestone.Amount,
+                DueDays = milestone.DueDays,
+                AcceptanceCriteria = milestone.AcceptanceCriteria,
+                OrderIndex = milestone.OrderIndex < 0 ? index : milestone.OrderIndex
+            })
+            .ToList();
+
+        foreach (var milestone in normalized)
+        {
+            if (milestone.Amount <= 0)
+            {
+                throw new ValidationException("Milestone amounts must be greater than 0.");
+            }
+
+            if (milestone.DueDays < 1 || milestone.DueDays > 3650)
+            {
+                throw new ValidationException("Milestone due days must be between 1 and 3650.");
+            }
+        }
+
+        return normalized;
     }
 }
