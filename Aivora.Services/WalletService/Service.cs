@@ -19,9 +19,7 @@ public class Service : IService
 
     public async Task<Response.WalletResponse> GetWalletAsync(Guid userId)
     {
-        var wallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
-        if (wallet == null) throw new NotFoundException("Wallet not found.");
-
+        var wallet = await GetOrCreateWalletAsync(userId);
         return MapToResponse(wallet);
     }
 
@@ -29,8 +27,7 @@ public class Service : IService
     {
         if (request.Amount <= 0) throw new ValidationException("Amount must be greater than 0.");
 
-        var wallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
-        if (wallet == null) throw new NotFoundException("Wallet not found.");
+        var wallet = await GetOrCreateWalletAsync(userId);
 
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
@@ -92,8 +89,7 @@ public class Service : IService
     {
         if (request.Amount <= 0) throw new ValidationException("Amount must be greater than 0.");
 
-        var wallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
-        if (wallet == null) throw new NotFoundException("Wallet not found.");
+        var wallet = await GetOrCreateWalletAsync(userId);
 
         // In production, this would integrate with payment gateway
         // For now, we'll process it as a successful deposit
@@ -137,8 +133,7 @@ public class Service : IService
     {
         if (request.Amount <= 0) throw new ValidationException("Amount must be greater than 0.");
 
-        var wallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
-        if (wallet == null) throw new NotFoundException("Wallet not found.");
+        var wallet = await GetOrCreateWalletAsync(userId);
 
         var orderInfo = $"Nap tien Aivora - User {userId}";
         var result = _vnPayService.CreatePaymentUrl(userId, request.Amount, orderInfo, wallet);
@@ -154,8 +149,7 @@ public class Service : IService
     {
         if (request.Amount <= 0) throw new ValidationException("Amount must be greater than 0.");
 
-        var wallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
-        if (wallet == null) throw new NotFoundException("Wallet not found.");
+        var wallet = await GetOrCreateWalletAsync(userId);
 
         if (wallet.AvailableBalance < request.Amount)
             throw new ValidationException("Insufficient balance for withdrawal.");
@@ -202,14 +196,12 @@ public class Service : IService
     {
         if (request.Amount <= 0) throw new ValidationException("Amount must be greater than 0.");
 
-        var wallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
-        if (wallet == null) throw new NotFoundException("Wallet not found.");
+        var wallet = await GetOrCreateWalletAsync(userId);
 
         if (wallet.AvailableBalance < request.Amount)
             throw new ValidationException("Insufficient balance for transfer.");
 
-        var expertWallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == request.RecipientId);
-        if (expertWallet == null) throw new NotFoundException("Expert wallet not found.");
+        var expertWallet = await GetOrCreateWalletAsync(request.RecipientId);
 
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
@@ -332,6 +324,39 @@ public class Service : IService
             await transaction.RollbackAsync();
             throw new ValidationException($"Transaction failed: {ex.Message}");
         }
+    }
+
+    private async Task<Wallet> GetOrCreateWalletAsync(Guid userId)
+    {
+        var wallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
+        if (wallet != null) return wallet;
+
+        wallet = new Wallet
+        {
+            UserId = userId,
+            AvailableBalance = 0,
+            Currency = "AICOIN"
+        };
+        _dbContext.Wallets.Add(wallet);
+
+        try
+        {
+            await _dbContext.SaveChangesAsync();
+            return wallet;
+        }
+        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+        {
+            // Race condition: another concurrent request created the wallet
+            // between our FirstOrDefaultAsync check and SaveChangesAsync.
+            // Detach the failed attempt and re-read the now-existing wallet.
+            _dbContext.Entry(wallet).State = EntityState.Detached;
+            return await _dbContext.Wallets.FirstAsync(w => w.UserId == userId);
+        }
+    }
+
+    private static bool IsUniqueViolation(DbUpdateException ex)
+    {
+        return ex.InnerException?.Message?.Contains("23505") == true;
     }
 
     private static Response.WalletResponse MapToResponse(Wallet w)
