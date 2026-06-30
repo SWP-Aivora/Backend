@@ -36,6 +36,7 @@ public class AdminController : ControllerBase
     }
 
     [HttpGet("users")]
+    [Authorize(Policy = JwtExtensions.AdminPolicy)]
     public async Task<IActionResult> GetUsers([FromQuery] Aivora.Services.Base.Request.PageRequest pageRequest, [FromQuery] string? search)
     {
         var result = await _adminService.GetUsersAsync(pageRequest, search);
