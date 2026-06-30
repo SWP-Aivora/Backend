@@ -36,7 +36,8 @@ public class WalletServiceTests
         await dbContext.SaveChangesAsync();
 
         var vnPayServiceMock = new Mock<IVNPayService>();
-        var service = new Service(dbContext, vnPayServiceMock.Object);
+        var notificationServiceMock = Mock.Of<Aivora.Services.NotificationService.IService>();
+        var service = new Service(dbContext, vnPayServiceMock.Object, notificationServiceMock);
         var request = new Request.DepositDemoRequest { Amount = 500, Description = "Test Deposit" };
 
         // Act
@@ -113,7 +114,8 @@ public class WalletServiceTests
                 ["VNPay:IpnUrl"] = "https://test.com/ipn"
             }).Build(),
             dbContext,
-            new Mock<IHttpContextAccessor>().Object);
+            new Mock<IHttpContextAccessor>().Object,
+            Mock.Of<Aivora.Services.NotificationService.IService>());
 
         var duplicateRequests = Enumerable.Range(0, 5)
             .Select(_ => CreateIpnRequest(txnRef))
@@ -156,7 +158,7 @@ public class WalletServiceTests
         vnPayServiceMock.Setup(x => x.CreatePaymentUrl(It.IsAny<Guid>(), It.IsAny<decimal>(), It.IsAny<string>(), It.IsAny<Wallet>()))
             .Returns(new VnPayPaymentResult { PaymentUrl = "https://test.com", TxnRef = "test123" });
 
-        var service = new Service(dbContext, vnPayServiceMock.Object);
+        var service = new Service(dbContext, vnPayServiceMock.Object, Mock.Of<Aivora.Services.NotificationService.IService>());
         var request = new Request.VnPayDepositRequest { Amount = 100000 };
 
         // Act

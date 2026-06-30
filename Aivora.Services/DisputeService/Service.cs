@@ -67,6 +67,22 @@ public class Service : IService
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
+            // Gửi thông báo cho bên bị khiếu nại
+            try
+            {
+                await _notificationService.SendNotificationAsync(
+                    againstUserId,
+                    "Một tranh chấp đã được mở",
+                    $"Một tranh chấp đã được mở liên quan đến dự án của bạn. Lý do: {request.Reason}",
+                    "DISPUTE",
+                    $"/disputes/{dispute.Id}"
+                );
+            }
+            catch
+            {
+                // Notification failure should not block the main business flow
+            }
+
             return await GetDisputeByIdAsync(userId, dispute.Id);
         }
         catch (Exception)
@@ -251,6 +267,32 @@ public class Service : IService
 
         await _dbContext.SaveChangesAsync();
 
+        // Gửi thông báo kết quả phân xử cho cả 2 bên
+        var resolutionMessage = $"Tranh chấp đã được admin phân xử. Kết quả: {request.ResolutionType}. Ghi chú: {request.ResolutionNote ?? "Không có"}";
+        try
+        {
+            await _notificationService.SendNotificationAsync(
+                dispute.OpenedBy,
+                "Tranh chấp đã được phân xử",
+                resolutionMessage,
+                "DISPUTE",
+                $"/disputes/{disputeId}"
+            );
+        }
+        catch { }
+
+        try
+        {
+            await _notificationService.SendNotificationAsync(
+                dispute.AgainstUserId,
+                "Tranh chấp đã được phân xử",
+                resolutionMessage,
+                "DISPUTE",
+                $"/disputes/{disputeId}"
+            );
+        }
+        catch { }
+
         return await GetDisputeByIdAsync(adminId, disputeId);
     }
 
@@ -286,6 +328,22 @@ public class Service : IService
 
         // Recalculate project status based on milestone states
         await _treasury.SyncProjectStatusAsync(dispute.ProjectId);
+
+        // Gửi thông báo cho bên còn lại rằng tranh chấp đã được đóng
+        try
+        {
+            await _notificationService.SendNotificationAsync(
+                dispute.AgainstUserId,
+                "Tranh chấp đã được đóng",
+                "Tranh chấp đã được đóng bởi người khiếu nại. Bạn có thể tiếp tục làm việc trên milestone.",
+                "DISPUTE",
+                $"/disputes/{disputeId}"
+            );
+        }
+        catch
+        {
+            // Notification failure should not block the main business flow
+        }
 
         return await GetDisputeByIdAsync(userId, disputeId);
     }

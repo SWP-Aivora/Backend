@@ -2,6 +2,7 @@ using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.Exceptions;
+using Aivora.Services.NotificationService;
 using Aivora.Services.Treasury;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,11 +12,13 @@ public class Service : IService
 {
     private readonly AivoraDbContext _dbContext;
     private readonly ITreasury _treasury;
+    private readonly NotificationService.IService _notificationService;
 
-    public Service(AivoraDbContext dbContext, ITreasury treasury)
+    public Service(AivoraDbContext dbContext, ITreasury treasury, NotificationService.IService notificationService)
     {
         _dbContext = dbContext;
         _treasury = treasury;
+        _notificationService = notificationService;
     }
 
     public async Task<Response.MilestoneResponse> GetMilestoneByIdAsync(Guid userId, Guid milestoneId)
@@ -160,6 +163,23 @@ public class Service : IService
         milestone.Status = MilestoneStatus.REVISION_REQUESTED;
 
         await _dbContext.SaveChangesAsync();
+
+        // Gửi thông báo cho Expert rằng khách hàng yêu cầu chỉnh sửa
+        try
+        {
+            await _notificationService.SendNotificationAsync(
+                milestone.Project.ExpertId,
+                "Khách hàng yêu cầu chỉnh sửa",
+                $"Khách hàng yêu cầu chỉnh sửa cho milestone \"{milestone.Title}\". Lý do: {reason}",
+                "MILESTONE",
+                $"/projects/{milestone.ProjectId}/milestones/{milestoneId}"
+            );
+        }
+        catch
+        {
+            // Notification failure should not block the main business flow
+        }
+
         await _treasury.SyncProjectStatusAsync(milestone.ProjectId);
 
         return MapToResponse(milestone);

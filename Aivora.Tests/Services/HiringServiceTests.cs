@@ -5,6 +5,7 @@ using Aivora.Services.HiringService;
 using Aivora.Services.Exceptions;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Moq;
 using Xunit;
 
 namespace Aivora.Tests.Services;
@@ -37,7 +38,7 @@ public class HiringServiceTests
         dbContext.Proposals.AddRange(proposal1, proposal2);
         await dbContext.SaveChangesAsync();
 
-        var service = new Aivora.Services.HiringService.HiringService(dbContext);
+        var service = new Aivora.Services.HiringService.HiringService(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
 
         // Act
         var result = await service.AcceptProposalAsync(clientId, proposal1.Id);
@@ -72,7 +73,7 @@ public class HiringServiceTests
         dbContext.Proposals.Add(proposal);
         await dbContext.SaveChangesAsync();
 
-        var service = new Aivora.Services.HiringService.HiringService(dbContext);
+        var service = new Aivora.Services.HiringService.HiringService(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
 
         // Act
         await service.ShortlistProposalAsync(clientId, proposal.Id);
@@ -95,7 +96,7 @@ public class HiringServiceTests
         dbContext.Proposals.Add(proposal);
         await dbContext.SaveChangesAsync();
 
-        var service = new Aivora.Services.HiringService.HiringService(dbContext);
+        var service = new Aivora.Services.HiringService.HiringService(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
 
         // Act
         await service.UnshortlistProposalAsync(clientId, proposal.Id);
@@ -118,7 +119,7 @@ public class HiringServiceTests
         dbContext.Proposals.Add(proposal);
         await dbContext.SaveChangesAsync();
 
-        var service = new Aivora.Services.HiringService.HiringService(dbContext);
+        var service = new Aivora.Services.HiringService.HiringService(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
 
         // Act & Assert
         await Assert.ThrowsAsync<ValidationException>(() =>
@@ -139,7 +140,7 @@ public class HiringServiceTests
         dbContext.Proposals.Add(proposal);
         await dbContext.SaveChangesAsync();
 
-        var service = new Aivora.Services.HiringService.HiringService(dbContext);
+        var service = new Aivora.Services.HiringService.HiringService(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
 
         // Act & Assert
         await Assert.ThrowsAsync<UnauthorizedException>(() =>

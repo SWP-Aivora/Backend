@@ -3,6 +3,7 @@ using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.Base;
 using Aivora.Services.Exceptions;
+using Aivora.Services.NotificationService;
 using Microsoft.EntityFrameworkCore;
 
 namespace Aivora.Services.ReviewService;
@@ -10,10 +11,12 @@ namespace Aivora.Services.ReviewService;
 public class Service : IService
 {
     private readonly AivoraDbContext _dbContext;
+    private readonly NotificationService.IService _notificationService;
 
-    public Service(AivoraDbContext dbContext)
+    public Service(AivoraDbContext dbContext, NotificationService.IService notificationService)
     {
         _dbContext = dbContext;
+        _notificationService = notificationService;
     }
 
     public async Task<Response.ReviewResponse> CreateReviewAsync(Guid reviewerId, Request.CreateReviewRequest request)
@@ -84,6 +87,22 @@ public class Service : IService
 
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
+
+            // Gửi thông báo cho người được đánh giá
+            try
+            {
+                await _notificationService.SendNotificationAsync(
+                    request.RevieweeId,
+                    "Bạn đã nhận được một đánh giá mới",
+                    $"Bạn đã nhận được một đánh giá {request.Rating}/5 sao cho dự án. Hãy vào xem chi tiết.",
+                    "REVIEW",
+                    $"/projects/{request.ProjectId}"
+                );
+            }
+            catch
+            {
+                // Notification failure should not block the main business flow
+            }
 
             var reviewer = await _dbContext.Users.FindAsync(reviewerId);
             return MapToResponse(review, reviewer?.FullName ?? "N/A");
