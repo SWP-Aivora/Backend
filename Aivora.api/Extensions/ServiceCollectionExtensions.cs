@@ -26,18 +26,30 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    public static IServiceCollection AddAivoraCors(this IServiceCollection services)
+    public static IServiceCollection AddAivoraCors(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddCors(options =>
         {
             options.AddPolicy("AllowSpecificOrigin",
                 policy =>
                 {
-                    policy.WithOrigins(
-                            "http://localhost:5173",
-                            "https://aivora-pi.vercel.app",
-                            "https://client.scalar.com",
-                            "https://proxy.scalar.com")
+                    var origins = new List<string>
+                    {
+                        "http://localhost:5173",
+                        "https://aivora-pi.vercel.app",
+                        "https://frontend-group08.vercel.app",
+                        "https://client.scalar.com",
+                        "https://proxy.scalar.com"
+                    };
+
+                    // Allow additional origins from configuration (comma-separated in env or JSON array)
+                    var extraOrigins = configuration.GetSection("CorsSettings:ExtraOrigins").Get<string[]>();
+                    if (extraOrigins is { Length: > 0 })
+                    {
+                        origins.AddRange(extraOrigins);
+                    }
+
+                    policy.WithOrigins(origins.ToArray())
                           .AllowAnyHeader()
                           .AllowAnyMethod()
                           .AllowCredentials();

@@ -14,7 +14,7 @@ builder.Configuration.ValidateRequiredConfiguration();
 builder.Configuration.ValidateAIProviderConfiguration(builder.Environment);
 
 builder.Services.AddAivoraPersistence(builder.Configuration);
-builder.Services.AddAivoraCors();
+builder.Services.AddAivoraCors(builder.Configuration);
 builder.Services.AddAivoraOptions(builder.Configuration);
 builder.Services.AddAivoraRateLimiting(builder.Configuration);
 builder.Services.AddAivoraApplicationServices(builder.Configuration);
