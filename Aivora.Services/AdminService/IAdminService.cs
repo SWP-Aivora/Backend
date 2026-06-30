@@ -9,6 +9,7 @@ public interface IAdminService
     Task<IdentityService.Response.UserResponse> UnsuspendUserAsync(Guid adminId, Guid userId);
     Task<Aivora.Services.Base.Response.PageResult<IdentityService.Response.UserResponse>> GetUsersAsync(Aivora.Services.Base.Request.PageRequest pageRequest, string? search = null);
     Task<Response.DashboardStatsResponse> GetDashboardStatsAsync();
+    Task<Aivora.Services.Base.Response.PageResult<Response.ExpertReviewResponse>> GetExpertReviewsAsync(Aivora.Services.Base.Request.PageRequest pageRequest, string? search = null);
 }
 
 public class Response
@@ -22,6 +23,23 @@ public class Response
         public int ActiveProjects { get; set; }
         public int OpenDisputes { get; set; }
         public decimal TotalEscrowAmount { get; set; }
+    }
+
+    public class ExpertReviewResponse
+    {
+        public Guid Id { get; set; }
+        public Guid ProjectId { get; set; }
+        public string ProjectTitle { get; set; } = null!;
+        public Guid ReviewerId { get; set; }
+        public string ReviewerName { get; set; } = null!;
+        public Guid RevieweeId { get; set; }
+        public string RevieweeName { get; set; } = null!;
+        public int Rating { get; set; }
+        public string? Comment { get; set; }
+        public int? CommunicationRating { get; set; }
+        public int? QualityRating { get; set; }
+        public int? DeadlineRating { get; set; }
+        public DateTimeOffset CreatedAt { get; set; }
     }
 }
 

@@ -27,7 +27,16 @@ public class AdminController : ControllerBase
         return Ok(ApiResponseFactory.SuccessResponse(result, "Dashboard stats retrieved", HttpContext.TraceIdentifier));
     }
 
+    [HttpGet("expert-reviews")]
+    [Authorize(Policy = JwtExtensions.AdminPolicy)]
+    public async Task<IActionResult> GetExpertReviews([FromQuery] Aivora.Services.Base.Request.PageRequest pageRequest, [FromQuery] string? search)
+    {
+        var result = await _adminService.GetExpertReviewsAsync(pageRequest, search);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Expert reviews retrieved", HttpContext.TraceIdentifier));
+    }
+
     [HttpGet("users")]
+    [Authorize(Policy = JwtExtensions.AdminPolicy)]
     public async Task<IActionResult> GetUsers([FromQuery] Aivora.Services.Base.Request.PageRequest pageRequest, [FromQuery] string? search)
     {
         var result = await _adminService.GetUsersAsync(pageRequest, search);
