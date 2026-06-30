@@ -4,6 +4,7 @@ using System.Text;
 using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
+using Aivora.Services.NotificationService;
 using Aivora.Services.Utils;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -17,12 +18,14 @@ public class VNPayService : IVNPayService
     private readonly IConfiguration _configuration;
     private readonly AivoraDbContext _dbContext;
     private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly NotificationService.IService _notificationService;
 
-    public VNPayService(IConfiguration configuration, AivoraDbContext dbContext, IHttpContextAccessor httpContextAccessor)
+    public VNPayService(IConfiguration configuration, AivoraDbContext dbContext, IHttpContextAccessor httpContextAccessor, NotificationService.IService notificationService)
     {
         _configuration = configuration;
         _dbContext = dbContext;
         _httpContextAccessor = httpContextAccessor;
+        _notificationService = notificationService;
     }
 
     private void ValidateVnPayConfiguration()
@@ -218,6 +221,22 @@ public class VNPayService : IVNPayService
             _dbContext.WalletTransactions.Add(walletTx);
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
+
+            // Gửi thông báo nạp tiền VNPay thành công
+            try
+            {
+                await _notificationService.SendNotificationAsync(
+                    userId,
+                    "Nạp tiền qua VNPay thành công",
+                    $"Bạn đã nạp thành công {amount:N0} {wallet.Currency} vào ví qua VNPay.",
+                    "PAYMENT",
+                    "/wallet"
+                );
+            }
+            catch
+            {
+                // Notification failure should not block the main business flow
+            }
 
             return new VnPayIpnResult
             {

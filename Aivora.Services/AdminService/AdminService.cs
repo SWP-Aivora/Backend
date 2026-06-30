@@ -2,6 +2,7 @@ using Aivora.Repositories.Data;
 using Aivora.Repositories.Enums;
 using Aivora.Services.Exceptions;
 using Aivora.Services.IdentityService;
+using Aivora.Services.NotificationService;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -11,11 +12,13 @@ public class AdminService : IAdminService
 {
     private readonly AivoraDbContext _dbContext;
     private readonly ILogger<AdminService> _logger;
+    private readonly NotificationService.IService _notificationService;
 
-    public AdminService(AivoraDbContext dbContext, ILogger<AdminService> logger)
+    public AdminService(AivoraDbContext dbContext, ILogger<AdminService> logger, NotificationService.IService notificationService)
     {
         _dbContext = dbContext;
         _logger = logger;
+        _notificationService = notificationService;
     }
 
     public async Task<IdentityService.Response.UserResponse> SuspendUserAsync(Guid adminId, Guid userId, string reason)
@@ -27,9 +30,25 @@ public class AdminService : IAdminService
         if (user.Status == UserStatus.SUSPENDED) throw new ValidationException("User is already suspended.");
 
         user.Status = UserStatus.SUSPENDED;
-        // Optionally store the reason in a log or field if we add one later
 
         await _dbContext.SaveChangesAsync();
+
+        // Gửi thông báo cho user bị khóa tài khoản
+        try
+        {
+            await _notificationService.SendNotificationAsync(
+                userId,
+                "Tài khoản của bạn đã bị khóa",
+                $"Tài khoản của bạn đã bị khóa bởi quản trị viên. Lý do: {reason}",
+                "ACCOUNT",
+                null
+            );
+        }
+        catch
+        {
+            // Notification failure should not block the main business flow
+        }
+
         _logger.LogInformation("Admin {AdminId} suspended user {UserId}. Reason: {Reason}", adminId, userId, reason);
 
         return MapToResponse(user);
@@ -44,6 +63,23 @@ public class AdminService : IAdminService
 
         user.Status = UserStatus.ACTIVE;
         await _dbContext.SaveChangesAsync();
+
+        // Gửi thông báo cho user được mở khóa tài khoản
+        try
+        {
+            await _notificationService.SendNotificationAsync(
+                userId,
+                "Tài khoản của bạn đã được mở khóa",
+                "Tài khoản của bạn đã được mở khóa bởi quản trị viên. Bạn có thể tiếp tục sử dụng Aivora.",
+                "ACCOUNT",
+                null
+            );
+        }
+        catch
+        {
+            // Notification failure should not block the main business flow
+        }
+
         _logger.LogInformation("Admin {AdminId} unsuspended user {UserId}", adminId, userId);
 
         return MapToResponse(user);

@@ -2,6 +2,7 @@ using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.Exceptions;
+using Aivora.Services.NotificationService;
 using Microsoft.EntityFrameworkCore;
 
 namespace Aivora.Services.HiringService;
@@ -9,10 +10,12 @@ namespace Aivora.Services.HiringService;
 public class HiringService : IHiringService
 {
     private readonly AivoraDbContext _dbContext;
+    private readonly NotificationService.IService _notificationService;
 
-    public HiringService(AivoraDbContext dbContext)
+    public HiringService(AivoraDbContext dbContext, NotificationService.IService notificationService)
     {
         _dbContext = dbContext;
+        _notificationService = notificationService;
     }
 
     public async Task<Response.HiringResultResponse> AcceptProposalAsync(Guid clientId, Guid proposalId)
@@ -79,6 +82,41 @@ public class HiringService : IHiringService
 
             await transaction.CommitAsync();
 
+            // Gửi thông báo cho Expert được chấp nhận
+            try
+            {
+                await _notificationService.SendNotificationAsync(
+                    proposal.ExpertId,
+                    "Hồ sơ được chấp nhận",
+                    $"Chúc mừng! Hồ sơ của bạn cho công việc \"{proposal.Job.Title}\" đã được chấp nhận.",
+                    "PROPOSAL",
+                    $"/projects/{project.Id}"
+                );
+            }
+            catch
+            {
+                // Notification failure should not block the main business flow
+            }
+
+            // Gửi thông báo cho các Expert bị từ chối (do accept proposal khác)
+            foreach (var p in otherProposals)
+            {
+                try
+                {
+                    await _notificationService.SendNotificationAsync(
+                        p.ExpertId,
+                        "Hồ sơ bị từ chối",
+                        $"Hồ sơ của bạn cho công việc \"{proposal.Job.Title}\" đã bị từ chối do khách hàng đã chọn chuyên gia khác.",
+                        "PROPOSAL",
+                        $"/jobs/{proposal.JobId}"
+                    );
+                }
+                catch
+                {
+                    // Notification failure should not block the main business flow
+                }
+            }
+
             return new Response.HiringResultResponse
             {
                 ProjectId = project.Id,
@@ -119,6 +157,23 @@ public class HiringService : IHiringService
         proposal.UpdatedAt = DateTimeOffset.UtcNow;
 
         await _dbContext.SaveChangesAsync();
+
+        // Gửi thông báo cho Expert bị từ chối
+        try
+        {
+            await _notificationService.SendNotificationAsync(
+                proposal.ExpertId,
+                "Hồ sơ bị từ chối",
+                $"Hồ sơ của bạn cho công việc \"{proposal.Job.Title}\" đã bị từ chối.",
+                "PROPOSAL",
+                $"/jobs/{proposal.JobId}"
+            );
+        }
+        catch
+        {
+            // Notification failure should not block the main business flow
+        }
+
         return true;
     }
 

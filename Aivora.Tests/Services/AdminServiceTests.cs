@@ -33,7 +33,7 @@ public class AdminServiceTests
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync();
 
-        var service = new AdminService(dbContext, Mock.Of<ILogger<AdminService>>());
+        var service = new AdminService(dbContext, Mock.Of<ILogger<AdminService>>(), Mock.Of<Aivora.Services.NotificationService.IService>());
 
         // Act
         var result = await service.SuspendUserAsync(adminId, userId, "Rules violation");
@@ -55,7 +55,7 @@ public class AdminServiceTests
         dbContext.Users.Add(targetAdmin);
         await dbContext.SaveChangesAsync();
 
-        var service = new AdminService(dbContext, Mock.Of<ILogger<AdminService>>());
+        var service = new AdminService(dbContext, Mock.Of<ILogger<AdminService>>(), Mock.Of<Aivora.Services.NotificationService.IService>());
 
         // Act & Assert
         await Assert.ThrowsAsync<ValidationException>(() => service.SuspendUserAsync(adminId, targetAdminId, "Cannot suspend admin"));
@@ -72,7 +72,7 @@ public class AdminServiceTests
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync();
 
-        var service = new AdminService(dbContext, Mock.Of<ILogger<AdminService>>());
+        var service = new AdminService(dbContext, Mock.Of<ILogger<AdminService>>(), Mock.Of<Aivora.Services.NotificationService.IService>());
 
         // Act
         var result = await service.UnsuspendUserAsync(adminId, userId);

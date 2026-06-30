@@ -2,6 +2,7 @@ using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.Exceptions;
+using Aivora.Services.NotificationService;
 using Microsoft.EntityFrameworkCore;
 
 namespace Aivora.Services.WalletService;
@@ -10,11 +11,13 @@ public class Service : IService
 {
     private readonly AivoraDbContext _dbContext;
     private readonly IVNPayService _vnPayService;
+    private readonly NotificationService.IService _notificationService;
 
-    public Service(AivoraDbContext dbContext, IVNPayService vnPayService)
+    public Service(AivoraDbContext dbContext, IVNPayService vnPayService, NotificationService.IService notificationService)
     {
         _dbContext = dbContext;
         _vnPayService = vnPayService;
+        _notificationService = notificationService;
     }
 
     public async Task<Response.WalletResponse> GetWalletAsync(Guid userId)
@@ -50,6 +53,22 @@ public class Service : IService
             _dbContext.WalletTransactions.Add(walletTx);
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
+
+            // Gửi thông báo nạp tiền thành công
+            try
+            {
+                await _notificationService.SendNotificationAsync(
+                    userId,
+                    "Nạp tiền thành công",
+                    $"Bạn đã nạp thành công {request.Amount:N0} {wallet.Currency} vào ví.",
+                    "PAYMENT",
+                    "/wallet"
+                );
+            }
+            catch
+            {
+                // Notification failure should not block the main business flow
+            }
 
             return new Response.DepositResultResponse
             {
@@ -116,6 +135,22 @@ public class Service : IService
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
+            // Gửi thông báo nạp tiền thành công
+            try
+            {
+                await _notificationService.SendNotificationAsync(
+                    userId,
+                    "Nạp tiền thành công",
+                    $"Bạn đã nạp thành công {request.Amount:N0} {wallet.Currency} vào ví.",
+                    "PAYMENT",
+                    "/wallet"
+                );
+            }
+            catch
+            {
+                // Notification failure should not block the main business flow
+            }
+
             return new Response.DepositResultResponse
             {
                 Wallet = MapToResponse(wallet),
@@ -178,6 +213,22 @@ public class Service : IService
             _dbContext.WalletTransactions.Add(walletTx);
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
+
+            // Gửi thông báo rút tiền thành công
+            try
+            {
+                await _notificationService.SendNotificationAsync(
+                    userId,
+                    "Rút tiền thành công",
+                    $"Yêu cầu rút {request.Amount:N0} {wallet.Currency} của bạn đã được xử lý.",
+                    "PAYMENT",
+                    "/wallet"
+                );
+            }
+            catch
+            {
+                // Notification failure should not block the main business flow
+            }
 
             return new Response.DepositResultResponse
             {

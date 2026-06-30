@@ -2,6 +2,7 @@ using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.Exceptions;
+using Aivora.Services.NotificationService;
 using Aivora.Services.Treasury;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,11 +12,13 @@ public class Service : IService
 {
     private readonly AivoraDbContext _dbContext;
     private readonly ITreasury _treasury;
+    private readonly NotificationService.IService _notificationService;
 
-    public Service(AivoraDbContext dbContext, ITreasury treasury)
+    public Service(AivoraDbContext dbContext, ITreasury treasury, NotificationService.IService notificationService)
     {
         _dbContext = dbContext;
         _treasury = treasury;
+        _notificationService = notificationService;
     }
 
     public async Task<Response.DeliverableResponse> SubmitDeliverableAsync(Guid expertId, Guid milestoneId, Request.SubmitDeliverableRequest request)
@@ -71,6 +74,22 @@ public class Service : IService
             await _treasury.SyncProjectStatusAsync(milestone.ProjectId);
 
             await transaction.CommitAsync();
+
+            // Gửi thông báo cho Client rằng Expert đã nộp sản phẩm
+            try
+            {
+                await _notificationService.SendNotificationAsync(
+                    milestone.Project.ClientId,
+                    "Chuyên gia đã nộp sản phẩm",
+                    $"Chuyên gia đã nộp sản phẩm cho milestone \"{milestone.Title}\". Hãy kiểm tra và đánh giá.",
+                    "MILESTONE",
+                    $"/projects/{milestone.ProjectId}/milestones/{milestoneId}"
+                );
+            }
+            catch
+            {
+                // Notification failure should not block the main business flow
+            }
 
             return MapToResponse(deliverable);
         }

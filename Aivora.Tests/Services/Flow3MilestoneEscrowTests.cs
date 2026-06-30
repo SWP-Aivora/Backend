@@ -123,8 +123,8 @@ public class Flow3MilestoneEscrowTests
         await dbContext.SaveChangesAsync();
 
         // Use the service (public interface)
-        var treasury = new Treasury(dbContext, Mock.Of<ILogger<Treasury>>());
-        var milestoneService = new Service(dbContext, treasury);
+        var treasury = new Treasury(dbContext, Mock.Of<ILogger<Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>());
+        var milestoneService = new Service(dbContext, treasury, Mock.Of<Aivora.Services.NotificationService.IService>());
 
         // ----------------------------------------------------
         // Act: Client funds the milestone
@@ -256,8 +256,8 @@ public class Flow3MilestoneEscrowTests
         dbContext.Milestones.Add(milestone);
         await dbContext.SaveChangesAsync();
 
-        var treasury = new Treasury(dbContext, Mock.Of<ILogger<Treasury>>());
-        var milestoneService = new Service(dbContext, treasury);
+        var treasury = new Treasury(dbContext, Mock.Of<ILogger<Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>());
+        var milestoneService = new Service(dbContext, treasury, Mock.Of<Aivora.Services.NotificationService.IService>());
 
         // ----------------------------------------------------
         // Act & Assert: Should fail with validation error
@@ -373,8 +373,8 @@ public class Flow3MilestoneEscrowTests
         dbContext.Milestones.Add(milestone);
         await dbContext.SaveChangesAsync();
 
-        var treasury = new Treasury(dbContext, Mock.Of<ILogger<Treasury>>());
-        var milestoneService = new Service(dbContext, treasury);
+        var treasury = new Treasury(dbContext, Mock.Of<ILogger<Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>());
+        var milestoneService = new Service(dbContext, treasury, Mock.Of<Aivora.Services.NotificationService.IService>());
 
         // ----------------------------------------------------
         // Act & Assert: Should fail with authorization error

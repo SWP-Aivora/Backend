@@ -2,6 +2,7 @@ using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.Exceptions;
+using Aivora.Services.NotificationService;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -15,11 +16,13 @@ public class Treasury : ITreasury
 {
     private readonly AivoraDbContext _dbContext;
     private readonly ILogger<Treasury> _logger;
+    private readonly NotificationService.IService _notificationService;
 
-    public Treasury(AivoraDbContext dbContext, ILogger<Treasury> logger)
+    public Treasury(AivoraDbContext dbContext, ILogger<Treasury> logger, NotificationService.IService notificationService)
     {
         _dbContext = dbContext;
         _logger = logger;
+        _notificationService = notificationService;
     }
 
     public async Task FundMilestoneAsync(Guid clientId, Guid milestoneId)
@@ -79,6 +82,22 @@ public class Treasury : ITreasury
 
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
+
+            // Gửi thông báo cho Expert rằng milestone đã được nạp tiền
+            try
+            {
+                await _notificationService.SendNotificationAsync(
+                    milestone.Project.ExpertId,
+                    "Milestone đã được nạp tiền",
+                    $"Khách hàng đã nạp tiền cho milestone \"{milestone.Title}\". Hãy bắt đầu thực hiện công việc.",
+                    "MILESTONE",
+                    $"/projects/{milestone.ProjectId}/milestones/{milestoneId}"
+                );
+            }
+            catch
+            {
+                // Notification failure should not block the main business flow
+            }
 
             _logger.LogInformation("✅ Milestone {MilestoneId} funded successfully by Client {ClientId}", milestoneId, clientId);
         }
@@ -154,6 +173,22 @@ public class Treasury : ITreasury
             await SyncProjectStatusAsync(milestone.ProjectId);
 
             await transaction.CommitAsync();
+
+            // Gửi thông báo cho Expert rằng milestone đã được duyệt và thanh toán
+            try
+            {
+                await _notificationService.SendNotificationAsync(
+                    milestone.Project.ExpertId,
+                    "Milestone đã được duyệt và thanh toán",
+                    $"Khách hàng đã duyệt milestone \"{milestone.Title}\" và tiền đã được giải ngân vào ví của bạn.",
+                    "MILESTONE",
+                    $"/projects/{milestone.ProjectId}/milestones/{milestoneId}"
+                );
+            }
+            catch
+            {
+                // Notification failure should not block the main business flow
+            }
 
             _logger.LogInformation("✅ Funds released for Milestone {MilestoneId}", milestoneId);
         }

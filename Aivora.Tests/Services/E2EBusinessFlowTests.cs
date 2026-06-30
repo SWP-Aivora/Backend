@@ -29,6 +29,7 @@ public class E2EBusinessFlowTests
         // Arrange & Preconditions
         // ----------------------------------------------------
         var dbContext = GetDbContext();
+        var mockNotification = new MockNotificationService();
 
         var clientId = Guid.NewGuid(); // Khang
         var expertId = Guid.NewGuid(); // QAnh
@@ -116,7 +117,7 @@ public class E2EBusinessFlowTests
         await dbContext.SaveChangesAsync();
 
         // Client accepts the proposal
-        var hiringService = new Aivora.Services.HiringService.HiringService(dbContext);
+        var hiringService = new Aivora.Services.HiringService.HiringService(dbContext, mockNotification);
         var hiringResult = await hiringService.AcceptProposalAsync(clientId, proposalId);
 
         hiringResult.Status.Should().Be(ProjectStatus.PENDING_PAYMENT.ToString());
@@ -138,8 +139,8 @@ public class E2EBusinessFlowTests
         milestone.Status.Should().Be(MilestoneStatus.CREATED);
 
         // Finance setup
-        var treasury = new Treasury(dbContext, Mock.Of<ILogger<Treasury>>());
-        var milestoneService = new Aivora.Services.MilestoneService.Service(dbContext, treasury);
+        var treasury = new Treasury(dbContext, Mock.Of<ILogger<Treasury>>(), mockNotification);
+        var milestoneService = new Aivora.Services.MilestoneService.Service(dbContext, treasury, mockNotification);
 
         // Client funds milestone
         var fundResult = await milestoneService.FundMilestoneAsync(clientId, milestone.Id);
@@ -158,7 +159,7 @@ public class E2EBusinessFlowTests
         // ----------------------------------------------------
         // 4. E2E Step 4.1 — Expert Submits Deliverable (QAnh)
         // ----------------------------------------------------
-        var deliverableService = new Aivora.Services.DeliverableService.Service(dbContext, treasury);
+        var deliverableService = new Aivora.Services.DeliverableService.Service(dbContext, treasury, mockNotification);
         var submitDeliverableReq = new Aivora.Services.DeliverableService.Request.SubmitDeliverableRequest
         {
             Description = "Chatbot MVP completed with FAQ, product recommendation, and admin prompt config.",
@@ -207,7 +208,7 @@ public class E2EBusinessFlowTests
         // ----------------------------------------------------
         // 7. E2E Step 4.6 & 4.7 — Client & Expert Leave Reviews
         // ----------------------------------------------------
-        var reviewService = new Aivora.Services.ReviewService.Service(dbContext);
+        var reviewService = new Aivora.Services.ReviewService.Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
 
         var clientReviewReq = new Aivora.Services.ReviewService.Request.CreateReviewRequest
         {
@@ -251,6 +252,7 @@ public class E2EBusinessFlowTests
         // Arrange
         // ----------------------------------------------------
         var dbContext = GetDbContext();
+        var mockNotification = new MockNotificationService();
         var clientId = Guid.NewGuid();
         var expertId = Guid.NewGuid();
 
@@ -347,7 +349,7 @@ public class E2EBusinessFlowTests
         dbContext.Proposals.Add(proposal);
         await dbContext.SaveChangesAsync();
 
-        var hiringService = new Aivora.Services.HiringService.HiringService(dbContext);
+        var hiringService = new Aivora.Services.HiringService.HiringService(dbContext, mockNotification);
         var hireResult = await hiringService.AcceptProposalAsync(clientId, proposal.Id);
         var projectId = hireResult.ProjectId;
 
@@ -355,8 +357,8 @@ public class E2EBusinessFlowTests
         // 4. Client Funds Milestone (Escrow)
         // ----------------------------------------------------
         // Finance setup
-        var treasury = new Treasury(dbContext, Mock.Of<ILogger<Treasury>>());
-        var milestoneService = new Aivora.Services.MilestoneService.Service(dbContext, treasury);
+        var treasury = new Treasury(dbContext, Mock.Of<ILogger<Treasury>>(), mockNotification);
+        var milestoneService = new Aivora.Services.MilestoneService.Service(dbContext, treasury, mockNotification);
         var milestone = await dbContext.Milestones.FirstAsync(m => m.ProjectId == projectId);
 
         await milestoneService.FundMilestoneAsync(clientId, milestone.Id);
@@ -364,7 +366,7 @@ public class E2EBusinessFlowTests
         // ----------------------------------------------------
         // 5. Expert Submits and Client Approves -> Payment Released
         // ----------------------------------------------------
-        var deliverableService = new Aivora.Services.DeliverableService.Service(dbContext, treasury);
+        var deliverableService = new Aivora.Services.DeliverableService.Service(dbContext, treasury, mockNotification);
         await deliverableService.SubmitDeliverableAsync(expertId, milestone.Id, new Aivora.Services.DeliverableService.Request.SubmitDeliverableRequest { Description = "Done", FileUrl = "https://example.com/deliverable.zip" });
         await milestoneService.ApproveMilestoneAsync(clientId, milestone.Id);
 
@@ -406,10 +408,10 @@ public class E2EBusinessFlowTests
         await dbContext.SaveChangesAsync();
 
         // Finance setup
-        var treasury = new Treasury(dbContext, Mock.Of<ILogger<Treasury>>());
-        var milestoneService = new Aivora.Services.MilestoneService.Service(dbContext, treasury);
-        var reviewService = new Aivora.Services.ReviewService.Service(dbContext);
         var notificationService = new MockNotificationService();
+        var treasury = new Treasury(dbContext, Mock.Of<ILogger<Treasury>>(), notificationService);
+        var milestoneService = new Aivora.Services.MilestoneService.Service(dbContext, treasury, notificationService);
+        var reviewService = new Aivora.Services.ReviewService.Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
         var disputeService = new Aivora.Services.DisputeService.Service(dbContext, treasury, notificationService);
 
         // ----------------------------------------------------

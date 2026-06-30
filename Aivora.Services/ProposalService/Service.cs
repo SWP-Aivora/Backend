@@ -2,6 +2,7 @@ using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.Exceptions;
+using Aivora.Services.NotificationService;
 using Microsoft.EntityFrameworkCore;
 
 namespace Aivora.Services.ProposalService;
@@ -9,10 +10,12 @@ namespace Aivora.Services.ProposalService;
 public class Service : IService
 {
     private readonly AivoraDbContext _dbContext;
+    private readonly NotificationService.IService _notificationService;
 
-    public Service(AivoraDbContext dbContext)
+    public Service(AivoraDbContext dbContext, NotificationService.IService notificationService)
     {
         _dbContext = dbContext;
+        _notificationService = notificationService;
     }
 
     public async Task<Response.ProposalResponse> GetProposalByIdAsync(Guid id)
@@ -61,6 +64,22 @@ public class Service : IService
 
         _dbContext.Proposals.Add(proposal);
         await _dbContext.SaveChangesAsync();
+
+        // Gửi thông báo cho Client về hồ sơ ứng tuyển mới
+        try
+        {
+            await _notificationService.SendNotificationAsync(
+                job.ClientId,
+                "Hồ sơ ứng tuyển mới",
+                $"Một chuyên gia đã nộp hồ sơ ứng tuyển cho công việc \"{job.Title}\".",
+                "PROPOSAL",
+                $"/jobs/{job.Id}/proposals"
+            );
+        }
+        catch
+        {
+            // Notification failure should not block the main business flow
+        }
 
         return await GetProposalByIdAsync(proposal.Id);
     }
