@@ -22,7 +22,8 @@ public class WalletController : ControllerBase
     {
         _walletService = walletService;
         _vnPayService = vnPayService;
-        _frontendUrl = configuration["FrontendUrl"] ?? "http://localhost:5173";
+        _frontendUrl = configuration["FrontendUrl"]
+            ?? throw new InvalidOperationException("FrontendUrl is not configured.");
     }
 
     [HttpGet("me")]

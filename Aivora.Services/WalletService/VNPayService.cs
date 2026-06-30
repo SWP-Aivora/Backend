@@ -173,7 +173,8 @@ public class VNPayService : IVNPayService
             {
                 // Another IPN callback created the wallet first — use that one.
                 _dbContext.Entry(wallet).State = EntityState.Detached;
-                wallet = await _dbContext.Wallets.FirstAsync(w => w.UserId == userId);
+                wallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == userId)
+                    ?? throw new InvalidOperationException($"Wallet for user {userId} was removed after creation.");
             }
         }
 
