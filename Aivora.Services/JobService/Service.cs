@@ -86,7 +86,6 @@ public class Service : IService
     {
         var job = await _dbContext.JobPosts
             .Include(j => j.JobSkills)
-            .Include(j => j.Milestones)
             .FirstOrDefaultAsync(j => j.Id == jobId && j.ClientId == clientId);
 
         if (job == null) throw new NotFoundException("Job not found or access denied.");
@@ -126,24 +125,23 @@ public class Service : IService
         if (request.Milestones != null)
         {
             var validatedMilestones = NormalizeUpdateMilestones(request.Milestones);
-            // Clear old milestones and add new ones
-            foreach (var old in job.Milestones.ToList())
+            // Delete old milestones via DbSet to avoid InMemory EF tracking issues
+            var oldMilestones = await _dbContext.JobPostMilestones
+                .Where(m => m.JobPostId == jobId)
+                .ToListAsync();
+            _dbContext.JobPostMilestones.RemoveRange(oldMilestones);
+            // Add new milestones via DbSet
+            var newMilestones = validatedMilestones.Select(m => new JobPostMilestone
             {
-                job.Milestones.Remove(old);
-            }
-            foreach (var m in validatedMilestones)
-            {
-                job.Milestones.Add(new JobPostMilestone
-                {
-                    JobPostId = jobId,
-                    Title = m.Title,
-                    Description = m.Description,
-                    Amount = m.Amount,
-                    DueDays = m.DueDays,
-                    AcceptanceCriteria = m.AcceptanceCriteria,
-                    OrderIndex = m.OrderIndex
-                });
-            }
+                JobPostId = jobId,
+                Title = m.Title,
+                Description = m.Description,
+                Amount = m.Amount,
+                DueDays = m.DueDays,
+                AcceptanceCriteria = m.AcceptanceCriteria,
+                OrderIndex = m.OrderIndex
+            }).ToList();
+            await _dbContext.JobPostMilestones.AddRangeAsync(newMilestones);
         }
 
         await _dbContext.SaveChangesAsync();

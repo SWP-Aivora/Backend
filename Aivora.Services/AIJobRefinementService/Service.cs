@@ -46,7 +46,7 @@ public class Service : IService
 
         if (draft.ChangedFields.Count > 0)
         {
-            ApplyDraft(job, draft);
+            ApplyDraft(_dbContext, job, draft);
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
 
@@ -60,7 +60,7 @@ public class Service : IService
         };
     }
 
-    private static void ApplyDraft(JobPost job, AIJobRefinementDraft draft)
+    private static void ApplyDraft(AivoraDbContext dbContext, JobPost job, AIJobRefinementDraft draft)
     {
         foreach (var field in draft.ChangedFields)
         {
@@ -107,24 +107,44 @@ public class Service : IService
                 case "skills":
                     if (draft.Skills.Count > 0)
                     {
-                        job.JobSkills = draft.Skills
-                            .Where(s => !string.IsNullOrWhiteSpace(s))
-                            .Select(s => new JobSkill { Skill = new Skill { Name = s.Trim() } })
-                            .ToList();
+                        // Xoa JobSkill cu truoc khi replace, lookup Skill bang name
+                        foreach (var old in job.JobSkills.ToList())
+                        {
+                            job.JobSkills.Remove(old);
+                        }
+                        foreach (var skillName in draft.Skills.Where(s => !string.IsNullOrWhiteSpace(s)))
+                        {
+                            var trimmed = skillName.Trim();
+                            var existingSkill = dbContext.Skills
+                                .FirstOrDefault(s => s.Name == trimmed);
+                            job.JobSkills.Add(new JobSkill
+                            {
+                                SkillId = existingSkill?.Id ?? Guid.Empty,
+                                Skill = existingSkill ?? new Skill { Name = trimmed }
+                            });
+                        }
                     }
                     break;
                 case "milestones":
                     if (draft.Milestones.Count > 0)
                     {
-                        job.Milestones = draft.Milestones.Select(m => new JobPostMilestone
+                        // Xoa milestone cu truoc khi replace — tranh orphaned records
+                        foreach (var old in job.Milestones.ToList())
                         {
-                            Title = m.Title,
-                            Description = m.Description,
-                            Amount = Math.Max(m.Amount, 1),
-                            DueDays = Math.Clamp(m.DueDays, 1, 3650),
-                            AcceptanceCriteria = m.AcceptanceCriteria,
-                            OrderIndex = 0
-                        }).ToList();
+                            job.Milestones.Remove(old);
+                        }
+                        foreach (var m in draft.Milestones)
+                        {
+                            job.Milestones.Add(new JobPostMilestone
+                            {
+                                Title = m.Title,
+                                Description = m.Description,
+                                Amount = Math.Max(m.Amount, 1),
+                                DueDays = Math.Clamp(m.DueDays, 1, 3650),
+                                AcceptanceCriteria = m.AcceptanceCriteria,
+                                OrderIndex = 0
+                            });
+                        }
                     }
                     break;
             }

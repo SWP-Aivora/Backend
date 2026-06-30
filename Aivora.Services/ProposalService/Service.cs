@@ -116,7 +116,6 @@ public class Service : IService
         if (request is null) throw new ValidationException("Request body is required.");
 
         var proposal = await _dbContext.Proposals
-            .Include(p => p.Milestones)
             .FirstOrDefaultAsync(p => p.Id == proposalId);
 
         if (proposal == null) throw new NotFoundException("Proposal not found.");
@@ -140,24 +139,22 @@ public class Service : IService
         proposal.ProposedTimelineDays = request.ProposedTimelineDays;
         proposal.UpdatedAt = DateTimeOffset.UtcNow;
 
-        // Replace milestones: delete old, insert new
-        var oldMilestones = proposal.Milestones.ToList();
-        foreach (var old in oldMilestones)
+        // Delete old milestones via DbSet, then insert new ones
+        var oldMilestones = await _dbContext.ProposalMilestones
+            .Where(m => m.ProposalId == proposalId)
+            .ToListAsync();
+        _dbContext.ProposalMilestones.RemoveRange(oldMilestones);
+        var newMilestones = validatedMilestones.Select(m => new ProposalMilestone
         {
-            proposal.Milestones.Remove(old);
-        }
-        foreach (var m in validatedMilestones)
-        {
-            proposal.Milestones.Add(new ProposalMilestone
-            {
-                Title = m.Title,
-                Description = m.Description,
-                Amount = m.Amount,
-                DueDays = m.DueDays,
-                AcceptanceCriteria = m.AcceptanceCriteria,
-                OrderIndex = m.OrderIndex
-            });
-        }
+            ProposalId = proposalId,
+            Title = m.Title,
+            Description = m.Description,
+            Amount = m.Amount,
+            DueDays = m.DueDays,
+            AcceptanceCriteria = m.AcceptanceCriteria,
+            OrderIndex = m.OrderIndex
+        }).ToList();
+        await _dbContext.ProposalMilestones.AddRangeAsync(newMilestones);
 
         await _dbContext.SaveChangesAsync();
 
