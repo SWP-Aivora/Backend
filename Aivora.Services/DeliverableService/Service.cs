@@ -75,13 +75,13 @@ public class Service : IService
 
             await transaction.CommitAsync();
 
-            // Gửi thông báo cho Client rằng Expert đã nộp sản phẩm
+            // Send notification to the Client that the Expert has submitted a deliverable
             try
             {
                 await _notificationService.SendNotificationAsync(
                     milestone.Project.ClientId,
-                    "Chuyên gia đã nộp sản phẩm",
-                    $"Chuyên gia đã nộp sản phẩm cho milestone \"{milestone.Title}\". Hãy kiểm tra và đánh giá.",
+                    "Expert has submitted a deliverable",
+                    $"The expert has submitted a deliverable for milestone \"{milestone.Title}\". Please review and evaluate.",
                     "MILESTONE",
                     $"/projects/{milestone.ProjectId}/milestones/{milestoneId}"
                 );

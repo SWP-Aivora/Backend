@@ -21,7 +21,7 @@ public class AIJobSuggestionPromptBuilder
 
         return $$"""
             You are an AI Job Assistant for a freelance marketplace.
-            Parse the client requirement into a structured job suggestion in Vietnamese when possible.
+            Parse the client requirement into a structured job suggestion in English.
             Client input and hints:
             {{JsonSerializer.Serialize(context)}}
 

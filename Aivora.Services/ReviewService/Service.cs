@@ -88,13 +88,13 @@ public class Service : IService
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
-            // Gửi thông báo cho người được đánh giá
+            // Send notification to the reviewee
             try
             {
                 await _notificationService.SendNotificationAsync(
                     request.RevieweeId,
-                    "Bạn đã nhận được một đánh giá mới",
-                    $"Bạn đã nhận được một đánh giá {request.Rating}/5 sao cho dự án. Hãy vào xem chi tiết.",
+                    "You have received a new review",
+                    $"You have received a {request.Rating}/5 star review for the project. View details.",
                     "REVIEW",
                     $"/projects/{request.ProjectId}"
                 );

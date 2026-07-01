@@ -288,7 +288,7 @@ namespace Aivora.Tests.UnitTests
 
             var request = new Aivora.Services.DisputeService.Request.RequestEvidenceRequest
             {
-                Note = "Vui lòng cung cấp thêm ảnh chụp màn hình"
+                Note = "Please provide additional screenshots"
             };
 
             // Act
@@ -304,8 +304,8 @@ namespace Aivora.Tests.UnitTests
             // Assert - notification was sent to opener
             Assert.True(_mockNotificationService.WasCalled);
             Assert.Equal(client.Id, _mockNotificationService.LastUserId);
-            Assert.Equal("Yêu cầu bổ sung bằng chứng", _mockNotificationService.LastTitle);
-            Assert.Equal("Vui lòng cung cấp thêm ảnh chụp màn hình", _mockNotificationService.LastMessage);
+            Assert.Equal("Additional evidence requested", _mockNotificationService.LastTitle);
+            Assert.Equal("Please provide additional screenshots", _mockNotificationService.LastMessage);
             Assert.Equal("DISPUTE", _mockNotificationService.LastType);
             Assert.Contains(dispute.Id.ToString(), _mockNotificationService.LastLinkUrl);
         }
@@ -321,7 +321,7 @@ namespace Aivora.Tests.UnitTests
 
             var request = new Aivora.Services.DisputeService.Request.RequestEvidenceRequest
             {
-                Note = "Thêm bằng chứng lần 2"
+                Note = "Additional evidence 2"
             };
 
             // Act
@@ -343,7 +343,7 @@ namespace Aivora.Tests.UnitTests
 
             var request = new Aivora.Services.DisputeService.Request.RequestEvidenceRequest
             {
-                Note = "Thêm bằng chứng"
+                Note = "Additional evidence"
             };
 
             // Act & Assert
@@ -363,7 +363,7 @@ namespace Aivora.Tests.UnitTests
 
             var request = new Aivora.Services.DisputeService.Request.RequestEvidenceRequest
             {
-                Note = "Thêm bằng chứng"
+                Note = "Additional evidence"
             };
 
             // Act & Assert

@@ -82,13 +82,13 @@ public class HiringService : IHiringService
 
             await transaction.CommitAsync();
 
-            // Gửi thông báo cho Expert được chấp nhận
+            // Send notification to the accepted Expert
             try
             {
                 await _notificationService.SendNotificationAsync(
                     proposal.ExpertId,
-                    "Hồ sơ được chấp nhận",
-                    $"Chúc mừng! Hồ sơ của bạn cho công việc \"{proposal.Job.Title}\" đã được chấp nhận.",
+                    "Proposal accepted",
+                    $"Congratulations! Your proposal for the job \"{proposal.Job.Title}\" has been accepted.",
                     "PROPOSAL",
                     $"/projects/{project.Id}"
                 );
@@ -98,15 +98,15 @@ public class HiringService : IHiringService
                 // Notification failure should not block the main business flow
             }
 
-            // Gửi thông báo cho các Expert bị từ chối (do accept proposal khác)
+            // Send notification to rejected Experts (another proposal was accepted)
             foreach (var p in otherProposals)
             {
                 try
                 {
                     await _notificationService.SendNotificationAsync(
                         p.ExpertId,
-                        "Hồ sơ bị từ chối",
-                        $"Hồ sơ của bạn cho công việc \"{proposal.Job.Title}\" đã bị từ chối do khách hàng đã chọn chuyên gia khác.",
+                        "Proposal rejected",
+                        $"Your proposal for the job \"{proposal.Job.Title}\" has been rejected because the client selected another expert.",
                         "PROPOSAL",
                         $"/jobs/{proposal.JobId}"
                     );
@@ -158,13 +158,13 @@ public class HiringService : IHiringService
 
         await _dbContext.SaveChangesAsync();
 
-        // Gửi thông báo cho Expert bị từ chối
+        // Send notification to the rejected Expert
         try
         {
             await _notificationService.SendNotificationAsync(
                 proposal.ExpertId,
-                "Hồ sơ bị từ chối",
-                $"Hồ sơ của bạn cho công việc \"{proposal.Job.Title}\" đã bị từ chối.",
+                "Proposal rejected",
+                $"Your proposal for the job \"{proposal.Job.Title}\" has been rejected.",
                 "PROPOSAL",
                 $"/jobs/{proposal.JobId}"
             );

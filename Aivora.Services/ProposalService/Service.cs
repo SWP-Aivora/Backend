@@ -65,13 +65,13 @@ public class Service : IService
         _dbContext.Proposals.Add(proposal);
         await _dbContext.SaveChangesAsync();
 
-        // Gửi thông báo cho Client về hồ sơ ứng tuyển mới
+        // Send notification to the Client about the new proposal
         try
         {
             await _notificationService.SendNotificationAsync(
                 job.ClientId,
-                "Hồ sơ ứng tuyển mới",
-                $"Một chuyên gia đã nộp hồ sơ ứng tuyển cho công việc \"{job.Title}\".",
+                "New proposal received",
+                $"An expert has submitted a proposal for the job \"{job.Title}\".",
                 "PROPOSAL",
                 $"/jobs/{job.Id}/proposals"
             );

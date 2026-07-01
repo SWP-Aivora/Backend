@@ -67,13 +67,13 @@ public class Service : IService
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
-            // Gửi thông báo cho bên bị khiếu nại
+            // Send notification to the respondent
             try
             {
                 await _notificationService.SendNotificationAsync(
                     againstUserId,
-                    "Một tranh chấp đã được mở",
-                    $"Một tranh chấp đã được mở liên quan đến dự án của bạn. Lý do: {request.Reason}",
+                    "A dispute has been opened",
+                    $"A dispute has been opened regarding your project. Reason: {request.Reason}",
                     "DISPUTE",
                     $"/disputes/{dispute.Id}"
                 );
@@ -267,13 +267,13 @@ public class Service : IService
 
         await _dbContext.SaveChangesAsync();
 
-        // Gửi thông báo kết quả phân xử cho cả 2 bên
-        var resolutionMessage = $"Tranh chấp đã được admin phân xử. Kết quả: {request.ResolutionType}. Ghi chú: {request.ResolutionNote ?? "Không có"}";
+        // Send resolution notification to both parties
+        var resolutionMessage = $"The dispute has been resolved by admin. Result: {request.ResolutionType}. Note: {request.ResolutionNote ?? "None"}";
         try
         {
             await _notificationService.SendNotificationAsync(
                 dispute.OpenedBy,
-                "Tranh chấp đã được phân xử",
+                "Dispute has been resolved",
                 resolutionMessage,
                 "DISPUTE",
                 $"/disputes/{disputeId}"
@@ -285,7 +285,7 @@ public class Service : IService
         {
             await _notificationService.SendNotificationAsync(
                 dispute.AgainstUserId,
-                "Tranh chấp đã được phân xử",
+                "Dispute has been resolved",
                 resolutionMessage,
                 "DISPUTE",
                 $"/disputes/{disputeId}"
@@ -329,13 +329,13 @@ public class Service : IService
         // Recalculate project status based on milestone states
         await _treasury.SyncProjectStatusAsync(dispute.ProjectId);
 
-        // Gửi thông báo cho bên còn lại rằng tranh chấp đã được đóng
+        // Send notification to the other party that the dispute has been closed
         try
         {
             await _notificationService.SendNotificationAsync(
                 dispute.AgainstUserId,
-                "Tranh chấp đã được đóng",
-                "Tranh chấp đã được đóng bởi người khiếu nại. Bạn có thể tiếp tục làm việc trên milestone.",
+                "Dispute has been closed",
+                "The dispute has been closed by the opener. You can continue working on the milestone.",
                 "DISPUTE",
                 $"/disputes/{disputeId}"
             );
@@ -371,7 +371,7 @@ public class Service : IService
         {
             await _notificationService.SendNotificationAsync(
                 dispute.OpenedBy,
-                "Yêu cầu bổ sung bằng chứng",
+                "Additional evidence requested",
                 request.Note,
                 "DISPUTE",
                 $"/disputes/{disputeId}"
