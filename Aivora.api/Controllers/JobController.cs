@@ -3,6 +3,7 @@ using Aivora.Repositories.Enums;
 using Aivora.Services.Base;
 using Aivora.Services.JobService;
 using Aivora.Services.Models;
+using Aivora.Services.VerificationService;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -20,6 +21,7 @@ public class JobController : ControllerBase
     private readonly IService _jobService;
     private readonly Aivora.Services.RecommendationService.IService _recommendationService;
     private readonly Aivora.Services.ProposalService.IService _proposalService;
+    private readonly IVerificationService _verificationService;
 
     /// <summary>
     /// Initializes a new instance of the JobController
@@ -27,14 +29,17 @@ public class JobController : ControllerBase
     /// <param name="jobService">Job service for job operations</param>
     /// <param name="recommendationService">Recommendation service for expert matching</param>
     /// <param name="proposalService">Proposal service for proposal management</param>
+    /// <param name="verificationService">Verification service for expert validation</param>
     public JobController(
         IService jobService,
         Aivora.Services.RecommendationService.IService recommendationService,
-        Aivora.Services.ProposalService.IService proposalService)
+        Aivora.Services.ProposalService.IService proposalService,
+        IVerificationService verificationService)
     {
         _jobService = jobService;
         _recommendationService = recommendationService;
         _proposalService = proposalService;
+        _verificationService = verificationService;
     }
 
     /// <summary>

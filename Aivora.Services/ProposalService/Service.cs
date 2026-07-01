@@ -3,6 +3,7 @@ using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.Exceptions;
 using Aivora.Services.NotificationService;
+using Aivora.Services.VerificationService;
 using Microsoft.EntityFrameworkCore;
 
 namespace Aivora.Services.ProposalService;
@@ -11,11 +12,16 @@ public class Service : IService
 {
     private readonly AivoraDbContext _dbContext;
     private readonly NotificationService.IService _notificationService;
+    private readonly IVerificationService _verificationService;
 
-    public Service(AivoraDbContext dbContext, NotificationService.IService notificationService)
+    public Service(
+        AivoraDbContext dbContext,
+        NotificationService.IService notificationService,
+        IVerificationService verificationService)
     {
         _dbContext = dbContext;
         _notificationService = notificationService;
+        _verificationService = verificationService;
     }
 
     public async Task<Response.ProposalResponse> GetProposalByIdAsync(Guid id)
@@ -38,6 +44,13 @@ public class Service : IService
         if (job.Status != JobStatus.OPEN) throw new ValidationException("Job is no longer open for proposals.");
 
         if (job.ClientId == expertId) throw new ValidationException("You cannot submit a proposal to your own job.");
+
+        // Check if expert is verified before allowing proposal submission
+        var verification = await _verificationService.GetVerificationAsync(expertId);
+        if (verification == null || verification.Status != VerificationStatus.VERIFIED)
+        {
+            throw new ValidationException("Your profile verification is still pending or not completed. Please complete verification before submitting proposals.");
+        }
 
         var existingProposal = await _dbContext.Proposals.AnyAsync(p => p.JobId == request.JobId && p.ExpertId == expertId);
         if (existingProposal) throw new ValidationException("You have already submitted a proposal for this job.");
@@ -97,7 +110,17 @@ public class Service : IService
             .OrderByDescending(p => p.CreatedAt)
             .ToListAsync();
 
-        return proposals.Select(MapToResponse).ToList();
+        // Include verification status for each proposal
+        var proposalResponses = new List<Response.ProposalResponse>();
+        foreach (var proposal in proposals)
+        {
+            var verification = await _verificationService.GetVerificationAsync(proposal.ExpertId);
+            var response = MapToResponse(proposal);
+            response.IsExpertVerified = verification?.Status == VerificationStatus.VERIFIED;
+            proposalResponses.Add(response);
+        }
+
+        return proposalResponses;
     }
 
     public async Task<List<Response.ProposalResponse>> GetExpertProposalsAsync(Guid expertId)

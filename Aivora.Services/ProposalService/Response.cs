@@ -18,6 +18,7 @@ public class Response
         public ProposalStatus Status { get; set; }
         public DateTimeOffset SubmittedAt { get; set; }
         public List<ProposalMilestoneResponse> Milestones { get; set; } = new();
+        public bool IsExpertVerified { get; set; }
     }
 
     public class ProposalMilestoneResponse

@@ -14,11 +14,18 @@ public class ExpertProfileConfiguration : IEntityTypeConfiguration<ExpertProfile
         builder.Property(x => x.Title).HasMaxLength(255);
         builder.Property(x => x.Bio).HasMaxLength(5000);
         builder.Property(x => x.AvailabilityStatus).HasConversion<string>().IsRequired();
+        builder.Property(x => x.VerificationStatus).HasConversion<string>().IsRequired();
 
         // Relationships
         builder.HasMany(x => x.ExpertSkills)
             .WithOne(x => x.Expert)
             .HasForeignKey(x => x.ExpertId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // One-to-one with ExpertVerification
+        builder.HasOne(x => x.Verification)
+            .WithOne(x => x.Expert)
+            .HasForeignKey<ExpertVerification>(x => x.ExpertId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }
