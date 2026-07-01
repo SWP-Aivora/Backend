@@ -93,13 +93,13 @@ public class AdminServiceTests
         var updateId = Guid.NewGuid();
 
         var profile = new ExpertProfile { Id = expertProfileId, Title = "Old Title", ExperienceYears = 5, UserId = Guid.NewGuid() };
-        var update = new ExpertProfileUpdate 
-        { 
-            Id = updateId, 
-            ExpertProfileId = expertProfileId, 
-            Title = "New Title", 
-            ExperienceYears = 7, 
-            Status = ProfileUpdateStatus.PENDING 
+        var update = new ExpertProfileUpdate
+        {
+            Id = updateId,
+            ExpertProfileId = expertProfileId,
+            Title = "New Title",
+            ExperienceYears = 7,
+            Status = ProfileUpdateStatus.PENDING
         };
 
         dbContext.ExpertProfiles.Add(profile);
@@ -114,7 +114,7 @@ public class AdminServiceTests
 
         // Assert
         result.Status.Should().Be(ProfileUpdateStatus.APPROVED.ToString());
-        
+
         var updatedProfile = await dbContext.ExpertProfiles.FindAsync(expertProfileId);
         updatedProfile!.Title.Should().Be("New Title");
         updatedProfile.ExperienceYears.Should().Be(7);
@@ -130,13 +130,13 @@ public class AdminServiceTests
         var updateId = Guid.NewGuid();
 
         var profile = new ExpertProfile { Id = expertProfileId, Title = "Old Title", ExperienceYears = 5, UserId = Guid.NewGuid() };
-        var update = new ExpertProfileUpdate 
-        { 
-            Id = updateId, 
-            ExpertProfileId = expertProfileId, 
-            Title = "New Title", 
-            ExperienceYears = 7, 
-            Status = ProfileUpdateStatus.PENDING 
+        var update = new ExpertProfileUpdate
+        {
+            Id = updateId,
+            ExpertProfileId = expertProfileId,
+            Title = "New Title",
+            ExperienceYears = 7,
+            Status = ProfileUpdateStatus.PENDING
         };
 
         dbContext.ExpertProfiles.Add(profile);
@@ -152,7 +152,7 @@ public class AdminServiceTests
         // Assert
         result.Status.Should().Be(ProfileUpdateStatus.REJECTED.ToString());
         result.RejectionReason.Should().Be("Invalid info");
-        
+
         var updatedProfile = await dbContext.ExpertProfiles.FindAsync(expertProfileId);
         updatedProfile!.Title.Should().Be("Old Title"); // Unchanged
         updatedProfile.ExperienceYears.Should().Be(5);

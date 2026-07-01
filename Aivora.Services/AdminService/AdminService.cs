@@ -186,7 +186,7 @@ public class AdminService : IAdminService
         if (request.IsApproved)
         {
             update.Status = ProfileUpdateStatus.APPROVED;
-            
+
             // Apply changes to ExpertProfile
             if (update.Title != null) update.ExpertProfile.Title = update.Title;
             if (update.Bio != null) update.ExpertProfile.Bio = update.Bio;

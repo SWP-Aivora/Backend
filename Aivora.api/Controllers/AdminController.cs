@@ -60,6 +60,7 @@ public class AdminController : ControllerBase
     }
 
     [HttpPut("expert-profile-updates/{id}/review")]
+    [Authorize(Policy = JwtExtensions.AdminPolicy)]
     public async Task<IActionResult> ReviewExpertProfileUpdate(Guid id, [FromBody] Request.ReviewExpertProfileUpdateRequest request)
     {
         var adminId = this.GetUserId();

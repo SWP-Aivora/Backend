@@ -89,6 +89,10 @@ public class Service : IService
             .FirstOrDefaultAsync(p => p.UserId == userId);
         if (profile == null) throw new NotFoundException("Expert profile not found.");
 
+        var hasPendingUpdate = await _dbContext.ExpertProfileUpdates
+            .AnyAsync(u => u.ExpertProfileId == profile.Id && u.Status == Aivora.Repositories.Enums.ProfileUpdateStatus.PENDING);
+        if (hasPendingUpdate) throw new ValidationException("A pending profile update already exists. Please wait for admin review.");
+
         var pendingUpdate = new ExpertProfileUpdate
         {
             ExpertProfileId = profile.Id,
@@ -100,7 +104,7 @@ public class Service : IService
         };
 
         _dbContext.ExpertProfileUpdates.Add(pendingUpdate);
-        
+
         // AvailabilityStatus can still be updated immediately as it doesn't require admin review
         profile.AvailabilityStatus = request.AvailabilityStatus;
 

@@ -10,7 +10,7 @@ public class ExpertProfileUpdate : AuditableBaseEntity
     public string? Bio { get; set; }
     public decimal? HourlyRate { get; set; }
     public int? ExperienceYears { get; set; }
-    
+
     public ProfileUpdateStatus Status { get; set; } = ProfileUpdateStatus.PENDING;
     public Guid? AdminId { get; set; }
     public string? RejectionReason { get; set; }

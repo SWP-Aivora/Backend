@@ -95,7 +95,7 @@ public class ProfileServiceTests
         var dbContext = GetDbContext();
         var userId = Guid.NewGuid();
         var profileId = Guid.NewGuid();
-        
+
         var user = new User { Id = userId, FullName = "Expert Name", Email = "e@t.com", Role = UserRole.EXPERT, PasswordHash = "h" };
         var profile = new ExpertProfile { Id = profileId, UserId = userId, Title = "Old Title", ExperienceYears = 5 };
 
@@ -104,8 +104,8 @@ public class ProfileServiceTests
         await dbContext.SaveChangesAsync();
 
         var service = new Aivora.Services.ProfileService.Service(dbContext);
-        var request = new Request.UpdateExpertProfileRequest 
-        { 
+        var request = new Request.UpdateExpertProfileRequest
+        {
             Title = "New Title",
             Bio = "New Bio",
             HourlyRate = 50,
@@ -118,7 +118,7 @@ public class ProfileServiceTests
         // Assert
         // The returned profile should still have old data since it's pending
         result.Title.Should().Be("Old Title");
-        
+
         // A pending update should have been created
         var pendingUpdate = await dbContext.ExpertProfileUpdates.FirstOrDefaultAsync(u => u.ExpertProfileId == profileId);
         pendingUpdate.Should().NotBeNull();
