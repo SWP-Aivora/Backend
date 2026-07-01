@@ -222,13 +222,13 @@ public class VNPayService : IVNPayService
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
-            // Gửi thông báo nạp tiền VNPay thành công
+            // Send VNPay deposit success notification
             try
             {
                 await _notificationService.SendNotificationAsync(
                     userId,
-                    "Nạp tiền qua VNPay thành công",
-                    $"Bạn đã nạp thành công {amount:N0} {wallet.Currency} vào ví qua VNPay.",
+                    "VNPay deposit successful",
+                    $"You have successfully deposited {amount:N0} {wallet.Currency} to your wallet via VNPay.",
                     "PAYMENT",
                     "/wallet"
                 );

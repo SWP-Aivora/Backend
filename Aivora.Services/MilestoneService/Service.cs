@@ -164,13 +164,13 @@ public class Service : IService
 
         await _dbContext.SaveChangesAsync();
 
-        // Gửi thông báo cho Expert rằng khách hàng yêu cầu chỉnh sửa
+        // Send notification to the Expert that the client requested a revision
         try
         {
             await _notificationService.SendNotificationAsync(
                 milestone.Project.ExpertId,
-                "Khách hàng yêu cầu chỉnh sửa",
-                $"Khách hàng yêu cầu chỉnh sửa cho milestone \"{milestone.Title}\". Lý do: {reason}",
+                "Client requested a revision",
+                $"The client has requested a revision for milestone \"{milestone.Title}\". Reason: {reason}",
                 "MILESTONE",
                 $"/projects/{milestone.ProjectId}/milestones/{milestoneId}"
             );

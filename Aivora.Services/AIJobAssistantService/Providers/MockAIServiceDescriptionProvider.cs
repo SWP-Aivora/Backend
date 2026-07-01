@@ -5,16 +5,12 @@ public class MockAIServiceDescriptionProvider : IAIServiceDescriptionProvider
     public Task<AIServiceDescriptionDraft> GenerateServiceDescriptionAsync(Request.GenerateServiceDescriptionRequest request, CancellationToken cancellationToken = default)
     {
         var primarySkill = request.Skills.FirstOrDefault() ?? "AI";
-        var title = request.Language.Equals("en", StringComparison.OrdinalIgnoreCase)
-            ? $"Professional Service: Build {primarySkill} Solutions"
-            : $"Dich vu chuyen nghiep: Thiet ke va lap trinh {primarySkill}";
+        var title = $"Professional Service: Build {primarySkill} Solutions";
 
         var draft = new AIServiceDescriptionDraft
         {
             SuggestedTitle = title,
-            SuggestedDescription = request.Language.Equals("en", StringComparison.OrdinalIgnoreCase)
-                ? $"I deliver high-quality services for {string.Join(", ", request.Skills)}. {request.RawInput}"
-                : $"Toi cung cap dich vu chat luong cao ve {string.Join(", ", request.Skills)}. {request.RawInput}",
+            SuggestedDescription = $"I deliver high-quality services for {string.Join(", ", request.Skills)}. {request.RawInput}",
             Packages = new List<Response.ServicePackageResponse>
             {
                 new()

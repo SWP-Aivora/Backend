@@ -54,13 +54,13 @@ public class Service : IService
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
-            // Gửi thông báo nạp tiền thành công
+            // Send deposit success notification
             try
             {
                 await _notificationService.SendNotificationAsync(
                     userId,
-                    "Nạp tiền thành công",
-                    $"Bạn đã nạp thành công {request.Amount:N0} {wallet.Currency} vào ví.",
+                    "Deposit successful",
+                    $"You have successfully deposited {request.Amount:N0} {wallet.Currency} to your wallet.",
                     "PAYMENT",
                     "/wallet"
                 );
@@ -135,13 +135,13 @@ public class Service : IService
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
-            // Gửi thông báo nạp tiền thành công
+            // Send deposit success notification
             try
             {
                 await _notificationService.SendNotificationAsync(
                     userId,
-                    "Nạp tiền thành công",
-                    $"Bạn đã nạp thành công {request.Amount:N0} {wallet.Currency} vào ví.",
+                    "Deposit successful",
+                    $"You have successfully deposited {request.Amount:N0} {wallet.Currency} to your wallet.",
                     "PAYMENT",
                     "/wallet"
                 );
@@ -170,7 +170,7 @@ public class Service : IService
 
         var wallet = await GetOrCreateWalletAsync(userId);
 
-        var orderInfo = $"Nap tien Aivora - User {userId}";
+        var orderInfo = $"Aivora Deposit - User {userId}";
         var result = _vnPayService.CreatePaymentUrl(userId, request.Amount, orderInfo, wallet);
 
         return new Response.VnPayDepositResponse
@@ -214,13 +214,13 @@ public class Service : IService
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
-            // Gửi thông báo rút tiền thành công
+            // Send withdrawal success notification
             try
             {
                 await _notificationService.SendNotificationAsync(
                     userId,
-                    "Rút tiền thành công",
-                    $"Yêu cầu rút {request.Amount:N0} {wallet.Currency} của bạn đã được xử lý.",
+                    "Withdrawal successful",
+                    $"Your withdrawal of {request.Amount:N0} {wallet.Currency} has been processed.",
                     "PAYMENT",
                     "/wallet"
                 );

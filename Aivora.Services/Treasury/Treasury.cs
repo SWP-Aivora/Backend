@@ -83,13 +83,13 @@ public class Treasury : ITreasury
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
-            // Gửi thông báo cho Expert rằng milestone đã được nạp tiền
+            // Send notification to the Expert that the milestone has been funded
             try
             {
                 await _notificationService.SendNotificationAsync(
                     milestone.Project.ExpertId,
-                    "Milestone đã được nạp tiền",
-                    $"Khách hàng đã nạp tiền cho milestone \"{milestone.Title}\". Hãy bắt đầu thực hiện công việc.",
+                    "Milestone has been funded",
+                    $"The client has funded milestone \"{milestone.Title}\". You can start working on it.",
                     "MILESTONE",
                     $"/projects/{milestone.ProjectId}/milestones/{milestoneId}"
                 );
@@ -174,13 +174,13 @@ public class Treasury : ITreasury
 
             await transaction.CommitAsync();
 
-            // Gửi thông báo cho Expert rằng milestone đã được duyệt và thanh toán
+            // Send notification to the Expert that the milestone has been approved and paid
             try
             {
                 await _notificationService.SendNotificationAsync(
                     milestone.Project.ExpertId,
-                    "Milestone đã được duyệt và thanh toán",
-                    $"Khách hàng đã duyệt milestone \"{milestone.Title}\" và tiền đã được giải ngân vào ví của bạn.",
+                    "Milestone approved and paid",
+                    $"The client has approved milestone \"{milestone.Title}\" and the payment has been released to your wallet.",
                     "MILESTONE",
                     $"/projects/{milestone.ProjectId}/milestones/{milestoneId}"
                 );
