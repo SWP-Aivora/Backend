@@ -87,4 +87,43 @@ public class ProfileServiceTests
         // Assert
         result.CompanyName.Should().Be("Test Co");
     }
+
+    [Fact]
+    public async Task UpdateExpertProfileAsync_CreatesPendingUpdate_InsteadOfImmediateChange()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var userId = Guid.NewGuid();
+        var profileId = Guid.NewGuid();
+
+        var user = new User { Id = userId, FullName = "Expert Name", Email = "e@t.com", Role = UserRole.EXPERT, PasswordHash = "h" };
+        var profile = new ExpertProfile { Id = profileId, UserId = userId, Title = "Old Title", ExperienceYears = 5 };
+
+        dbContext.Users.Add(user);
+        dbContext.ExpertProfiles.Add(profile);
+        await dbContext.SaveChangesAsync();
+
+        var service = new Aivora.Services.ProfileService.Service(dbContext);
+        var request = new Request.UpdateExpertProfileRequest
+        {
+            Title = "New Title",
+            Bio = "New Bio",
+            HourlyRate = 50,
+            ExperienceYears = 10
+        };
+
+        // Act
+        var result = await service.UpdateExpertProfileAsync(userId, request);
+
+        // Assert
+        // The returned profile should still have old data since it's pending
+        result.Title.Should().Be("Old Title");
+
+        // A pending update should have been created
+        var pendingUpdate = await dbContext.ExpertProfileUpdates.FirstOrDefaultAsync(u => u.ExpertProfileId == profileId);
+        pendingUpdate.Should().NotBeNull();
+        pendingUpdate!.Title.Should().Be("New Title");
+        pendingUpdate.ExperienceYears.Should().Be(10);
+        pendingUpdate.Status.Should().Be(ProfileUpdateStatus.PENDING);
+    }
 }

@@ -10,6 +10,7 @@ public interface IAdminService
     Task<Aivora.Services.Base.Response.PageResult<IdentityService.Response.UserResponse>> GetUsersAsync(Aivora.Services.Base.Request.PageRequest pageRequest, string? search = null);
     Task<Response.DashboardStatsResponse> GetDashboardStatsAsync();
     Task<Aivora.Services.Base.Response.PageResult<Response.ExpertReviewResponse>> GetExpertReviewsAsync(Aivora.Services.Base.Request.PageRequest pageRequest, string? search = null);
+    Task<Response.ExpertProfileUpdateResponse> ReviewExpertProfileUpdateAsync(Guid adminId, Guid updateId, Request.ReviewExpertProfileUpdateRequest request);
 }
 
 public class Response
@@ -41,6 +42,19 @@ public class Response
         public int? DeadlineRating { get; set; }
         public DateTimeOffset CreatedAt { get; set; }
     }
+
+    public class ExpertProfileUpdateResponse
+    {
+        public Guid Id { get; set; }
+        public Guid ExpertProfileId { get; set; }
+        public string? Title { get; set; }
+        public string? Bio { get; set; }
+        public decimal? HourlyRate { get; set; }
+        public int? ExperienceYears { get; set; }
+        public string Status { get; set; } = null!;
+        public string? RejectionReason { get; set; }
+        public DateTimeOffset CreatedAt { get; set; }
+    }
 }
 
 public class Request
@@ -48,5 +62,11 @@ public class Request
     public class SuspendUserRequest
     {
         public string Reason { get; set; } = null!;
+    }
+
+    public class ReviewExpertProfileUpdateRequest
+    {
+        public bool IsApproved { get; set; }
+        public string? RejectionReason { get; set; }
     }
 }

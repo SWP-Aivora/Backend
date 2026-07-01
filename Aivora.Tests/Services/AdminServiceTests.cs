@@ -82,4 +82,79 @@ public class AdminServiceTests
         var updatedUser = await dbContext.Users.FindAsync(userId);
         updatedUser!.Status.Should().Be(UserStatus.ACTIVE);
     }
+
+    [Fact]
+    public async Task ReviewExpertProfileUpdateAsync_Succeeds_WhenApproved()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var adminId = Guid.NewGuid();
+        var expertProfileId = Guid.NewGuid();
+        var updateId = Guid.NewGuid();
+
+        var profile = new ExpertProfile { Id = expertProfileId, Title = "Old Title", ExperienceYears = 5, UserId = Guid.NewGuid() };
+        var update = new ExpertProfileUpdate
+        {
+            Id = updateId,
+            ExpertProfileId = expertProfileId,
+            Title = "New Title",
+            ExperienceYears = 7,
+            Status = ProfileUpdateStatus.PENDING
+        };
+
+        dbContext.ExpertProfiles.Add(profile);
+        dbContext.ExpertProfileUpdates.Add(update);
+        await dbContext.SaveChangesAsync();
+
+        var service = new AdminService(dbContext, Mock.Of<ILogger<AdminService>>(), Mock.Of<Aivora.Services.NotificationService.IService>());
+        var request = new Aivora.Services.AdminService.Request.ReviewExpertProfileUpdateRequest { IsApproved = true };
+
+        // Act
+        var result = await service.ReviewExpertProfileUpdateAsync(adminId, updateId, request);
+
+        // Assert
+        result.Status.Should().Be(ProfileUpdateStatus.APPROVED.ToString());
+
+        var updatedProfile = await dbContext.ExpertProfiles.FindAsync(expertProfileId);
+        updatedProfile!.Title.Should().Be("New Title");
+        updatedProfile.ExperienceYears.Should().Be(7);
+    }
+
+    [Fact]
+    public async Task ReviewExpertProfileUpdateAsync_Succeeds_WhenRejected()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var adminId = Guid.NewGuid();
+        var expertProfileId = Guid.NewGuid();
+        var updateId = Guid.NewGuid();
+
+        var profile = new ExpertProfile { Id = expertProfileId, Title = "Old Title", ExperienceYears = 5, UserId = Guid.NewGuid() };
+        var update = new ExpertProfileUpdate
+        {
+            Id = updateId,
+            ExpertProfileId = expertProfileId,
+            Title = "New Title",
+            ExperienceYears = 7,
+            Status = ProfileUpdateStatus.PENDING
+        };
+
+        dbContext.ExpertProfiles.Add(profile);
+        dbContext.ExpertProfileUpdates.Add(update);
+        await dbContext.SaveChangesAsync();
+
+        var service = new AdminService(dbContext, Mock.Of<ILogger<AdminService>>(), Mock.Of<Aivora.Services.NotificationService.IService>());
+        var request = new Aivora.Services.AdminService.Request.ReviewExpertProfileUpdateRequest { IsApproved = false, RejectionReason = "Invalid info" };
+
+        // Act
+        var result = await service.ReviewExpertProfileUpdateAsync(adminId, updateId, request);
+
+        // Assert
+        result.Status.Should().Be(ProfileUpdateStatus.REJECTED.ToString());
+        result.RejectionReason.Should().Be("Invalid info");
+
+        var updatedProfile = await dbContext.ExpertProfiles.FindAsync(expertProfileId);
+        updatedProfile!.Title.Should().Be("Old Title"); // Unchanged
+        updatedProfile.ExperienceYears.Should().Be(5);
+    }
 }
