@@ -33,13 +33,13 @@ public class AdminService : IAdminService
 
         await _dbContext.SaveChangesAsync();
 
-        // Gửi thông báo cho user bị khóa tài khoản
+        // Send notification to the suspended user
         try
         {
             await _notificationService.SendNotificationAsync(
                 userId,
-                "Tài khoản của bạn đã bị khóa",
-                $"Tài khoản của bạn đã bị khóa bởi quản trị viên. Lý do: {reason}",
+                "Your account has been suspended",
+                $"Your account has been suspended by an administrator. Reason: {reason}",
                 "ACCOUNT",
                 null
             );
@@ -64,13 +64,13 @@ public class AdminService : IAdminService
         user.Status = UserStatus.ACTIVE;
         await _dbContext.SaveChangesAsync();
 
-        // Gửi thông báo cho user được mở khóa tài khoản
+        // Send notification to the unsuspended user
         try
         {
             await _notificationService.SendNotificationAsync(
                 userId,
-                "Tài khoản của bạn đã được mở khóa",
-                "Tài khoản của bạn đã được mở khóa bởi quản trị viên. Bạn có thể tiếp tục sử dụng Aivora.",
+                "Your account has been unsuspended",
+                "Your account has been unsuspended by an administrator. You can continue using Aivora.",
                 "ACCOUNT",
                 null
             );
@@ -168,6 +168,83 @@ public class AdminService : IAdminService
             ActiveProjects = await _dbContext.Projects.CountAsync(p => p.Status == ProjectStatus.ACTIVE),
             OpenDisputes = await _dbContext.Disputes.CountAsync(d => d.Status == DisputeStatus.OPEN),
             TotalEscrowAmount = await _dbContext.Wallets.SumAsync(w => w.HeldBalance)
+        };
+    }
+
+    public async Task<Response.ExpertProfileUpdateResponse> ReviewExpertProfileUpdateAsync(Guid adminId, Guid updateId, Request.ReviewExpertProfileUpdateRequest request)
+    {
+        var update = await _dbContext.ExpertProfileUpdates
+            .Include(u => u.ExpertProfile)
+            .FirstOrDefaultAsync(u => u.Id == updateId);
+
+        if (update == null) throw new NotFoundException("Profile update not found.");
+        if (update.Status != ProfileUpdateStatus.PENDING) throw new ValidationException("Only pending updates can be reviewed.");
+
+        update.AdminId = adminId;
+        update.ReviewedAt = DateTimeOffset.UtcNow;
+
+        if (request.IsApproved)
+        {
+            update.Status = ProfileUpdateStatus.APPROVED;
+            
+            // Apply changes to ExpertProfile
+            if (update.Title != null) update.ExpertProfile.Title = update.Title;
+            if (update.Bio != null) update.ExpertProfile.Bio = update.Bio;
+            if (update.HourlyRate != null) update.ExpertProfile.HourlyRate = update.HourlyRate;
+            if (update.ExperienceYears != null) update.ExpertProfile.ExperienceYears = update.ExperienceYears.Value;
+
+            await _dbContext.SaveChangesAsync();
+
+            // Send notification to expert
+            try
+            {
+                await _notificationService.SendNotificationAsync(
+                    update.ExpertProfile.UserId,
+                    "Profile Update Approved",
+                    "Your profile update request has been approved and applied.",
+                    "ACCOUNT",
+                    "/profile"
+                );
+            }
+            catch { }
+        }
+        else
+        {
+            if (string.IsNullOrWhiteSpace(request.RejectionReason))
+                throw new ValidationException("Rejection reason is required when rejecting an update.");
+
+            update.Status = ProfileUpdateStatus.REJECTED;
+            update.RejectionReason = request.RejectionReason;
+
+            await _dbContext.SaveChangesAsync();
+
+            // Send notification to expert
+            try
+            {
+                await _notificationService.SendNotificationAsync(
+                    update.ExpertProfile.UserId,
+                    "Profile Update Rejected",
+                    $"Your profile update request was rejected. Reason: {request.RejectionReason}",
+                    "ACCOUNT",
+                    "/profile"
+                );
+            }
+            catch { }
+        }
+
+        _logger.LogInformation("Admin {AdminId} reviewed profile update {UpdateId}. Approved: {IsApproved}", adminId, updateId, request.IsApproved);
+
+        return new Response.ExpertProfileUpdateResponse
+        {
+            Id = update.Id,
+            ExpertProfileId = update.ExpertProfileId,
+            Title = update.Title,
+            Bio = update.Bio,
+            HourlyRate = update.HourlyRate,
+            ExperienceYears = update.ExperienceYears,
+            Status = update.Status.ToString(),
+            RejectionReason = update.RejectionReason,
+            CreatedAt = update.CreatedAt
         };
     }
 

@@ -89,10 +89,19 @@ public class Service : IService
             .FirstOrDefaultAsync(p => p.UserId == userId);
         if (profile == null) throw new NotFoundException("Expert profile not found.");
 
-        profile.Title = request.Title;
-        profile.Bio = request.Bio;
-        profile.HourlyRate = request.HourlyRate;
-        profile.ExperienceYears = request.ExperienceYears;
+        var pendingUpdate = new ExpertProfileUpdate
+        {
+            ExpertProfileId = profile.Id,
+            Title = request.Title,
+            Bio = request.Bio,
+            HourlyRate = request.HourlyRate,
+            ExperienceYears = request.ExperienceYears,
+            Status = Aivora.Repositories.Enums.ProfileUpdateStatus.PENDING
+        };
+
+        _dbContext.ExpertProfileUpdates.Add(pendingUpdate);
+        
+        // AvailabilityStatus can still be updated immediately as it doesn't require admin review
         profile.AvailabilityStatus = request.AvailabilityStatus;
 
         await _dbContext.SaveChangesAsync();

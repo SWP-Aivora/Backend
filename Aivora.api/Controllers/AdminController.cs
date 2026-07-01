@@ -58,4 +58,12 @@ public class AdminController : ControllerBase
         var result = await _adminService.UnsuspendUserAsync(adminId, id);
         return Ok(ApiResponseFactory.SuccessResponse(result, "User unsuspended successfully", HttpContext.TraceIdentifier));
     }
+
+    [HttpPut("expert-profile-updates/{id}/review")]
+    public async Task<IActionResult> ReviewExpertProfileUpdate(Guid id, [FromBody] Request.ReviewExpertProfileUpdateRequest request)
+    {
+        var adminId = this.GetUserId();
+        var result = await _adminService.ReviewExpertProfileUpdateAsync(adminId, id, request);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Expert profile update reviewed", HttpContext.TraceIdentifier));
+    }
 }

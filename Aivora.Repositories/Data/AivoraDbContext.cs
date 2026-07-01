@@ -12,6 +12,7 @@ public class AivoraDbContext : DbContext
     public DbSet<User> Users => Set<User>();
     public DbSet<ClientProfile> ClientProfiles => Set<ClientProfile>();
     public DbSet<ExpertProfile> ExpertProfiles => Set<ExpertProfile>();
+    public DbSet<ExpertProfileUpdate> ExpertProfileUpdates => Set<ExpertProfileUpdate>();
 
     // Taxonomy
     public DbSet<Category> Categories => Set<Category>();
