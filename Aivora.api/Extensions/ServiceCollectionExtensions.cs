@@ -196,6 +196,21 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Aivora.Services.AdminService.IAdminService, Aivora.Services.AdminService.AdminService>();
         services.AddScoped<Aivora.Services.Treasury.ITreasury, Aivora.Services.Treasury.Treasury>();
 
+        // ExpertVerificationService
+        services.AddScoped<Aivora.Services.ExpertVerificationService.Prompting.AIExpertVerificationPromptBuilder>();
+        services.AddScoped<Aivora.Services.ExpertVerificationService.Parsing.AIExpertVerificationParser>();
+        services.AddScoped<Aivora.Services.ExpertVerificationService.Providers.MockAIExpertVerificationProvider>();
+        services.AddScoped<Aivora.Services.ExpertVerificationService.Providers.GeminiAIExpertVerificationProvider>();
+        services.AddScoped<Aivora.Services.ExpertVerificationService.Providers.IAIExpertVerificationProvider>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<AIProviderOptions>>().Value;
+            return string.Equals(options.Provider, "Gemini", StringComparison.OrdinalIgnoreCase)
+                   && !string.IsNullOrWhiteSpace(options.ApiKey)
+                ? sp.GetRequiredService<Aivora.Services.ExpertVerificationService.Providers.GeminiAIExpertVerificationProvider>()
+                : sp.GetRequiredService<Aivora.Services.ExpertVerificationService.Providers.MockAIExpertVerificationProvider>();
+        });
+        services.AddScoped<Aivora.Services.ExpertVerificationService.IService, Aivora.Services.ExpertVerificationService.Service>();
+
         return services;
     }
 

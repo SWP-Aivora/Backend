@@ -9,6 +9,7 @@ public class ExpertSkill : AuditableBaseEntity
     public Guid SkillId { get; set; }
     public SkillLevel Level { get; set; } = SkillLevel.INTERMEDIATE;
     public int YearsExperience { get; set; }
+    public bool IsVerified { get; set; } = false;
 
     // Navigation Properties
     public virtual ExpertProfile Expert { get; set; } = null!;

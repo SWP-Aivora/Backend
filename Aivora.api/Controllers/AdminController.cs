@@ -14,10 +14,12 @@ namespace Aivora.api.Controllers;
 public class AdminController : ControllerBase
 {
     private readonly IAdminService _adminService;
+    private readonly Aivora.Services.ExpertVerificationService.IService _expertVerificationService;
 
-    public AdminController(IAdminService adminService)
+    public AdminController(IAdminService adminService, Aivora.Services.ExpertVerificationService.IService expertVerificationService)
     {
         _adminService = adminService;
+        _expertVerificationService = expertVerificationService;
     }
 
     [HttpGet("stats")]
@@ -74,5 +76,22 @@ public class AdminController : ControllerBase
         var adminId = this.GetUserId();
         var result = await _adminService.ReviewExpertProfileUpdateAsync(adminId, id, request);
         return Ok(ApiResponseFactory.SuccessResponse(result, "Expert profile update reviewed", HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("expert-verifications")]
+    [Authorize(Policy = JwtExtensions.AdminPolicy)]
+    public async Task<IActionResult> GetExpertVerifications([FromQuery] Aivora.Services.Base.Request.PageRequest pageRequest, [FromQuery] Aivora.Repositories.Enums.ExpertVerificationStatus? status, [FromQuery] Guid? expertId)
+    {
+        var result = await _expertVerificationService.GetAdminVerificationsAsync(pageRequest, status, expertId);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Expert verifications retrieved", HttpContext.TraceIdentifier));
+    }
+
+    [HttpPut("expert-verifications/{id}/review")]
+    [Authorize(Policy = JwtExtensions.AdminPolicy)]
+    public async Task<IActionResult> ReviewExpertVerification(Guid id, [FromBody] Aivora.Services.ExpertVerificationService.Request.ReviewVerificationRequest request)
+    {
+        var adminId = this.GetUserId();
+        var result = await _expertVerificationService.ReviewEscalatedVerificationAsync(adminId, id, request);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Expert verification reviewed", HttpContext.TraceIdentifier));
     }
 }

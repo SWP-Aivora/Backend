@@ -18,6 +18,7 @@ public class AivoraDbContext : DbContext
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<Skill> Skills => Set<Skill>();
     public DbSet<ExpertSkill> ExpertSkills => Set<ExpertSkill>();
+    public DbSet<ExpertVerification> ExpertVerifications => Set<ExpertVerification>();
 
     // Jobs
     public DbSet<JobPost> JobPosts => Set<JobPost>();
