@@ -16,7 +16,8 @@ public class Service : IService
         "profiles",
         "jobs",
         "deliverables",
-        "disputes"
+        "disputes",
+        "chat"
     };
 
     private static readonly Dictionary<string, string[]> ImageContentTypes = new(StringComparer.OrdinalIgnoreCase)
