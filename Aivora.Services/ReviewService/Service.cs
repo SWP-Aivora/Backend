@@ -136,6 +136,28 @@ public class Service : IService
         };
     }
 
+    public async Task<Aivora.Services.Base.Response.PageResult<Response.ReviewResponse>> GetProjectReviewsAsync(Guid projectId, Aivora.Services.Base.Request.PageRequest pageRequest)
+    {
+        var query = _dbContext.Reviews
+            .Include(r => r.Reviewer)
+            .Where(r => r.ProjectId == projectId)
+            .OrderByDescending(r => r.CreatedAt);
+
+        var totalItems = await query.CountAsync();
+        var items = await query
+            .Skip((pageRequest.PageIndex - 1) * pageRequest.PageSize)
+            .Take(pageRequest.PageSize)
+            .ToListAsync();
+
+        return new Aivora.Services.Base.Response.PageResult<Response.ReviewResponse>
+        {
+            Items = items.Select(r => MapToResponse(r, r.Reviewer?.FullName ?? "N/A")).ToList(),
+            TotalItems = totalItems,
+            PageIndex = pageRequest.PageIndex,
+            PageSize = pageRequest.PageSize
+        };
+    }
+
     private static void ValidateRating(int? rating, string fieldName)
     {
         if (rating.HasValue && (rating.Value < 1 || rating.Value > 5))
