@@ -114,6 +114,10 @@ public class Treasury : ITreasury
         var milestone = await GetMilestoneWithProjectAsync(milestoneId);
 
         if (milestone.Project.ClientId != clientId) throw new UnauthorizedException("Only the client can approve and release funds.");
+        // SUBMITTED: normal client-approve path (MilestoneService.ApproveMilestoneAsync).
+        // DISPUTED: admin dispute-resolution path only (DisputeService.ResolveDisputeAsync
+        // calls this directly, bypassing MilestoneService, which deliberately blocks
+        // approving a DISPUTED milestone itself).
         if (milestone.Status != MilestoneStatus.SUBMITTED && milestone.Status != MilestoneStatus.DISPUTED)
             throw new ValidationException("Milestone must be in SUBMITTED or DISPUTED status to be released.");
 
@@ -349,43 +353,6 @@ public class Treasury : ITreasury
         await SyncProjectStatusAsync(payment.ProjectId);
 
         _logger.LogInformation("🔥 Funds unfrozen for Milestone {MilestoneId}. Reason: {Reason}", milestoneId, reason);
-    }
-
-    public async Task RequestRevisionAsync(Guid milestoneId, string reason)
-    {
-        var milestone = await GetMilestoneWithProjectAsync(milestoneId);
-
-        if (milestone.Status != MilestoneStatus.FUNDED)
-            throw new ValidationException("Only funded milestones can be revised.");
-
-        using var transaction = await _dbContext.Database.BeginTransactionAsync();
-        try
-        {
-            // Update milestone status to revision requested
-            milestone.Status = MilestoneStatus.REVISION_REQUESTED;
-            milestone.UpdatedAt = DateTimeOffset.UtcNow;
-
-            // Find and update payment status
-            var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestoneId);
-            if (payment != null)
-            {
-                payment.Status = PaymentStatus.HELD; // Back to HELD for revision
-                payment.UpdatedAt = DateTimeOffset.UtcNow;
-            }
-
-            // Sync project status
-            await SyncProjectStatusAsync(milestone.ProjectId);
-
-            await transaction.CommitAsync();
-
-            _logger.LogInformation("🔄 Revision requested for Milestone {MilestoneId}. Reason: {Reason}", milestoneId, reason);
-        }
-        catch (Exception ex)
-        {
-            await transaction.RollbackAsync();
-            _logger.LogError(ex, "❌ Failed to request revision for Milestone {MilestoneId}", milestoneId);
-            throw;
-        }
     }
 
     public async Task SyncProjectStatusAsync(Guid projectId)

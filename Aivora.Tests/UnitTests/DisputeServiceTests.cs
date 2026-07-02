@@ -649,17 +649,6 @@ namespace Aivora.Tests.UnitTests
                 }
             }
 
-            public async Task RequestRevisionAsync(Guid milestoneId, string reason)
-            {
-                // Mock implementation - simulates request revision without payment status conflict
-                var milestone = await _dbContext.Milestones.FindAsync(milestoneId);
-                if (milestone != null)
-                {
-                    milestone.Status = MilestoneStatus.REVISION_REQUESTED;
-                    await _dbContext.SaveChangesAsync();
-                }
-            }
-
             public async Task SyncProjectStatusAsync(Guid projectId)
             {
                 // Mock implementation
