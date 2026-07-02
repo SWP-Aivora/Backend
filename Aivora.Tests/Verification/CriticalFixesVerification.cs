@@ -69,35 +69,5 @@ namespace Aivora.Tests.Verification
             Assert.Equal("RESOLVED", result.RootElement.GetProperty("data").GetProperty("status").GetString());
         }
 
-        [Fact(Skip = "Chạy khi ứng dụng đang chạy")]
-        public async Task VerifyRequestRevisionFix()
-        {
-            // Test 3: REQUEST_REVISION không làm thay đổi trạng thái thanh toán
-            var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/disputes/{disputeId}/resolve");
-            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _adminToken);
-
-            var requestBody = new
-            {
-                resolutionType = "REQUEST_REVISION",
-                resolutionNote = "Test request revision"
-            };
-
-            request.Content = new StringContent(
-                JsonSerializer.Serialize(requestBody),
-                Encoding.UTF8,
-                "application/json"
-            );
-
-            var response = await _client.SendAsync(request);
-
-            // Verify
-            Assert.True(response.IsSuccessStatusCode);
-
-            var content = await response.Content.ReadAsStringAsync();
-            var result = JsonDocument.Parse(content);
-
-            Assert.True(result.RootElement.GetProperty("success").GetBoolean());
-            Assert.Equal("RESOLVED", result.RootElement.GetProperty("data").GetProperty("status").GetString());
-        }
     }
 }

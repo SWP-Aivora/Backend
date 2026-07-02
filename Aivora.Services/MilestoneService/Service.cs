@@ -133,7 +133,11 @@ public class Service : IService
 
     public async Task<Response.MilestoneResponse> ApproveMilestoneAsync(Guid userId, Guid milestoneId)
     {
-        // Validate milestone status at service layer before delegating to Treasury
+        // Validate milestone status at service layer before delegating to Treasury.
+        // Deliberately narrower than Treasury.ReleaseMilestoneAsync's own check (SUBMITTED
+        // or DISPUTED): a client is only allowed to approve directly while SUBMITTED. Once
+        // DISPUTED, release must go through admin dispute resolution
+        // (DisputeService.ResolveDisputeAsync calls Treasury.ReleaseMilestoneAsync directly).
         var milestone = await _dbContext.Milestones.FirstOrDefaultAsync(m => m.Id == milestoneId);
         if (milestone == null) throw new NotFoundException("Milestone not found.");
         if (milestone.Status != MilestoneStatus.SUBMITTED)
@@ -143,9 +147,13 @@ public class Service : IService
         // (opens its own transaction, calls SaveChangesAsync, commits).
         await _treasury.ReleaseMilestoneAsync(userId, milestoneId);
 
-        // Refresh milestone after Treasury processing
-        milestone = await _dbContext.Milestones.FirstOrDefaultAsync(m => m.Id == milestoneId);
-        if (milestone == null) throw new NotFoundException("Milestone not found after release.");
+        // Read from the change tracker rather than re-querying the DB. Treasury loads/
+        // mutates this same tracked entity in the same scoped DbContext, so .Local already
+        // reflects the committed state. A fresh query here risks the same "Sequence
+        // contains no elements" failure that FundMilestoneAsync hit (see commit eae5221).
+        milestone = _dbContext.Milestones.Local.FirstOrDefault(m => m.Id == milestoneId);
+        if (milestone == null)
+            throw new InvalidOperationException($"Milestone {milestoneId} not tracked after release.");
         return MapToResponse(milestone);
     }
 
@@ -160,6 +168,9 @@ public class Service : IService
         if (milestone.Status != MilestoneStatus.SUBMITTED)
             throw new ValidationException("Milestone must be SUBMITTED to request revision.");
 
+        // No Treasury/Payment involvement here: funds stay HELD for the entire
+        // SUBMITTED <-> REVISION_REQUESTED cycle (nothing has been released yet), so there
+        // is no money movement to record — only the milestone/project status changes.
         milestone.Status = MilestoneStatus.REVISION_REQUESTED;
 
         await _dbContext.SaveChangesAsync();
