@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Http;
+using System.Security.Claims;
+using Aivora.Services.Exceptions;
 
 namespace Aivora.Services.JwtService;
 

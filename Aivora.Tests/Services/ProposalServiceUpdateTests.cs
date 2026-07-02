@@ -46,9 +46,11 @@ public class ProposalServiceUpdateTests
         return (expert, job);
     }
 
-    private Service CreateService(AivoraDbContext dbContext)
+    private Aivora.Services.ProposalService.Service CreateService(AivoraDbContext dbContext)
     {
-        return new Service(dbContext, _notificationServiceMock.Object);
+        // Create a mock verification service
+        var mockVerificationService = new Mock<Aivora.Services.VerificationService.IVerificationService>();
+        return new Aivora.Services.ProposalService.Service(dbContext, _notificationServiceMock.Object, mockVerificationService.Object);
     }
 
     [Fact]

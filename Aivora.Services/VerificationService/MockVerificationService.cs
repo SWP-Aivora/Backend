@@ -1,5 +1,7 @@
 using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
+using Aivora.Repositories.Enums;
+using Microsoft.EntityFrameworkCore;
 using Aivora.Services.JwtService;
 using Aivora.Services.VerificationService;
 
@@ -103,7 +105,7 @@ public class MockVerificationService : IVerificationService
         // Update to appeal pending
         verification.Status = VerificationStatus.APPEAL_PENDING;
         verification.AppealReason = reason;
-        verification.AppealSubmissionTime = DateTime.UtcNow;
+        verification.AppealRequestedAt = DateTime.UtcNow;
 
         await _dbContext.SaveChangesAsync();
 

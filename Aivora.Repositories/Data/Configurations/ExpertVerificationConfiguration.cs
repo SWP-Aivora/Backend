@@ -30,10 +30,10 @@ public class ExpertVerificationConfiguration : IEntityTypeConfiguration<ExpertVe
         builder.Property(x => x.SkillsWeight).IsRequired();
         builder.Property(x => x.CertificatesWeight).IsRequired();
 
-        // Relationship with ExpertProfile
+        // Relationship with ExpertProfile (one-to-one)
         builder.HasOne(x => x.Expert)
-            .WithMany()
-            .HasForeignKey(x => x.ExpertId)
+            .WithOne(x => x.Verification)
+            .HasForeignKey<ExpertVerification>(x => x.ExpertId)
             .OnDelete(DeleteBehavior.Cascade);
 
         // Indexes for performance

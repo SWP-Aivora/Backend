@@ -1,7 +1,6 @@
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.VerificationService;
-using Aivora.Services.VerificationService.Tests;
 using Microsoft.EntityFrameworkCore;
 
 namespace Aivora.Services.Tests;

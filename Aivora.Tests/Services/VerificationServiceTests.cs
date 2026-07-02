@@ -1,10 +1,12 @@
 using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
+using Aivora.Services.AIJobAssistantService;
 using Aivora.Services.Exceptions;
 using Aivora.Services.VerificationService;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Moq;
 using Xunit;
 
 namespace Aivora.Tests.Services;
@@ -20,7 +22,7 @@ public class VerificationServiceTests
         return new AivoraDbContext(options);
     }
 
-    private ExpertProfile CreateTestExpert(AivoraDbContext dbContext, Guid userId)
+    private async Task<ExpertProfile> CreateTestExpert(AivoraDbContext dbContext, Guid userId)
     {
         var user = new User
         {
@@ -43,7 +45,7 @@ public class VerificationServiceTests
             VerificationStatus = VerificationStatus.PENDING
         };
         dbContext.ExpertProfiles.Add(expert);
-        dbContext.SaveChangesAsync();
+        await dbContext.SaveChangesAsync();
 
         return expert;
     }
@@ -54,20 +56,16 @@ public class VerificationServiceTests
     {
         // Arrange
         using var dbContext = GetDbContext();
-        var expertId = Guid.NewGuid();
         var userId = Guid.NewGuid();
 
         // Create test expert
-        CreateTestExpert(dbContext, userId);
+        var expert = await CreateTestExpert(dbContext, userId);
 
-        // Mock AI provider (simplified for testing)
-        var mockAiProvider = new MockAIJobSuggestionProvider();
-        var mockAiServiceProvider = new MockAIServiceDescriptionProvider();
-
-        var service = new Service(dbContext, mockAiProvider, mockAiServiceProvider);
+        // Mock AI providers (simplified for testing)
+        var service = new Aivora.Services.VerificationService.Service(dbContext);
 
         // Act
-        var result = await service.StartVerificationAsync(expertId);
+        var result = await service.StartVerificationAsync(expert.Id);
 
         // Assert
         result.Should().NotBeNull();
@@ -80,7 +78,7 @@ public class VerificationServiceTests
 
         // Verify database record created
         var dbVerification = await dbContext.ExpertVerifications
-            .FirstOrDefaultAsync(v => v.ExpertId == expertId);
+            .FirstOrDefaultAsync(v => v.ExpertId == expert.Id);
         dbVerification.Should().NotBeNull();
         dbVerification!.Status.Should().Be(VerificationStatus.PENDING);
     }
@@ -90,10 +88,7 @@ public class VerificationServiceTests
     {
         // Arrange
         using var dbContext = GetDbContext();
-        var mockAiProvider = new MockAIJobSuggestionProvider();
-        var mockAiServiceProvider = new MockAIServiceDescriptionProvider();
-
-        var service = new Service(dbContext, mockAiProvider, mockAiServiceProvider);
+        var service = new Aivora.Services.VerificationService.Service(dbContext);
         var nonExistentExpertId = Guid.NewGuid();
 
         // Act & Assert
@@ -106,15 +101,15 @@ public class VerificationServiceTests
     {
         // Arrange
         using var dbContext = GetDbContext();
-        var expertId = Guid.NewGuid();
         var userId = Guid.NewGuid();
 
-        CreateTestExpert(dbContext, userId);
+        var expert = await CreateTestExpert(dbContext, userId);
 
         // Create existing verification
         var existingVerification = new ExpertVerification
         {
-            ExpertId = expertId,
+            Id = Guid.NewGuid(),
+            ExpertId = expert.Id,
             Status = VerificationStatus.REJECTED,
             TotalScore = 50,
             RetryCount = 1
@@ -122,13 +117,10 @@ public class VerificationServiceTests
         dbContext.ExpertVerifications.Add(existingVerification);
         await dbContext.SaveChangesAsync();
 
-        var mockAiProvider = new MockAIJobSuggestionProvider();
-        var mockAiServiceProvider = new MockAIServiceDescriptionProvider();
-
-        var service = new Service(dbContext, mockAiProvider, mockAiServiceProvider);
+        var service = new Aivora.Services.VerificationService.Service(dbContext);
 
         // Act
-        var result = await service.StartVerificationAsync(expertId);
+        var result = await service.StartVerificationAsync(expert.Id);
 
         // Assert
         result.Should().NotBeNull();
@@ -138,7 +130,7 @@ public class VerificationServiceTests
 
         // Verify existing record updated
         var dbVerification = await dbContext.ExpertVerifications
-            .FirstOrDefaultAsync(v => v.ExpertId == expertId);
+            .FirstOrDefaultAsync(v => v.ExpertId == expert.Id);
         dbVerification!.Status.Should().Be(VerificationStatus.PENDING);
         dbVerification.RetryCount.Should().Be(0);
     }
@@ -151,7 +143,7 @@ public class VerificationServiceTests
         var expertId = Guid.NewGuid();
         var userId = Guid.NewGuid();
 
-        CreateTestExpert(dbContext, userId);
+        await CreateTestExpert(dbContext, userId);
 
         var verification = new ExpertVerification
         {
@@ -162,10 +154,7 @@ public class VerificationServiceTests
         dbContext.ExpertVerifications.Add(verification);
         await dbContext.SaveChangesAsync();
 
-        var mockAiProvider = new MockAIJobSuggestionProvider();
-        var mockAiServiceProvider = new MockAIServiceDescriptionProvider();
-
-        var service = new Service(dbContext, mockAiProvider, mockAiServiceProvider);
+        var service = new Aivora.Services.VerificationService.Service(dbContext);
 
         // Act
         var result = await service.GetVerificationAsync(expertId);
@@ -181,10 +170,7 @@ public class VerificationServiceTests
     {
         // Arrange
         using var dbContext = GetDbContext();
-        var mockAiProvider = new MockAIJobSuggestionProvider();
-        var mockAiServiceProvider = new MockAIServiceDescriptionProvider();
-
-        var service = new Service(dbContext, mockAiProvider, mockAiServiceProvider);
+        var service = new Aivora.Services.VerificationService.Service(dbContext);
         var nonExistentExpertId = Guid.NewGuid();
 
         // Act
@@ -193,29 +179,174 @@ public class VerificationServiceTests
         // Assert
         result.Should().BeNull();
     }
-}
 
-// Mock AI providers for testing
-public class MockAIJobSuggestionProvider : Aivora.Services.AIJobAssistantService.Providers.IAIJobSuggestionProvider
-{
-    public Task<Aivora.Services.AIJobAssistantService.Response.AIJobSuggestionResponse> SuggestJobAsync(string prompt)
+    [Fact]
+    public async Task ProcessVerificationAsync_WhenExpertExists_UpdatesVerificationStatus()
     {
-        return Task.FromResult(new Aivora.Services.AIJobAssistantService.Response.AIJobSuggestionResponse
+        // Arrange
+        using var dbContext = GetDbContext();
+        var userId = Guid.NewGuid();
+
+        var expert = await CreateTestExpert(dbContext, userId);
+
+        // Create verification record
+        var verification = new ExpertVerification
         {
-            Suggestion = "Mock AI response for testing",
-            Score = 80
-        });
+            ExpertId = expert.Id,
+            Status = VerificationStatus.PENDING,
+            TotalScore = 0,
+            ProcessingStatus = "queued"
+        };
+        dbContext.ExpertVerifications.Add(verification);
+        await dbContext.SaveChangesAsync();
+
+        var service = new Aivora.Services.VerificationService.Service(dbContext);
+
+        // Act
+        var result = await service.ProcessVerificationAsync(expert.Id);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Status.Should().BeOneOf(VerificationStatus.VERIFIED, VerificationStatus.REJECTED);
+        result.TotalScore.Should().BeGreaterThan(0);
+        result.ProcessingStatus.Should().Be("completed");
+        result.IsPassed.Should().Be(result.Status == VerificationStatus.VERIFIED);
     }
-}
 
-public class MockAIServiceDescriptionProvider : Aivora.Services.AIJobAssistantService.Providers.IAIServiceDescriptionProvider
-{
-    public Task<Aivora.Services.AIJobAssistantService.Response.AIServiceDescriptionResponse> GetServiceDescriptionAsync(string prompt)
+    [Fact]
+    public async Task ProcessVerificationAsync_WhenVerificationNotExists_ThrowsException()
     {
-        return Task.FromResult(new Aivora.Services.AIJobAssistantService.Response.AIServiceDescriptionResponse
+        // Arrange
+        using var dbContext = GetDbContext();
+        var service = new Aivora.Services.VerificationService.Service(dbContext);
+        var nonExistentExpertId = Guid.NewGuid();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            service.ProcessVerificationAsync(nonExistentExpertId));
+    }
+
+    [Fact]
+    public async Task SubmitAppealAsync_WhenVerificationRejected_SubmitsAppeal()
+    {
+        // Arrange
+        using var dbContext = GetDbContext();
+        var userId = Guid.NewGuid();
+
+        var expert = await CreateTestExpert(dbContext, userId);
+
+        // Create rejected verification
+        var verification = new ExpertVerification
         {
-            Description = "Mock AI response for testing",
-            Suggestion = "Mock suggestion"
-        });
+            ExpertId = expert.Id,
+            Status = VerificationStatus.REJECTED,
+            TotalScore = 50,
+            AppealReason = null
+        };
+        dbContext.ExpertVerifications.Add(verification);
+        await dbContext.SaveChangesAsync();
+
+        var service = new Aivora.Services.VerificationService.Service(dbContext);
+
+        // Act
+        var result = await service.SubmitAppealAsync(expert.Id, "I disagree with the rejection");
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Status.Should().Be(VerificationStatus.APPEAL_PENDING);
+        result.AppealReason.Should().Be("I disagree with the rejection");
+        result.AppealRequestedAt.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task SubmitAppealAsync_WhenVerificationNotExists_ThrowsException()
+    {
+        // Arrange
+        using var dbContext = GetDbContext();
+        var service = new Aivora.Services.VerificationService.Service(dbContext);
+        var nonExistentExpertId = Guid.NewGuid();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            service.SubmitAppealAsync(nonExistentExpertId, "Test reason"));
+    }
+
+    [Fact]
+    public async Task ReviewAppealAsync_WhenAppealApproved_VerifiesExpert()
+    {
+        // Arrange
+        using var dbContext = GetDbContext();
+        var userId = Guid.NewGuid();
+
+        var expert = await CreateTestExpert(dbContext, userId);
+
+        // Create appeal
+        var verification = new ExpertVerification
+        {
+            Id = Guid.NewGuid(),
+            ExpertId = expert.Id,
+            Status = VerificationStatus.APPEAL_PENDING,
+            AppealReason = "I disagree with the rejection",
+            IsPassed = false
+        };
+        dbContext.ExpertVerifications.Add(verification);
+        await dbContext.SaveChangesAsync();
+
+        var service = new Aivora.Services.VerificationService.Service(dbContext);
+
+        // Act
+        var result = await service.ReviewAppealAsync(verification.Id, true, "Appeal approved");
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Status.Should().Be(VerificationStatus.VERIFIED);
+        result.IsPassed.Should().Be(true);
+        result.AppealAdminFeedback.Should().Be("Appeal approved");
+    }
+
+    [Fact]
+    public async Task ReviewAppealAsync_WhenAppealRejected_ExpertRemainsRejected()
+    {
+        // Arrange
+        using var dbContext = GetDbContext();
+        var userId = Guid.NewGuid();
+
+        var expert = await CreateTestExpert(dbContext, userId);
+
+        // Create appeal
+        var verification = new ExpertVerification
+        {
+            Id = Guid.NewGuid(),
+            ExpertId = expert.Id,
+            Status = VerificationStatus.APPEAL_PENDING,
+            AppealReason = "I disagree with the rejection",
+            IsPassed = false
+        };
+        dbContext.ExpertVerifications.Add(verification);
+        await dbContext.SaveChangesAsync();
+
+        var service = new Aivora.Services.VerificationService.Service(dbContext);
+
+        // Act
+        var result = await service.ReviewAppealAsync(verification.Id, false, "Appeal rejected");
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Status.Should().Be(VerificationStatus.REJECTED);
+        result.IsPassed.Should().Be(false);
+        result.AppealAdminFeedback.Should().Be("Appeal rejected");
+    }
+
+    [Fact]
+    public async Task ReviewAppealAsync_WhenAppealNotExists_ThrowsException()
+    {
+        // Arrange
+        using var dbContext = GetDbContext();
+        var service = new Aivora.Services.VerificationService.Service(dbContext);
+        var nonExistentAppealId = Guid.NewGuid();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            service.ReviewAppealAsync(nonExistentAppealId, true, "Test feedback"));
     }
 }
