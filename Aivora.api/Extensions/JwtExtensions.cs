@@ -38,6 +38,25 @@ public static class JwtExtensions
                 NameClaimType = ClaimTypes.NameIdentifier,
                 RoleClaimType = ClaimTypes.Role
             };
+
+            // SignalR: Extract JWT from query string for WebSocket connections
+            // WebSockets cannot send Authorization headers, so the token is passed via ?access_token=
+            options.Events = new JwtBearerEvents
+            {
+                OnMessageReceived = context =>
+                {
+                    var accessToken = context.Request.Query["access_token"];
+                    var path = context.HttpContext.Request.Path;
+
+                    // Only extract from query for SignalR hub paths
+                    if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/api/v1/chat"))
+                    {
+                        context.Token = accessToken;
+                    }
+
+                    return Task.CompletedTask;
+                }
+            };
         });
 
         services.AddAuthorization(options =>
