@@ -91,6 +91,7 @@ public class Service : IService
         if (job.ClientId != userId) throw new UnauthorizedException("Only the job owner can view proposals.");
 
         var proposals = await _dbContext.Proposals
+            .Include(p => p.Job).ThenInclude(j => j.Client)
             .Include(p => p.Expert)
             .Include(p => p.Milestones)
             .Where(p => p.JobId == jobId)
@@ -103,7 +104,7 @@ public class Service : IService
     public async Task<List<Response.ProposalResponse>> GetExpertProposalsAsync(Guid expertId)
     {
         var proposals = await _dbContext.Proposals
-            .Include(p => p.Job)
+            .Include(p => p.Job).ThenInclude(j => j.Client)
             .Include(p => p.Milestones)
             .Where(p => p.ExpertId == expertId)
             .OrderByDescending(p => p.CreatedAt)
@@ -170,6 +171,8 @@ public class Service : IService
             Id = proposal.Id,
             JobId = proposal.JobId,
             JobTitle = proposal.Job?.Title ?? "N/A",
+            ClientId = proposal.Job?.ClientId ?? Guid.Empty,
+            ClientName = proposal.Job?.Client?.FullName ?? "N/A",
             ExpertId = proposal.ExpertId,
             ExpertName = proposal.Expert?.FullName ?? "N/A",
             CoverLetter = proposal.CoverLetter,
