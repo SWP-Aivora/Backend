@@ -44,7 +44,7 @@ public static class JwtExtensions
                 OnMessageReceived = context =>
                 {
                     var accessToken = context.Request.Cookies["accessToken"];
-                    
+
                     // If cookie has the token, use it
                     if (!string.IsNullOrEmpty(accessToken))
                     {
