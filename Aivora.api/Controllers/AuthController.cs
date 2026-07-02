@@ -97,7 +97,7 @@ public class AuthController : ControllerBase
     {
         Response.Cookies.Delete("accessToken", new CookieOptions { HttpOnly = true, Secure = true, SameSite = SameSiteMode.None });
         Response.Cookies.Delete("refreshToken", new CookieOptions { HttpOnly = true, Secure = true, SameSite = SameSiteMode.None });
-        return Ok(ApiResponseFactory.SuccessResponse<object?>(null, "Logged out successfully", HttpContext.TraceIdentifier));
+        return Ok(ApiResponseFactory.SuccessResponse(null, "Logged out successfully", HttpContext.TraceIdentifier));
     }
 
     /// <summary>
