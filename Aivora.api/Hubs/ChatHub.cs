@@ -89,6 +89,7 @@ public class ChatHub : Hub
     public async Task MarkAsRead(Guid conversationId)
     {
         var userId = GetCurrentUserId();
+        await _messageService.EnsureConversationParticipantAsync(userId, conversationId);
         await _messageService.MarkAsReadAsync(userId, conversationId);
 
         // Broadcast read confirmation to other participants
