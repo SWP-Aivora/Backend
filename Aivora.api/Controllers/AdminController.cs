@@ -59,6 +59,14 @@ public class AdminController : ControllerBase
         return Ok(ApiResponseFactory.SuccessResponse(result, "User unsuspended successfully", HttpContext.TraceIdentifier));
     }
 
+    [HttpGet("expert-profile-updates")]
+    [Authorize(Policy = JwtExtensions.AdminPolicy)]
+    public async Task<IActionResult> GetExpertProfileUpdates([FromQuery] Aivora.Services.Base.Request.PageRequest pageRequest, [FromQuery] string? status)
+    {
+        var result = await _adminService.GetExpertProfileUpdatesAsync(pageRequest, status);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Expert profile updates retrieved", HttpContext.TraceIdentifier));
+    }
+
     [HttpPut("expert-profile-updates/{id}/review")]
     [Authorize(Policy = JwtExtensions.AdminPolicy)]
     public async Task<IActionResult> ReviewExpertProfileUpdate(Guid id, [FromBody] Request.ReviewExpertProfileUpdateRequest request)

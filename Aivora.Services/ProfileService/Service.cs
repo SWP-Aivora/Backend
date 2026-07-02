@@ -37,11 +37,11 @@ public class Service : IService
         var profile = await _dbContext.ClientProfiles.FirstOrDefaultAsync(p => p.UserId == userId);
         if (profile == null) throw new NotFoundException("Client profile not found.");
 
-        profile.CompanyName = request.CompanyName;
-        profile.Industry = request.Industry;
-        profile.CompanySize = request.CompanySize;
-        profile.Website = request.Website;
-        profile.Description = request.Description;
+        profile.CompanyName = request.CompanyName ?? profile.CompanyName;
+        profile.Industry = request.Industry ?? profile.Industry;
+        profile.CompanySize = request.CompanySize ?? profile.CompanySize;
+        profile.Website = request.Website ?? profile.Website;
+        profile.Description = request.Description ?? profile.Description;
 
         await _dbContext.SaveChangesAsync();
 
@@ -64,6 +64,7 @@ public class Service : IService
             .Include(p => p.User)
             .FirstOrDefaultAsync(p => p.UserId == userId);
         if (profile == null) throw new NotFoundException("Expert profile not found.");
+        if (profile.User == null) throw new NotFoundException("User associated with expert profile not found.");
 
         return new Response.ExpertProfileResponse
         {
@@ -88,6 +89,7 @@ public class Service : IService
             .Include(p => p.User)
             .FirstOrDefaultAsync(p => p.UserId == userId);
         if (profile == null) throw new NotFoundException("Expert profile not found.");
+        if (profile.User == null) throw new NotFoundException("User associated with expert profile not found.");
 
         var hasPendingUpdate = await _dbContext.ExpertProfileUpdates
             .AnyAsync(u => u.ExpertProfileId == profile.Id && u.Status == Aivora.Repositories.Enums.ProfileUpdateStatus.PENDING);
@@ -96,17 +98,20 @@ public class Service : IService
         var pendingUpdate = new ExpertProfileUpdate
         {
             ExpertProfileId = profile.Id,
-            Title = request.Title,
-            Bio = request.Bio,
-            HourlyRate = request.HourlyRate,
-            ExperienceYears = request.ExperienceYears,
+            Title = request.Title ?? profile.Title,
+            Bio = request.Bio ?? profile.Bio,
+            HourlyRate = request.HourlyRate ?? profile.HourlyRate,
+            ExperienceYears = request.ExperienceYears ?? profile.ExperienceYears,
             Status = Aivora.Repositories.Enums.ProfileUpdateStatus.PENDING
         };
 
         _dbContext.ExpertProfileUpdates.Add(pendingUpdate);
 
         // AvailabilityStatus can still be updated immediately as it doesn't require admin review
-        profile.AvailabilityStatus = request.AvailabilityStatus;
+        if (request.AvailabilityStatus.HasValue)
+        {
+            profile.AvailabilityStatus = request.AvailabilityStatus.Value;
+        }
 
         await _dbContext.SaveChangesAsync();
 
@@ -165,6 +170,7 @@ public class Service : IService
         }
 
         if (profile == null) throw new NotFoundException("Expert profile not found.");
+        if (profile.User == null) throw new NotFoundException("User associated with expert profile not found.");
 
         return new Response.ExpertProfileResponse
         {

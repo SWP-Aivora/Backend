@@ -171,6 +171,42 @@ public class AdminService : IAdminService
         };
     }
 
+    public async Task<Aivora.Services.Base.Response.PageResult<Response.ExpertProfileUpdateResponse>> GetExpertProfileUpdatesAsync(Aivora.Services.Base.Request.PageRequest pageRequest, string? status = null)
+    {
+        var query = _dbContext.ExpertProfileUpdates.AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<ProfileUpdateStatus>(status, true, out var parsedStatus))
+        {
+            query = query.Where(u => u.Status == parsedStatus);
+        }
+
+        var totalItems = await query.CountAsync();
+        var items = await query
+            .OrderByDescending(u => u.CreatedAt)
+            .Skip((pageRequest.PageIndex - 1) * pageRequest.PageSize)
+            .Take(pageRequest.PageSize)
+            .ToListAsync();
+
+        return new Aivora.Services.Base.Response.PageResult<Response.ExpertProfileUpdateResponse>
+        {
+            Items = items.Select(update => new Response.ExpertProfileUpdateResponse
+            {
+                Id = update.Id,
+                ExpertProfileId = update.ExpertProfileId,
+                Title = update.Title,
+                Bio = update.Bio,
+                HourlyRate = update.HourlyRate,
+                ExperienceYears = update.ExperienceYears,
+                Status = update.Status.ToString(),
+                RejectionReason = update.RejectionReason,
+                CreatedAt = update.CreatedAt
+            }).ToList(),
+            TotalItems = totalItems,
+            PageIndex = pageRequest.PageIndex,
+            PageSize = pageRequest.PageSize
+        };
+    }
+
     public async Task<Response.ExpertProfileUpdateResponse> ReviewExpertProfileUpdateAsync(Guid adminId, Guid updateId, Request.ReviewExpertProfileUpdateRequest request)
     {
         var update = await _dbContext.ExpertProfileUpdates
@@ -178,6 +214,7 @@ public class AdminService : IAdminService
             .FirstOrDefaultAsync(u => u.Id == updateId);
 
         if (update == null) throw new NotFoundException("Profile update not found.");
+        if (update.ExpertProfile == null) throw new NotFoundException("Associated expert profile not found.");
         if (update.Status != ProfileUpdateStatus.PENDING) throw new ValidationException("Only pending updates can be reviewed.");
 
         update.AdminId = adminId;

@@ -13,7 +13,7 @@ public class ExpertProfileUpdateConfiguration : IEntityTypeConfiguration<ExpertP
         builder.HasKey(e => e.Id);
 
         builder.Property(e => e.Title).HasMaxLength(255);
-        builder.Property(e => e.Bio).HasMaxLength(2000);
+        builder.Property(e => e.Bio).HasMaxLength(5000);
         builder.Property(e => e.Status).HasConversion<string>().HasMaxLength(50);
         builder.Property(e => e.RejectionReason).HasMaxLength(1000);
 
