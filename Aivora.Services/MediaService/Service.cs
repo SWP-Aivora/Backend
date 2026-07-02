@@ -16,7 +16,8 @@ public class Service : IService
         "profiles",
         "jobs",
         "deliverables",
-        "disputes"
+        "disputes",
+        "chat"
     };
 
     private static readonly Dictionary<string, string[]> ImageContentTypes = new(StringComparer.OrdinalIgnoreCase)
@@ -79,23 +80,49 @@ public class Service : IService
         await ValidateFileAsync(file, FileContentTypes, 20 * 1024 * 1024);
         var cloudinaryFolder = NormalizeFolder(folder);
 
-        var uploadParams = new RawUploadParams
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        string secureUrl;
+        string publicId;
+        string format;
+        long bytes;
+
+        if (extension == ".pdf")
         {
-            File = new FileDescription(Path.GetFileName(file.FileName), file.OpenReadStream()),
-            Folder = cloudinaryFolder
-        };
-
-        var uploadResult = await _cloudinary.UploadAsync(uploadParams);
-
-        if (uploadResult.Error != null)
-            throw new InvalidOperationException("Cloudinary upload failed.");
+            var uploadParams = new ImageUploadParams
+            {
+                File = new FileDescription(Path.GetFileName(file.FileName), file.OpenReadStream()),
+                Folder = cloudinaryFolder
+            };
+            var uploadResult = await _cloudinary.UploadAsync(uploadParams);
+            if (uploadResult.Error != null)
+                throw new InvalidOperationException("Cloudinary upload failed.");
+            secureUrl = uploadResult.SecureUrl.ToString();
+            publicId = uploadResult.PublicId;
+            format = uploadResult.Format;
+            bytes = uploadResult.Bytes;
+        }
+        else
+        {
+            var uploadParams = new RawUploadParams
+            {
+                File = new FileDescription(Path.GetFileName(file.FileName), file.OpenReadStream()),
+                Folder = cloudinaryFolder
+            };
+            var uploadResult = await _cloudinary.UploadAsync(uploadParams);
+            if (uploadResult.Error != null)
+                throw new InvalidOperationException("Cloudinary upload failed.");
+            secureUrl = uploadResult.SecureUrl.ToString();
+            publicId = uploadResult.PublicId;
+            format = uploadResult.Format;
+            bytes = uploadResult.Bytes;
+        }
 
         return new Response.UploadResponse
         {
-            Url = uploadResult.SecureUrl.ToString(),
-            PublicId = uploadResult.PublicId,
-            Format = uploadResult.Format,
-            Bytes = uploadResult.Bytes
+            Url = secureUrl,
+            PublicId = publicId,
+            Format = format,
+            Bytes = bytes
         };
     }
 
