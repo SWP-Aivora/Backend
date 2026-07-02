@@ -986,6 +986,18 @@ public class AivoraDataSeeder : IAivoraDataSeeder
             },
             new Payment
             {
+                ProjectId = project1.Id,
+                MilestoneId = milestone2.Id,
+                PayerId = project1.ClientId,
+                PayeeId = project1.ExpertId,
+                Amount = 2500,
+                Currency = "AICOIN",
+                Status = PaymentStatus.HELD,
+                CreatedAt = DateTimeOffset.UtcNow.AddDays(-2),
+                UpdatedAt = DateTimeOffset.UtcNow.AddDays(-2)
+            },
+            new Payment
+            {
                 ProjectId = project2.Id,
                 MilestoneId = milestone4.Id,
                 PayerId = project2.ClientId,
@@ -996,6 +1008,18 @@ public class AivoraDataSeeder : IAivoraDataSeeder
                 ReleasedAt = DateTimeOffset.UtcNow.AddDays(-2),
                 CreatedAt = DateTimeOffset.UtcNow.AddDays(-2),
                 UpdatedAt = DateTimeOffset.UtcNow.AddDays(-2)
+            },
+            new Payment
+            {
+                ProjectId = project2.Id,
+                MilestoneId = milestone5.Id,
+                PayerId = project2.ClientId,
+                PayeeId = project2.ExpertId,
+                Amount = 5000,
+                Currency = "AICOIN",
+                Status = PaymentStatus.HELD,
+                CreatedAt = DateTimeOffset.UtcNow.AddDays(-1),
+                UpdatedAt = DateTimeOffset.UtcNow.AddDays(-1)
             }
         };
 
