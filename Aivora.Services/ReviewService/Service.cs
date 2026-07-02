@@ -139,19 +139,33 @@ public class Service : IService
     public async Task<Aivora.Services.Base.Response.PageResult<Response.ReviewResponse>> GetProjectReviewsAsync(Guid projectId, Aivora.Services.Base.Request.PageRequest pageRequest)
     {
         var query = _dbContext.Reviews
-            .Include(r => r.Reviewer)
-            .Where(r => r.ProjectId == projectId)
-            .OrderByDescending(r => r.CreatedAt);
+            .Where(r => r.ProjectId == projectId);
 
         var totalItems = await query.CountAsync();
         var items = await query
+            .OrderByDescending(r => r.CreatedAt)
             .Skip((pageRequest.PageIndex - 1) * pageRequest.PageSize)
             .Take(pageRequest.PageSize)
+            .Select(r => new Response.ReviewResponse
+            {
+                Id = r.Id,
+                ProjectId = r.ProjectId,
+                ReviewerId = r.ReviewerId,
+                ReviewerName = r.Reviewer != null ? r.Reviewer.FullName : "N/A",
+                RevieweeId = r.RevieweeId,
+                Rating = r.Rating,
+                Comment = r.Comment,
+                CommunicationRating = r.CommunicationRating,
+                QualityRating = r.QualityRating,
+                DeadlineRating = r.DeadlineRating,
+                RequirementClarityRating = r.RequirementClarityRating,
+                CreatedAt = r.CreatedAt
+            })
             .ToListAsync();
 
         return new Aivora.Services.Base.Response.PageResult<Response.ReviewResponse>
         {
-            Items = items.Select(r => MapToResponse(r, r.Reviewer?.FullName ?? "N/A")).ToList(),
+            Items = items,
             TotalItems = totalItems,
             PageIndex = pageRequest.PageIndex,
             PageSize = pageRequest.PageSize
