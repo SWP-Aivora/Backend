@@ -26,17 +26,31 @@ public class ChatHub : Hub
         return Context.User.GetUserId();
     }
 
+    private Guid? TryGetCurrentUserId()
+    {
+        try
+        {
+            if (Context.User == null) return null;
+            var userIdClaim = Context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+            return userIdClaim != null ? Guid.Parse(userIdClaim.Value) : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     public override async Task OnConnectedAsync()
     {
-        var userId = GetCurrentUserId();
-        _logger.LogInformation("User {UserId} connected to ChatHub (ConnectionId: {ConnectionId})", userId, Context.ConnectionId);
+        var userId = TryGetCurrentUserId();
+        _logger.LogInformation("User {UserId} connected to ChatHub (ConnectionId: {ConnectionId})", userId?.ToString() ?? "Anonymous", Context.ConnectionId);
         await base.OnConnectedAsync();
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        var userId = GetCurrentUserId();
-        _logger.LogInformation("User {UserId} disconnected from ChatHub (ConnectionId: {ConnectionId})", userId, Context.ConnectionId);
+        var userId = TryGetCurrentUserId();
+        _logger.LogInformation("User {UserId} disconnected from ChatHub (ConnectionId: {ConnectionId})", userId?.ToString() ?? "Anonymous", Context.ConnectionId);
         await base.OnDisconnectedAsync(exception);
     }
 
