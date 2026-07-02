@@ -34,4 +34,12 @@ public class ReviewController : ControllerBase
         var result = await _reviewService.GetUserReviewsAsync(userId, pageRequest);
         return Ok(ApiResponseFactory.SuccessResponse(result, "User reviews retrieved successfully", HttpContext.TraceIdentifier));
     }
+
+    [HttpGet("projects/{projectId}/reviews")]
+    [Authorize]
+    public async Task<IActionResult> GetProjectReviews(Guid projectId, [FromQuery] Aivora.Services.Base.Request.PageRequest pageRequest)
+    {
+        var result = await _reviewService.GetProjectReviewsAsync(projectId, pageRequest);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Project reviews retrieved successfully", HttpContext.TraceIdentifier));
+    }
 }
