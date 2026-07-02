@@ -36,7 +36,7 @@ public class ReviewController : ControllerBase
     }
 
     [HttpGet("projects/{projectId}/reviews")]
-    [AllowAnonymous]
+    [Authorize]
     public async Task<IActionResult> GetProjectReviews(Guid projectId, [FromQuery] Aivora.Services.Base.Request.PageRequest pageRequest)
     {
         var result = await _reviewService.GetProjectReviewsAsync(projectId, pageRequest);
