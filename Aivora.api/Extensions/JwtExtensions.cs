@@ -39,19 +39,24 @@ public static class JwtExtensions
                 RoleClaimType = ClaimTypes.Role
             };
 
-            // Browsers' native WebSocket API cannot set Authorization headers,
-            // so the SignalR client sends the JWT via ?access_token= instead.
             options.Events = new JwtBearerEvents
             {
                 OnMessageReceived = context =>
                 {
-                    var accessToken = context.Request.Query["access_token"];
-                    var path = context.HttpContext.Request.Path;
+                    var accessToken = context.Request.Cookies["accessToken"];
 
-                    // Only extract from query for SignalR hub paths
-                    if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/api/v1/chat"))
+                    // If cookie has the token, use it
+                    if (!string.IsNullOrEmpty(accessToken))
                     {
                         context.Token = accessToken;
+                    }
+
+                    // SignalR support: allow overriding via query string
+                    var accessTokenQuery = context.Request.Query["access_token"];
+                    var path = context.HttpContext.Request.Path;
+                    if (!string.IsNullOrEmpty(accessTokenQuery) && path.StartsWithSegments("/api/v1/chat"))
+                    {
+                        context.Token = accessTokenQuery;
                     }
 
                     return Task.CompletedTask;

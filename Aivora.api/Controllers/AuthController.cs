@@ -27,6 +27,23 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
+    /// Helper method to set HttpOnly cookies for tokens
+    /// </summary>
+    private void SetTokenCookies(string accessToken, string refreshToken)
+    {
+        var cookieOptions = new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = true, // Ensure this is true in production (requires HTTPS)
+            SameSite = SameSiteMode.None,
+            Expires = DateTime.UtcNow.AddDays(7) // Match refresh token expiration
+        };
+
+        Response.Cookies.Append("accessToken", accessToken, cookieOptions);
+        Response.Cookies.Append("refreshToken", refreshToken, cookieOptions);
+    }
+
+    /// <summary>
     /// User login endpoint
     /// </summary>
     /// <param name="request">Login credentials</param>
@@ -35,6 +52,7 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> Login([FromBody] Request.LoginRequest request)
     {
         var result = await _identityService.LoginAsync(request);
+        SetTokenCookies(result.AccessToken, result.RefreshToken);
         return Ok(ApiResponseFactory.SuccessResponse(result, "Login successful", HttpContext.TraceIdentifier));
     }
 
@@ -47,6 +65,7 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> Register([FromBody] Request.RegisterRequest request)
     {
         var result = await _identityService.RegisterAsync(request);
+        SetTokenCookies(result.AccessToken, result.RefreshToken);
         return Ok(ApiResponseFactory.SuccessResponse(result, "Registration successful", HttpContext.TraceIdentifier));
     }
 
@@ -56,10 +75,29 @@ public class AuthController : ControllerBase
     /// <param name="request">Refresh token</param>
     /// <returns>New access and refresh tokens</returns>
     [HttpPost("refresh-token")]
-    public async Task<IActionResult> RefreshToken([FromBody] Request.RefreshTokenRequest request)
+    public async Task<IActionResult> RefreshToken([FromBody] Request.RefreshTokenRequest? request)
     {
-        var result = await _identityService.RefreshTokenAsync(request);
+        var token = request?.RefreshToken ?? Request.Cookies["refreshToken"];
+        if (string.IsNullOrEmpty(token))
+        {
+            return Unauthorized(ApiResponseFactory.ErrorResponse("No refresh token provided", HttpContext.TraceIdentifier));
+        }
+
+        var refreshRequest = new Request.RefreshTokenRequest { RefreshToken = token };
+        var result = await _identityService.RefreshTokenAsync(refreshRequest);
+        SetTokenCookies(result.AccessToken, result.RefreshToken);
         return Ok(ApiResponseFactory.SuccessResponse(result, "Token refreshed successfully", HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Logout endpoint to clear cookies
+    /// </summary>
+    [HttpPost("logout")]
+    public IActionResult Logout()
+    {
+        Response.Cookies.Delete("accessToken", new CookieOptions { HttpOnly = true, Secure = true, SameSite = SameSiteMode.None });
+        Response.Cookies.Delete("refreshToken", new CookieOptions { HttpOnly = true, Secure = true, SameSite = SameSiteMode.None });
+        return Ok(ApiResponseFactory.SuccessResponse(null, "Logged out successfully", HttpContext.TraceIdentifier));
     }
 
     /// <summary>
