@@ -48,6 +48,7 @@ public static class JwtExtensions
                     var accessToken = context.Request.Query["access_token"];
                     var path = context.HttpContext.Request.Path;
 
+                    // Only extract from query for SignalR hub paths
                     if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/api/v1/chat"))
                     {
                         context.Token = accessToken;
