@@ -405,7 +405,7 @@ public class AivoraDataSeeder : IAivoraDataSeeder
             {
                 expertSkills.Add(new ExpertSkill
                 {
-                    ExpertId = expert1Profile.UserId,
+                    ExpertId = expert1Profile.Id,
                     SkillId = skill.Id,
                     CreatedAt = DateTimeOffset.UtcNow,
                     UpdatedAt = DateTimeOffset.UtcNow
@@ -422,7 +422,7 @@ public class AivoraDataSeeder : IAivoraDataSeeder
             {
                 expertSkills.Add(new ExpertSkill
                 {
-                    ExpertId = expert2Profile.UserId,
+                    ExpertId = expert2Profile.Id,
                     SkillId = skill.Id,
                     CreatedAt = DateTimeOffset.UtcNow,
                     UpdatedAt = DateTimeOffset.UtcNow
@@ -439,7 +439,7 @@ public class AivoraDataSeeder : IAivoraDataSeeder
             {
                 expertSkills.Add(new ExpertSkill
                 {
-                    ExpertId = expert3Profile.UserId,
+                    ExpertId = expert3Profile.Id,
                     SkillId = skill.Id,
                     CreatedAt = DateTimeOffset.UtcNow,
                     UpdatedAt = DateTimeOffset.UtcNow
@@ -456,7 +456,7 @@ public class AivoraDataSeeder : IAivoraDataSeeder
             {
                 expertSkills.Add(new ExpertSkill
                 {
-                    ExpertId = expert4Profile.UserId,
+                    ExpertId = expert4Profile.Id,
                     SkillId = skill.Id,
                     CreatedAt = DateTimeOffset.UtcNow,
                     UpdatedAt = DateTimeOffset.UtcNow
@@ -604,43 +604,8 @@ public class AivoraDataSeeder : IAivoraDataSeeder
 
         if (jobPost1 == null || jobPost2 == null) return;
 
-        // Project 1 - From Job Post 1
-        var project1 = new Project
-        {
-            JobId = jobPost1.Id,
-            ClientId = jobPost1.ClientId,
-            ExpertId = users.FirstOrDefault(u => u.Email == "expert1@example.com")!.Id,
-            Title = "E-commerce Website Development",
-            Description = "Building a modern e-commerce platform with React and Node.js",
-            TotalBudget = 7000,
-            Currency = "AICOIN",
-            Status = ProjectStatus.ACTIVE,
-            StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-10)),
-            CreatedAt = DateTimeOffset.UtcNow,
-            UpdatedAt = DateTimeOffset.UtcNow
-        };
-
-        // Project 2 - From Job Post 2
-        var project2 = new Project
-        {
-            JobId = jobPost2.Id,
-            ClientId = jobPost2.ClientId,
-            ExpertId = users.FirstOrDefault(u => u.Email == "expert3@example.com")!.Id,
-            Title = "Fitness Tracking Mobile App",
-            Description = "Cross-platform fitness tracking app for iOS and Android",
-            TotalBudget = 12000,
-            Currency = "AICOIN",
-            Status = ProjectStatus.IN_REVIEW,
-            StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-5)),
-            CompletedAt = DateTimeOffset.UtcNow.AddDays(-1),
-            CreatedAt = DateTimeOffset.UtcNow,
-            UpdatedAt = DateTimeOffset.UtcNow
-        };
-
-        await _context.Projects.AddRangeAsync(new[] { project1, project2 });
-        await _context.SaveChangesAsync();
-
-        // Seed Proposals
+        // Seed Proposals first — Project.AcceptedProposalId is a required (non-nullable) FK,
+        // so the accepted Proposal must exist before the Project row can be inserted.
         var proposal1 = new Proposal
         {
             JobId = jobPost1.Id,
@@ -666,6 +631,44 @@ public class AivoraDataSeeder : IAivoraDataSeeder
         };
 
         await _context.Proposals.AddRangeAsync(new[] { proposal1, proposal2 });
+        await _context.SaveChangesAsync();
+
+        // Project 1 - From Job Post 1
+        var project1 = new Project
+        {
+            JobId = jobPost1.Id,
+            ClientId = jobPost1.ClientId,
+            ExpertId = users.FirstOrDefault(u => u.Email == "expert1@example.com")!.Id,
+            AcceptedProposalId = proposal1.Id,
+            Title = "E-commerce Website Development",
+            Description = "Building a modern e-commerce platform with React and Node.js",
+            TotalBudget = 7000,
+            Currency = "AICOIN",
+            Status = ProjectStatus.ACTIVE,
+            StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-10)),
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
+
+        // Project 2 - From Job Post 2
+        var project2 = new Project
+        {
+            JobId = jobPost2.Id,
+            ClientId = jobPost2.ClientId,
+            ExpertId = users.FirstOrDefault(u => u.Email == "expert3@example.com")!.Id,
+            AcceptedProposalId = proposal2.Id,
+            Title = "Fitness Tracking Mobile App",
+            Description = "Cross-platform fitness tracking app for iOS and Android",
+            TotalBudget = 12000,
+            Currency = "AICOIN",
+            Status = ProjectStatus.IN_REVIEW,
+            StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-5)),
+            CompletedAt = DateTimeOffset.UtcNow.AddDays(-1),
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
+
+        await _context.Projects.AddRangeAsync(new[] { project1, project2 });
         await _context.SaveChangesAsync();
 
         // Seed Proposal Milestones
@@ -728,13 +731,6 @@ public class AivoraDataSeeder : IAivoraDataSeeder
             proposalMilestone1, proposalMilestone2, proposalMilestone3,
             proposalMilestone4, proposalMilestone5, proposalMilestone6
         });
-        await _context.SaveChangesAsync();
-
-        // Update AcceptedProposalId for projects
-        project1.AcceptedProposalId = proposal1.Id;
-        project2.AcceptedProposalId = proposal2.Id;
-
-        _context.Projects.UpdateRange(new[] { project1, project2 });
         await _context.SaveChangesAsync();
 
         // Seed Milestones
@@ -826,6 +822,7 @@ public class AivoraDataSeeder : IAivoraDataSeeder
         var deliverable1 = new Deliverable
         {
             MilestoneId = milestone1.Id,
+            ExpertId = project1.ExpertId,
             Description = "Complete UI/UX design mockups",
             FileUrl = "/files/design-mockups.zip",
             Status = DeliverableStatus.APPROVED,
@@ -836,6 +833,7 @@ public class AivoraDataSeeder : IAivoraDataSeeder
         var deliverable2 = new Deliverable
         {
             MilestoneId = milestone2.Id,
+            ExpertId = project1.ExpertId,
             Description = "Frontend development progress",
             FileUrl = "/files/react-app-progress.zip",
             Status = DeliverableStatus.SUBMITTED,
@@ -846,6 +844,7 @@ public class AivoraDataSeeder : IAivoraDataSeeder
         var deliverable3 = new Deliverable
         {
             MilestoneId = milestone4.Id,
+            ExpertId = project2.ExpertId,
             Description = "Complete app design mockups",
             FileUrl = "/files/app-design-mockups.zip",
             Status = DeliverableStatus.APPROVED,
@@ -856,6 +855,7 @@ public class AivoraDataSeeder : IAivoraDataSeeder
         var deliverable4 = new Deliverable
         {
             MilestoneId = milestone5.Id,
+            ExpertId = project2.ExpertId,
             Description = "Main app features implementation",
             FileUrl = "/files/core-features.zip",
             Status = DeliverableStatus.SUBMITTED,

@@ -19,3 +19,8 @@ public class UnauthorizedException : DomainException
 {
     public UnauthorizedException(string message) : base(message) { }
 }
+
+public class ServiceUnavailableException : DomainException
+{
+    public ServiceUnavailableException(string message) : base(message) { }
+}

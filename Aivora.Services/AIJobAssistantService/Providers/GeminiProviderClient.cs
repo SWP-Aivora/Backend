@@ -19,7 +19,15 @@ public class GeminiProviderClient
 
     public bool HasApiKey => !string.IsNullOrWhiteSpace(_options.ApiKey);
 
-    public async Task<string> GenerateAsync(string prompt, CancellationToken cancellationToken = default)
+    public Task<string> GenerateAsync(string prompt, CancellationToken cancellationToken = default)
+    {
+        return GenerateAsync(prompt, Array.Empty<(string MimeType, byte[] Data)>(), cancellationToken);
+    }
+
+    public async Task<string> GenerateAsync(
+        string prompt,
+        IReadOnlyList<(string MimeType, byte[] Data)> attachments,
+        CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(_options.ApiKey))
         {
@@ -31,6 +39,20 @@ public class GeminiProviderClient
             : _options.BaseUrl.TrimEnd('/');
         var model = string.IsNullOrWhiteSpace(_options.Model) ? "gemini-2.5-flash" : _options.Model.Trim();
         var requestUri = $"{baseUrl}/v1beta/models/{Uri.EscapeDataString(model)}:generateContent";
+
+        var requestParts = new List<object> { new { text = prompt } };
+        foreach (var attachment in attachments)
+        {
+            requestParts.Add(new
+            {
+                inline_data = new
+                {
+                    mime_type = attachment.MimeType,
+                    data = Convert.ToBase64String(attachment.Data)
+                }
+            });
+        }
+
         var payload = new
         {
             contents = new[]
@@ -38,7 +60,7 @@ public class GeminiProviderClient
                 new
                 {
                     role = "user",
-                    parts = new[] { new { text = prompt } }
+                    parts = requestParts.ToArray()
                 }
             },
             generationConfig = new { responseMimeType = "application/json" }
