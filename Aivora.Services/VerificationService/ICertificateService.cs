@@ -10,4 +10,5 @@ public interface ICertificateService
     Task<VerificationCertificate> VerifyCertificateAsync(Guid certificateId);
     Task<List<VerificationCertificate>> GetExpertCertificatesAsync(Guid expertId);
     Task<bool> DeleteCertificateAsync(Guid certificateId);
+    Task<Guid> GetExpertProfileIdAsync(Guid userId);
 }

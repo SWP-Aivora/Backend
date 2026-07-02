@@ -1,5 +1,6 @@
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
+using Aivora.Services.Models;
 using Aivora.Services.VerificationService;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -15,10 +16,12 @@ namespace Aivora.api.Controllers;
 public class VerificationController : ControllerBase
 {
     private readonly IVerificationService _verificationService;
+    private readonly ICertificateService _certificateService;
 
-    public VerificationController(IVerificationService verificationService)
+    public VerificationController(IVerificationService verificationService, ICertificateService certificateService)
     {
         _verificationService = verificationService;
+        _certificateService = certificateService;
     }
 
     // Expert endpoints
@@ -231,7 +234,44 @@ public class VerificationController : ControllerBase
     }
 
     // Certificate endpoints
-    // Certificate endpoints to be implemented later
+    [HttpPost("certificates")]
+    [Authorize(Roles = "EXPERT")]
+    public async Task<IActionResult> UploadCertificate(IFormFile file, [FromQuery] string certificateName, [FromQuery] string issuingOrganization)
+    {
+        var userId = GetExpertId();
+        var expertId = await _certificateService.GetExpertProfileIdAsync(userId);
+        var certificate = await _certificateService.UploadCertificateAsync(expertId, file, certificateName, issuingOrganization);
+
+        return Ok(ApiResponseFactory.SuccessResponse(ToCertificateResponse(certificate), "Certificate uploaded successfully", HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("certificates")]
+    [Authorize(Roles = "EXPERT")]
+    public async Task<IActionResult> GetMyCertificates()
+    {
+        var userId = GetExpertId();
+        var expertId = await _certificateService.GetExpertProfileIdAsync(userId);
+        var certificates = await _certificateService.GetExpertCertificatesAsync(expertId);
+
+        return Ok(ApiResponseFactory.SuccessResponse(certificates.Select(ToCertificateResponse), "Certificates retrieved successfully", HttpContext.TraceIdentifier));
+    }
+
+    [HttpDelete("certificates/{certificateId}")]
+    [Authorize(Roles = "EXPERT")]
+    public async Task<IActionResult> DeleteCertificate(Guid certificateId)
+    {
+        var userId = GetExpertId();
+        var expertId = await _certificateService.GetExpertProfileIdAsync(userId);
+        var ownCertificates = await _certificateService.GetExpertCertificatesAsync(expertId);
+        if (!ownCertificates.Any(c => c.Id == certificateId))
+            throw new UnauthorizedException("You do not have access to this certificate");
+
+        var deleted = await _certificateService.DeleteCertificateAsync(certificateId);
+        if (!deleted)
+            return NotFound(ApiResponseFactory.ErrorResponse("Certificate not found", traceId: HttpContext.TraceIdentifier));
+
+        return Ok(ApiResponseFactory.SuccessResponse(null, "Certificate deleted successfully", HttpContext.TraceIdentifier));
+    }
 
     // Public endpoints
     [HttpGet("experts/{expertId}/status")]
@@ -279,5 +319,21 @@ public class VerificationController : ControllerBase
         if (verification.IsCertificatesProcessed) progress += 34;
 
         return Math.Clamp(progress, 0, 99);
+    }
+
+    private static CertificateResponse ToCertificateResponse(VerificationCertificate certificate)
+    {
+        return new CertificateResponse
+        {
+            Id = certificate.Id,
+            ExpertId = certificate.ExpertId,
+            CertificateName = certificate.CertificateName,
+            IssuingOrganization = certificate.IssuingOrganization,
+            CertificateUrl = certificate.CertificateUrl,
+            IssueDate = certificate.IssueDate,
+            ExpiryDate = certificate.ExpiryDate,
+            Score = certificate.Score,
+            IsVerified = certificate.IsVerified
+        };
     }
 }

@@ -146,6 +146,7 @@ public static class ServiceCollectionExtensions
         // Add Verification Service
         services.AddScoped<Aivora.Services.JwtService.IUserContext, Aivora.Services.JwtService.UserContext>();
         services.AddScoped<Aivora.Services.VerificationService.IVerificationService, Aivora.Services.VerificationService.MockVerificationService>();
+        services.AddScoped<Aivora.Services.VerificationService.ICertificateService, Aivora.Services.VerificationService.CertificateService>();
         services.AddScoped<Aivora.Services.AIJobAssistantService.IAIJobSuggestionProvider>(sp =>
         {
             var options = sp.GetRequiredService<IOptions<AIProviderOptions>>().Value;

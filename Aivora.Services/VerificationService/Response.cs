@@ -59,6 +59,19 @@ public class FailedVerificationItem
     public DateTime LastFailedAt { get; set; }
 }
 
+public class CertificateResponse
+{
+    public Guid Id { get; set; }
+    public Guid ExpertId { get; set; }
+    public string CertificateName { get; set; } = null!;
+    public string IssuingOrganization { get; set; } = null!;
+    public string CertificateUrl { get; set; } = null!;
+    public DateTime IssueDate { get; set; }
+    public DateTime? ExpiryDate { get; set; }
+    public int Score { get; set; }
+    public bool IsVerified { get; set; }
+}
+
 public class VerificationAnalyticsResponse
 {
     public int TotalExperts { get; set; }

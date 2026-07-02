@@ -44,3 +44,5 @@ appsettings.Development.json
 
 # Playwright test artifacts
 .playwright-mcp/
+
+.fake
