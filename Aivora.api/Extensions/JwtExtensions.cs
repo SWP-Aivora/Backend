@@ -39,8 +39,8 @@ public static class JwtExtensions
                 RoleClaimType = ClaimTypes.Role
             };
 
-            // SignalR: Extract JWT from query string for WebSocket connections
-            // WebSockets cannot send Authorization headers, so the token is passed via ?access_token=
+            // Browsers' native WebSocket API cannot set Authorization headers,
+            // so the SignalR client sends the JWT via ?access_token= instead.
             options.Events = new JwtBearerEvents
             {
                 OnMessageReceived = context =>
