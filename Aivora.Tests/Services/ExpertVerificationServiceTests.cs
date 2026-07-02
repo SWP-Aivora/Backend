@@ -329,6 +329,33 @@ public class ExpertVerificationServiceTests
     }
 
     [Fact]
+    public async Task ReviewEscalatedVerificationAsync_DoesNotPersistRejectionReason_WhenApproved()
+    {
+        var dbContext = GetDbContext();
+        var (_, _, _, expertSkill) = SeedExpertSkill(dbContext);
+
+        var verification = new ExpertVerification
+        {
+            ExpertSkillId = expertSkill.Id,
+            EvidenceFileUrl = "https://cdn/1.png",
+            EvidencePublicId = "1",
+            Status = ExpertVerificationStatus.ESCALATED
+        };
+        dbContext.ExpertVerifications.Add(verification);
+        await dbContext.SaveChangesAsync();
+
+        var service = BuildService(dbContext, BuildAiProviderMock(ExpertVerificationStatus.APPROVED));
+
+        var reviewed = await service.ReviewEscalatedVerificationAsync(
+            Guid.NewGuid(),
+            verification.Id,
+            new Request.ReviewVerificationRequest { IsApproved = true, RejectionReason = "stale value from a reused form" });
+
+        reviewed.Status.Should().Be(ExpertVerificationStatus.APPROVED.ToString());
+        reviewed.AdminDecisionReason.Should().BeNull();
+    }
+
+    [Fact]
     public async Task ReviewEscalatedVerificationAsync_Throws_WhenRecordIsNotEscalated()
     {
         var dbContext = GetDbContext();

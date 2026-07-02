@@ -199,9 +199,8 @@ public class Service : IService
                 throw new ValidationException("Rejection reason is required when rejecting a verification.");
 
             verification.Status = ExpertVerificationStatus.REJECTED;
+            verification.AdminDecisionReason = request.RejectionReason;
         }
-
-        verification.AdminDecisionReason = request.RejectionReason;
 
         await _dbContext.SaveChangesAsync();
 
