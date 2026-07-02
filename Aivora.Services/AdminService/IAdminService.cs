@@ -10,6 +10,7 @@ public interface IAdminService
     Task<Aivora.Services.Base.Response.PageResult<IdentityService.Response.UserResponse>> GetUsersAsync(Aivora.Services.Base.Request.PageRequest pageRequest, string? search = null);
     Task<Response.DashboardStatsResponse> GetDashboardStatsAsync();
     Task<Aivora.Services.Base.Response.PageResult<Response.ExpertReviewResponse>> GetExpertReviewsAsync(Aivora.Services.Base.Request.PageRequest pageRequest, string? search = null);
+    Task<Aivora.Services.Base.Response.PageResult<Response.ExpertProfileUpdateResponse>> GetExpertProfileUpdatesAsync(Aivora.Services.Base.Request.PageRequest pageRequest, string? status = null);
     Task<Response.ExpertProfileUpdateResponse> ReviewExpertProfileUpdateAsync(Guid adminId, Guid updateId, Request.ReviewExpertProfileUpdateRequest request);
 }
 

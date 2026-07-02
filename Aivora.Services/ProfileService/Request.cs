@@ -18,8 +18,8 @@ public class Request
         public string? Title { get; set; }
         public string? Bio { get; set; }
         public decimal? HourlyRate { get; set; }
-        public int ExperienceYears { get; set; }
-        public AvailabilityStatus AvailabilityStatus { get; set; }
+        public int? ExperienceYears { get; set; }
+        public AvailabilityStatus? AvailabilityStatus { get; set; }
     }
 
     public class UpdateUserRequest
