@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.Authorization;
-using Aivora.Services.MessageService;
+using IMessageService = Aivora.Services.MessageService.IService;
 using Aivora.api.Extensions;
 
 namespace Aivora.api.Hubs;
@@ -8,32 +8,41 @@ namespace Aivora.api.Hubs;
 [Authorize]
 public class ChatHub : Hub
 {
-    private readonly IService _messageService;
+    private readonly IMessageService _messageService;
     private readonly ILogger<ChatHub> _logger;
 
-    public ChatHub(IService messageService, ILogger<ChatHub> logger)
+    public ChatHub(IMessageService messageService, ILogger<ChatHub> logger)
     {
         _messageService = messageService;
         _logger = logger;
     }
 
+    private Guid GetCurrentUserId()
+    {
+        if (Context.User == null)
+        {
+            throw new HubException("User is not authenticated.");
+        }
+        return Context.User.GetUserId();
+    }
+
     public override async Task OnConnectedAsync()
     {
-        var userId = Context.User!.GetUserId();
+        var userId = GetCurrentUserId();
         _logger.LogInformation("User {UserId} connected to ChatHub (ConnectionId: {ConnectionId})", userId, Context.ConnectionId);
         await base.OnConnectedAsync();
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        var userId = Context.User!.GetUserId();
+        var userId = GetCurrentUserId();
         _logger.LogInformation("User {UserId} disconnected from ChatHub (ConnectionId: {ConnectionId})", userId, Context.ConnectionId);
         await base.OnDisconnectedAsync(exception);
     }
 
     public async Task JoinConversation(Guid conversationId)
     {
-        var userId = Context.User!.GetUserId();
+        var userId = GetCurrentUserId();
         await _messageService.EnsureConversationParticipantAsync(userId, conversationId);
         await Groups.AddToGroupAsync(Context.ConnectionId, conversationId.ToString());
         _logger.LogInformation("User {UserId} joined conversation {ConversationId}", userId, conversationId);
@@ -41,15 +50,15 @@ public class ChatHub : Hub
 
     public async Task LeaveConversation(Guid conversationId)
     {
-        var userId = Context.User!.GetUserId();
+        var userId = GetCurrentUserId();
         await _messageService.EnsureConversationParticipantAsync(userId, conversationId);
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, conversationId.ToString());
         _logger.LogInformation("User {UserId} left conversation {ConversationId}", userId, conversationId);
     }
 
-    public async Task SendMessage(Request.SendMessageRequest request)
+    public async Task SendMessage(Aivora.Services.MessageService.Request.SendMessageRequest request)
     {
-        var senderId = Context.User!.GetUserId();
+        var senderId = GetCurrentUserId();
         var message = await _messageService.SendMessageAsync(senderId, request);
 
         // Broadcast to all participants in the conversation
@@ -61,7 +70,7 @@ public class ChatHub : Hub
     /// </summary>
     public async Task UserTyping(Guid conversationId, bool isTyping)
     {
-        var userId = Context.User!.GetUserId();
+        var userId = GetCurrentUserId();
         await _messageService.EnsureConversationParticipantAsync(userId, conversationId);
 
         // Broadcast to others in the group (exclude sender)
@@ -79,7 +88,7 @@ public class ChatHub : Hub
     /// </summary>
     public async Task MarkAsRead(Guid conversationId)
     {
-        var userId = Context.User!.GetUserId();
+        var userId = GetCurrentUserId();
         await _messageService.MarkAsReadAsync(userId, conversationId);
 
         // Broadcast read confirmation to other participants
