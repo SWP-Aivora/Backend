@@ -11,11 +11,13 @@ public class HiringService : IHiringService
 {
     private readonly AivoraDbContext _dbContext;
     private readonly NotificationService.IService _notificationService;
+    private readonly RealtimeService.IService _realtimeService;
 
-    public HiringService(AivoraDbContext dbContext, NotificationService.IService notificationService)
+    public HiringService(AivoraDbContext dbContext, NotificationService.IService notificationService, RealtimeService.IService realtimeService)
     {
         _dbContext = dbContext;
         _notificationService = notificationService;
+        _realtimeService = realtimeService;
     }
 
     public async Task<Response.HiringResultResponse> AcceptProposalAsync(Guid clientId, Guid proposalId)
@@ -81,6 +83,9 @@ public class HiringService : IHiringService
             await _dbContext.SaveChangesAsync();
 
             await transaction.CommitAsync();
+
+            var affectedUsers = new[] { clientId, proposal.ExpertId };
+            await _realtimeService.SendJobStatusUpdateToUsersAsync(affectedUsers, proposal.JobId, JobStatus.IN_PROGRESS, proposal.Job.Title);
 
             // Send notification to the accepted Expert
             try
