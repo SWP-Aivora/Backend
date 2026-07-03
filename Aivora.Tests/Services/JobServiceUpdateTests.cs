@@ -5,6 +5,7 @@ using Aivora.Services.Exceptions;
 using Aivora.Services.JobService;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Moq;
 using Xunit;
 
 namespace Aivora.Tests.Services;
@@ -34,7 +35,7 @@ public class JobServiceUpdateTests
         var dbContext = GetDbContext();
         var (_, _, clientId) = SetupClient(dbContext);
 
-        var service = new Service(dbContext);
+        var service = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService());
         var categoryId = Guid.NewGuid();
 
         var job = new JobPost
@@ -78,7 +79,7 @@ public class JobServiceUpdateTests
         var dbContext = GetDbContext();
         var (_, _, clientId) = SetupClient(dbContext);
 
-        var service = new Service(dbContext);
+        var service = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService());
 
         var job = new JobPost
         {
@@ -109,7 +110,7 @@ public class JobServiceUpdateTests
     {
         var dbContext = GetDbContext();
         var (_, _, clientId) = SetupClient(dbContext);
-        var service = new Service(dbContext);
+        var service = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService());
 
         var job = new JobPost
         {
@@ -139,7 +140,7 @@ public class JobServiceUpdateTests
     public async Task UpdateJobAsync_NotOwner_ThrowsNotFoundException()
     {
         var dbContext = GetDbContext();
-        var service = new Service(dbContext);
+        var service = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService());
 
         var job = new JobPost
         {
@@ -156,5 +157,23 @@ public class JobServiceUpdateTests
 
         Func<Task> act = async () => await service.UpdateJobAsync(Guid.NewGuid(), job.Id, request);
         await act.Should().ThrowAsync<NotFoundException>();
+    }
+
+    [Fact]
+    public async Task PublishJobAsync_CallsRealtimeService()
+    {
+        var dbContext = GetDbContext();
+        var client = new User { FullName = "Client", Email = "c@test.com", PasswordHash = "h" };
+        dbContext.Users.Add(client);
+        var job = new JobPost { ClientId = client.Id, Title = "J", Status = JobStatus.DRAFT, OriginalDescription = "X", CategoryId = Guid.NewGuid() };
+        dbContext.JobPosts.Add(job);
+        await dbContext.SaveChangesAsync();
+
+        var mockRealtime = new Mock<Aivora.Services.RealtimeService.IService>();
+        var service = new Service(dbContext, mockRealtime.Object);
+
+        await service.PublishJobAsync(client.Id, job.Id);
+
+        mockRealtime.Verify(r => r.SendJobStatusUpdateAsync(client.Id, job.Id, Aivora.Repositories.Enums.JobStatus.OPEN, "J"), Times.Once);
     }
 }

@@ -9,10 +9,12 @@ namespace Aivora.Services.JobService;
 public class Service : IService
 {
     private readonly AivoraDbContext _dbContext;
+    private readonly RealtimeService.IService _realtimeService;
 
-    public Service(AivoraDbContext dbContext)
+    public Service(AivoraDbContext dbContext, RealtimeService.IService realtimeService)
     {
         _dbContext = dbContext;
+        _realtimeService = realtimeService;
     }
 
     public async Task<Response.JobResponse> GetJobByIdAsync(Guid id)
@@ -171,6 +173,8 @@ public class Service : IService
 
         await _dbContext.SaveChangesAsync();
 
+        await _realtimeService.SendJobStatusUpdateAsync(clientId, job.Id, JobStatus.OPEN, job.Title);
+
         return await GetJobByIdAsync(job.Id);
     }
 
@@ -185,6 +189,9 @@ public class Service : IService
         // Optionally store reason in a separate field or log
 
         await _dbContext.SaveChangesAsync();
+
+        await _realtimeService.SendJobStatusUpdateAsync(clientId, job.Id, JobStatus.CANCELLED, job.Title);
+
         return await GetJobByIdAsync(job.Id);
     }
 
