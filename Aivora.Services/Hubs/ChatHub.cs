@@ -1,5 +1,8 @@
+using System;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Logging;
 using IMessageService = Aivora.Services.MessageService.IService;
 using Aivora.api.Extensions;
 

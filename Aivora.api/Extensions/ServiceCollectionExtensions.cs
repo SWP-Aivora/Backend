@@ -195,6 +195,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Aivora.Services.NotificationService.IService, Aivora.Services.NotificationService.Service>();
         services.AddScoped<Aivora.Services.AdminService.IAdminService, Aivora.Services.AdminService.AdminService>();
         services.AddScoped<Aivora.Services.Treasury.ITreasury, Aivora.Services.Treasury.Treasury>();
+        services.AddScoped<Aivora.Services.RealtimeService.IService, Aivora.Services.RealtimeService.Service>();
 
         // ExpertVerificationService
         services.AddScoped<Aivora.Services.ExpertVerificationService.Prompting.AIExpertVerificationPromptBuilder>();
