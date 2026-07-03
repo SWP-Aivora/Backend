@@ -42,7 +42,7 @@ public class MilestoneServiceTests
         await dbContext.SaveChangesAsync();
 
         // Finance setup
-        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>());
+        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService());
         var service = new Service(dbContext, treasury, Mock.Of<Aivora.Services.NotificationService.IService>());
 
         // Act
@@ -84,7 +84,7 @@ public class MilestoneServiceTests
         await dbContext.SaveChangesAsync();
 
         // Finance setup
-        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>());
+        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService());
         var service = new Service(dbContext, treasury, Mock.Of<Aivora.Services.NotificationService.IService>());
 
         // Act

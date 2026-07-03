@@ -123,7 +123,7 @@ public class Flow3MilestoneEscrowTests
         await dbContext.SaveChangesAsync();
 
         // Use the service (public interface)
-        var treasury = new Treasury(dbContext, Mock.Of<ILogger<Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>());
+        var treasury = new Treasury(dbContext, Mock.Of<ILogger<Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService());
         var milestoneService = new Service(dbContext, treasury, Mock.Of<Aivora.Services.NotificationService.IService>());
 
         // ----------------------------------------------------
@@ -256,7 +256,7 @@ public class Flow3MilestoneEscrowTests
         dbContext.Milestones.Add(milestone);
         await dbContext.SaveChangesAsync();
 
-        var treasury = new Treasury(dbContext, Mock.Of<ILogger<Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>());
+        var treasury = new Treasury(dbContext, Mock.Of<ILogger<Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService());
         var milestoneService = new Service(dbContext, treasury, Mock.Of<Aivora.Services.NotificationService.IService>());
 
         // ----------------------------------------------------
@@ -373,7 +373,7 @@ public class Flow3MilestoneEscrowTests
         dbContext.Milestones.Add(milestone);
         await dbContext.SaveChangesAsync();
 
-        var treasury = new Treasury(dbContext, Mock.Of<ILogger<Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>());
+        var treasury = new Treasury(dbContext, Mock.Of<ILogger<Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService());
         var milestoneService = new Service(dbContext, treasury, Mock.Of<Aivora.Services.NotificationService.IService>());
 
         // ----------------------------------------------------
