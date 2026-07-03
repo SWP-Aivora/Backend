@@ -44,7 +44,7 @@ public class DisputeServiceTests
         await dbContext.SaveChangesAsync();
 
         var notificationService = new MockNotificationService();
-        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(), notificationService);
+        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(), notificationService, new Aivora.Services.RealtimeService.NullRealtimeService());
         var service = new Service(dbContext, treasury, notificationService);
         var request = new Request.OpenDisputeRequest { MilestoneId = milestoneId, Reason = "Poor quality" };
 
@@ -96,7 +96,7 @@ public class DisputeServiceTests
         await dbContext.SaveChangesAsync();
 
         var notificationService = new MockNotificationService();
-        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(), notificationService);
+        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(), notificationService, new Aivora.Services.RealtimeService.NullRealtimeService());
         var service = new Service(dbContext, treasury, notificationService);
         var resolveRequest = new Request.ResolveDisputeRequest
         {

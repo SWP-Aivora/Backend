@@ -84,7 +84,7 @@ public class Flow1JobCreationAndRecommendationTests
         // ----------------------------------------------------
         // Act: Client creates job draft
         // ----------------------------------------------------
-        var jobService = new Service(dbContext);
+        var jobService = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService());
 
         var createJobReq = new Request.CreateJobRequest
         {
@@ -181,7 +181,7 @@ public class Flow1JobCreationAndRecommendationTests
         await dbContext.SaveChangesAsync();
 
         // Create initial DRAFT job
-        var jobService = new Service(dbContext);
+        var jobService = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService());
         var createJobReq = new Request.CreateJobRequest
         {
             Title = "Initial Title",
@@ -272,7 +272,7 @@ public class Flow1JobCreationAndRecommendationTests
         await dbContext.SaveChangesAsync();
 
         // Create initial DRAFT job
-        var jobService = new Service(dbContext);
+        var jobService = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService());
         var createJobReq = new Request.CreateJobRequest
         {
             Title = "Build AI Chatbot for Beauty Shop",

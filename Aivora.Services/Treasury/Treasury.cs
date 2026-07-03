@@ -17,12 +17,14 @@ public class Treasury : ITreasury
     private readonly AivoraDbContext _dbContext;
     private readonly ILogger<Treasury> _logger;
     private readonly NotificationService.IService _notificationService;
+    private readonly RealtimeService.IService _realtimeService;
 
-    public Treasury(AivoraDbContext dbContext, ILogger<Treasury> logger, NotificationService.IService notificationService)
+    public Treasury(AivoraDbContext dbContext, ILogger<Treasury> logger, NotificationService.IService notificationService, RealtimeService.IService realtimeService)
     {
         _dbContext = dbContext;
         _logger = logger;
         _notificationService = notificationService;
+        _realtimeService = realtimeService;
     }
 
     public async Task FundMilestoneAsync(Guid clientId, Guid milestoneId)
@@ -380,6 +382,9 @@ public class Treasury : ITreasury
             }
 
             _logger.LogInformation("🏆 Project {ProjectId} marked as COMPLETED because all milestones are settled.", projectId);
+
+            var affectedUsers = new[] { project.ClientId, project.ExpertId };
+            await _realtimeService.SendJobStatusUpdateToUsersAsync(affectedUsers, project.JobId, JobStatus.COMPLETED, project.Job?.Title);
         }
         else if (project.Milestones.Any(m => m.Status == MilestoneStatus.DISPUTED))
         {

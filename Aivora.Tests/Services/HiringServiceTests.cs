@@ -38,7 +38,7 @@ public class HiringServiceTests
         dbContext.Proposals.AddRange(proposal1, proposal2);
         await dbContext.SaveChangesAsync();
 
-        var service = new Aivora.Services.HiringService.HiringService(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
+        var service = new Aivora.Services.HiringService.HiringService(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService());
 
         // Act
         var result = await service.AcceptProposalAsync(clientId, proposal1.Id);
@@ -73,7 +73,7 @@ public class HiringServiceTests
         dbContext.Proposals.Add(proposal);
         await dbContext.SaveChangesAsync();
 
-        var service = new Aivora.Services.HiringService.HiringService(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
+        var service = new Aivora.Services.HiringService.HiringService(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService());
 
         // Act
         await service.ShortlistProposalAsync(clientId, proposal.Id);
@@ -96,7 +96,7 @@ public class HiringServiceTests
         dbContext.Proposals.Add(proposal);
         await dbContext.SaveChangesAsync();
 
-        var service = new Aivora.Services.HiringService.HiringService(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
+        var service = new Aivora.Services.HiringService.HiringService(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService());
 
         // Act
         await service.UnshortlistProposalAsync(clientId, proposal.Id);
@@ -119,7 +119,7 @@ public class HiringServiceTests
         dbContext.Proposals.Add(proposal);
         await dbContext.SaveChangesAsync();
 
-        var service = new Aivora.Services.HiringService.HiringService(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
+        var service = new Aivora.Services.HiringService.HiringService(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService());
 
         // Act & Assert
         await Assert.ThrowsAsync<ValidationException>(() =>
@@ -140,10 +140,30 @@ public class HiringServiceTests
         dbContext.Proposals.Add(proposal);
         await dbContext.SaveChangesAsync();
 
-        var service = new Aivora.Services.HiringService.HiringService(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
+        var service = new Aivora.Services.HiringService.HiringService(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService());
 
         // Act & Assert
         await Assert.ThrowsAsync<UnauthorizedException>(() =>
             service.UnshortlistProposalAsync(anotherClientId, proposal.Id));
+    }
+
+    [Fact]
+    public async Task AcceptProposalAsync_CallsRealtimeService()
+    {
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+        var job = new JobPost { Id = Guid.NewGuid(), ClientId = clientId, Title = "T", Status = JobStatus.OPEN, OriginalDescription = "X" };
+        var proposal = new Proposal { Id = Guid.NewGuid(), JobId = job.Id, ExpertId = expertId, Status = ProposalStatus.SUBMITTED, CoverLetter = "L", ProposedBudget = 100 };
+        dbContext.JobPosts.Add(job);
+        dbContext.Proposals.Add(proposal);
+        await dbContext.SaveChangesAsync();
+
+        var mockRealtime = new Mock<Aivora.Services.RealtimeService.IService>();
+        var service = new Aivora.Services.HiringService.HiringService(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), mockRealtime.Object);
+
+        await service.AcceptProposalAsync(clientId, proposal.Id);
+
+        mockRealtime.Verify(r => r.SendJobStatusUpdateToUsersAsync(It.Is<IEnumerable<Guid>>(ids => ids.Contains(clientId) && ids.Contains(expertId)), job.Id, Aivora.Repositories.Enums.JobStatus.IN_PROGRESS, "T"), Times.Once);
     }
 }
