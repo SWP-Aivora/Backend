@@ -12,31 +12,161 @@ permissions:
   contents: read
   pull-requests: write
 
+env:
+  GEMINI_MODEL_LIGHT: ${{ vars.GEMINI_MODEL_LIGHT || 'gemini-3.1-flash-lite' }}
+  GEMINI_MODEL_STRONG: ${{ vars.GEMINI_MODEL_STRONG || 'gemini-3.5-flash' }}
+  PR_NUMBER: ${{ github.event.pull_request.number }}
+  REPO: ${{ github.repository }}
+  PR_TITLE: ${{ github.event.pull_request.title }}
+  PR_BODY: ${{ github.event.pull_request.body }}
+  PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+  HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+
 jobs:
-  review:
-    name: AI Code Review
+  prepare:
+    name: Prepare diff
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
-
+    outputs:
+      has_changes: ${{ steps.run.outputs.has_changes }}
+      diff_b64: ${{ steps.run.outputs.diff_b64 }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
+      - name: Run self-checks
+        run: python3 .github/scripts/test_review_bot.py
+      - id: run
+        env:
+          GH_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
+        run: python3 .github/scripts/review_bot.py prepare
 
-      - name: Run Review Bot
+  pass-claude-md:
+    name: "Pass: CLAUDE.md compliance"
+    needs: prepare
+    if: needs.prepare.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      issues_b64: ${{ steps.run.outputs.issues_b64 }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - id: run
+        env:
+          GEMINI_AI_KEY: ${{ secrets.GEMINI_AI_KEY }}
+          MODEL: ${{ env.GEMINI_MODEL_LIGHT }}
+          DIFF_B64: ${{ needs.prepare.outputs.diff_b64 }}
+        run: python3 .github/scripts/review_bot.py pass --pass-name claude-md
+
+  pass-bug-scan:
+    name: "Pass: Bug scan"
+    needs: prepare
+    if: needs.prepare.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      issues_b64: ${{ steps.run.outputs.issues_b64 }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - id: run
+        env:
+          GEMINI_AI_KEY: ${{ secrets.GEMINI_AI_KEY }}
+          MODEL: ${{ env.GEMINI_MODEL_LIGHT }}
+          DIFF_B64: ${{ needs.prepare.outputs.diff_b64 }}
+        run: python3 .github/scripts/review_bot.py pass --pass-name bug-scan
+
+  pass-git-blame:
+    name: "Pass: Git history"
+    needs: prepare
+    if: needs.prepare.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      issues_b64: ${{ steps.run.outputs.issues_b64 }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - id: run
+        env:
+          GEMINI_AI_KEY: ${{ secrets.GEMINI_AI_KEY }}
+          MODEL: ${{ env.GEMINI_MODEL_LIGHT }}
+          DIFF_B64: ${{ needs.prepare.outputs.diff_b64 }}
+        run: python3 .github/scripts/review_bot.py pass --pass-name git-blame
+
+  pass-pr-history:
+    name: "Pass: Related past PRs"
+    needs: prepare
+    if: needs.prepare.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      issues_b64: ${{ steps.run.outputs.issues_b64 }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - id: run
         env:
           GEMINI_AI_KEY: ${{ secrets.GEMINI_AI_KEY }}
           GH_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          REPO: ${{ github.repository }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
-        run: python3 .github/scripts/review_bot.py
+          MODEL: ${{ env.GEMINI_MODEL_LIGHT }}
+          DIFF_B64: ${{ needs.prepare.outputs.diff_b64 }}
+        run: python3 .github/scripts/review_bot.py pass --pass-name pr-history
+
+  pass-code-comment:
+    name: "Pass: Code comment compliance"
+    needs: prepare
+    if: needs.prepare.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      issues_b64: ${{ steps.run.outputs.issues_b64 }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - id: run
+        env:
+          GEMINI_AI_KEY: ${{ secrets.GEMINI_AI_KEY }}
+          MODEL: ${{ env.GEMINI_MODEL_LIGHT }}
+          DIFF_B64: ${{ needs.prepare.outputs.diff_b64 }}
+        run: python3 .github/scripts/review_bot.py pass --pass-name code-comment
+
+  verify-and-post:
+    name: Verify confidence and post review
+    needs:
+      - prepare
+      - pass-claude-md
+      - pass-bug-scan
+      - pass-git-blame
+      - pass-pr-history
+      - pass-code-comment
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - env:
+          GEMINI_AI_KEY: ${{ secrets.GEMINI_AI_KEY }}
+          GH_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
+          MODEL: ${{ env.GEMINI_MODEL_STRONG }}
+          DIFF_B64: ${{ needs.prepare.outputs.diff_b64 }}
+          ISSUES_CLAUDE_MD_B64: ${{ needs.pass-claude-md.outputs.issues_b64 }}
+          ISSUES_BUG_SCAN_B64: ${{ needs.pass-bug-scan.outputs.issues_b64 }}
+          ISSUES_GIT_BLAME_B64: ${{ needs.pass-git-blame.outputs.issues_b64 }}
+          ISSUES_PR_HISTORY_B64: ${{ needs.pass-pr-history.outputs.issues_b64 }}
+          ISSUES_CODE_COMMENT_B64: ${{ needs.pass-code-comment.outputs.issues_b64 }}
+        run: python3 .github/scripts/review_bot.py verify
