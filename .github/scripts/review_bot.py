@@ -190,7 +190,11 @@ def parse_json_response(text):
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        return json.loads(strip_json_fences(text))
+        cleaned = strip_json_fences(text)
+        # Gemini occasionally appends extra content after the JSON object
+        # (e.g. a repeated/explanatory second blob) - take just the first value.
+        obj, _ = json.JSONDecoder().raw_decode(cleaned)
+        return obj
 
 
 def filter_high_confidence(issues, threshold=80):

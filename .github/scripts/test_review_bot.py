@@ -52,6 +52,11 @@ def test_parse_json_response_with_markdown_fence():
     assert parse_json_response(text) == {"summary": "ok", "issues": []}
 
 
+def test_parse_json_response_with_trailing_extra_data():
+    text = '{"summary": "ok", "issues": []}\n{"summary": "duplicate", "issues": []}'
+    assert parse_json_response(text) == {"summary": "ok", "issues": []}
+
+
 def test_filter_high_confidence_threshold():
     issues = [{"confidence": 79}, {"confidence": 80}, {"confidence": 100}]
     assert filter_high_confidence(issues, threshold=80) == [
