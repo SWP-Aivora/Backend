@@ -1,140 +1,92 @@
+import argparse
+import base64
+import json
 import os
 import re
-import sys
-import json
 import subprocess
+import sys
+import tempfile
 
-def run_cmd(args, input_data=None, capture_output=True):
-    """Helper to run shell commands safely."""
-    try:
-        res = subprocess.run(
-            args,
-            input=input_data,
-            capture_output=capture_output,
-            text=True,
-            check=True
-        )
-        return res.returncode, res.stdout, res.stderr
-    except subprocess.CalledProcessError as e:
-        return e.returncode, e.stdout, e.stderr
+FALLBACK_MODEL_DEFAULT = "gemini-3.1-flash-lite"
+GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
 
-def main():
-    print("Gemini Backend Review Bot Starting...")
-    
-    # Read environment variables
-    gemini_key = os.environ.get("GEMINI_AI_KEY")
-    gh_token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
-    pr_number = os.environ.get("PR_NUMBER")
-    repo = os.environ.get("REPO")
-    head_sha = os.environ.get("HEAD_SHA")
-    pr_title = os.environ.get("PR_TITLE", "No title")
-    pr_body = os.environ.get("PR_BODY", "No description")
-    pr_author = os.environ.get("PR_AUTHOR", "unknown")
+SKIP_PATTERNS = [
+    r'package-lock\.json$',
+    r'pnpm-lock\.yaml$',
+    r'yarn\.lock$',
+    r'\.png$', r'\.jpg$', r'\.jpeg$', r'\.gif$', r'\.svg$', r'\.ico$', r'\.webp$',
+    r'\.woff2?$', r'\.ttf$', r'\.eot$',
+    r'^bin/', r'^obj/',
+    r'\.Designer\.cs$', r'\.g\.cs$',
+    r'Migrations/',
+    r'\.env\.example$',
+    r'\.gitattributes$',
+    r'\.gitignore$',
+]
 
-    if not gemini_key:
-        print("::error::Missing GEMINI_AI_KEY environment variable")
-        sys.exit(1)
-    if not gh_token:
-        print("::error::Missing GH_TOKEN/GITHUB_TOKEN environment variable")
-        sys.exit(1)
-    if not pr_number or not repo or not head_sha:
-        print("::error::Missing PR metadata (PR_NUMBER, REPO, HEAD_SHA)")
-        sys.exit(1)
+CATEGORY_ICONS = {
+    'bug': '🐛',
+    'security': '🔒',
+    'architecture': '🏗️',
+    'performance': '⚡',
+    'best-practice': '💡',
+}
 
-    # 1. Fetch PR Diff using GitHub CLI/API
-    print(f"Fetching diff for PR #{pr_number} in {repo}...")
-    code, stdout, stderr = run_cmd([
-        "gh", "api",
-        f"repos/{repo}/pulls/{pr_number}",
-        "-H", "Accept: application/vnd.github.diff"
-    ])
-    
-    if code != 0:
-        print(f"::error::Failed to fetch PR diff: {stderr}")
-        sys.exit(1)
-        
-    full_diff = stdout
+FOOTER = [
+    "---",
+    "<sub>🤖 Reviewed by Gemini AI (multi-pass) | React with 👍 if helpful, 👎 if not</sub>",
+]
 
-    # 2. Filter out files that don't need review
-    print("Filtering diff files...")
-    SKIP_PATTERNS = [
-        r'package-lock\.json$',
-        r'pnpm-lock\.yaml$',
-        r'yarn\.lock$',
-        r'\.png$', r'\.jpg$', r'\.jpeg$', r'\.gif$', r'\.svg$', r'\.ico$', r'\.webp$',
-        r'\.woff2?$', r'\.ttf$', r'\.eot$',
-        r'^bin/', r'^obj/',
-        r'\.Designer\.cs$', r'\.g\.cs$',
-        r'Migrations/',
-        r'\.env\.example$',
-        r'\.gitattributes$',
-        r'\.gitignore$',
-    ]
-    
-    # Split into per-file diffs
-    file_diffs = re.split(r'(?=^diff --git )', full_diff, flags=re.MULTILINE)
-    filtered = []
-    
-    for chunk in file_diffs:
-        if not chunk.strip():
-            continue
-        # Extract file path from "diff --git a/path b/path"
-        match = re.match(r'diff --git a/(.*?) b/(.*)', chunk)
-        if not match:
-            filtered.append(chunk)
-            continue
-        filepath = match.group(2)
-        if any(re.search(p, filepath) for p in SKIP_PATTERNS):
-            continue
-        filtered.append(chunk)
-        
-    filtered_diff = ''.join(filtered)
-    
-    # Check if there is anything left to review
-    if not filtered_diff.strip():
-        print("No reviewable file changes found. Skipping review.")
-        sys.exit(0)
-
-    # Truncate diff if it's too large (~100k chars) to avoid prompt limits
-    MAX_CHARS = 100000
-    if len(filtered_diff) > MAX_CHARS:
-        print(f"Diff size ({len(filtered_diff)} chars) exceeds limit. Truncating...")
-        filtered_diff = filtered_diff[:MAX_CHARS] + "\n\n... [diff truncated due to size] ..."
-
-    # 3. Build Prompt for Backend .NET 10
-    prompt = """You are a Senior Backend Engineer performing an automated code review for the AIVORA Backend project - an AI Marketplace built with .NET 10 (ASP.NET Core), EF Core 10, PostgreSQL, JWT Auth, and SignalR.
+COMMON_HEADER = """You are a Senior Backend Engineer performing an automated code review for the AIVORA Backend project - an AI Marketplace built with .NET 10 (ASP.NET Core), EF Core 10, PostgreSQL, JWT Auth, and SignalR.
 
 ## Project Guidelines
 
-### Architecture & Key Conventions
 - **Interface-based DI**: All business logic/services MUST use interface-based Dependency Injection in `Aivora.Services`. Registration should follow: `builder.Services.AddScoped<IService, Service>()`.
 - **Namespace Structure**: Services must reside in `Aivora.Services.{ServiceName}` with `IService.cs` and `Service.cs`.
-- **Response Wrapper**: All API controllers in `Aivora.api` must wrap their output using the pattern: `{ success: bool, message: string, data: T?, errors?: object }` (or return Microsoft.AspNetCore.Mvc.JsonResult/Ok/ObjectResult containing this structure).
+- **Response Wrapper**: All API controllers in `Aivora.api` must wrap their output using the pattern: `{ success: bool, message: string, data: T?, errors?: object }`.
 - **Enum Serialization**: All API-facing enums must use string serialization via `[JsonConverter(typeof(JsonStringEnumConverter))]`.
-- **Environment Variables**: Configurations must be read from environment variables without hardcoded fallback. Use `__` separator for nested values (e.g. `JwtSettings__Secret`). Fail-fast if missing.
-- **Exception Handling**: Rely on the global `ExceptionMiddleware` at the entry point of the pipeline. Do NOT swallow exceptions using empty try-catch blocks.
+- **Environment Variables**: Configurations must be read from environment variables without hardcoded fallback. Use `__` separator for nested values. Fail-fast if missing.
+- **Exception Handling**: Rely on the global `ExceptionMiddleware`. Do NOT swallow exceptions using empty try-catch blocks.
+- **Authorization**: API endpoints must have appropriate authorization attributes (`[Authorize]`, `[Authorize(Policy = "...")]`) unless explicitly `[AllowAnonymous]`.
+- **EF Core Performance**: Avoid N+1 query patterns. Use `.Include()` or projection `.Select()`.
+- **Async/Await**: Avoid sync-over-async blocking calls like `.Result`, `.GetAwaiter().GetResult()`, or `.Wait()`.
+- **C# 13 NRT**: Ensure Nullable Reference Types are respected. Avoid null reference risks.
+- **Secrets**: Never log, print, or commit secrets, API keys, or `.env` files."""
 
-### Security Focus Areas
-1. **SQL Injection**: Ensure raw SQL execution (if any) is parameterized. EF Core LINQ is preferred.
-2. **Authorization**: API endpoints in `Aivora.api` must have appropriate authorization attributes (`[Authorize]`, `[Authorize(Policy = "AdminPolicy")]`, etc.) unless explicitly intended to be public (`[AllowAnonymous]`).
-3. **Secret Exposure**: Never log, print, or commit secrets, API keys, or `.env` files. Reject hardcoded keys.
+PASS_INSTRUCTIONS = {
+    "claude-md": (
+        "## Lens: CLAUDE.md / Convention Compliance\n"
+        "Flag ONLY violations of the CLAUDE.md guidelines quoted below (DI pattern, response wrapper, "
+        "enum serialization, authorization policy, env var config, exception handling). Ignore bugs, "
+        "performance, or style issues not covered by CLAUDE.md."
+    ),
+    "bug-scan": (
+        "## Lens: Bug Scan\n"
+        "Shallow scan of the changed lines ONLY (ignore unchanged surrounding code) for obvious bugs: "
+        "crashes, incorrect logic, SQL injection, hardcoded secrets, missing authorization checks, N+1 "
+        "queries, sync-over-async blocking calls, nullable-reference/null-deref risks. Ignore nitpicks "
+        "a linter/compiler would catch."
+    ),
+    "git-blame": (
+        "## Lens: Historical Context (git log)\n"
+        "Below is recent git log history for files touched by this PR. Check whether this PR's change "
+        "contradicts or regresses behavior/intent established by that history."
+    ),
+    "pr-history": (
+        "## Lens: Related Past PRs\n"
+        "Below are review comments from past PRs that touched the same files. Check whether this PR "
+        "repeats an issue that was already flagged before."
+    ),
+    "code-comment": (
+        "## Lens: Code Comment Compliance\n"
+        "Read the pre-existing comments (TODO, warnings, constraints) visible in the diff context below. "
+        "Check whether this PR's change complies with what those comments say."
+    ),
+}
 
-### Code Quality & .NET Best Practices
-1. **EF Core Performance**: Avoid N+1 query patterns. Use `.Include()` or projection `.Select()` where appropriate.
-2. **Async/Await**: Ensure async methods are awaited. Avoid sync-over-async blocking calls like `.Result`, `.GetAwaiter().GetResult()`, or `.Wait()`.
-3. **C# 13 NRT**: Ensure Nullable Reference Types are respected. Avoid null reference risks.
-
-## Your Review Task
-Review the PR diff below. Focus ONLY on changes introduced in this PR.
-
-### Confidence Scoring
-For each issue found, assign a confidence score (0-100):
-- 0-49: False positive, style nits, or things linters will catch (ignore these)
-- 50-79: Real but minor issues, nits, or non-blocking suggestions
-- 80-100: Critical issues, bugs, security vulnerabilities, or violations of project conventions (these block the PR)
-
-### Output Format
-Respond with ONLY valid JSON, no markdown fences, no extra text:
+OUTPUT_FORMAT_INSTRUCTIONS = """## Output Format
+Respond with ONLY valid JSON, no markdown fences, no extra text. Only report issues you have at least
+moderate confidence in (skip pure style nits or things a linter would catch):
 {
   "summary": "Brief 1-2 sentence summary of the PR changes",
   "issues": [
@@ -149,254 +101,512 @@ Respond with ONLY valid JSON, no markdown fences, no extra text:
   ]
 }
 
-If no issues with confidence >= 50 exist, return:
-{
-  "summary": "Brief summary of changes",
-  "issues": []
-}"""
+If no issues exist, return:
+{"summary": "Brief summary of changes", "issues": []}"""
 
-    # 4. Call Gemini API
-    print("Calling Gemini API...")
+VERIFY_RUBRIC = """## Confidence Rubric
+For each issue below, independently verify it and assign a confidence score:
+- 0: Not confident at all - false positive, doesn't stand up to scrutiny, or a pre-existing issue.
+- 25: Somewhat confident - might be real, might be a false positive.
+- 50: Moderately confident - verified as real, but a nitpick or rare in practice.
+- 75: Highly confident - verified as real and important; will affect functionality in practice.
+- 100: Absolutely certain - direct evidence confirms it, will happen frequently.
+
+Merge/deduplicate issues that describe the same underlying problem (e.g. flagged by multiple passes)
+into a single entry before scoring."""
+
+
+# ---------------------------------------------------------------------------
+# Shell / GitHub helpers
+# ---------------------------------------------------------------------------
+
+def run_cmd(args, input_data=None):
+    """Helper to run shell commands safely."""
+    try:
+        res = subprocess.run(
+            args,
+            input=input_data,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return res.returncode, res.stdout, res.stderr
+    except subprocess.CalledProcessError as e:
+        return e.returncode, e.stdout, e.stderr
+
+
+def require_env(name):
+    value = os.environ.get(name)
+    if not value:
+        print(f"::error::Missing {name} environment variable")
+        sys.exit(1)
+    return value
+
+
+def write_github_output(name, value):
+    path = os.environ.get("GITHUB_OUTPUT")
+    if not path:
+        print(f"::warning::GITHUB_OUTPUT not set, would have written {name}")
+        return
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(f"{name}={value}\n")
+
+
+# ---------------------------------------------------------------------------
+# Pure helpers (covered by test_review_bot.py)
+# ---------------------------------------------------------------------------
+
+def filter_diff(full_diff, skip_patterns=SKIP_PATTERNS):
+    """Split a unified diff into per-file chunks, drop files matching skip_patterns."""
+    file_diffs = re.split(r'(?=^diff --git )', full_diff, flags=re.MULTILINE)
+    filtered = []
+    for chunk in file_diffs:
+        if not chunk.strip():
+            continue
+        match = re.match(r'diff --git a/(.*?) b/(.*)', chunk)
+        if not match:
+            filtered.append(chunk)
+            continue
+        filepath = match.group(2)
+        if any(re.search(p, filepath) for p in skip_patterns):
+            continue
+        filtered.append(chunk)
+    return ''.join(filtered)
+
+
+def truncate_diff(diff, max_chars=100000):
+    if len(diff) <= max_chars:
+        return diff
+    return diff[:max_chars] + "\n\n... [diff truncated due to size] ..."
+
+
+def changed_files(diff):
+    """Return the list of file paths (b/ side) touched in a unified diff."""
+    return re.findall(r'^diff --git a/.*? b/(.*)$', diff, flags=re.MULTILINE)
+
+
+def strip_json_fences(text):
+    return re.sub(r'^```json\s*|^```\s*|```$', '', text.strip(), flags=re.MULTILINE)
+
+
+def parse_json_response(text):
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        cleaned = strip_json_fences(text)
+        # Gemini occasionally appends extra content after the JSON object
+        # (e.g. a repeated/explanatory second blob) - take just the first value.
+        obj, _ = json.JSONDecoder().raw_decode(cleaned)
+        return obj
+
+
+def filter_high_confidence(issues, threshold=80):
+    return [i for i in issues if i.get("confidence", 0) >= threshold]
+
+
+def b64_encode(obj_or_str):
+    s = obj_or_str if isinstance(obj_or_str, str) else json.dumps(obj_or_str)
+    return base64.b64encode(s.encode("utf-8")).decode("ascii")
+
+
+def b64_decode_str(s):
+    return base64.b64decode(s).decode("utf-8")
+
+
+def b64_decode_json(s):
+    return json.loads(b64_decode_str(s))
+
+
+# ---------------------------------------------------------------------------
+# Extra context gatherers (git log / past PRs) - ponytail: bounded, best-effort
+# ---------------------------------------------------------------------------
+
+def read_claude_md(path="CLAUDE.md"):
+    if not os.path.exists(path):
+        return ""
+    with open(path, encoding="utf-8") as f:
+        return f.read()
+
+
+def gather_git_blame_context(diff, max_files=10, log_depth=3, max_chars=20000):
+    # ponytail: cap files/depth inspected - a PR touching 50+ files isn't reviewable
+    # line-by-line anyway, this is best-effort context, not exhaustive history.
+    parts = []
+    for filepath in changed_files(diff)[:max_files]:
+        code, stdout, _ = run_cmd(["git", "log", f"-{log_depth}", "--pretty=format:%h %s", "--", filepath])
+        if code == 0 and stdout.strip():
+            parts.append(f"### {filepath}\n{stdout}")
+    return "\n\n".join(parts)[:max_chars]
+
+
+PR_REF_RE = re.compile(r'#(\d+)')
+
+
+def gather_pr_history_context(diff, repo, current_pr_number, max_prs=5, max_files=10, max_chars=20000):
+    # ponytail: cap files scanned AND total past PRs found, avoid unbounded git log calls
+    # on large PRs that reference no past PR at all.
+    pr_numbers = []
+    for filepath in changed_files(diff)[:max_files]:
+        code, stdout, _ = run_cmd(["git", "log", "--oneline", "--", filepath])
+        if code != 0:
+            continue
+        for match in PR_REF_RE.finditer(stdout):
+            num = match.group(1)
+            if num != str(current_pr_number) and num not in pr_numbers:
+                pr_numbers.append(num)
+        if len(pr_numbers) >= max_prs:
+            break
+    pr_numbers = pr_numbers[:max_prs]
+
+    parts = []
+    for num in pr_numbers:
+        code, stdout, _ = run_cmd([
+            "gh", "api", f"repos/{repo}/pulls/{num}/comments",
+            "--jq", "[.[] | {path, body}] | .[:5]",
+        ])
+        if code == 0 and stdout.strip() and stdout.strip() != "[]":
+            parts.append(f"### PR #{num} review comments\n{stdout}")
+    return "\n\n".join(parts)[:max_chars]
+
+
+# ---------------------------------------------------------------------------
+# Prompt building
+# ---------------------------------------------------------------------------
+
+def build_pr_info(pr_meta):
+    return (
+        f"## PR Information\n- **Title**: {pr_meta['title']}\n- **Author**: {pr_meta['author']}\n"
+        f"- **Description**: {pr_meta['body']}"
+    )
+
+
+def build_prompt(pass_name, pr_meta, diff, claude_md="", extra_context=""):
+    parts = [COMMON_HEADER]
+    if pass_name == "claude-md":
+        parts.append(f"## CLAUDE.md\n```\n{claude_md}\n```")
+    parts.append(PASS_INSTRUCTIONS[pass_name])
+    if extra_context:
+        parts.append(f"## Extra Context\n```\n{extra_context}\n```")
+    parts.append(OUTPUT_FORMAT_INSTRUCTIONS)
+    parts.append(build_pr_info(pr_meta))
+    parts.append(f"## Diff\n```diff\n{diff}\n```")
+    return "\n\n".join(parts)
+
+
+def build_verify_prompt(pr_meta, diff, issues):
+    parts = [
+        "You are independently verifying issues found by earlier automated review passes on a .NET "
+        "backend PR for the AIVORA Marketplace.",
+        f"## Issues found by earlier review passes\n{json.dumps(issues, ensure_ascii=False, indent=2)}",
+        VERIFY_RUBRIC,
+        OUTPUT_FORMAT_INSTRUCTIONS,
+        build_pr_info(pr_meta),
+        f"## Diff (for reference)\n```diff\n{diff}\n```",
+    ]
+    return "\n\n".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# Gemini API call with model fallback
+# ---------------------------------------------------------------------------
+
+def _call_gemini_once(prompt, api_key, model):
     payload = {
-        "contents": [{
-            "parts": [{
-                "text": f"{prompt}\n\n## PR Information\n- **Title**: {pr_title}\n- **Author**: {pr_author}\n- **Description**: {pr_body}\n\n## Diff\n```diff\n{filtered_diff}\n```"
-            }]
-        }],
+        "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
             "temperature": 0.2,
             "topP": 0.8,
             "maxOutputTokens": 8192,
-            "responseMimeType": "application/json"
-        }
+            "responseMimeType": "application/json",
+        },
     }
-
-    # Write payload to file
-    with open("/tmp/gemini_payload.json", "w") as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False, encoding="utf-8") as f:
         json.dump(payload, f)
+        payload_path = f.name
 
-    # Execute curl request
-    code, stdout, stderr = run_cmd([
-        "curl", "-s", "-w", "\n%{http_code}",
-        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key={gemini_key}",
-        "-H", "Content-Type: application/json",
-        "-d", "@/tmp/gemini_payload.json"
-    ])
+    try:
+        url = GEMINI_ENDPOINT.format(model=model, key=api_key)
+        code, stdout, stderr = run_cmd([
+            "curl", "-s", "-w", "\n%{http_code}", url,
+            "-H", "Content-Type: application/json", "-d", f"@{payload_path}",
+        ])
+    finally:
+        os.remove(payload_path)
 
     if code != 0:
-        print(f"::error::Gemini API curl call failed: {stderr}")
-        sys.exit(1)
+        raise RuntimeError(f"curl failed: {stderr}")
 
-    # Parse HTTP response
-    response_lines = stdout.splitlines()
-    if not response_lines:
-        print("::error::Gemini API returned empty response")
-        sys.exit(1)
-        
-    http_code = response_lines[-1].strip()
-    body = "\n".join(response_lines[:-1])
-
+    lines = stdout.splitlines()
+    if not lines:
+        raise RuntimeError("empty response from Gemini")
+    http_code, body = lines[-1].strip(), "\n".join(lines[:-1])
     if http_code != "200":
-        print(f"::error::Gemini API returned HTTP {http_code}")
-        print(body[:500])
-        sys.exit(1)
+        raise RuntimeError(f"HTTP {http_code}: {body[:300]}")
 
-    # Extract JSON text
-    try:
-        res_json = json.loads(body)
-        review_text = res_json["candidates"][0]["content"]["parts"][0]["text"]
-    except (json.JSONDecodeError, KeyError, IndexError) as e:
-        print(f"::error::Failed to parse Gemini response payload: {e}")
-        print(body[:1000])
-        sys.exit(1)
+    res_json = json.loads(body)
+    return res_json["candidates"][0]["content"]["parts"][0]["text"]
 
-    # Parse review JSON
-    try:
-        review_result = json.loads(review_text)
-    except json.JSONDecodeError:
-        # Try to strip markdown code blocks if any
-        cleaned_text = re.sub(r'^```json\s*|^```\s*|```$', '', review_text.strip(), flags=re.MULTILINE)
+
+def call_gemini(prompt, api_key, primary_model, fallback_model=FALLBACK_MODEL_DEFAULT):
+    models_to_try = [primary_model] if primary_model == fallback_model else [primary_model, fallback_model]
+    last_err = None
+    for model in models_to_try:
         try:
-            review_result = json.loads(cleaned_text)
-        except json.JSONDecodeError:
-            print("::error::Could not parse Gemini output as JSON:")
-            print(review_text)
-            sys.exit(1)
-
-    print("Gemini Review Result parsed successfully.")
-    
-    # 5. Process Review Results
-    summary = review_result.get("summary", "No summary provided.")
-    issues = review_result.get("issues", [])
-
-    high_confidence = [i for i in issues if i.get("confidence", 0) >= 80]
-    medium_confidence = [i for i in issues if 50 <= i.get("confidence", 0) < 80]
-
-    # Dismiss old reviews of this bot to prevent blockage
-    print("Dismissing old bot reviews...")
-    code, stdout, stderr = run_cmd([
-        "gh", "api",
-        f"repos/{repo}/pulls/{pr_number}/reviews",
-        "--jq",
-        '[.[] | select(.user.login == "github-actions[bot]" and .state == "CHANGES_REQUESTED") | .id]'
-    ])
-    
-    if code == 0 and stdout.strip():
-        try:
-            review_ids = json.loads(stdout.strip())
-            for rid in review_ids:
-                run_cmd([
-                    "gh", "api", "--method", "PUT",
-                    f"repos/{repo}/pulls/{pr_number}/reviews/{rid}/dismissals",
-                    "-f", "message=Superseded by new review run",
-                    "-f", "event=DISMISS"
-                ])
-                print(f"Dismissed old review {rid}")
+            return _call_gemini_once(prompt, api_key, model)
         except Exception as e:
-            print(f"Error dismissing old review: {e}")
+            print(f"::warning::Gemini call with model {model} failed: {e}")
+            last_err = e
+    raise RuntimeError(f"Gemini call failed on all attempted models {models_to_try}: {last_err}")
 
-    # Build review body
-    CATEGORY_ICONS = {
-        'bug': '🐛',
-        'security': '🔒',
-        'architecture': '🏗️',
-        'performance': '⚡',
-        'best-practice': '💡',
-    }
 
-    def format_issues(issue_list, start_idx=1):
-        lines = []
-        for idx, issue in enumerate(issue_list, start_idx):
-            icon = CATEGORY_ICONS.get(issue.get('category', ''), '⚠️')
-            conf = issue.get('confidence', 0)
-            file_path = issue.get('file', 'unknown')
-            line = issue.get('line', 0)
-            desc = issue.get('description', 'No description')
-            suggestion = issue.get('suggestion', '')
-            category = issue.get('category', 'other').upper()
+# ---------------------------------------------------------------------------
+# Review comment formatting
+# ---------------------------------------------------------------------------
 
-            link = f"https://github.com/{repo}/blob/{head_sha}/{file_path}"
-            if line:
-                start = max(1, line - 1)
-                end = line + 1
-                link += f"#L{start}-L{end}"
+def format_issue_lines(idx, issue, repo, head_sha):
+    icon = CATEGORY_ICONS.get(issue.get('category', ''), '⚠️')
+    conf = issue.get('confidence', 0)
+    file_path = issue.get('file', 'unknown')
+    line = issue.get('line', 0)
+    desc = issue.get('description', 'No description')
+    suggestion = issue.get('suggestion', '')
+    category = issue.get('category', 'other').upper()
 
-            lines.append(f"{idx}. {icon} **[{category}]** {desc} (confidence: {conf})")
-            lines.append("")
-            lines.append(f"   📄 [{file_path}:{line}]({link})")
-            if suggestion:
-                lines.append("")
-                lines.append(f"   💡 **Gợi ý sửa:** {suggestion}")
-            lines.append("")
-        return lines
+    link = f"https://github.com/{repo}/blob/{head_sha}/{file_path}"
+    if line:
+        start, end = max(1, line - 1), line + 1
+        link += f"#L{start}-L{end}"
 
-    FOOTER = [
-        "---",
-        "<sub>🤖 Reviewed by Gemini 3.1 Flash Lite | React with 👍 if helpful, 👎 if not</sub>"
+    lines = [
+        f"{idx}. {icon} **[{category}]** {desc} (confidence: {conf})",
+        "",
+        f"   📄 [{file_path}:{line}]({link})",
     ]
+    if suggestion:
+        lines += ["", f"   💡 **Gợi ý sửa:** {suggestion}"]
+    lines.append("")
+    return lines
 
-    event = "APPROVE"
-    if high_confidence:
-        body_lines = [
+
+def build_review_body(summary, issues, repo, head_sha):
+    if issues:
+        lines = [
             "## 🤖 Gemini AI Backend Code Review",
             "",
             f"> {summary}",
             "",
-            f"### 🚨 Phát hiện **{len(high_confidence)}** lỗi nghiêm trọng (confidence ≥ 80):",
+            f"### 🚨 Phát hiện **{len(issues)}** vấn đề (confidence ≥ 80):",
             "",
         ]
-        body_lines.extend(format_issues(high_confidence))
-        if medium_confidence:
-            body_lines.extend([
-                f"### 💬 Ngoài ra có **{len(medium_confidence)}** góp ý nhỏ (confidence 50-79):",
-                "",
-            ])
-            body_lines.extend(format_issues(medium_confidence, len(high_confidence) + 1))
-        body_lines.extend(FOOTER)
-        event = "REQUEST_CHANGES"
-    elif medium_confidence:
-        body_lines = [
-            "## 🤖 Gemini AI Backend Code Review",
-            "",
-            f"> {summary}",
-            "",
-            "✅ **Approved** — Không phát hiện lỗi nghiêm trọng.",
-            "",
-            f"### 💬 **{len(medium_confidence)}** góp ý nhỏ cho bạn (confidence 50-79):",
-            "",
-            "*Các góp ý này không bắt buộc sửa để merge, vui lòng xem xét.*",
-            "",
-        ]
-        body_lines.extend(format_issues(medium_confidence))
-        body_lines.extend(FOOTER)
-        event = "APPROVE"
+        for idx, issue in enumerate(issues, 1):
+            lines.extend(format_issue_lines(idx, issue, repo, head_sha))
     else:
-        body_lines = [
+        lines = [
             "## 🤖 Gemini AI Backend Code Review",
             "",
             f"> {summary}",
             "",
-            "✅ Không phát hiện vấn đề nào. Code rất tốt!",
+            "✅ Không phát hiện vấn đề nào đáng kể. Code tốt!",
             "",
-            "Đã quét: Bugs, Security, Architecture DI, Response wrapper, EF Core Performance.",
+            "Đã quét: CLAUDE.md compliance, bug scan, git-blame history, PR cũ liên quan, code-comment compliance.",
             "",
         ]
-        body_lines.extend(FOOTER)
-        event = "APPROVE"
+    lines.extend(FOOTER)
+    return "\n".join(lines)
 
-    review_body = "\n".join(body_lines)
 
-    # 6. Submit Review with Fallback
+def dismiss_stale_reviews(repo, pr_number):
+    print("Dismissing old bot reviews...")
+    code, stdout, _ = run_cmd([
+        "gh", "api", f"repos/{repo}/pulls/{pr_number}/reviews",
+        "--jq", '[.[] | select(.user.login == "github-actions[bot]" and .state == "CHANGES_REQUESTED") | .id]',
+    ])
+    if code != 0 or not stdout.strip():
+        return
+    try:
+        review_ids = json.loads(stdout.strip())
+    except json.JSONDecodeError:
+        return
+    for rid in review_ids:
+        run_cmd([
+            "gh", "api", "--method", "PUT", f"repos/{repo}/pulls/{pr_number}/reviews/{rid}/dismissals",
+            "-f", "message=Superseded by new review run", "-f", "event=DISMISS",
+        ])
+        print(f"Dismissed old review {rid}")
+
+
+def submit_review_with_fallback(repo, pr_number, head_sha, body, event):
     print(f"Submitting review as {event}...")
-    review_payload = {
-        "body": review_body,
-        "event": event,
-        "commit_id": head_sha
-    }
-    
+    payload = {"body": body, "event": event, "commit_id": head_sha}
     code, stdout, stderr = run_cmd([
-        "gh", "api",
-        f"repos/{repo}/pulls/{pr_number}/reviews",
-        "--method", "POST",
-        "--input", "-"
-    ], input_data=json.dumps(review_payload))
+        "gh", "api", f"repos/{repo}/pulls/{pr_number}/reviews", "--method", "POST", "--input", "-",
+    ], input_data=json.dumps(payload))
 
-    if code != 0:
-        # Fallback to COMMENT if 422
-        if "422" in stderr or "Unprocessable Entity" in stderr:
-            print("::warning::Failed to submit review as APPROVE/REQUEST_CHANGES (HTTP 422). Falling back to COMMENT review.")
-            
-            warning_header = (
-                "⚠️ **Note:** Bot attempted to submit this review as "
-                f"`{event}` but fell back to `COMMENT` (HTTP 422).\n\n"
-                "*Why this happens: GitHub prevents users from approving their own PRs (if using a personal token), "
-                "or the GITHUB_TOKEN lacks approval permissions.*"
-            )
-            fallback_body = f"{warning_header}\n\n---\n\n{review_body}"
-            
-            fallback_payload = {
-                "body": fallback_body,
-                "event": "COMMENT",
-                "commit_id": head_sha
-            }
-            
-            f_code, f_stdout, f_stderr = run_cmd([
-                "gh", "api",
-                f"repos/{repo}/pulls/{pr_number}/reviews",
-                "--method", "POST",
-                "--input", "-"
-            ], input_data=json.dumps(fallback_payload))
-            
-            if f_code == 0:
-                print("Review submitted successfully as COMMENT (Fallback).")
-            else:
-                print(f"::error::Fallback submission failed: {f_stderr}")
-                sys.exit(1)
-        else:
-            print(f"::error::Failed to submit review: {stderr}")
-            sys.exit(1)
-    else:
+    if code == 0:
         print(f"Review submitted successfully as {event}.")
+        return
+
+    if "422" not in stderr and "Unprocessable Entity" not in stderr:
+        print(f"::error::Failed to submit review: {stderr}")
+        sys.exit(1)
+
+    print("::warning::Failed to submit review as APPROVE/REQUEST_CHANGES (HTTP 422). Falling back to COMMENT.")
+    warning = (
+        f"⚠️ **Note:** Bot attempted to submit this review as `{event}` but fell back to `COMMENT` (HTTP 422).\n\n"
+        "*Why this happens: GitHub prevents users from approving their own PRs, or the token lacks "
+        "approval permissions.*"
+    )
+    fallback_payload = {"body": f"{warning}\n\n---\n\n{body}", "event": "COMMENT", "commit_id": head_sha}
+    code, stdout, stderr = run_cmd([
+        "gh", "api", f"repos/{repo}/pulls/{pr_number}/reviews", "--method", "POST", "--input", "-",
+    ], input_data=json.dumps(fallback_payload))
+    if code != 0:
+        print(f"::error::Fallback submission failed: {stderr}")
+        sys.exit(1)
+    print("Review submitted successfully as COMMENT (fallback).")
+
+
+# ---------------------------------------------------------------------------
+# CLI commands
+# ---------------------------------------------------------------------------
+
+def load_gemini_config():
+    api_key = require_env("GEMINI_AI_KEY")
+    model = require_env("MODEL")
+    fallback_model = os.environ.get("FALLBACK_MODEL", FALLBACK_MODEL_DEFAULT)
+    return api_key, model, fallback_model
+
+
+def load_pr_meta():
+    return {
+        "title": os.environ.get("PR_TITLE", "No title"),
+        "body": os.environ.get("PR_BODY", "No description"),
+        "author": os.environ.get("PR_AUTHOR", "unknown"),
+    }
+
+
+def cmd_prepare(_args):
+    repo = require_env("REPO")
+    pr_number = require_env("PR_NUMBER")
+
+    print(f"Fetching diff for PR #{pr_number} in {repo}...")
+    code, stdout, stderr = run_cmd([
+        "gh", "api", f"repos/{repo}/pulls/{pr_number}",
+        "-H", "Accept: application/vnd.github.diff",
+    ])
+    if code != 0:
+        print(f"::error::Failed to fetch PR diff: {stderr}")
+        sys.exit(1)
+
+    filtered = filter_diff(stdout)
+    if not filtered.strip():
+        print("No reviewable file changes found. Skipping review.")
+        write_github_output("has_changes", "false")
+        write_github_output("diff_b64", "")
+        return
+
+    truncated = truncate_diff(filtered)
+    write_github_output("has_changes", "true")
+    write_github_output("diff_b64", b64_encode(truncated))
+
+
+def cmd_pass(args):
+    api_key, model, fallback_model = load_gemini_config()
+    diff = b64_decode_str(require_env("DIFF_B64"))
+    pr_meta = load_pr_meta()
+
+    claude_md, extra_context = "", ""
+    if args.pass_name == "claude-md":
+        claude_md = read_claude_md()
+    elif args.pass_name == "git-blame":
+        extra_context = gather_git_blame_context(diff)
+    elif args.pass_name == "pr-history":
+        extra_context = gather_pr_history_context(diff, require_env("REPO"), require_env("PR_NUMBER"))
+
+    prompt = build_prompt(args.pass_name, pr_meta, diff, claude_md=claude_md, extra_context=extra_context)
+
+    print(f"Calling Gemini ({model}) for pass '{args.pass_name}'...")
+    try:
+        response_text = call_gemini(prompt, api_key, model, fallback_model)
+        result = parse_json_response(response_text)
+        issues = result.get("issues", [])
+    except Exception as e:
+        print(f"::error::Pass '{args.pass_name}' failed: {e}")
+        sys.exit(1)
+
+    print(f"Pass '{args.pass_name}' found {len(issues)} issue(s).")
+    write_github_output("issues_b64", b64_encode(issues))
+
+
+ISSUE_ENV_VARS = [
+    "ISSUES_CLAUDE_MD_B64",
+    "ISSUES_BUG_SCAN_B64",
+    "ISSUES_GIT_BLAME_B64",
+    "ISSUES_PR_HISTORY_B64",
+    "ISSUES_CODE_COMMENT_B64",
+]
+
+
+def cmd_verify(_args):
+    api_key, model, fallback_model = load_gemini_config()
+    repo = require_env("REPO")
+    pr_number = require_env("PR_NUMBER")
+    head_sha = require_env("HEAD_SHA")
+    diff = b64_decode_str(require_env("DIFF_B64"))
+    pr_meta = load_pr_meta()
+
+    all_issues = []
+    for env_var in ISSUE_ENV_VARS:
+        raw = os.environ.get(env_var, "")
+        if raw:
+            all_issues.extend(b64_decode_json(raw))
+
+    if not all_issues:
+        print("No issues reported by any pass. Approving PR.")
+        dismiss_stale_reviews(repo, pr_number)
+        body = build_review_body("Không có pass nào phát hiện vấn đề.", [], repo, head_sha)
+        submit_review_with_fallback(repo, pr_number, head_sha, body, "APPROVE")
+        return
+
+    prompt = build_verify_prompt(pr_meta, diff, all_issues)
+    print(f"Calling Gemini ({model}) to verify {len(all_issues)} candidate issue(s)...")
+    try:
+        response_text = call_gemini(prompt, api_key, model, fallback_model)
+        result = parse_json_response(response_text)
+        summary = result.get("summary", "No summary provided.")
+        scored_issues = result.get("issues", [])
+    except Exception as e:
+        print(f"::error::Verify pass failed: {e}")
+        sys.exit(1)
+
+    high_confidence = filter_high_confidence(scored_issues, threshold=80)
+
+    # Dismiss stale reviews only once we have a verified result ready to post -
+    # otherwise a crash here would leave the PR with old reviews dismissed and
+    # no new one posted.
+    dismiss_stale_reviews(repo, pr_number)
+
+    event = "REQUEST_CHANGES" if high_confidence else "APPROVE"
+    body = build_review_body(summary, high_confidence, repo, head_sha)
+    submit_review_with_fallback(repo, pr_number, head_sha, body, event)
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers(dest="mode", required=True)
+    subparsers.add_parser("prepare")
+    pass_parser = subparsers.add_parser("pass")
+    pass_parser.add_argument("--pass-name", required=True, choices=list(PASS_INSTRUCTIONS.keys()))
+    subparsers.add_parser("verify")
+
+    args = parser.parse_args()
+    if args.mode == "prepare":
+        cmd_prepare(args)
+    elif args.mode == "pass":
+        cmd_pass(args)
+    elif args.mode == "verify":
+        cmd_verify(args)
+
 
 if __name__ == "__main__":
     main()

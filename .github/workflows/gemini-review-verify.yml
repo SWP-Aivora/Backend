@@ -1,0 +1,75 @@
+name: "Gemini review: verify and post"
+
+on:
+  workflow_call:
+    inputs:
+      model:
+        type: string
+        required: true
+      diff_b64:
+        type: string
+        required: true
+      repo:
+        type: string
+        required: true
+      pr_number:
+        type: string
+        required: true
+      pr_title:
+        type: string
+        required: false
+      pr_body:
+        type: string
+        required: false
+      pr_author:
+        type: string
+        required: false
+      head_sha:
+        type: string
+        required: true
+      issues_claude_md_b64:
+        type: string
+        required: false
+      issues_bug_scan_b64:
+        type: string
+        required: false
+      issues_git_blame_b64:
+        type: string
+        required: false
+      issues_pr_history_b64:
+        type: string
+        required: false
+      issues_code_comment_b64:
+        type: string
+        required: false
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  run:
+    name: Gemini
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - env:
+          GEMINI_AI_KEY: ${{ secrets.GEMINI_AI_KEY }}
+          GH_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+          MODEL: ${{ inputs.model }}
+          DIFF_B64: ${{ inputs.diff_b64 }}
+          REPO: ${{ inputs.repo }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          PR_TITLE: ${{ inputs.pr_title }}
+          PR_BODY: ${{ inputs.pr_body }}
+          PR_AUTHOR: ${{ inputs.pr_author }}
+          HEAD_SHA: ${{ inputs.head_sha }}
+          ISSUES_CLAUDE_MD_B64: ${{ inputs.issues_claude_md_b64 }}
+          ISSUES_BUG_SCAN_B64: ${{ inputs.issues_bug_scan_b64 }}
+          ISSUES_GIT_BLAME_B64: ${{ inputs.issues_git_blame_b64 }}
+          ISSUES_PR_HISTORY_B64: ${{ inputs.issues_pr_history_b64 }}
+          ISSUES_CODE_COMMENT_B64: ${{ inputs.issues_code_comment_b64 }}
+        run: python3 .github/scripts/review_bot.py verify

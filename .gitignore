@@ -44,3 +44,7 @@ appsettings.Development.json
 
 # Playwright test artifacts
 .playwright-mcp/
+
+# Python (CI scripts under .github/scripts)
+__pycache__/
+*.pyc

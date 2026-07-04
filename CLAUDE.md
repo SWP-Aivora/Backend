@@ -23,17 +23,17 @@
 
 ## 🏗️Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| **Framework** | .NET 10 (ASP.NET Core) |
-| **Language** | C# 13 with NRT (nullable reference types) |
-| **Database** | PostgreSQL via EF Core 10 |
-| **Auth** | JWT Bearer (System.IdentityModel.Tokens.Jwt 8.x) |
-| **AI** | Google Gemini 2.5 Flash (with Mock provider fallback) |
-| **File Storage** | Cloudinary |
-| **Real-time** | SignalR (ChatHub) |
-| **API Docs** | Scalar (OpenAPI) |
-| **Test Framework** | xUnit + FluentAssertions + Moq + EF Core InMemory |
+| Layer              | Technology                                            |
+| ------------------ | ----------------------------------------------------- |
+| **Framework**      | .NET 10 (ASP.NET Core)                                |
+| **Language**       | C# 13 with NRT (nullable reference types)             |
+| **Database**       | PostgreSQL via EF Core 10                             |
+| **Auth**           | JWT Bearer (System.IdentityModel.Tokens.Jwt 8.x)      |
+| **AI**             | Google Gemini 2.5 Flash (with Mock provider fallback) |
+| **File Storage**   | Cloudinary                                            |
+| **Real-time**      | SignalR (ChatHub)                                     |
+| **API Docs**       | Scalar (OpenAPI)                                      |
+| **Test Framework** | xUnit + FluentAssertions + Moq + EF Core InMemory     |
 
 ---
 
@@ -55,6 +55,7 @@ Aivora.sln
 ## 🔑 Key Architecture Patterns
 
 ### Middleware Pipeline Order
+
 ```
 ExceptionMiddleware → Scalar/OpenAPI UI → HTTPS Redirect → CORS → RateLimiter → Auth → Authorization → Controllers / SignalR Hub
 ```
@@ -62,28 +63,35 @@ ExceptionMiddleware → Scalar/OpenAPI UI → HTTPS Redirect → CORS → RateLi
 **Note:** The `ExceptionMiddleware` is the first middleware and handles all unhandled exceptions globally.
 
 ### Authorization Policies
-| Policy | Roles |
-|--------|-------|
+
+| Policy         | Roles  |
+| -------------- | ------ |
 | `ClientPolicy` | CLIENT |
 | `ExpertPolicy` | EXPERT |
-| `AdminPolicy` | ADMIN |
+| `AdminPolicy`  | ADMIN  |
 
 ### Rate Limiting (Fixed Window)
-| Policy | Target | Limit | Window |
-|--------|--------|-------|--------|
-| `Strict` | Auth endpoints | 10 req | 1 min |
-| `AI` | AI endpoints | 20 req | 1 min |
-| `General` | All others | 100 req | 1 min |
+
+| Policy    | Target         | Limit   | Window |
+| --------- | -------------- | ------- | ------ |
+| `Strict`  | Auth endpoints | 10 req  | 1 min  |
+| `AI`      | AI endpoints   | 20 req  | 1 min  |
+| `General` | All others     | 100 req | 1 min  |
 
 ### Service Registration Convention
+
 All services use **interface-based DI** with `IService` interface and `Service` implementation:
+
 ```csharp
 builder.Services.AddScoped<IService, Service>();
 ```
+
 Each service namespace = `Aivora.Services.{ServiceName}` with `IService.cs` + `Service.cs`.
 
 ### AI Job Assistant Pattern
+
 Uses Strategy pattern for AI providers:
+
 - `IAIJobSuggestionProvider` / `IAIJobRefinementProvider` / `IAIServiceDescriptionProvider`
 - Resolution: If `AIProvider:Provider=Gemini` + `ApiKey` set → use Gemini; otherwise → Mock
 - Prompt building via `AIJobSuggestionPromptBuilder` / `AIJobRefinementPromptBuilder` / `AIServiceDescriptionPromptBuilder`
@@ -94,12 +102,14 @@ Uses Strategy pattern for AI providers:
 ## 🚀 Quick Start
 
 ### Prerequisites
+
 - .NET 10 SDK
 - PostgreSQL (local or cloud)
 - Cloudinary account
 - Gemini API key (optional, falls back to Mock)
 
 ### Run locally
+
 ```bash
 # Restore NuGet packages
 dotnet restore
@@ -122,6 +132,7 @@ dotnet run
 ```
 
 ### Docker Development
+
 ```bash
 # Start with docker-compose
 docker-compose up -d
@@ -134,7 +145,9 @@ docker-compose down
 ```
 
 ### Environment Setup
+
 1. Copy the example environment file:
+
    ```bash
    cp .env.example .env
    ```
@@ -148,16 +161,19 @@ docker-compose down
 3. The app will crash at startup if any required variables are missing or contain placeholders.
 
 ### Package Management
+
 - This solution uses standard NuGet package management
 - Packages are defined in each project's `.csproj` file
 - No additional package managers are required
 
 ### Run tests
+
 ```bash
 dotnet test
 ```
 
 ### Apply migrations
+
 ```bash
 cd Aivora.Repositories
 dotnet ef migrations add MigrationName --startup-project ../Aivora.api
@@ -168,15 +184,15 @@ dotnet ef database update --startup-project ../Aivora.api
 
 ## 📁 Important Files
 
-| File | Purpose |
-|------|---------|
-| `Aivora.api/Program.cs` | Service registration, middleware pipeline, database migration |
-| `docs/ENV.md` | All environment variables |
-| `docs/architecture/IMPROVEMENTS.md` | Known architectural debt & planned improvements |
-| `docs/flows/MAINFLOW.md` | 4 main business flows (source of truth) |
-| `docs/flows/API_BY_FLOW.md` | Complete API endpoint reference |
-| `Aivora.Repositories/Data/Configurations/` | EF Core entity configurations |
-| `Aivora.Repositories/Data/Interceptors/AuditableEntityInterceptor.cs` | Auto-set CreatedAt/UpdatedAt |
+| File                                                                  | Purpose                                                       |
+| --------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `Aivora.api/Program.cs`                                               | Service registration, middleware pipeline, database migration |
+| `docs/ENV.md`                                                         | All environment variables                                     |
+| `docs/architecture/IMPROVEMENTS.md`                                   | Known architectural debt & planned improvements               |
+| `docs/flows/MAINFLOW.md`                                              | 4 main business flows (source of truth)                       |
+| `docs/flows/API_BY_FLOW.md`                                           | Complete API endpoint reference                               |
+| `Aivora.Repositories/Data/Configurations/`                            | EF Core entity configurations                                 |
+| `Aivora.Repositories/Data/Interceptors/AuditableEntityInterceptor.cs` | Auto-set CreatedAt/UpdatedAt                                  |
 
 ---
 
@@ -193,7 +209,6 @@ dotnet ef database update --startup-project ../Aivora.api
 9. **Database seeding with duplicate keys:** Robust duplicate key handling implemented - all `SaveChangesAsync()` calls are wrapped in `SaveChangesWithDuplicateHandling()` which catches Postgres error 23505 and continues gracefully with warnings. Seeding will never crash due to duplicate constraints.
 
 ---
-
 
 ## 📚 References
 

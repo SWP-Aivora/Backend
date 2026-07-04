@@ -12,31 +12,140 @@ permissions:
   contents: read
   pull-requests: write
 
+env:
+  GEMINI_MODEL_LIGHT: ${{ vars.GEMINI_MODEL_LIGHT || 'gemini-3.1-flash-lite' }}
+  GEMINI_MODEL_STRONG: ${{ vars.GEMINI_MODEL_STRONG || 'gemini-3.5-flash' }}
+  PR_NUMBER: ${{ github.event.pull_request.number }}
+  REPO: ${{ github.repository }}
+  PR_TITLE: ${{ github.event.pull_request.title }}
+  PR_BODY: ${{ github.event.pull_request.body }}
+  PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+  HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+
 jobs:
-  review:
-    name: AI Code Review
+  prepare:
+    name: Prepare diff
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
-
+    outputs:
+      has_changes: ${{ steps.run.outputs.has_changes }}
+      diff_b64: ${{ steps.run.outputs.diff_b64 }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
-
-      - name: Run Review Bot
+      - name: Run self-checks
+        run: python3 .github/scripts/test_review_bot.py
+      - id: run
         env:
-          GEMINI_AI_KEY: ${{ secrets.GEMINI_AI_KEY }}
-          GH_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          REPO: ${{ github.repository }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
-        run: python3 .github/scripts/review_bot.py
+          GH_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+        run: python3 .github/scripts/review_bot.py prepare
+
+  pass-claude-md:
+    name: "Pass: CLAUDE.md compliance"
+    needs: prepare
+    if: needs.prepare.outputs.has_changes == 'true'
+    uses: ./.github/workflows/gemini-review-pass.yml
+    with:
+      pass_name: claude-md
+      diff_b64: ${{ needs.prepare.outputs.diff_b64 }}
+      model: ${{ vars.GEMINI_MODEL_LIGHT || 'gemini-3.1-flash-lite' }}
+      repo: ${{ github.repository }}
+      pr_number: ${{ github.event.pull_request.number }}
+      pr_title: ${{ github.event.pull_request.title }}
+      pr_body: ${{ github.event.pull_request.body }}
+      pr_author: ${{ github.event.pull_request.user.login }}
+    secrets: inherit
+
+  pass-bug-scan:
+    name: "Pass: Bug scan"
+    needs: prepare
+    if: needs.prepare.outputs.has_changes == 'true'
+    uses: ./.github/workflows/gemini-review-pass.yml
+    with:
+      pass_name: bug-scan
+      diff_b64: ${{ needs.prepare.outputs.diff_b64 }}
+      model: ${{ vars.GEMINI_MODEL_LIGHT || 'gemini-3.1-flash-lite' }}
+      repo: ${{ github.repository }}
+      pr_number: ${{ github.event.pull_request.number }}
+      pr_title: ${{ github.event.pull_request.title }}
+      pr_body: ${{ github.event.pull_request.body }}
+      pr_author: ${{ github.event.pull_request.user.login }}
+    secrets: inherit
+
+  pass-git-blame:
+    name: "Pass: Git history"
+    needs: prepare
+    if: needs.prepare.outputs.has_changes == 'true'
+    uses: ./.github/workflows/gemini-review-pass.yml
+    with:
+      pass_name: git-blame
+      diff_b64: ${{ needs.prepare.outputs.diff_b64 }}
+      model: ${{ vars.GEMINI_MODEL_LIGHT || 'gemini-3.1-flash-lite' }}
+      repo: ${{ github.repository }}
+      pr_number: ${{ github.event.pull_request.number }}
+      pr_title: ${{ github.event.pull_request.title }}
+      pr_body: ${{ github.event.pull_request.body }}
+      pr_author: ${{ github.event.pull_request.user.login }}
+    secrets: inherit
+
+  pass-pr-history:
+    name: "Pass: Related past PRs"
+    needs: prepare
+    if: needs.prepare.outputs.has_changes == 'true'
+    uses: ./.github/workflows/gemini-review-pass.yml
+    with:
+      pass_name: pr-history
+      diff_b64: ${{ needs.prepare.outputs.diff_b64 }}
+      model: ${{ vars.GEMINI_MODEL_LIGHT || 'gemini-3.1-flash-lite' }}
+      repo: ${{ github.repository }}
+      pr_number: ${{ github.event.pull_request.number }}
+      pr_title: ${{ github.event.pull_request.title }}
+      pr_body: ${{ github.event.pull_request.body }}
+      pr_author: ${{ github.event.pull_request.user.login }}
+    secrets: inherit
+
+  pass-code-comment:
+    name: "Pass: Code comment compliance"
+    needs: prepare
+    if: needs.prepare.outputs.has_changes == 'true'
+    uses: ./.github/workflows/gemini-review-pass.yml
+    with:
+      pass_name: code-comment
+      diff_b64: ${{ needs.prepare.outputs.diff_b64 }}
+      model: ${{ vars.GEMINI_MODEL_LIGHT || 'gemini-3.1-flash-lite' }}
+      repo: ${{ github.repository }}
+      pr_number: ${{ github.event.pull_request.number }}
+      pr_title: ${{ github.event.pull_request.title }}
+      pr_body: ${{ github.event.pull_request.body }}
+      pr_author: ${{ github.event.pull_request.user.login }}
+    secrets: inherit
+
+  verify-and-post:
+    name: Verify confidence and post review
+    needs:
+      - prepare
+      - pass-claude-md
+      - pass-bug-scan
+      - pass-git-blame
+      - pass-pr-history
+      - pass-code-comment
+    uses: ./.github/workflows/gemini-review-verify.yml
+    with:
+      model: ${{ vars.GEMINI_MODEL_STRONG || 'gemini-3.5-flash' }}
+      diff_b64: ${{ needs.prepare.outputs.diff_b64 }}
+      repo: ${{ github.repository }}
+      pr_number: ${{ github.event.pull_request.number }}
+      pr_title: ${{ github.event.pull_request.title }}
+      pr_body: ${{ github.event.pull_request.body }}
+      pr_author: ${{ github.event.pull_request.user.login }}
+      head_sha: ${{ github.event.pull_request.head.sha }}
+      issues_claude_md_b64: ${{ needs.pass-claude-md.outputs.issues_b64 }}
+      issues_bug_scan_b64: ${{ needs.pass-bug-scan.outputs.issues_b64 }}
+      issues_git_blame_b64: ${{ needs.pass-git-blame.outputs.issues_b64 }}
+      issues_pr_history_b64: ${{ needs.pass-pr-history.outputs.issues_b64 }}
+      issues_code_comment_b64: ${{ needs.pass-code-comment.outputs.issues_b64 }}
+    secrets: inherit
