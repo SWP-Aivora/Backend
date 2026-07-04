@@ -173,7 +173,10 @@ public class AdminService : IAdminService
 
     public async Task<Aivora.Services.Base.Response.PageResult<Response.ExpertProfileUpdateResponse>> GetExpertProfileUpdatesAsync(Aivora.Services.Base.Request.PageRequest pageRequest, string? status = null)
     {
-        var query = _dbContext.ExpertProfileUpdates.AsQueryable();
+        var query = _dbContext.ExpertProfileUpdates
+            .Include(u => u.ExpertProfile)
+            .ThenInclude(p => p.User)
+            .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<ProfileUpdateStatus>(status, true, out var parsedStatus))
         {
@@ -189,33 +192,41 @@ public class AdminService : IAdminService
 
         return new Aivora.Services.Base.Response.PageResult<Response.ExpertProfileUpdateResponse>
         {
-            Items = items.Select(update => new Response.ExpertProfileUpdateResponse
-            {
-                Id = update.Id,
-                ExpertProfileId = update.ExpertProfileId,
-                Title = update.Title,
-                Bio = update.Bio,
-                HourlyRate = update.HourlyRate,
-                ExperienceYears = update.ExperienceYears,
-                Status = update.Status.ToString(),
-                RejectionReason = update.RejectionReason,
-                CreatedAt = update.CreatedAt
-            }).ToList(),
+            Items = items.Select(MapToProfileUpdateResponse).ToList(),
             TotalItems = totalItems,
             PageIndex = pageRequest.PageIndex,
             PageSize = pageRequest.PageSize
         };
     }
 
+    public async Task<Response.ExpertProfileUpdateResponse> GetExpertProfileUpdateByIdAsync(Guid updateId)
+    {
+        var update = await _dbContext.ExpertProfileUpdates
+            .Include(u => u.ExpertProfile)
+            .ThenInclude(p => p.User)
+            .FirstOrDefaultAsync(u => u.Id == updateId);
+
+        if (update == null) throw new NotFoundException("Profile update not found.");
+        if (update.ExpertProfile == null) throw new NotFoundException("Associated expert profile not found.");
+
+        return MapToProfileUpdateResponse(update);
+    }
+
     public async Task<Response.ExpertProfileUpdateResponse> ReviewExpertProfileUpdateAsync(Guid adminId, Guid updateId, Request.ReviewExpertProfileUpdateRequest request)
     {
         var update = await _dbContext.ExpertProfileUpdates
             .Include(u => u.ExpertProfile)
+            .ThenInclude(p => p.User)
             .FirstOrDefaultAsync(u => u.Id == updateId);
 
         if (update == null) throw new NotFoundException("Profile update not found.");
         if (update.ExpertProfile == null) throw new NotFoundException("Associated expert profile not found.");
         if (update.Status != ProfileUpdateStatus.PENDING) throw new ValidationException("Only pending updates can be reviewed.");
+
+        var currentTitle = update.ExpertProfile.Title;
+        var currentBio = update.ExpertProfile.Bio;
+        var currentHourlyRate = update.ExpertProfile.HourlyRate;
+        var currentExperienceYears = update.ExpertProfile.ExperienceYears;
 
         update.AdminId = adminId;
         update.ReviewedAt = DateTimeOffset.UtcNow;
@@ -271,14 +282,32 @@ public class AdminService : IAdminService
 
         _logger.LogInformation("Admin {AdminId} reviewed profile update {UpdateId}. Approved: {IsApproved}", adminId, updateId, request.IsApproved);
 
+        var response = MapToProfileUpdateResponse(update);
+        response.CurrentTitle = currentTitle;
+        response.CurrentBio = currentBio;
+        response.CurrentHourlyRate = currentHourlyRate;
+        response.CurrentExperienceYears = currentExperienceYears;
+        return response;
+    }
+
+    private static Response.ExpertProfileUpdateResponse MapToProfileUpdateResponse(Aivora.Repositories.Entities.ExpertProfileUpdate update)
+    {
         return new Response.ExpertProfileUpdateResponse
         {
             Id = update.Id,
             ExpertProfileId = update.ExpertProfileId,
+            ExpertId = update.ExpertProfile.UserId,
+            FullName = update.ExpertProfile.User?.FullName,
+            Email = update.ExpertProfile.User?.Email,
+            AvatarUrl = update.ExpertProfile.User?.AvatarUrl,
             Title = update.Title,
             Bio = update.Bio,
             HourlyRate = update.HourlyRate,
             ExperienceYears = update.ExperienceYears,
+            CurrentTitle = update.ExpertProfile.Title,
+            CurrentBio = update.ExpertProfile.Bio,
+            CurrentHourlyRate = update.ExpertProfile.HourlyRate,
+            CurrentExperienceYears = update.ExpertProfile.ExperienceYears,
             Status = update.Status.ToString(),
             RejectionReason = update.RejectionReason,
             CreatedAt = update.CreatedAt

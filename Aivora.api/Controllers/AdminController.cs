@@ -69,6 +69,14 @@ public class AdminController : ControllerBase
         return Ok(ApiResponseFactory.SuccessResponse(result, "Expert profile updates retrieved", HttpContext.TraceIdentifier));
     }
 
+    [HttpGet("expert-profile-updates/{id}")]
+    [Authorize(Policy = JwtExtensions.AdminPolicy)]
+    public async Task<IActionResult> GetExpertProfileUpdateById(Guid id)
+    {
+        var result = await _adminService.GetExpertProfileUpdateByIdAsync(id);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Expert profile update retrieved", HttpContext.TraceIdentifier));
+    }
+
     [HttpPut("expert-profile-updates/{id}/review")]
     [Authorize(Policy = JwtExtensions.AdminPolicy)]
     public async Task<IActionResult> ReviewExpertProfileUpdate(Guid id, [FromBody] Request.ReviewExpertProfileUpdateRequest request)
