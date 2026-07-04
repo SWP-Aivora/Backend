@@ -145,7 +145,7 @@ internal static class AIJsonParser
 
     public static List<Response.SuggestedMilestone> ReadMilestones(JsonElement element, IEnumerable<Response.SuggestedMilestone>? fallback = null)
     {
-        if (!TryGetProperty(element, "suggestedMilestones", out var property) || property.ValueKind != JsonValueKind.Array)
+        if ((!TryGetProperty(element, "suggestedMilestones", out var property) && !TryGetProperty(element, "milestones", out property)) || property.ValueKind != JsonValueKind.Array)
         {
             return fallback?.Select(CloneMilestone).ToList() ?? new List<Response.SuggestedMilestone>();
         }

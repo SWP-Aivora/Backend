@@ -34,6 +34,7 @@ public class Service : IService
             .Include(j => j.Client)
             .Include(j => j.Category)
             .Include(j => j.JobSkills).ThenInclude(js => js.Skill)
+            .Include(j => j.Milestones)
             .FirstOrDefaultAsync(j => j.Id == jobId && j.ClientId == clientId, cancellationToken);
 
         if (job == null) throw new NotFoundException("Job not found or access denied.");
@@ -136,7 +137,7 @@ public class Service : IService
                             .Where(m => m.JobPostId == job.Id)
                             .ToList();
                         dbContext.JobPostMilestones.RemoveRange(oldMilestones);
-                        var newMilestones = draft.Milestones.Select(m => new JobPostMilestone
+                        var newMilestones = draft.Milestones.Select((m, index) => new JobPostMilestone
                         {
                             JobPostId = job.Id,
                             Title = m.Title,
@@ -144,7 +145,7 @@ public class Service : IService
                             Amount = Math.Max(m.Amount, 1),
                             DueDays = Math.Clamp(m.DueDays, 1, 3650),
                             AcceptanceCriteria = m.AcceptanceCriteria,
-                            OrderIndex = 0
+                            OrderIndex = index
                         }).ToList();
                         dbContext.JobPostMilestones.AddRange(newMilestones);
                     }
