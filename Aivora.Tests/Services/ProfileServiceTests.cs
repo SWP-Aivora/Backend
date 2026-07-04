@@ -70,6 +70,54 @@ public class ProfileServiceTests
     }
 
     [Fact]
+    public async Task GetExpertProfileAsync_IncludesSkills()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var userId = Guid.NewGuid();
+        var profileId = Guid.NewGuid();
+        var skill = new Skill { Id = Guid.NewGuid(), Name = "C#" };
+
+        dbContext.Users.Add(new User { Id = userId, FullName = "Expert Name", Email = "e2@t.com", Role = UserRole.EXPERT, PasswordHash = "h" });
+        dbContext.ExpertProfiles.Add(new ExpertProfile { Id = profileId, UserId = userId, Title = "Expert" });
+        dbContext.Skills.Add(skill);
+        dbContext.ExpertSkills.Add(new ExpertSkill { ExpertId = profileId, SkillId = skill.Id, Level = SkillLevel.EXPERT });
+        await dbContext.SaveChangesAsync();
+
+        var service = new Aivora.Services.ProfileService.Service(dbContext);
+
+        // Act
+        var result = await service.GetExpertProfileAsync(userId);
+
+        // Assert
+        result.Skills.Should().ContainSingle(s => s.SkillId == skill.Id && s.SkillName == "C#");
+    }
+
+    [Fact]
+    public async Task GetPublicExpertProfileAsync_IncludesSkills()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var userId = Guid.NewGuid();
+        var profileId = Guid.NewGuid();
+        var skill = new Skill { Id = Guid.NewGuid(), Name = "Python" };
+
+        dbContext.Users.Add(new User { Id = userId, FullName = "Expert Name", Email = "e3@t.com", Role = UserRole.EXPERT, PasswordHash = "h" });
+        dbContext.ExpertProfiles.Add(new ExpertProfile { Id = profileId, UserId = userId, Title = "Expert" });
+        dbContext.Skills.Add(skill);
+        dbContext.ExpertSkills.Add(new ExpertSkill { ExpertId = profileId, SkillId = skill.Id, Level = SkillLevel.EXPERT });
+        await dbContext.SaveChangesAsync();
+
+        var service = new Aivora.Services.ProfileService.Service(dbContext);
+
+        // Act
+        var result = await service.GetPublicExpertProfileAsync(userId);
+
+        // Assert
+        result.Skills.Should().ContainSingle(s => s.SkillId == skill.Id && s.SkillName == "Python");
+    }
+
+    [Fact]
     public async Task GetClientProfileAsync_ReturnsProfile_WhenExists()
     {
         // Arrange
