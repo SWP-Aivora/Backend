@@ -55,9 +55,9 @@ public class ExpertVerificationServiceTests
     private static Aivora.Services.MediaService.IService BuildMediaServiceMock()
     {
         var mock = new Mock<Aivora.Services.MediaService.IService>();
-        mock.Setup(x => x.UploadImageAsync(It.IsAny<IFormFile>(), It.IsAny<string>()))
+        mock.Setup(x => x.UploadImageAsync(It.IsAny<IFormFile>(), It.IsAny<Guid>(), It.IsAny<string>()))
             .ReturnsAsync(new Aivora.Services.MediaService.Response.UploadResponse { Url = "https://cdn/cert.png", PublicId = "cert123", Format = "png", Bytes = 10 });
-        mock.Setup(x => x.UploadFileAsync(It.IsAny<IFormFile>(), It.IsAny<string>()))
+        mock.Setup(x => x.UploadFileAsync(It.IsAny<IFormFile>(), It.IsAny<Guid>(), It.IsAny<string>()))
             .ReturnsAsync(new Aivora.Services.MediaService.Response.UploadResponse { Url = "https://cdn/cert.pdf", PublicId = "cert123", Format = "pdf", Bytes = 10 });
         return mock.Object;
     }

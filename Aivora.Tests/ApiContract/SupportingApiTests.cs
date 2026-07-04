@@ -451,6 +451,25 @@ public class SupportingApiTests : IClassFixture<ApiContractTestFactory>
             responseMatchesDoc: upFileSuccess
         );
 
+        // 25b. GET /api/v1/media (list current user's uploads)
+        var (listMediaRes, listMediaBody) = await client.GetAsync("/api/v1/media");
+        listMediaRes.StatusCode.Should().Be(HttpStatusCode.OK);
+        bool listMediaSuccess = listMediaBody?.GetProperty("success").GetBoolean() ?? false;
+        _factory.Tracker.Record(
+            "Supporting",
+            "GET",
+            "/api/v1/media",
+            200,
+            (int)listMediaRes.StatusCode,
+            requestMatchesDoc: true,
+            responseMatchesDoc: listMediaSuccess
+        );
+
+        // 25c. DELETE /api/v1/media/{publicId} as a non-owner, non-admin user (should be rejected)
+        var nonOwnerClient = new ApiContractClient(_factory.CreateAuthenticatedClient(UserRole.EXPERT));
+        var (forbiddenDelRes, _) = await nonOwnerClient.DeleteAsync($"/api/v1/media/{imgPublicId}");
+        forbiddenDelRes.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+
         // 26. DELETE /api/v1/media/{publicId}
         client = new ApiContractClient(_factory.CreateAuthenticatedClient(UserRole.ADMIN));
         var (delMediaRes, delMediaBody) = await client.DeleteAsync($"/api/v1/media/{imgPublicId}");

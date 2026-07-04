@@ -64,8 +64,8 @@ public class Service : IService
             throw new ValidationException($"File extension {extension} is not allowed. Allowed: {string.Join(", ", AllowedExtensions)}");
 
         var uploadResult = extension == ".pdf"
-            ? await _mediaService.UploadFileAsync(request.File, "certificates")
-            : await _mediaService.UploadImageAsync(request.File, "certificates");
+            ? await _mediaService.UploadFileAsync(request.File, expertUserId, "certificates")
+            : await _mediaService.UploadImageAsync(request.File, expertUserId, "certificates");
 
         byte[] fileBytes;
         await using (var stream = request.File.OpenReadStream())

@@ -1,3 +1,5 @@
+using Aivora.api.Extensions;
+using Aivora.Repositories.Enums;
 using Aivora.Services.MediaService;
 using Aivora.Services.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -22,22 +24,29 @@ public class MediaController : ControllerBase
     [HttpPost("upload-image")]
     public async Task<IActionResult> UploadImage(IFormFile file, [FromQuery] string folder = "general")
     {
-        var result = await _mediaService.UploadImageAsync(file, folder);
+        var result = await _mediaService.UploadImageAsync(file, this.GetUserId(), folder);
         return Ok(ApiResponseFactory.SuccessResponse(result, "Image uploaded successfully", HttpContext.TraceIdentifier));
     }
 
     [HttpPost("upload-file")]
     public async Task<IActionResult> UploadFile(IFormFile file, [FromQuery] string folder = "general")
     {
-        var result = await _mediaService.UploadFileAsync(file, folder);
+        var result = await _mediaService.UploadFileAsync(file, this.GetUserId(), folder);
         return Ok(ApiResponseFactory.SuccessResponse(result, "File uploaded successfully", HttpContext.TraceIdentifier));
     }
 
-    [HttpDelete("{publicId}")]
-    [Authorize(Roles = "ADMIN")]
+    [HttpGet]
+    public async Task<IActionResult> ListMedia()
+    {
+        var result = await _mediaService.ListMediaAsync(this.GetUserId());
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Media list retrieved successfully", HttpContext.TraceIdentifier));
+    }
+
+    [HttpDelete("{**publicId}")]
     public async Task<IActionResult> DeleteMedia(string publicId)
     {
-        await _mediaService.DeleteMediaAsync(publicId);
+        var isAdmin = this.GetUserRole() == UserRole.ADMIN;
+        await _mediaService.DeleteMediaAsync(publicId, this.GetUserId(), isAdmin);
         return Ok(ApiResponseFactory.SuccessResponse(null, "Media deleted successfully", HttpContext.TraceIdentifier));
     }
 }

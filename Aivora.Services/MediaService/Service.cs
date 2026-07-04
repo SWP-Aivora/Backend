@@ -50,7 +50,7 @@ public class Service : IService
         _cloudinary = new Cloudinary(acc);
     }
 
-    public async Task<Response.UploadResponse> UploadImageAsync(IFormFile file, string folder = "avatars")
+    public async Task<Response.UploadResponse> UploadImageAsync(IFormFile file, Guid userId, string folder = "avatars")
     {
         await ValidateFileAsync(file, ImageContentTypes, 5 * 1024 * 1024);
         var cloudinaryFolder = NormalizeFolder(folder);
@@ -59,6 +59,7 @@ public class Service : IService
         {
             File = new FileDescription(Path.GetFileName(file.FileName), file.OpenReadStream()),
             Folder = cloudinaryFolder,
+            Tags = UserTag(userId),
             Transformation = new Transformation().Quality("auto").FetchFormat("auto")
         };
 
@@ -76,7 +77,7 @@ public class Service : IService
         };
     }
 
-    public async Task<Response.UploadResponse> UploadFileAsync(IFormFile file, string folder = "deliverables")
+    public async Task<Response.UploadResponse> UploadFileAsync(IFormFile file, Guid userId, string folder = "deliverables")
     {
         await ValidateFileAsync(file, FileContentTypes, 20 * 1024 * 1024);
         var cloudinaryFolder = NormalizeFolder(folder);
@@ -92,7 +93,8 @@ public class Service : IService
             var uploadParams = new ImageUploadParams
             {
                 File = new FileDescription(Path.GetFileName(file.FileName), file.OpenReadStream()),
-                Folder = cloudinaryFolder
+                Folder = cloudinaryFolder,
+                Tags = UserTag(userId)
             };
             var uploadResult = await _cloudinary.UploadAsync(uploadParams);
             if (uploadResult.Error != null)
@@ -107,7 +109,8 @@ public class Service : IService
             var uploadParams = new RawUploadParams
             {
                 File = new FileDescription(Path.GetFileName(file.FileName), file.OpenReadStream()),
-                Folder = cloudinaryFolder
+                Folder = cloudinaryFolder,
+                Tags = UserTag(userId)
             };
             var uploadResult = await _cloudinary.UploadAsync(uploadParams);
             if (uploadResult.Error != null)
@@ -127,11 +130,63 @@ public class Service : IService
         };
     }
 
-    public async Task DeleteMediaAsync(string publicId)
+    public async Task DeleteMediaAsync(string publicId, Guid requesterId, bool isAdmin)
     {
+        if (!isAdmin)
+        {
+            var resource = await GetResourceAnyTypeAsync(publicId);
+            if (resource == null) throw new NotFoundException("Media not found.");
+            if (!resource.Tags.Contains(UserTag(requesterId)))
+                throw new UnauthorizedException("You do not have permission to delete this media.");
+        }
+
         var deletionParams = new DeletionParams(publicId);
         await _cloudinary.DestroyAsync(deletionParams);
     }
+
+    private async Task<GetResourceResult?> GetResourceAnyTypeAsync(string publicId)
+    {
+        foreach (var resourceType in new[] { ResourceType.Image, ResourceType.Raw })
+        {
+            var result = await _cloudinary.GetResourceAsync(new GetResourceParams(publicId) { ResourceType = resourceType });
+            if (result?.Error == null && !string.IsNullOrEmpty(result?.PublicId))
+                return result;
+        }
+
+        return null;
+    }
+
+    public async Task<List<Response.MediaItemResponse>> ListMediaAsync(Guid userId)
+    {
+        var tag = UserTag(userId);
+
+        var images = await _cloudinary.ListResourcesAsync(new ListResourcesByTagParams
+        {
+            Tag = tag,
+            ResourceType = ResourceType.Image,
+            MaxResults = 500
+        });
+        var rawFiles = await _cloudinary.ListResourcesAsync(new ListResourcesByTagParams
+        {
+            Tag = tag,
+            ResourceType = ResourceType.Raw,
+            MaxResults = 500
+        });
+
+        return images.Resources.Concat(rawFiles.Resources)
+            .Select(r => new Response.MediaItemResponse
+            {
+                Url = r.SecureUrl.ToString(),
+                PublicId = r.PublicId,
+                Format = r.Format,
+                Bytes = r.Bytes,
+                CreatedAt = r.CreatedAt
+            })
+            .OrderByDescending(m => m.CreatedAt)
+            .ToList();
+    }
+
+    private static string UserTag(Guid userId) => $"user_{userId:N}";
 
     private static async Task ValidateFileAsync(IFormFile file, IReadOnlyDictionary<string, string[]> allowedTypes, long maxSizeBytes)
     {
