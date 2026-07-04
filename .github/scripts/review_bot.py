@@ -239,10 +239,11 @@ def gather_git_blame_context(diff, max_files=10, log_depth=3, max_chars=20000):
 PR_REF_RE = re.compile(r'#(\d+)')
 
 
-def gather_pr_history_context(diff, repo, current_pr_number, max_prs=5, max_chars=20000):
-    # ponytail: cap total past PRs inspected across all files, avoid unbounded gh api calls
+def gather_pr_history_context(diff, repo, current_pr_number, max_prs=5, max_files=10, max_chars=20000):
+    # ponytail: cap files scanned AND total past PRs found, avoid unbounded git log calls
+    # on large PRs that reference no past PR at all.
     pr_numbers = []
-    for filepath in changed_files(diff):
+    for filepath in changed_files(diff)[:max_files]:
         code, stdout, _ = run_cmd(["git", "log", "--oneline", "--", filepath])
         if code != 0:
             continue
