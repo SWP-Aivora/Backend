@@ -52,12 +52,12 @@ jobs:
     with:
       pass_name: claude-md
       diff_b64: ${{ needs.prepare.outputs.diff_b64 }}
-      model: ${{ env.GEMINI_MODEL_LIGHT }}
-      repo: ${{ env.REPO }}
-      pr_number: ${{ env.PR_NUMBER }}
-      pr_title: ${{ env.PR_TITLE }}
-      pr_body: ${{ env.PR_BODY }}
-      pr_author: ${{ env.PR_AUTHOR }}
+      model: ${{ vars.GEMINI_MODEL_LIGHT || 'gemini-3.1-flash-lite' }}
+      repo: ${{ github.repository }}
+      pr_number: ${{ github.event.pull_request.number }}
+      pr_title: ${{ github.event.pull_request.title }}
+      pr_body: ${{ github.event.pull_request.body }}
+      pr_author: ${{ github.event.pull_request.user.login }}
     secrets: inherit
 
   pass-bug-scan:
@@ -68,12 +68,12 @@ jobs:
     with:
       pass_name: bug-scan
       diff_b64: ${{ needs.prepare.outputs.diff_b64 }}
-      model: ${{ env.GEMINI_MODEL_LIGHT }}
-      repo: ${{ env.REPO }}
-      pr_number: ${{ env.PR_NUMBER }}
-      pr_title: ${{ env.PR_TITLE }}
-      pr_body: ${{ env.PR_BODY }}
-      pr_author: ${{ env.PR_AUTHOR }}
+      model: ${{ vars.GEMINI_MODEL_LIGHT || 'gemini-3.1-flash-lite' }}
+      repo: ${{ github.repository }}
+      pr_number: ${{ github.event.pull_request.number }}
+      pr_title: ${{ github.event.pull_request.title }}
+      pr_body: ${{ github.event.pull_request.body }}
+      pr_author: ${{ github.event.pull_request.user.login }}
     secrets: inherit
 
   pass-git-blame:
@@ -84,12 +84,12 @@ jobs:
     with:
       pass_name: git-blame
       diff_b64: ${{ needs.prepare.outputs.diff_b64 }}
-      model: ${{ env.GEMINI_MODEL_LIGHT }}
-      repo: ${{ env.REPO }}
-      pr_number: ${{ env.PR_NUMBER }}
-      pr_title: ${{ env.PR_TITLE }}
-      pr_body: ${{ env.PR_BODY }}
-      pr_author: ${{ env.PR_AUTHOR }}
+      model: ${{ vars.GEMINI_MODEL_LIGHT || 'gemini-3.1-flash-lite' }}
+      repo: ${{ github.repository }}
+      pr_number: ${{ github.event.pull_request.number }}
+      pr_title: ${{ github.event.pull_request.title }}
+      pr_body: ${{ github.event.pull_request.body }}
+      pr_author: ${{ github.event.pull_request.user.login }}
     secrets: inherit
 
   pass-pr-history:
@@ -100,12 +100,12 @@ jobs:
     with:
       pass_name: pr-history
       diff_b64: ${{ needs.prepare.outputs.diff_b64 }}
-      model: ${{ env.GEMINI_MODEL_LIGHT }}
-      repo: ${{ env.REPO }}
-      pr_number: ${{ env.PR_NUMBER }}
-      pr_title: ${{ env.PR_TITLE }}
-      pr_body: ${{ env.PR_BODY }}
-      pr_author: ${{ env.PR_AUTHOR }}
+      model: ${{ vars.GEMINI_MODEL_LIGHT || 'gemini-3.1-flash-lite' }}
+      repo: ${{ github.repository }}
+      pr_number: ${{ github.event.pull_request.number }}
+      pr_title: ${{ github.event.pull_request.title }}
+      pr_body: ${{ github.event.pull_request.body }}
+      pr_author: ${{ github.event.pull_request.user.login }}
     secrets: inherit
 
   pass-code-comment:
@@ -116,12 +116,12 @@ jobs:
     with:
       pass_name: code-comment
       diff_b64: ${{ needs.prepare.outputs.diff_b64 }}
-      model: ${{ env.GEMINI_MODEL_LIGHT }}
-      repo: ${{ env.REPO }}
-      pr_number: ${{ env.PR_NUMBER }}
-      pr_title: ${{ env.PR_TITLE }}
-      pr_body: ${{ env.PR_BODY }}
-      pr_author: ${{ env.PR_AUTHOR }}
+      model: ${{ vars.GEMINI_MODEL_LIGHT || 'gemini-3.1-flash-lite' }}
+      repo: ${{ github.repository }}
+      pr_number: ${{ github.event.pull_request.number }}
+      pr_title: ${{ github.event.pull_request.title }}
+      pr_body: ${{ github.event.pull_request.body }}
+      pr_author: ${{ github.event.pull_request.user.login }}
     secrets: inherit
 
   verify-and-post:
@@ -135,14 +135,14 @@ jobs:
       - pass-code-comment
     uses: ./.github/workflows/gemini-review-verify.yml
     with:
-      model: ${{ env.GEMINI_MODEL_STRONG }}
+      model: ${{ vars.GEMINI_MODEL_STRONG || 'gemini-3.5-flash' }}
       diff_b64: ${{ needs.prepare.outputs.diff_b64 }}
-      repo: ${{ env.REPO }}
-      pr_number: ${{ env.PR_NUMBER }}
-      pr_title: ${{ env.PR_TITLE }}
-      pr_body: ${{ env.PR_BODY }}
-      pr_author: ${{ env.PR_AUTHOR }}
-      head_sha: ${{ env.HEAD_SHA }}
+      repo: ${{ github.repository }}
+      pr_number: ${{ github.event.pull_request.number }}
+      pr_title: ${{ github.event.pull_request.title }}
+      pr_body: ${{ github.event.pull_request.body }}
+      pr_author: ${{ github.event.pull_request.user.login }}
+      head_sha: ${{ github.event.pull_request.head.sha }}
       issues_claude_md_b64: ${{ needs.pass-claude-md.outputs.issues_b64 }}
       issues_bug_scan_b64: ${{ needs.pass-bug-scan.outputs.issues_b64 }}
       issues_git_blame_b64: ${{ needs.pass-git-blame.outputs.issues_b64 }}
