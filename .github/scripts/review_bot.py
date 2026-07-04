@@ -5,6 +5,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 
 FALLBACK_MODEL_DEFAULT = "gemini-3.1-flash-lite"
 GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
@@ -49,6 +50,7 @@ COMMON_HEADER = """You are a Senior Backend Engineer performing an automated cod
 - **Authorization**: API endpoints must have appropriate authorization attributes (`[Authorize]`, `[Authorize(Policy = "...")]`) unless explicitly `[AllowAnonymous]`.
 - **EF Core Performance**: Avoid N+1 query patterns. Use `.Include()` or projection `.Select()`.
 - **Async/Await**: Avoid sync-over-async blocking calls like `.Result`, `.GetAwaiter().GetResult()`, or `.Wait()`.
+- **C# 13 NRT**: Ensure Nullable Reference Types are respected. Avoid null reference risks.
 - **Secrets**: Never log, print, or commit secrets, API keys, or `.env` files."""
 
 PASS_INSTRUCTIONS = {
@@ -62,7 +64,8 @@ PASS_INSTRUCTIONS = {
         "## Lens: Bug Scan\n"
         "Shallow scan of the changed lines ONLY (ignore unchanged surrounding code) for obvious bugs: "
         "crashes, incorrect logic, SQL injection, hardcoded secrets, missing authorization checks, N+1 "
-        "queries, sync-over-async blocking calls. Ignore nitpicks a linter/compiler would catch."
+        "queries, sync-over-async blocking calls, nullable-reference/null-deref risks. Ignore nitpicks "
+        "a linter/compiler would catch."
     ),
     "git-blame": (
         "## Lens: Historical Context (git log)\n"
@@ -317,16 +320,17 @@ def _call_gemini_once(prompt, api_key, model):
             "responseMimeType": "application/json",
         },
     }
-    payload_path = f"/tmp/gemini_payload_{os.getpid()}.json"
-    with open(payload_path, "w", encoding="utf-8") as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False, encoding="utf-8") as f:
         json.dump(payload, f)
+        payload_path = f.name
 
-    url = GEMINI_ENDPOINT.format(model=model, key=api_key)
-    code, stdout, stderr = run_cmd([
-        "curl", "-s", "-w", "\n%{http_code}", url,
-        "-H", "Content-Type: application/json", "-d", f"@{payload_path}",
-    ])
-    if os.path.exists(payload_path):
+    try:
+        url = GEMINI_ENDPOINT.format(model=model, key=api_key)
+        code, stdout, stderr = run_cmd([
+            "curl", "-s", "-w", "\n%{http_code}", url,
+            "-H", "Content-Type: application/json", "-d", f"@{payload_path}",
+        ])
+    finally:
         os.remove(payload_path)
 
     if code != 0:
@@ -525,11 +529,11 @@ def cmd_pass(args):
     try:
         response_text = call_gemini(prompt, api_key, model, fallback_model)
         result = parse_json_response(response_text)
+        issues = result.get("issues", [])
     except Exception as e:
         print(f"::error::Pass '{args.pass_name}' failed: {e}")
         sys.exit(1)
 
-    issues = result.get("issues", [])
     print(f"Pass '{args.pass_name}' found {len(issues)} issue(s).")
     write_github_output("issues_b64", b64_encode(issues))
 
@@ -557,10 +561,9 @@ def cmd_verify(_args):
         if raw:
             all_issues.extend(b64_decode_json(raw))
 
-    dismiss_stale_reviews(repo, pr_number)
-
     if not all_issues:
         print("No issues reported by any pass. Approving PR.")
+        dismiss_stale_reviews(repo, pr_number)
         body = build_review_body("Không có pass nào phát hiện vấn đề.", [], repo, head_sha)
         submit_review_with_fallback(repo, pr_number, head_sha, body, "APPROVE")
         return
@@ -570,13 +573,18 @@ def cmd_verify(_args):
     try:
         response_text = call_gemini(prompt, api_key, model, fallback_model)
         result = parse_json_response(response_text)
+        summary = result.get("summary", "No summary provided.")
+        scored_issues = result.get("issues", [])
     except Exception as e:
         print(f"::error::Verify pass failed: {e}")
         sys.exit(1)
 
-    summary = result.get("summary", "No summary provided.")
-    scored_issues = result.get("issues", [])
     high_confidence = filter_high_confidence(scored_issues, threshold=80)
+
+    # Dismiss stale reviews only once we have a verified result ready to post -
+    # otherwise a crash here would leave the PR with old reviews dismissed and
+    # no new one posted.
+    dismiss_stale_reviews(repo, pr_number)
 
     event = "REQUEST_CHANGES" if high_confidence else "APPROVE"
     body = build_review_body(summary, high_confidence, repo, head_sha)
