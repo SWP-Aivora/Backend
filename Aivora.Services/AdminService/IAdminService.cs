@@ -11,6 +11,7 @@ public interface IAdminService
     Task<Response.DashboardStatsResponse> GetDashboardStatsAsync();
     Task<Aivora.Services.Base.Response.PageResult<Response.ExpertReviewResponse>> GetExpertReviewsAsync(Aivora.Services.Base.Request.PageRequest pageRequest, string? search = null);
     Task<Aivora.Services.Base.Response.PageResult<Response.ExpertProfileUpdateResponse>> GetExpertProfileUpdatesAsync(Aivora.Services.Base.Request.PageRequest pageRequest, string? status = null);
+    Task<Response.ExpertProfileUpdateResponse> GetExpertProfileUpdateByIdAsync(Guid updateId);
     Task<Response.ExpertProfileUpdateResponse> ReviewExpertProfileUpdateAsync(Guid adminId, Guid updateId, Request.ReviewExpertProfileUpdateRequest request);
 }
 
@@ -48,10 +49,18 @@ public class Response
     {
         public Guid Id { get; set; }
         public Guid ExpertProfileId { get; set; }
+        public Guid ExpertId { get; set; }
+        public string? FullName { get; set; }
+        public string? Email { get; set; }
+        public string? AvatarUrl { get; set; }
         public string? Title { get; set; }
         public string? Bio { get; set; }
         public decimal? HourlyRate { get; set; }
         public int? ExperienceYears { get; set; }
+        public string? CurrentTitle { get; set; }
+        public string? CurrentBio { get; set; }
+        public decimal? CurrentHourlyRate { get; set; }
+        public int? CurrentExperienceYears { get; set; }
         public string Status { get; set; } = null!;
         public string? RejectionReason { get; set; }
         public DateTimeOffset CreatedAt { get; set; }

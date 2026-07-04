@@ -92,7 +92,9 @@ public class AdminServiceTests
         var expertProfileId = Guid.NewGuid();
         var updateId = Guid.NewGuid();
 
-        var profile = new ExpertProfile { Id = expertProfileId, Title = "Old Title", ExperienceYears = 5, UserId = Guid.NewGuid() };
+        var expertUserId = Guid.NewGuid();
+        var expertUser = new User { Id = expertUserId, Email = "expert@test.com", FullName = "Expert Name", Role = UserRole.EXPERT, Status = UserStatus.ACTIVE, PasswordHash = "x" };
+        var profile = new ExpertProfile { Id = expertProfileId, Title = "Old Title", ExperienceYears = 5, UserId = expertUserId };
         var update = new ExpertProfileUpdate
         {
             Id = updateId,
@@ -102,6 +104,7 @@ public class AdminServiceTests
             Status = ProfileUpdateStatus.PENDING
         };
 
+        dbContext.Users.Add(expertUser);
         dbContext.ExpertProfiles.Add(profile);
         dbContext.ExpertProfileUpdates.Add(update);
         await dbContext.SaveChangesAsync();
@@ -114,10 +117,63 @@ public class AdminServiceTests
 
         // Assert
         result.Status.Should().Be(ProfileUpdateStatus.APPROVED.ToString());
+        result.ExpertId.Should().Be(expertUserId);
+        result.FullName.Should().Be("Expert Name");
+        result.CurrentTitle.Should().Be("Old Title");
+        result.CurrentExperienceYears.Should().Be(5);
 
         var updatedProfile = await dbContext.ExpertProfiles.FindAsync(expertProfileId);
         updatedProfile!.Title.Should().Be("New Title");
         updatedProfile.ExperienceYears.Should().Be(7);
+    }
+
+    [Fact]
+    public async Task GetExpertProfileUpdateByIdAsync_ReturnsIdentityAndCurrentValues()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var expertProfileId = Guid.NewGuid();
+        var updateId = Guid.NewGuid();
+        var expertUserId = Guid.NewGuid();
+
+        var expertUser = new User { Id = expertUserId, Email = "expert3@test.com", FullName = "Expert Name", Role = UserRole.EXPERT, Status = UserStatus.ACTIVE, PasswordHash = "x" };
+        var profile = new ExpertProfile { Id = expertProfileId, Title = "Old Title", Bio = "Old Bio", HourlyRate = 20, ExperienceYears = 5, UserId = expertUserId };
+        var update = new ExpertProfileUpdate
+        {
+            Id = updateId,
+            ExpertProfileId = expertProfileId,
+            Title = "New Title",
+            ExperienceYears = 7,
+            Status = ProfileUpdateStatus.PENDING
+        };
+
+        dbContext.Users.Add(expertUser);
+        dbContext.ExpertProfiles.Add(profile);
+        dbContext.ExpertProfileUpdates.Add(update);
+        await dbContext.SaveChangesAsync();
+
+        var service = new AdminService(dbContext, Mock.Of<ILogger<AdminService>>(), Mock.Of<Aivora.Services.NotificationService.IService>());
+
+        // Act
+        var result = await service.GetExpertProfileUpdateByIdAsync(updateId);
+
+        // Assert
+        result.ExpertId.Should().Be(expertUserId);
+        result.Email.Should().Be("expert3@test.com");
+        result.Title.Should().Be("New Title");
+        result.CurrentTitle.Should().Be("Old Title");
+        result.CurrentBio.Should().Be("Old Bio");
+        result.CurrentHourlyRate.Should().Be(20);
+        result.CurrentExperienceYears.Should().Be(5);
+    }
+
+    [Fact]
+    public async Task GetExpertProfileUpdateByIdAsync_ThrowsNotFound_WhenMissing()
+    {
+        var dbContext = GetDbContext();
+        var service = new AdminService(dbContext, Mock.Of<ILogger<AdminService>>(), Mock.Of<Aivora.Services.NotificationService.IService>());
+
+        await Assert.ThrowsAsync<NotFoundException>(() => service.GetExpertProfileUpdateByIdAsync(Guid.NewGuid()));
     }
 
     [Fact]
@@ -129,7 +185,9 @@ public class AdminServiceTests
         var expertProfileId = Guid.NewGuid();
         var updateId = Guid.NewGuid();
 
-        var profile = new ExpertProfile { Id = expertProfileId, Title = "Old Title", ExperienceYears = 5, UserId = Guid.NewGuid() };
+        var expertUserId = Guid.NewGuid();
+        var expertUser = new User { Id = expertUserId, Email = "expert2@test.com", FullName = "Expert Name", Role = UserRole.EXPERT, Status = UserStatus.ACTIVE, PasswordHash = "x" };
+        var profile = new ExpertProfile { Id = expertProfileId, Title = "Old Title", ExperienceYears = 5, UserId = expertUserId };
         var update = new ExpertProfileUpdate
         {
             Id = updateId,
@@ -139,6 +197,7 @@ public class AdminServiceTests
             Status = ProfileUpdateStatus.PENDING
         };
 
+        dbContext.Users.Add(expertUser);
         dbContext.ExpertProfiles.Add(profile);
         dbContext.ExpertProfileUpdates.Add(update);
         await dbContext.SaveChangesAsync();
