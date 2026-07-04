@@ -1,0 +1,63 @@
+name: "Gemini review: single pass"
+
+on:
+  workflow_call:
+    inputs:
+      pass_name:
+        type: string
+        required: true
+        description: "One of: claude-md, bug-scan, git-blame, pr-history, code-comment"
+      diff_b64:
+        type: string
+        required: true
+      model:
+        type: string
+        required: true
+      repo:
+        type: string
+        required: true
+      pr_number:
+        type: string
+        required: true
+      pr_title:
+        type: string
+        required: false
+      pr_body:
+        type: string
+        required: false
+      pr_author:
+        type: string
+        required: false
+    outputs:
+      issues_b64:
+        description: "Base64-encoded JSON list of issues found by this pass"
+        value: ${{ jobs.run.outputs.issues_b64 }}
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    outputs:
+      issues_b64: ${{ steps.run.outputs.issues_b64 }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - id: run
+        env:
+          GEMINI_AI_KEY: ${{ secrets.GEMINI_AI_KEY }}
+          GH_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+          MODEL: ${{ inputs.model }}
+          DIFF_B64: ${{ inputs.diff_b64 }}
+          REPO: ${{ inputs.repo }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          PR_TITLE: ${{ inputs.pr_title }}
+          PR_BODY: ${{ inputs.pr_body }}
+          PR_AUTHOR: ${{ inputs.pr_author }}
+        run: python3 .github/scripts/review_bot.py pass --pass-name ${{ inputs.pass_name }}

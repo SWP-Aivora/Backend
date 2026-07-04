@@ -48,101 +48,81 @@ jobs:
     name: "Pass: CLAUDE.md compliance"
     needs: prepare
     if: needs.prepare.outputs.has_changes == 'true'
-    runs-on: ubuntu-latest
-    outputs:
-      issues_b64: ${{ steps.run.outputs.issues_b64 }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-      - id: run
-        env:
-          GEMINI_AI_KEY: ${{ secrets.GEMINI_AI_KEY }}
-          MODEL: ${{ env.GEMINI_MODEL_LIGHT }}
-          DIFF_B64: ${{ needs.prepare.outputs.diff_b64 }}
-        run: python3 .github/scripts/review_bot.py pass --pass-name claude-md
+    uses: ./.github/workflows/gemini-review-pass.yml
+    with:
+      pass_name: claude-md
+      diff_b64: ${{ needs.prepare.outputs.diff_b64 }}
+      model: ${{ env.GEMINI_MODEL_LIGHT }}
+      repo: ${{ env.REPO }}
+      pr_number: ${{ env.PR_NUMBER }}
+      pr_title: ${{ env.PR_TITLE }}
+      pr_body: ${{ env.PR_BODY }}
+      pr_author: ${{ env.PR_AUTHOR }}
+    secrets: inherit
 
   pass-bug-scan:
     name: "Pass: Bug scan"
     needs: prepare
     if: needs.prepare.outputs.has_changes == 'true'
-    runs-on: ubuntu-latest
-    outputs:
-      issues_b64: ${{ steps.run.outputs.issues_b64 }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-      - id: run
-        env:
-          GEMINI_AI_KEY: ${{ secrets.GEMINI_AI_KEY }}
-          MODEL: ${{ env.GEMINI_MODEL_LIGHT }}
-          DIFF_B64: ${{ needs.prepare.outputs.diff_b64 }}
-        run: python3 .github/scripts/review_bot.py pass --pass-name bug-scan
+    uses: ./.github/workflows/gemini-review-pass.yml
+    with:
+      pass_name: bug-scan
+      diff_b64: ${{ needs.prepare.outputs.diff_b64 }}
+      model: ${{ env.GEMINI_MODEL_LIGHT }}
+      repo: ${{ env.REPO }}
+      pr_number: ${{ env.PR_NUMBER }}
+      pr_title: ${{ env.PR_TITLE }}
+      pr_body: ${{ env.PR_BODY }}
+      pr_author: ${{ env.PR_AUTHOR }}
+    secrets: inherit
 
   pass-git-blame:
     name: "Pass: Git history"
     needs: prepare
     if: needs.prepare.outputs.has_changes == 'true'
-    runs-on: ubuntu-latest
-    outputs:
-      issues_b64: ${{ steps.run.outputs.issues_b64 }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-      - id: run
-        env:
-          GEMINI_AI_KEY: ${{ secrets.GEMINI_AI_KEY }}
-          MODEL: ${{ env.GEMINI_MODEL_LIGHT }}
-          DIFF_B64: ${{ needs.prepare.outputs.diff_b64 }}
-        run: python3 .github/scripts/review_bot.py pass --pass-name git-blame
+    uses: ./.github/workflows/gemini-review-pass.yml
+    with:
+      pass_name: git-blame
+      diff_b64: ${{ needs.prepare.outputs.diff_b64 }}
+      model: ${{ env.GEMINI_MODEL_LIGHT }}
+      repo: ${{ env.REPO }}
+      pr_number: ${{ env.PR_NUMBER }}
+      pr_title: ${{ env.PR_TITLE }}
+      pr_body: ${{ env.PR_BODY }}
+      pr_author: ${{ env.PR_AUTHOR }}
+    secrets: inherit
 
   pass-pr-history:
     name: "Pass: Related past PRs"
     needs: prepare
     if: needs.prepare.outputs.has_changes == 'true'
-    runs-on: ubuntu-latest
-    outputs:
-      issues_b64: ${{ steps.run.outputs.issues_b64 }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-      - id: run
-        env:
-          GEMINI_AI_KEY: ${{ secrets.GEMINI_AI_KEY }}
-          GH_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
-          MODEL: ${{ env.GEMINI_MODEL_LIGHT }}
-          DIFF_B64: ${{ needs.prepare.outputs.diff_b64 }}
-        run: python3 .github/scripts/review_bot.py pass --pass-name pr-history
+    uses: ./.github/workflows/gemini-review-pass.yml
+    with:
+      pass_name: pr-history
+      diff_b64: ${{ needs.prepare.outputs.diff_b64 }}
+      model: ${{ env.GEMINI_MODEL_LIGHT }}
+      repo: ${{ env.REPO }}
+      pr_number: ${{ env.PR_NUMBER }}
+      pr_title: ${{ env.PR_TITLE }}
+      pr_body: ${{ env.PR_BODY }}
+      pr_author: ${{ env.PR_AUTHOR }}
+    secrets: inherit
 
   pass-code-comment:
     name: "Pass: Code comment compliance"
     needs: prepare
     if: needs.prepare.outputs.has_changes == 'true'
-    runs-on: ubuntu-latest
-    outputs:
-      issues_b64: ${{ steps.run.outputs.issues_b64 }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-      - id: run
-        env:
-          GEMINI_AI_KEY: ${{ secrets.GEMINI_AI_KEY }}
-          MODEL: ${{ env.GEMINI_MODEL_LIGHT }}
-          DIFF_B64: ${{ needs.prepare.outputs.diff_b64 }}
-        run: python3 .github/scripts/review_bot.py pass --pass-name code-comment
+    uses: ./.github/workflows/gemini-review-pass.yml
+    with:
+      pass_name: code-comment
+      diff_b64: ${{ needs.prepare.outputs.diff_b64 }}
+      model: ${{ env.GEMINI_MODEL_LIGHT }}
+      repo: ${{ env.REPO }}
+      pr_number: ${{ env.PR_NUMBER }}
+      pr_title: ${{ env.PR_TITLE }}
+      pr_body: ${{ env.PR_BODY }}
+      pr_author: ${{ env.PR_AUTHOR }}
+    secrets: inherit
 
   verify-and-post:
     name: Verify confidence and post review
@@ -153,20 +133,19 @@ jobs:
       - pass-git-blame
       - pass-pr-history
       - pass-code-comment
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-      - env:
-          GEMINI_AI_KEY: ${{ secrets.GEMINI_AI_KEY }}
-          GH_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
-          MODEL: ${{ env.GEMINI_MODEL_STRONG }}
-          DIFF_B64: ${{ needs.prepare.outputs.diff_b64 }}
-          ISSUES_CLAUDE_MD_B64: ${{ needs.pass-claude-md.outputs.issues_b64 }}
-          ISSUES_BUG_SCAN_B64: ${{ needs.pass-bug-scan.outputs.issues_b64 }}
-          ISSUES_GIT_BLAME_B64: ${{ needs.pass-git-blame.outputs.issues_b64 }}
-          ISSUES_PR_HISTORY_B64: ${{ needs.pass-pr-history.outputs.issues_b64 }}
-          ISSUES_CODE_COMMENT_B64: ${{ needs.pass-code-comment.outputs.issues_b64 }}
-        run: python3 .github/scripts/review_bot.py verify
+    uses: ./.github/workflows/gemini-review-verify.yml
+    with:
+      model: ${{ env.GEMINI_MODEL_STRONG }}
+      diff_b64: ${{ needs.prepare.outputs.diff_b64 }}
+      repo: ${{ env.REPO }}
+      pr_number: ${{ env.PR_NUMBER }}
+      pr_title: ${{ env.PR_TITLE }}
+      pr_body: ${{ env.PR_BODY }}
+      pr_author: ${{ env.PR_AUTHOR }}
+      head_sha: ${{ env.HEAD_SHA }}
+      issues_claude_md_b64: ${{ needs.pass-claude-md.outputs.issues_b64 }}
+      issues_bug_scan_b64: ${{ needs.pass-bug-scan.outputs.issues_b64 }}
+      issues_git_blame_b64: ${{ needs.pass-git-blame.outputs.issues_b64 }}
+      issues_pr_history_b64: ${{ needs.pass-pr-history.outputs.issues_b64 }}
+      issues_code_comment_b64: ${{ needs.pass-code-comment.outputs.issues_b64 }}
+    secrets: inherit
