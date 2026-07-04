@@ -39,6 +39,7 @@ permissions:
 
 jobs:
   run:
+    name: Gemini
     runs-on: ubuntu-latest
     outputs:
       issues_b64: ${{ steps.run.outputs.issues_b64 }}
