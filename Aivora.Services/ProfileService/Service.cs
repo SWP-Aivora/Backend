@@ -62,10 +62,17 @@ public class Service : IService
     {
         var profile = await _dbContext.ExpertProfiles
             .Include(p => p.User)
+            .Include(p => p.ExpertSkills)
+                .ThenInclude(es => es.Skill)
             .FirstOrDefaultAsync(p => p.UserId == userId);
         if (profile == null) throw new NotFoundException("Expert profile not found.");
         if (profile.User == null) throw new NotFoundException("User associated with expert profile not found.");
 
+        return MapToExpertProfileResponse(profile);
+    }
+
+    private static Response.ExpertProfileResponse MapToExpertProfileResponse(ExpertProfile profile)
+    {
         return new Response.ExpertProfileResponse
         {
             UserId = profile.UserId,
@@ -79,7 +86,13 @@ public class Service : IService
             Rating = profile.Rating,
             TotalReviews = profile.TotalReviews,
             CompletedProjects = profile.CompletedProjects,
-            SuccessRate = profile.SuccessRate
+            SuccessRate = profile.SuccessRate,
+            Skills = profile.ExpertSkills.Select(es => new Response.ExpertSkillResponse
+            {
+                SkillId = es.SkillId,
+                SkillName = es.Skill.Name,
+                ProficiencyLevel = (int)es.Level
+            }).ToList()
         };
     }
 
@@ -87,6 +100,8 @@ public class Service : IService
     {
         var profile = await _dbContext.ExpertProfiles
             .Include(p => p.User)
+            .Include(p => p.ExpertSkills)
+                .ThenInclude(es => es.Skill)
             .FirstOrDefaultAsync(p => p.UserId == userId);
         if (profile == null) throw new NotFoundException("Expert profile not found.");
         if (profile.User == null) throw new NotFoundException("User associated with expert profile not found.");
@@ -115,21 +130,7 @@ public class Service : IService
 
         await _dbContext.SaveChangesAsync();
 
-        return new Response.ExpertProfileResponse
-        {
-            UserId = profile.UserId,
-            FullName = profile.User.FullName,
-            AvatarUrl = profile.User.AvatarUrl,
-            Title = profile.Title,
-            Bio = profile.Bio,
-            HourlyRate = profile.HourlyRate,
-            ExperienceYears = profile.ExperienceYears,
-            AvailabilityStatus = profile.AvailabilityStatus,
-            Rating = profile.Rating,
-            TotalReviews = profile.TotalReviews,
-            CompletedProjects = profile.CompletedProjects,
-            SuccessRate = profile.SuccessRate
-        };
+        return MapToExpertProfileResponse(profile);
     }
 
     public async Task<IdentityService.Response.UserResponse> UpdateUserAsync(Guid userId, Request.UpdateUserRequest request)
@@ -160,59 +161,37 @@ public class Service : IService
     {
         var profile = await _dbContext.ExpertProfiles
             .Include(p => p.User)
+            .Include(p => p.ExpertSkills)
+                .ThenInclude(es => es.Skill)
             .FirstOrDefaultAsync(p => p.Id == expertId);
 
         if (profile == null)
         {
             profile = await _dbContext.ExpertProfiles
                 .Include(p => p.User)
+                .Include(p => p.ExpertSkills)
+                    .ThenInclude(es => es.Skill)
                 .FirstOrDefaultAsync(p => p.UserId == expertId);
         }
 
         if (profile == null) throw new NotFoundException("Expert profile not found.");
         if (profile.User == null) throw new NotFoundException("User associated with expert profile not found.");
 
-        return new Response.ExpertProfileResponse
-        {
-            UserId = profile.UserId,
-            FullName = profile.User.FullName,
-            AvatarUrl = profile.User.AvatarUrl,
-            Title = profile.Title,
-            Bio = profile.Bio,
-            HourlyRate = profile.HourlyRate,
-            ExperienceYears = profile.ExperienceYears,
-            AvailabilityStatus = profile.AvailabilityStatus,
-            Rating = profile.Rating,
-            TotalReviews = profile.TotalReviews,
-            CompletedProjects = profile.CompletedProjects,
-            SuccessRate = profile.SuccessRate
-        };
+        return MapToExpertProfileResponse(profile);
     }
 
     public async Task<List<Response.ExpertProfileResponse>> GetFeaturedExpertsAsync(int count)
     {
         var profiles = await _dbContext.ExpertProfiles
             .Include(p => p.User)
+            .Include(p => p.ExpertSkills)
+                .ThenInclude(es => es.Skill)
             .OrderByDescending(p => p.Rating)
             .ThenByDescending(p => p.SuccessRate)
             .Take(count)
             .ToListAsync();
 
-        return profiles.Select(p => new Response.ExpertProfileResponse
-        {
-            UserId = p.UserId,
-            FullName = p.User.FullName,
-            AvatarUrl = p.User.AvatarUrl,
-            Title = p.Title,
-            Bio = p.Bio,
-            HourlyRate = p.HourlyRate,
-            ExperienceYears = p.ExperienceYears,
-            AvailabilityStatus = p.AvailabilityStatus,
-            Rating = p.Rating,
-            TotalReviews = p.TotalReviews,
-            CompletedProjects = p.CompletedProjects,
-            SuccessRate = p.SuccessRate
-        }).ToList();
+        return profiles.Select(MapToExpertProfileResponse).ToList();
     }
 
     public async Task<Response.PaginatedExpertListResponse> SearchExpertsAsync(Request.SearchExpertsRequest request)
@@ -253,27 +232,7 @@ public class Service : IService
             .ToListAsync();
 
         // Transform response with standardized skills
-        var expertResponses = experts.Select(p => new Response.ExpertProfileResponse
-        {
-            UserId = p.UserId,
-            FullName = p.User.FullName,
-            AvatarUrl = p.User.AvatarUrl,
-            Title = p.Title,
-            Bio = p.Bio,
-            HourlyRate = p.HourlyRate,
-            ExperienceYears = p.ExperienceYears,
-            AvailabilityStatus = p.AvailabilityStatus,
-            Rating = p.Rating,
-            TotalReviews = p.TotalReviews,
-            CompletedProjects = p.CompletedProjects,
-            SuccessRate = p.SuccessRate,
-            Skills = p.ExpertSkills.Select(es => new Response.ExpertSkillResponse
-            {
-                SkillId = es.SkillId,
-                SkillName = es.Skill.Name,
-                ProficiencyLevel = (int)es.Level
-            }).ToList()
-        }).ToList();
+        var expertResponses = experts.Select(MapToExpertProfileResponse).ToList();
 
         return new Response.PaginatedExpertListResponse
         {

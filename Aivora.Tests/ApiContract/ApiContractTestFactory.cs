@@ -68,7 +68,7 @@ public class ApiContractTestFactory : WebApplicationFactory<Program>
             var mediaDescriptor = services.SingleOrDefault(
                 d => d.ServiceType == typeof(Aivora.Services.MediaService.IService));
             if (mediaDescriptor is not null) services.Remove(mediaDescriptor);
-            services.AddScoped<Aivora.Services.MediaService.IService, FakeMediaService>();
+            services.AddSingleton<Aivora.Services.MediaService.IService, FakeMediaService>();
         });
     }
 
