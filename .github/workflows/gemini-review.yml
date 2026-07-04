@@ -41,7 +41,7 @@ jobs:
         run: python3 .github/scripts/test_review_bot.py
       - id: run
         env:
-          GH_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
         run: python3 .github/scripts/review_bot.py prepare
 
   pass-claude-md:
@@ -120,7 +120,7 @@ jobs:
       - id: run
         env:
           GEMINI_AI_KEY: ${{ secrets.GEMINI_AI_KEY }}
-          GH_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
           MODEL: ${{ env.GEMINI_MODEL_LIGHT }}
           DIFF_B64: ${{ needs.prepare.outputs.diff_b64 }}
         run: python3 .github/scripts/review_bot.py pass --pass-name pr-history
@@ -161,7 +161,7 @@ jobs:
           python-version: '3.x'
       - env:
           GEMINI_AI_KEY: ${{ secrets.GEMINI_AI_KEY }}
-          GH_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
           MODEL: ${{ env.GEMINI_MODEL_STRONG }}
           DIFF_B64: ${{ needs.prepare.outputs.diff_b64 }}
           ISSUES_CLAUDE_MD_B64: ${{ needs.pass-claude-md.outputs.issues_b64 }}
