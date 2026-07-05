@@ -16,4 +16,6 @@ public class CommissionCalculator : ICommissionCalculator
     {
         return milestoneAmount * _options.Rate;
     }
+
+    public decimal MaxDebtLimit => _options.MaxDebtLimit;
 }
