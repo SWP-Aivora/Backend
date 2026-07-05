@@ -112,7 +112,7 @@ public class Service : IService
         var disputeRate = expert.CompletedProjects >= 3 && expert.CompletedProjects > 0
             ? (decimal)disputeCount / expert.CompletedProjects
             : 0m;
-        
+
         // Rationale for penalty calculation:
         // - 1.5x penalty factor, capped at 50%: A dispute rate >= 33% results in the maximum deduction.
         // - The 50% cap ensures the score never reaches absolute 0, because other axes (skill, rating, etc.) still hold reference value.
