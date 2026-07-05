@@ -56,7 +56,7 @@ public class Treasury : ITreasury
             var expertBalanceBefore = expertWallet.AvailableBalance;
 
             // 1. Move money directly
-            clientWallet.Debit(depositAmount, bypassDebtLimit: false);
+            clientWallet.Debit(depositAmount);
             expertWallet.Credit(depositAmount);
             expertWallet.TotalEarned += depositAmount;
 
@@ -168,7 +168,7 @@ public class Treasury : ITreasury
             var expertBalanceBefore = expertWallet.AvailableBalance;
 
             // 1. Move money directly
-            clientWallet.Debit(remainingAmount, bypassDebtLimit: false);
+            clientWallet.Debit(remainingAmount);
             expertWallet.Credit(remainingAmount);
             expertWallet.TotalEarned += remainingAmount;
 
@@ -277,8 +277,15 @@ public class Treasury : ITreasury
                 var payerBalanceBefore = payerWallet.AvailableBalance;
                 var payeeBalanceBefore = payeeWallet.AvailableBalance;
 
+                // Enforce safe debt limit check to prevent bad debt and prompt manual review
+                var deficit = payment.Amount - payeeWallet.AvailableBalance;
+                if (payeeWallet.Debt + deficit > 1000m)
+                {
+                    throw new ValidationException($"Refund failed: Expert's wallet has insufficient funds (Available: {payeeWallet.AvailableBalance} {payeeWallet.Currency}, Debt: {payeeWallet.Debt} {payeeWallet.Currency}). Processing this refund of {payment.Amount} {payeeWallet.Currency} would exceed the safe debt limit of 1000 {payeeWallet.Currency} and requires manual review.");
+                }
+
                 // 1. Move money back (Clawback from expert to client)
-                payeeWallet.Debit(payment.Amount, bypassDebtLimit: true);
+                payeeWallet.Debit(payment.Amount);
                 payerWallet.Credit(payment.Amount);
                 payeeWallet.TotalEarned -= payment.Amount;
 
@@ -375,7 +382,14 @@ public class Treasury : ITreasury
                     var payerBalanceBefore = payerWallet.AvailableBalance;
                     var payeeBalanceBefore = payeeWallet.AvailableBalance;
 
-                    payeeWallet.Debit(refundAllocation, bypassDebtLimit: true);
+                    // Enforce safe debt limit check to prevent bad debt and prompt manual review
+                    var deficit = refundAllocation - payeeWallet.AvailableBalance;
+                    if (payeeWallet.Debt + deficit > 1000m)
+                    {
+                        throw new ValidationException($"Split failed: Expert's wallet has insufficient funds (Available: {payeeWallet.AvailableBalance} {payeeWallet.Currency}, Debt: {payeeWallet.Debt} {payeeWallet.Currency}). Processing this clawback of {refundAllocation} {payeeWallet.Currency} would exceed the safe debt limit of 1000 {payeeWallet.Currency} and requires manual review.");
+                    }
+
+                    payeeWallet.Debit(refundAllocation);
                     payerWallet.Credit(refundAllocation);
                     payeeWallet.TotalEarned -= refundAllocation;
 

@@ -188,7 +188,7 @@ public class TreasuryRealtimeTests
         var wallet = new Wallet { AvailableBalance = 0, Debt = 0, Currency = "AICOIN" };
 
         // Act
-        var act = () => wallet.Debit(1500, bypassDebtLimit: false);
+        var act = () => wallet.Debit(1500);
 
         // Assert
         act.Should().Throw<InvalidOperationException>()
@@ -196,31 +196,75 @@ public class TreasuryRealtimeTests
     }
 
     [Fact]
-    public void Wallet_Debit_Should_Allow_Exceeding_DebtLimit_When_Bypassed()
+    public async Task RefundMilestoneAsync_Should_Throw_ValidationException_When_SafeDebtLimit_Exceeded()
     {
         // Arrange
-        var wallet = new Wallet { AvailableBalance = 0, Debt = 0, Currency = "AICOIN" };
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+
+        var clientWallet = new Wallet { UserId = clientId, AvailableBalance = 1000, HeldBalance = 0, Currency = "AICOIN" };
+        var expertWallet = new Wallet { UserId = expertId, AvailableBalance = 0, Debt = 0, HeldBalance = 0, Currency = "AICOIN" };
+        var project = new Project { ClientId = clientId, ExpertId = expertId, Title = "Safe limit Project" };
+        var milestone = new Milestone { Project = project, Amount = 1500, Status = MilestoneStatus.RELEASED, Title = "M1" };
+
+        var payment = new Payment { Id = Guid.NewGuid(), MilestoneId = milestone.Id, ProjectId = project.Id, PayerId = clientId, PayeeId = expertId, Amount = 1500, Status = PaymentStatus.RELEASED, Currency = "AICOIN" };
+
+        dbContext.Wallets.AddRange(clientWallet, expertWallet);
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestone);
+        dbContext.Payments.Add(payment);
+        await dbContext.SaveChangesAsync();
+
+        var treasury = new Aivora.Services.Treasury.Treasury(
+            dbContext,
+            Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(),
+            Mock.Of<Aivora.Services.NotificationService.IService>(),
+            Mock.Of<Aivora.Services.RealtimeService.IService>()
+        );
 
         // Act
-        wallet.Debit(1500, bypassDebtLimit: true);
+        Func<Task> act = async () => await treasury.RefundMilestoneAsync(Guid.NewGuid(), milestone.Id, "Disputed result");
 
         // Assert
-        wallet.Debt.Should().Be(1500);
-        wallet.AvailableBalance.Should().Be(0);
+        await act.Should().ThrowAsync<Aivora.Services.Exceptions.ValidationException>()
+            .WithMessage("*would exceed the safe debt limit of 1000*");
     }
 
     [Fact]
-    public void Wallet_Debit_Should_Throw_InvalidOperationException_When_SystemDebtLimit_Exceeded_Even_If_Bypassed()
+    public async Task SplitMilestoneFundsAsync_Should_Throw_ValidationException_When_SafeDebtLimit_Exceeded()
     {
         // Arrange
-        var wallet = new Wallet { AvailableBalance = 0, Debt = 0, Currency = "AICOIN" };
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+
+        var clientWallet = new Wallet { UserId = clientId, AvailableBalance = 1000, HeldBalance = 0, Currency = "AICOIN" };
+        var expertWallet = new Wallet { UserId = expertId, AvailableBalance = 0, Debt = 0, HeldBalance = 0, Currency = "AICOIN" };
+        var project = new Project { ClientId = clientId, ExpertId = expertId, Title = "Safe limit Project 2" };
+        var milestone = new Milestone { Project = project, Amount = 1500, Status = MilestoneStatus.RELEASED, Title = "M1" };
+
+        var payment = new Payment { Id = Guid.NewGuid(), MilestoneId = milestone.Id, ProjectId = project.Id, PayerId = clientId, PayeeId = expertId, Amount = 1500, Status = PaymentStatus.RELEASED, Currency = "AICOIN" };
+
+        dbContext.Wallets.AddRange(clientWallet, expertWallet);
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestone);
+        dbContext.Payments.Add(payment);
+        await dbContext.SaveChangesAsync();
+
+        var treasury = new Aivora.Services.Treasury.Treasury(
+            dbContext,
+            Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(),
+            Mock.Of<Aivora.Services.NotificationService.IService>(),
+            Mock.Of<Aivora.Services.RealtimeService.IService>()
+        );
 
         // Act
-        var act = () => wallet.Debit(6000, bypassDebtLimit: true);
+        Func<Task> act = async () => await treasury.SplitMilestoneFundsAsync(milestone.Id, 200, 1300, "Split resolution");
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("Clawback failed. Operation would exceed the maximum system debt limit of 5000 AICOIN.");
+        await act.Should().ThrowAsync<Aivora.Services.Exceptions.ValidationException>()
+            .WithMessage("*would exceed the safe debt limit of 1000*");
     }
 
     [Fact]

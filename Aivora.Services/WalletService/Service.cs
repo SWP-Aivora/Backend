@@ -279,7 +279,7 @@ public class Service : IService
             decimal clientBalanceBefore = currentWallet.AvailableBalance;
             try
             {
-                currentWallet.Debit(request.Amount, bypassDebtLimit: false);
+                currentWallet.Debit(request.Amount);
             }
             catch (InvalidOperationException ex)
             {

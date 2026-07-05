@@ -26,7 +26,7 @@ public class Wallet : AuditableBaseEntity
         AvailableBalance += amount;
     }
 
-    public void Debit(decimal amount, bool bypassDebtLimit = false)
+    public void Debit(decimal amount)
     {
         if (amount < 0) throw new ArgumentException("Amount must be non-negative.", nameof(amount));
 
@@ -37,10 +37,9 @@ public class Wallet : AuditableBaseEntity
         else
         {
             var deficit = amount - AvailableBalance;
-            decimal limit = bypassDebtLimit ? 5000m : 1000m;
-            if (Debt + deficit > limit)
+            if (Debt + deficit > 1000m)
             {
-                throw new InvalidOperationException($"Clawback failed. Operation would exceed the maximum {(bypassDebtLimit ? "system " : "")}debt limit of {limit} {Currency}.");
+                throw new InvalidOperationException($"Clawback failed. Operation would exceed the maximum debt limit of 1000 {Currency}.");
             }
             AvailableBalance = 0;
             Debt += deficit;
