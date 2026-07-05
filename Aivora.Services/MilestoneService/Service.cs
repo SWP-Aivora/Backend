@@ -143,6 +143,13 @@ public class Service : IService
         if (milestone.Status != MilestoneStatus.SUBMITTED)
             throw new ValidationException("Milestone must be in SUBMITTED status to be approved.");
 
+        var hasActiveDispute = await _dbContext.Disputes
+            .AnyAsync(d => d.MilestoneId == milestoneId &&
+                          (d.Status == DisputeStatus.OPEN || d.Status == DisputeStatus.UNDER_REVIEW));
+
+        if (hasActiveDispute)
+            throw new ValidationException("Cannot approve milestone while there is an active dispute.");
+
         // Delegate to Treasury which handles all persistence internally
         // (opens its own transaction, calls SaveChangesAsync, commits).
         await _treasury.PayRemainingAsync(userId, milestoneId);

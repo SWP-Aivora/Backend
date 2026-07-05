@@ -1,4 +1,4 @@
-using Aivora.Repositories.Enums;
+
 
 namespace Aivora.Services.DisputeService;
 
@@ -19,10 +19,7 @@ public class Request
 
     public class ResolveDisputeRequest
     {
-        public DisputeResolutionType ResolutionType { get; set; }
         public string ResolutionNote { get; set; } = null!;
-        public decimal? ReleaseAmount { get; set; }
-        public decimal? RefundAmount { get; set; }
     }
 
     public class RequestEvidenceRequest
