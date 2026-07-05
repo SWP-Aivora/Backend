@@ -140,9 +140,11 @@ public class Treasury : ITreasury
     {
         var milestone = await GetMilestoneWithProjectAsync(milestoneId);
 
-        if (milestone.Project.ClientId != clientId && milestone.Status != MilestoneStatus.DISPUTED) throw new UnauthorizedException("Only the client can approve and release funds.");
-        if (milestone.Status != MilestoneStatus.SUBMITTED && milestone.Status != MilestoneStatus.DISPUTED)
-            throw new ValidationException("Milestone must be in SUBMITTED or DISPUTED status to release remaining funds.");
+        if (milestone.Project.ClientId != clientId) throw new UnauthorizedException("Only the client can approve and release funds.");
+        if (milestone.Status == MilestoneStatus.DISPUTED)
+            throw new ValidationException("Cannot release remaining funds while the milestone is disputed.");
+        if (milestone.Status != MilestoneStatus.SUBMITTED)
+            throw new ValidationException("Milestone must be in SUBMITTED status to release remaining funds.");
 
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try

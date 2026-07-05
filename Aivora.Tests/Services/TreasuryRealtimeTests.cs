@@ -208,5 +208,52 @@ public class TreasuryRealtimeTests
         wallet.Debt.Should().Be(1500);
         wallet.AvailableBalance.Should().Be(0);
     }
+
+    [Fact]
+    public void Wallet_Debit_Should_Throw_InvalidOperationException_When_SystemDebtLimit_Exceeded_Even_If_Bypassed()
+    {
+        // Arrange
+        var wallet = new Wallet { AvailableBalance = 0, Debt = 0, Currency = "AICOIN" };
+
+        // Act
+        var act = () => wallet.Debit(6000, bypassDebtLimit: true);
+
+        // Assert
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("Clawback failed. Operation would exceed the maximum system debt limit of 5000 AICOIN.");
+    }
+
+    [Fact]
+    public async Task PayRemainingAsync_Should_Throw_ValidationException_When_Milestone_Is_Disputed()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+
+        var clientWallet = new Wallet { UserId = clientId, AvailableBalance = 1000, HeldBalance = 0, Currency = "AICOIN" };
+        var expertWallet = new Wallet { UserId = expertId, AvailableBalance = 0, HeldBalance = 0, Currency = "AICOIN" };
+        var project = new Project { ClientId = clientId, ExpertId = expertId, Title = "Disputed Project" };
+        var milestone = new Milestone { Project = project, Amount = 1000, Status = MilestoneStatus.DISPUTED, Title = "M1" };
+
+        dbContext.Wallets.AddRange(clientWallet, expertWallet);
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestone);
+        await dbContext.SaveChangesAsync();
+
+        var treasury = new Aivora.Services.Treasury.Treasury(
+            dbContext,
+            Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(),
+            Mock.Of<Aivora.Services.NotificationService.IService>(),
+            Mock.Of<Aivora.Services.RealtimeService.IService>()
+        );
+
+        // Act
+        Func<Task> act = async () => await treasury.PayRemainingAsync(clientId, milestone.Id);
+
+        // Assert
+        await act.Should().ThrowAsync<Aivora.Services.Exceptions.ValidationException>()
+            .WithMessage("Cannot release remaining funds while the milestone is disputed.");
+    }
 }
 
