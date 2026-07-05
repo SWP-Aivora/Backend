@@ -31,8 +31,8 @@ public class Service : IService
         if (milestone.Project.ClientId != userId && milestone.Project.ExpertId != userId)
             throw new UnauthorizedException("You are not authorized to open a dispute for this project.");
 
-        var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestone.Id && p.Status == PaymentStatus.HELD);
-        if (payment == null) throw new ValidationException("Only funded milestones with held payments can be disputed.");
+        var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestone.Id && p.Status == PaymentStatus.RELEASED);
+        if (payment == null) throw new ValidationException("Only funded milestones with released payments can be disputed.");
 
         // Block re-opening dispute after CLOSED
         var hasClosedDispute = await _dbContext.Disputes
@@ -61,7 +61,7 @@ public class Service : IService
             milestone.Project.Status = ProjectStatus.DISPUTED;
 
             // Freeze funds when dispute is opened
-            await _treasury.FreezeFundsAsync(milestone.Id, "Dispute opened");
+            // await _treasury.FreezeFundsAsync(milestone.Id, "Dispute opened");
 
             _dbContext.Disputes.Add(dispute);
             await _dbContext.SaveChangesAsync();
@@ -243,7 +243,7 @@ public class Service : IService
         switch (request.ResolutionType)
         {
             case DisputeResolutionType.RELEASE_TO_EXPERT:
-                await _treasury.ReleaseMilestoneAsync(milestone.Project.ClientId, milestone.Id);
+                await _treasury.PayRemainingAsync(milestone.Project.ClientId, milestone.Id);
                 break;
 
             case DisputeResolutionType.REFUND_TO_CLIENT:
@@ -315,7 +315,7 @@ public class Service : IService
         // Unfreeze payment if it was frozen (backward compatible: old disputes have HELD)
         if (dispute.Payment.Status == PaymentStatus.FROZEN)
         {
-            await _treasury.UnfreezeFundsAsync(dispute.MilestoneId, "Dispute closed");
+            // await _treasury.UnfreezeFundsAsync(dispute.MilestoneId, "Dispute closed");
         }
 
         dispute.Status = DisputeStatus.CLOSED;

@@ -35,7 +35,7 @@ public class DisputeServiceTests
         var expertUser = new User { Id = expertId, FullName = "Expert", Role = UserRole.EXPERT, Email = "e@t.com", PasswordHash = "x" };
         var project = new Project { Id = projectId, ClientId = clientId, ExpertId = expertId, Title = "Dispute Project", Status = ProjectStatus.ACTIVE };
         var milestone = new Milestone { Id = milestoneId, ProjectId = projectId, Amount = 500, Status = MilestoneStatus.FUNDED, Title = "M1" };
-        var payment = new Payment { MilestoneId = milestoneId, ProjectId = projectId, PayerId = clientId, PayeeId = expertId, Amount = 500, Status = PaymentStatus.HELD };
+        var payment = new Payment { MilestoneId = milestoneId, ProjectId = projectId, PayerId = clientId, PayeeId = expertId, Amount = 500, Status = PaymentStatus.RELEASED };
 
         dbContext.Users.AddRange(clientUser, expertUser);
         dbContext.Projects.Add(project);
@@ -60,9 +60,9 @@ public class DisputeServiceTests
         var updatedProject = await dbContext.Projects.FindAsync(projectId);
         updatedProject!.Status.Should().Be(ProjectStatus.DISPUTED);
 
-        // Payment is FROZEN when dispute is opened
+        // Payment remains RELEASED (no frozen logic)
         var updatedPayment = await dbContext.Payments.FindAsync(payment.Id);
-        updatedPayment!.Status.Should().Be(PaymentStatus.FROZEN);
+        updatedPayment!.Status.Should().Be(PaymentStatus.RELEASED);
     }
 
     [Fact]
@@ -78,12 +78,12 @@ public class DisputeServiceTests
         var expertUser = new User { Id = expertId, FullName = "Expert", Role = UserRole.EXPERT, Email = "e@t.com", PasswordHash = "x" };
         var adminUser = new User { Id = adminId, FullName = "Admin", Role = UserRole.ADMIN, Email = "a@t.com", PasswordHash = "x" };
 
-        var clientWallet = new Wallet { UserId = clientId, AvailableBalance = 0, HeldBalance = 500, Currency = "AICOIN" };
-        var expertWallet = new Wallet { UserId = expertId, AvailableBalance = 0, Currency = "AICOIN" };
+        var clientWallet = new Wallet { UserId = clientId, AvailableBalance = 0, HeldBalance = 0, Currency = "AICOIN" };
+        var expertWallet = new Wallet { UserId = expertId, AvailableBalance = 500, Currency = "AICOIN" };
 
         var project = new Project { Id = Guid.NewGuid(), ClientId = clientId, ExpertId = expertId, Title = "Resolve Project", Status = ProjectStatus.DISPUTED };
         var milestone = new Milestone { Id = Guid.NewGuid(), ProjectId = project.Id, Amount = 500, Status = MilestoneStatus.DISPUTED, Title = "M1" };
-        var payment = new Payment { Id = Guid.NewGuid(), MilestoneId = milestone.Id, ProjectId = project.Id, PayerId = clientId, PayeeId = expertId, Amount = 500, Status = PaymentStatus.FROZEN };
+        var payment = new Payment { Id = Guid.NewGuid(), MilestoneId = milestone.Id, ProjectId = project.Id, PayerId = clientId, PayeeId = expertId, Amount = 500, Status = PaymentStatus.RELEASED };
 
         var dispute = new Dispute { Id = Guid.NewGuid(), ProjectId = project.Id, MilestoneId = milestone.Id, PaymentId = payment.Id, OpenedBy = clientId, AgainstUserId = expertId, Status = DisputeStatus.OPEN, Reason = "X" };
 
@@ -111,6 +111,9 @@ public class DisputeServiceTests
         var updatedClientWallet = await dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == clientId);
         updatedClientWallet!.HeldBalance.Should().Be(0);
         updatedClientWallet!.AvailableBalance.Should().Be(500);
+
+        var updatedExpertWallet = await dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == expertId);
+        updatedExpertWallet!.AvailableBalance.Should().Be(0);
 
         var updatedPayment = await dbContext.Payments.FindAsync(payment.Id);
         updatedPayment!.Status.Should().Be(PaymentStatus.REFUNDED);

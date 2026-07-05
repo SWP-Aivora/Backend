@@ -86,8 +86,8 @@ public class Service : IService
 
     public async Task<Response.FundResultResponse> FundMilestoneAsync(Guid userId, Guid milestoneId)
     {
-        // Sử dụng Treasury để xử lý logic phức tạp
-        await _treasury.FundMilestoneAsync(userId, milestoneId);
+        // Sử dụng Treasury để xử lý logic phức tạp (PayDepositAsync)
+        await _treasury.PayDepositAsync(userId, milestoneId);
 
         // Lấy dữ liệu từ change tracker sau khi Treasury xử lý xong.
         // Treasury đã load/create các entity này trong cùng một DbContext (scoped),
@@ -98,7 +98,7 @@ public class Service : IService
         var clientWallet = _dbContext.Wallets.Local
             .FirstOrDefault(w => w.UserId == userId);
         var payment = _dbContext.Payments.Local
-            .FirstOrDefault(p => p.MilestoneId == milestoneId && p.Status == PaymentStatus.HELD);
+            .FirstOrDefault(p => p.MilestoneId == milestoneId && p.Status == PaymentStatus.RELEASED);
 
         if (milestone == null)
             throw new InvalidOperationException($"Milestone {milestoneId} not tracked after funding.");
@@ -145,7 +145,7 @@ public class Service : IService
 
         // Delegate to Treasury which handles all persistence internally
         // (opens its own transaction, calls SaveChangesAsync, commits).
-        await _treasury.ReleaseMilestoneAsync(userId, milestoneId);
+        await _treasury.PayRemainingAsync(userId, milestoneId);
 
         // Read from the change tracker rather than re-querying the DB. Treasury loads/
         // mutates this same tracked entity in the same scoped DbContext, so .Local already

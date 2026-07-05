@@ -146,15 +146,15 @@ public class E2EBusinessFlowTests
         var fundResult = await milestoneService.FundMilestoneAsync(clientId, milestone.Id);
 
         // Assert Wallet and project status updates
-        fundResult.Milestone.Status.Should().Be(MilestoneStatus.FUNDED);
-        fundResult.Wallet.AvailableBalance.Should().Be(1100);
-        fundResult.Wallet.HeldBalance.Should().Be(900);
+        fundResult.Milestone.Status.Should().Be(MilestoneStatus.IN_PROGRESS);
+        fundResult.Wallet.AvailableBalance.Should().Be(1730); // 2000 - 270
+        fundResult.Wallet.HeldBalance.Should().Be(0);
 
         var activeProject = await dbContext.Projects.FindAsync(project.Id);
         activeProject!.Status.Should().Be(ProjectStatus.ACTIVE);
 
         var activePayment = await dbContext.Payments.FirstAsync(p => p.MilestoneId == milestone.Id);
-        activePayment.Status.Should().Be(PaymentStatus.HELD);
+        activePayment.Status.Should().Be(PaymentStatus.RELEASED);
 
         // ----------------------------------------------------
         // 4. E2E Step 4.1 — Expert Submits Deliverable (QAnh)
@@ -188,15 +188,16 @@ public class E2EBusinessFlowTests
         var updatedClientWallet = await dbContext.Wallets.FirstAsync(w => w.UserId == clientId);
         var updatedExpertWallet = await dbContext.Wallets.FirstAsync(w => w.UserId == expertId);
 
-        updatedClientWallet.AvailableBalance.Should().Be(1100);
+        updatedClientWallet.AvailableBalance.Should().Be(1100); // 1730 - 630
         updatedClientWallet.HeldBalance.Should().Be(0);
 
-        updatedExpertWallet.AvailableBalance.Should().Be(900);
+        updatedExpertWallet.AvailableBalance.Should().Be(900); // 270 + 630
         updatedExpertWallet.TotalEarned.Should().Be(900);
 
-        var updatedPayment = await dbContext.Payments.FirstAsync(p => p.MilestoneId == milestone.Id);
-        updatedPayment.Status.Should().Be(PaymentStatus.RELEASED);
-        updatedPayment.ReleasedAt.Should().NotBeNull();
+        var updatedPayments = await dbContext.Payments.Where(p => p.MilestoneId == milestone.Id).ToListAsync();
+        updatedPayments.All(p => p.Status == PaymentStatus.RELEASED).Should().BeTrue();
+        updatedPayments.All(p => p.ReleasedAt != null).Should().BeTrue();
+        updatedPayments.Count.Should().Be(2);
 
         var completedProject = await dbContext.Projects.FindAsync(project.Id);
         completedProject!.Status.Should().Be(ProjectStatus.COMPLETED);
@@ -397,8 +398,8 @@ public class E2EBusinessFlowTests
         var expertWallet = new Wallet { UserId = expertId, AvailableBalance = 0, Currency = "AICOIN" };
 
         var project = new Project { Id = Guid.NewGuid(), ClientId = clientId, ExpertId = expertId, Title = "E2E Alternative", Status = ProjectStatus.ACTIVE, Currency = "AICOIN" };
-        var milestone = new Milestone { Id = Guid.NewGuid(), ProjectId = project.Id, Amount = 500, Status = MilestoneStatus.FUNDED, Title = "Milestone 1", Currency = "AICOIN" };
-        var payment = new Payment { Id = Guid.NewGuid(), MilestoneId = milestone.Id, ProjectId = project.Id, PayerId = clientId, PayeeId = expertId, Amount = 500, Status = PaymentStatus.HELD, Currency = "AICOIN" };
+        var milestone = new Milestone { Id = Guid.NewGuid(), ProjectId = project.Id, Amount = 500, Status = MilestoneStatus.IN_PROGRESS, Title = "Milestone 1", Currency = "AICOIN" };
+        var payment = new Payment { Id = Guid.NewGuid(), MilestoneId = milestone.Id, ProjectId = project.Id, PayerId = clientId, PayeeId = expertId, Amount = 150, Status = PaymentStatus.RELEASED, Currency = "AICOIN" };
 
         dbContext.Users.AddRange(clientUser, expertUser, adminUser);
         dbContext.Wallets.AddRange(clientWallet, expertWallet);
@@ -415,7 +416,7 @@ public class E2EBusinessFlowTests
         var disputeService = new Aivora.Services.DisputeService.Service(dbContext, treasury, notificationService);
 
         // ----------------------------------------------------
-        // Negative Test 1: Release payment before deliverable approval (Milestone is FUNDED, not SUBMITTED)
+        // Negative Test 1: Release payment before deliverable approval (Milestone is IN_PROGRESS, not SUBMITTED)
         // ----------------------------------------------------
         Func<Task> releaseBeforeApproval = async () => await milestoneService.ApproveMilestoneAsync(clientId, milestone.Id);
         await releaseBeforeApproval.Should().ThrowAsync<ValidationException>()
@@ -475,22 +476,22 @@ public class E2EBusinessFlowTests
         // Restore project & milestone to submitted state
         project.Status = ProjectStatus.ACTIVE;
         milestone.Status = MilestoneStatus.SUBMITTED;
-        payment.Status = PaymentStatus.HELD;
+        payment.Status = PaymentStatus.RELEASED;
         await dbContext.SaveChangesAsync();
 
         // Client requests revision
         var revisionRes = await milestoneService.RequestRevisionAsync(clientId, milestone.Id, "Please improve the landing UI.");
         revisionRes.Status.Should().Be(MilestoneStatus.REVISION_REQUESTED);
 
-        // Escrow payment remains held
+        // Escrow payment remains held -> Now it's a deposit payment which is RELEASED
         var heldPayment = await dbContext.Payments.FindAsync(payment.Id);
-        heldPayment!.Status.Should().Be(PaymentStatus.HELD);
+        heldPayment!.Status.Should().Be(PaymentStatus.RELEASED);
 
         // ----------------------------------------------------
         // Setup Alternative Flow: Dispute Resolution
         // ----------------------------------------------------
         // Restore to funded state to open dispute
-        milestone.Status = MilestoneStatus.FUNDED;
+        milestone.Status = MilestoneStatus.IN_PROGRESS;
         await dbContext.SaveChangesAsync();
 
         var openDisputeReq = new Aivora.Services.DisputeService.Request.OpenDisputeRequest
@@ -509,8 +510,8 @@ public class E2EBusinessFlowTests
         disputedProject!.Status.Should().Be(ProjectStatus.DISPUTED);
 
         var updatedPayment = await dbContext.Payments.FindAsync(payment.Id);
-        // Payment is FROZEN when dispute is opened
-        updatedPayment!.Status.Should().Be(PaymentStatus.FROZEN);
+        // Payment freezing is disabled (removed) for the new direct payment flow. It stays RELEASED.
+        updatedPayment!.Status.Should().Be(PaymentStatus.RELEASED);
     }
 
     private class MockNotificationService : Aivora.Services.NotificationService.IService

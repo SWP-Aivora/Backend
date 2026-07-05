@@ -134,7 +134,7 @@ namespace Aivora.Tests.UnitTests
                 ProjectId = project.Id,
                 Title = "Test Milestone",
                 Amount = 1000,
-                Status = MilestoneStatus.FUNDED
+                Status = MilestoneStatus.IN_PROGRESS
             };
             _dbContext.Milestones.Add(milestone);
 
@@ -146,7 +146,7 @@ namespace Aivora.Tests.UnitTests
                 PayerId = client.Id,
                 PayeeId = expert.Id,
                 Amount = 1000,
-                Status = PaymentStatus.HELD
+                Status = PaymentStatus.RELEASED
             };
             _dbContext.Payments.Add(payment);
             await _dbContext.SaveChangesAsync();
@@ -163,7 +163,7 @@ namespace Aivora.Tests.UnitTests
             // Assert
             Assert.NotNull(response);
             var updatedPayment = await _dbContext.Payments.FindAsync(payment.Id);
-            Assert.Equal(PaymentStatus.FROZEN, updatedPayment!.Status);
+            Assert.Equal(PaymentStatus.RELEASED, updatedPayment!.Status);
         }
 
         [Fact]
@@ -220,9 +220,9 @@ namespace Aivora.Tests.UnitTests
             var expert = await SeedUserAsync(UserRole.EXPERT, "expert@test.com");
             var dispute = await SeedDisputeAsync(client.Id, expert.Id, DisputeStatus.OPEN);
 
-            // Simulate payment frozen by OpenDispute (Change 2)
+            // Simulate payment was RELEASED (deposit)
             var payment = await _dbContext.Payments.FindAsync(dispute.PaymentId);
-            payment!.Status = PaymentStatus.FROZEN;
+            payment!.Status = PaymentStatus.RELEASED;
             await _dbContext.SaveChangesAsync();
 
             // Act
@@ -230,7 +230,7 @@ namespace Aivora.Tests.UnitTests
 
             // Assert
             var updatedPayment = await _dbContext.Payments.FindAsync(dispute.PaymentId);
-            Assert.Equal(PaymentStatus.HELD, updatedPayment!.Status);
+            Assert.Equal(PaymentStatus.RELEASED, updatedPayment!.Status);
         }
 
         [Fact]
@@ -556,7 +556,7 @@ namespace Aivora.Tests.UnitTests
                 PayerId = openedBy,
                 PayeeId = againstUserId,
                 Amount = 1000,
-                Status = PaymentStatus.HELD
+                Status = PaymentStatus.RELEASED
             };
             _dbContext.Payments.Add(payment);
 
@@ -606,6 +606,9 @@ namespace Aivora.Tests.UnitTests
                     await _dbContext.SaveChangesAsync();
                 }
             }
+
+            public Task PayDepositAsync(Guid clientId, Guid milestoneId) => Task.CompletedTask;
+            public Task PayRemainingAsync(Guid clientId, Guid milestoneId) => Task.CompletedTask;
 
             public async Task RefundMilestoneAsync(Guid adminId, Guid milestoneId, decimal amount, string reason)
             {

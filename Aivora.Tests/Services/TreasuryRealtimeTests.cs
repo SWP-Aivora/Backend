@@ -58,4 +58,80 @@ public class TreasuryRealtimeTests
             "Job Title"
         ), Times.Once);
     }
+
+    [Fact]
+    public async Task PayDepositAsync_Should_Transfer_30Percent_Directly()
+    {
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+
+        var clientWallet = new Wallet { UserId = clientId, AvailableBalance = 1000, HeldBalance = 0, Currency = "VND" };
+        var expertWallet = new Wallet { UserId = expertId, AvailableBalance = 0, HeldBalance = 0, Currency = "VND" };
+        var project = new Project { ClientId = clientId, ExpertId = expertId, Title = "P1" };
+        var milestone = new Milestone { Project = project, Amount = 1000, Status = MilestoneStatus.CREATED, Title = "M1" };
+
+        dbContext.Wallets.AddRange(clientWallet, expertWallet);
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestone);
+        await dbContext.SaveChangesAsync();
+
+        var treasury = new Aivora.Services.Treasury.Treasury(
+            dbContext,
+            Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(),
+            Mock.Of<Aivora.Services.NotificationService.IService>(),
+            Mock.Of<Aivora.Services.RealtimeService.IService>()
+        );
+
+        await treasury.PayDepositAsync(clientId, milestone.Id);
+
+        // 30% of 1000 = 300
+        clientWallet.AvailableBalance.Should().Be(700);
+        expertWallet.AvailableBalance.Should().Be(300);
+
+        var payment = await dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestone.Id);
+        payment.Should().NotBeNull();
+        payment.Amount.Should().Be(300);
+        payment.Status.Should().Be(PaymentStatus.RELEASED);
+        
+        milestone.Status.Should().Be(MilestoneStatus.IN_PROGRESS);
+    }
+
+    [Fact]
+    public async Task PayRemainingAsync_Should_Transfer_70Percent_Directly()
+    {
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+
+        var clientWallet = new Wallet { UserId = clientId, AvailableBalance = 1000, HeldBalance = 0, Currency = "VND" };
+        var expertWallet = new Wallet { UserId = expertId, AvailableBalance = 300, HeldBalance = 0, Currency = "VND" };
+        var project = new Project { ClientId = clientId, ExpertId = expertId, Title = "P1" };
+        var milestone = new Milestone { Project = project, Amount = 1000, Status = MilestoneStatus.SUBMITTED, Title = "M1" };
+
+        dbContext.Wallets.AddRange(clientWallet, expertWallet);
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestone);
+        await dbContext.SaveChangesAsync();
+
+        var treasury = new Aivora.Services.Treasury.Treasury(
+            dbContext,
+            Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(),
+            Mock.Of<Aivora.Services.NotificationService.IService>(),
+            Mock.Of<Aivora.Services.RealtimeService.IService>()
+        );
+
+        await treasury.PayRemainingAsync(clientId, milestone.Id);
+
+        // 70% of 1000 = 700
+        clientWallet.AvailableBalance.Should().Be(300);
+        expertWallet.AvailableBalance.Should().Be(1000);
+
+        var payment = await dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestone.Id && p.Amount == 700);
+        payment.Should().NotBeNull();
+        payment.Status.Should().Be(PaymentStatus.RELEASED);
+
+        milestone.Status.Should().Be(MilestoneStatus.RELEASED);
+    }
 }
+
