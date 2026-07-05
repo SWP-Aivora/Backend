@@ -4,6 +4,7 @@ using Aivora.Repositories.Enums;
 using Aivora.Services.Exceptions;
 using Aivora.Services.NotificationService;
 using Microsoft.EntityFrameworkCore;
+using Aivora.Services.Extensions;
 
 namespace Aivora.Services.WalletService;
 
@@ -196,19 +197,7 @@ public class Service : IService
         try
         {
             // Get fresh wallet within transaction with pessimistic lock
-            Wallet? currentWallet = null;
-            if (_dbContext.Database.ProviderName != "Microsoft.EntityFrameworkCore.InMemory")
-            {
-                currentWallet = await _dbContext.Wallets
-                    .FromSqlRaw("SELECT * FROM \"Wallets\" WHERE \"UserId\" = {0} FOR UPDATE", userId)
-                    .FirstOrDefaultAsync();
-            }
-            else
-            {
-                currentWallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
-            }
-
-            if (currentWallet == null) throw new NotFoundException("Wallet not found.");
+            Wallet currentWallet = await _dbContext.GetWalletForUpdateAsync(userId);
 
             if (currentWallet.Debt > 0)
                 throw new ValidationException("Cannot withdraw while you have an outstanding debt.");

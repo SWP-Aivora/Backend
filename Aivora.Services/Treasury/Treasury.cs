@@ -4,6 +4,7 @@ using Aivora.Repositories.Enums;
 using Aivora.Services.Exceptions;
 using Aivora.Services.NotificationService;
 using Microsoft.EntityFrameworkCore;
+using Aivora.Services.Extensions;
 using Microsoft.Extensions.Logging;
 
 namespace Aivora.Services.Treasury;
@@ -119,7 +120,10 @@ public class Treasury : ITreasury
                     $"/projects/{milestone.ProjectId}/milestones/{milestoneId}"
                 );
             }
-            catch { /* Notification failure should not block */ }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send notification for milestone {MilestoneId}", milestoneId);
+            }
             _logger.LogInformation("✅ Milestone {MilestoneId} 30% deposit paid by Client {ClientId}", milestoneId, clientId);
         }
         catch (Exception ex)
@@ -221,7 +225,10 @@ public class Treasury : ITreasury
                     $"/projects/{milestone.ProjectId}/milestones/{milestoneId}"
                 );
             }
-            catch { /* Notification failure should not block */ }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send notification for milestone {MilestoneId}", milestoneId);
+            }
             _logger.LogInformation("✅ Remaining 70% funds released for Milestone {MilestoneId}", milestoneId);
         }
         catch (Exception ex)
@@ -479,27 +486,9 @@ public class Treasury : ITreasury
         return wallet ?? throw new NotFoundException($"Wallet for user {userId} not found.");
     }
 
-    private async Task<Wallet> GetWalletForUpdateAsync(Guid userId)
+    private Task<Wallet> GetWalletForUpdateAsync(Guid userId)
     {
-        Wallet? wallet = null;
-        var provider = _dbContext.Database.ProviderName;
-        if (provider == "Microsoft.EntityFrameworkCore.InMemory" || provider == null || provider.Contains("InMemory"))
-        {
-            wallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
-        }
-        else if (provider.Contains("Sqlite") || provider.Contains("SQLite"))
-        {
-            wallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
-        }
-        else if (provider.Contains("SqlServer") || provider.Contains("Microsoft.Data.SqlClient"))
-        {
-            wallet = await _dbContext.Wallets.FromSqlRaw("SELECT * FROM \"Wallets\" WITH (UPDLOCK, ROWLOCK) WHERE \"UserId\" = {0}", userId).FirstOrDefaultAsync();
-        }
-        else // default to PostgreSQL syntax
-        {
-            wallet = await _dbContext.Wallets.FromSqlRaw("SELECT * FROM \"Wallets\" WHERE \"UserId\" = {0} FOR UPDATE", userId).FirstOrDefaultAsync();
-        }
-        return wallet ?? throw new NotFoundException($"Wallet for user {userId} not found.");
+        return _dbContext.GetWalletForUpdateAsync(userId);
     }
 
     private const decimal MaxDebtLimit = 1000m;
