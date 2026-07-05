@@ -37,6 +37,10 @@ FOOTER = [
     "<sub>🤖 Reviewed by Gemini AI (multi-pass) | React with 👍 if helpful, 👎 if not</sub>",
 ]
 
+# Hidden marker to find this bot's own "issues found" reviews programmatically,
+# independent of the human-facing text/emoji in the body.
+ISSUES_FOUND_MARKER = "<!-- aivora-bot-issues-found -->"
+
 COMMON_HEADER = """You are a Senior Backend Engineer performing an automated code review for the AIVORA Backend project - an AI Marketplace built with .NET 10 (ASP.NET Core), EF Core 10, PostgreSQL, JWT Auth, and SignalR.
 
 ## Project Guidelines
@@ -300,8 +304,8 @@ def gather_previous_review_context(repo, pr_number, max_chars=6000):
     so the verify pass can tell which findings were fixed since then."""
     code, stdout, _ = run_cmd([
         "gh", "api", f"repos/{repo}/pulls/{pr_number}/reviews",
-        "--jq", '[.[] | select(.user.login == "github-actions[bot]" and '
-                '(.body | contains("🚨 Phát hiện")))] | last | .body // empty',
+        "--jq", f'[.[] | select(.user.login == "github-actions[bot]" and '
+                f'(.body | contains("{ISSUES_FOUND_MARKER}")))] | last | .body // empty',
     ])
     if code != 0:
         return ""
@@ -441,6 +445,7 @@ def format_issue_lines(idx, issue, repo, head_sha):
 def build_review_body(summary, issues, repo, head_sha):
     if issues:
         lines = [
+            ISSUES_FOUND_MARKER,
             "## 🤖 Gemini AI Backend Code Review",
             "",
             f"> {summary}",
