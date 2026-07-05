@@ -18,6 +18,7 @@ public class Response
         public int OrderIndex { get; set; }
         public DateTimeOffset CreatedAt { get; set; }
         public DateTimeOffset? FundedAt { get; set; }
+        public DateTimeOffset? DepositPaidAt { get; set; }
     }
 
     public class FundResultResponse

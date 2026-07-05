@@ -139,7 +139,7 @@ public class Flow3MilestoneEscrowTests
         // ----------------------------------------------------
         // 1. Milestone status changed
         fundResult.Milestone.Status.Should().Be(MilestoneStatus.IN_PROGRESS);
-        fundResult.Milestone.FundedAt.Should().NotBeNull();
+        fundResult.Milestone.DepositPaidAt.Should().NotBeNull();
 
         // 2. Client wallet balance changed (Available decreased by 30% deposit, Held unchanged)
         // 30% of 900 = 270

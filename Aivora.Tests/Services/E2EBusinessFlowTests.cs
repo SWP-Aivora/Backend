@@ -420,7 +420,7 @@ public class E2EBusinessFlowTests
         var treasury = new Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.CommissionOptions { Rate = 0.10m })), Mock.Of<ILogger<Treasury>>(), notificationService, new Aivora.Services.RealtimeService.NullRealtimeService());
         var milestoneService = new Aivora.Services.MilestoneService.Service(dbContext, treasury, notificationService);
         var reviewService = new Aivora.Services.ReviewService.Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
-        var disputeService = new Aivora.Services.DisputeService.Service(dbContext, treasury, notificationService);
+        var disputeService = new Aivora.Services.DisputeService.Service(dbContext, notificationService, Mock.Of<ILogger<Aivora.Services.DisputeService.Service>>());
 
         // ----------------------------------------------------
         // Negative Test 1: Release payment before deliverable approval (Milestone is IN_PROGRESS, not SUBMITTED)
