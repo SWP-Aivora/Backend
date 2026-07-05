@@ -186,14 +186,36 @@ public class Service : IService
 
         var wallet = await GetOrCreateWalletAsync(userId);
 
+        if (wallet.Debt > 0)
+            throw new ValidationException("Cannot withdraw while you have an outstanding debt.");
+
         if (wallet.AvailableBalance < request.Amount)
             throw new ValidationException("Insufficient balance for withdrawal.");
 
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
-            // Get fresh wallet within transaction
-            var currentWallet = await _dbContext.Wallets.FindAsync(wallet.Id);
+            // Get fresh wallet within transaction with pessimistic lock
+            Wallet? currentWallet = null;
+            if (_dbContext.Database.ProviderName != "Microsoft.EntityFrameworkCore.InMemory")
+            {
+                currentWallet = await _dbContext.Wallets
+                    .FromSqlRaw("SELECT * FROM \"Wallets\" WHERE \"UserId\" = {0} FOR UPDATE", userId)
+                    .FirstOrDefaultAsync();
+            }
+            else
+            {
+                currentWallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
+            }
+
+            if (currentWallet == null) throw new NotFoundException("Wallet not found.");
+
+            if (currentWallet.Debt > 0)
+                throw new ValidationException("Cannot withdraw while you have an outstanding debt.");
+
+            if (currentWallet.AvailableBalance < request.Amount)
+                throw new ValidationException("Insufficient balance for withdrawal.");
+
             decimal balanceBefore = currentWallet.AvailableBalance;
             currentWallet.AvailableBalance -= request.Amount;
 

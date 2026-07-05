@@ -26,7 +26,6 @@ public class Treasury : ITreasury
         _notificationService = notificationService;
         _realtimeService = realtimeService;
     }
-
     public async Task PayDepositAsync(Guid clientId, Guid milestoneId)
     {
         var milestone = await GetMilestoneWithProjectAsync(milestoneId);
@@ -37,8 +36,8 @@ public class Treasury : ITreasury
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
-            var clientWallet = await GetWalletAsync(clientId);
-            var expertWallet = await GetWalletAsync(milestone.Project.ExpertId);
+            var clientWallet = await GetWalletForUpdateAsync(clientId);
+            var expertWallet = await GetWalletForUpdateAsync(milestone.Project.ExpertId);
 
             var depositAmount = milestone.Amount * 0.3m; // 30%
 
@@ -46,7 +45,7 @@ public class Treasury : ITreasury
 
             // 1. Move money directly
             clientWallet.AvailableBalance -= depositAmount;
-            expertWallet.AvailableBalance += depositAmount;
+            AddFundsToWallet(expertWallet, depositAmount);
             expertWallet.TotalEarned += depositAmount;
 
             // 2. Create Payment (RELEASED immediately)
@@ -99,7 +98,6 @@ public class Treasury : ITreasury
                 milestone.Project.Status = ProjectStatus.ACTIVE;
                 milestone.Project.StartDate = DateOnly.FromDateTime(DateTime.UtcNow);
             }
-
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
@@ -114,7 +112,6 @@ public class Treasury : ITreasury
                 );
             }
             catch { /* Notification failure should not block */ }
-
             _logger.LogInformation("✅ Milestone {MilestoneId} 30% deposit paid by Client {ClientId}", milestoneId, clientId);
         }
         catch (Exception ex)
@@ -124,7 +121,6 @@ public class Treasury : ITreasury
             throw;
         }
     }
-
     public async Task PayRemainingAsync(Guid clientId, Guid milestoneId)
     {
         var milestone = await GetMilestoneWithProjectAsync(milestoneId);
@@ -136,8 +132,8 @@ public class Treasury : ITreasury
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
-            var clientWallet = await GetWalletAsync(clientId);
-            var expertWallet = await GetWalletAsync(milestone.Project.ExpertId);
+            var clientWallet = await GetWalletForUpdateAsync(clientId);
+            var expertWallet = await GetWalletForUpdateAsync(milestone.Project.ExpertId);
 
             var remainingAmount = milestone.Amount * 0.7m; // 70%
 
@@ -145,7 +141,7 @@ public class Treasury : ITreasury
 
             // 1. Move money directly
             clientWallet.AvailableBalance -= remainingAmount;
-            expertWallet.AvailableBalance += remainingAmount;
+            AddFundsToWallet(expertWallet, remainingAmount);
             expertWallet.TotalEarned += remainingAmount;
 
             // 2. Create Payment (RELEASED immediately)
@@ -210,7 +206,6 @@ public class Treasury : ITreasury
                 );
             }
             catch { /* Notification failure should not block */ }
-
             _logger.LogInformation("✅ Remaining 70% funds released for Milestone {MilestoneId}", milestoneId);
         }
         catch (Exception ex)
@@ -220,7 +215,6 @@ public class Treasury : ITreasury
             throw;
         }
     }
-
     public async Task RefundMilestoneAsync(Guid adminId, Guid milestoneId, string reason)
     {
         var milestone = await GetMilestoneWithProjectAsync(milestoneId);
@@ -248,7 +242,6 @@ public class Treasury : ITreasury
                 payment.Status = PaymentStatus.REFUNDED;
                 payment.RefundedAt = DateTimeOffset.UtcNow;
             }
-
             // 3. Log Transaction
             _dbContext.WalletTransactions.Add(new WalletTransaction
             {
@@ -293,30 +286,29 @@ public class Treasury : ITreasury
             throw;
         }
     }
-
     public async Task SplitMilestoneFundsAsync(Guid milestoneId, decimal releaseToExpertAmount, decimal refundToClientAmount, string reason)
     {
         var milestone = await GetMilestoneWithProjectAsync(milestoneId);
         var payments = await _dbContext.Payments.Where(p => p.MilestoneId == milestoneId && p.Status == PaymentStatus.RELEASED).ToListAsync();
 
         if (!payments.Any()) throw new NotFoundException("Payment not found for split.");
-        
+
         var totalAmount = payments.Sum(p => p.Amount);
         if (releaseToExpertAmount + refundToClientAmount != totalAmount)
             throw new ValidationException($"Total split amounts ({releaseToExpertAmount + refundToClientAmount}) must equal actually paid amount ({totalAmount}).");
 
-        using var transaction = await _dbContext.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+        using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
-            var payerWallet = await GetWalletAsync(payments.First().PayerId);
-            var payeeWallet = await GetWalletAsync(payments.First().PayeeId);
+            var payerWallet = await GetWalletForUpdateAsync(payments.First().PayerId);
+            var payeeWallet = await GetWalletForUpdateAsync(payments.First().PayeeId);
 
             // In 30/70 direct deposit, the expert already holds the full payment amount.
-            // We claw back the refundToClientAmount from the expert. No balance check so they can go negative.
+            // We claw back the refundToClientAmount from the expert.
 
             // 1. Move money
-            payeeWallet.AvailableBalance -= refundToClientAmount;
-            payerWallet.AvailableBalance += refundToClientAmount;
+            ClawbackFromWallet(payeeWallet, refundToClientAmount);
+            AddFundsToWallet(payerWallet, refundToClientAmount);
             // Note: TotalEarned doesn't need adjustment if it was already credited when deposit was paid, 
             // except we should reduce it if we claw back. Let's adjust it by the clawed back amount.
             payeeWallet.TotalEarned -= refundToClientAmount;
@@ -326,7 +318,6 @@ public class Treasury : ITreasury
             {
                 payment.Status = PaymentStatus.RELEASED;
             }
-
             // 3. Log Transactions (just for the refund portion)
             if (refundToClientAmount > 0)
             {
@@ -355,7 +346,6 @@ public class Treasury : ITreasury
                     PaymentId = payments.First().Id
                 });
             }
-
             // 4. Update Milestone
             milestone.Status = MilestoneStatus.RELEASED;
             milestone.ApprovedAt = DateTimeOffset.UtcNow;
@@ -374,7 +364,6 @@ public class Treasury : ITreasury
             throw;
         }
     }
-
     // Removed FreezeFundsAsync and UnfreezeFundsAsync per new model
 
     public async Task SyncProjectStatusAsync(Guid projectId)
@@ -400,7 +389,6 @@ public class Treasury : ITreasury
                 project.Job.Status = JobStatus.COMPLETED;
                 project.Job.UpdatedAt = DateTimeOffset.UtcNow;
             }
-
             _logger.LogInformation("🏆 Project {ProjectId} marked as COMPLETED because all milestones are settled.", projectId);
 
             var affectedUsers = new[] { project.ClientId, project.ExpertId };
@@ -414,10 +402,8 @@ public class Treasury : ITreasury
         {
             project.Status = ProjectStatus.ACTIVE;
         }
-
         await _dbContext.SaveChangesAsync();
     }
-
     public async Task MarkProjectDisputedAsync(Guid projectId)
     {
         var project = await _dbContext.Projects.FindAsync(projectId);
@@ -428,7 +414,6 @@ public class Treasury : ITreasury
             _logger.LogWarning("⚠️ Project {ProjectId} status set to DISPUTED.", projectId);
         }
     }
-
     private async Task<Milestone> GetMilestoneWithProjectAsync(Guid milestoneId)
     {
         var milestone = await _dbContext.Milestones
@@ -437,10 +422,48 @@ public class Treasury : ITreasury
 
         return milestone ?? throw new NotFoundException("Milestone not found.");
     }
-
     private async Task<Wallet> GetWalletAsync(Guid userId)
     {
         var wallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
         return wallet ?? throw new NotFoundException($"Wallet for user {userId} not found.");
+    }
+
+    private async Task<Wallet> GetWalletForUpdateAsync(Guid userId)
+    {
+        Wallet? wallet = null;
+        if (_dbContext.Database.ProviderName != "Microsoft.EntityFrameworkCore.InMemory")
+        {
+            wallet = await _dbContext.Wallets.FromSqlRaw("SELECT * FROM \"Wallets\" WHERE \"UserId\" = {0} FOR UPDATE", userId).FirstOrDefaultAsync();
+        }
+        else
+        {
+            wallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
+        }
+        return wallet ?? throw new NotFoundException($"Wallet for user {userId} not found.");
+    }
+
+    private void AddFundsToWallet(Wallet wallet, decimal amount)
+    {
+        if (wallet.Debt > 0)
+        {
+            var debtPayment = Math.Min(amount, wallet.Debt);
+            wallet.Debt -= debtPayment;
+            amount -= debtPayment;
+        }
+        wallet.AvailableBalance += amount;
+    }
+
+    private void ClawbackFromWallet(Wallet wallet, decimal amount)
+    {
+        if (wallet.AvailableBalance >= amount)
+        {
+            wallet.AvailableBalance -= amount;
+        }
+        else
+        {
+            var deficit = amount - wallet.AvailableBalance;
+            wallet.AvailableBalance = 0;
+            wallet.Debt += deficit;
+        }
     }
 }
