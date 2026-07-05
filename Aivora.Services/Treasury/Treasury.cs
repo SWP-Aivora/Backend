@@ -226,7 +226,6 @@ public class Treasury : ITreasury
             milestone.ApprovedAt = DateTimeOffset.UtcNow;
             milestone.PaidAt = DateTimeOffset.UtcNow;
 
-            await _dbContext.SaveChangesAsync();
             await SyncProjectStatusAsync(milestone.ProjectId);
 
             await transaction.CommitAsync();
@@ -331,7 +330,6 @@ public class Treasury : ITreasury
             // 4. Update Milestone
             milestone.Status = MilestoneStatus.REFUNDED;
 
-            await _dbContext.SaveChangesAsync();
             await SyncProjectStatusAsync(milestone.ProjectId);
 
             await transaction.CommitAsync();
@@ -436,7 +434,6 @@ public class Treasury : ITreasury
             milestone.Status = MilestoneStatus.RELEASED;
             milestone.ApprovedAt = DateTimeOffset.UtcNow;
 
-            await _dbContext.SaveChangesAsync();
             await SyncProjectStatusAsync(milestone.ProjectId);
 
             await transaction.CommitAsync();
@@ -456,10 +453,13 @@ public class Treasury : ITreasury
     {
         var project = await _dbContext.Projects
             .Include(p => p.Milestones)
-            .Include(p => p.Job)
             .FirstOrDefaultAsync(p => p.Id == projectId);
 
-        if (project == null) return;
+        if (project == null)
+        {
+            _logger.LogWarning("⚠️ SyncProjectStatusAsync: Project {ProjectId} not found in database.", projectId);
+            return;
+        }
 
         // Terminal milestones are PAID or REFUNDED
         var allSettled = project.Milestones.All(m => m.Status == MilestoneStatus.RELEASED || m.Status == MilestoneStatus.REFUNDED);
@@ -468,6 +468,12 @@ public class Treasury : ITreasury
         {
             project.Status = ProjectStatus.COMPLETED;
             project.CompletedAt = DateTimeOffset.UtcNow;
+
+            // Load job optionally if it exists in the database to prevent inner join failure in tests
+            if (project.JobId != Guid.Empty)
+            {
+                project.Job = await _dbContext.JobPosts.FirstOrDefaultAsync(j => j.Id == project.JobId);
+            }
 
             // Sync Job status
             if (project.Job != null)
