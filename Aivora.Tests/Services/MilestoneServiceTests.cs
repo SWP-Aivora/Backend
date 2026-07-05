@@ -47,7 +47,7 @@ public class MilestoneServiceTests
 
         // Finance setup
         var commissionOptions = Options.Create(new CommissionOptions { Rate = 0.10m });
-        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, commissionOptions, Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService());
+        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService());
         var service = new Service(dbContext, treasury, Mock.Of<Aivora.Services.NotificationService.IService>());
 
         // Act
@@ -95,7 +95,7 @@ public class MilestoneServiceTests
 
         // Finance setup
         var commissionOptions = Options.Create(new CommissionOptions { Rate = 0.10m });
-        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, commissionOptions, Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService());
+        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService());
         var service = new Service(dbContext, treasury, Mock.Of<Aivora.Services.NotificationService.IService>());
 
         // Act
@@ -118,3 +118,4 @@ public class MilestoneServiceTests
         payments.All(p => p.Status == PaymentStatus.RELEASED).Should().BeTrue();
     }
 }
+

@@ -18,15 +18,15 @@ namespace Aivora.Services.Treasury;
 public class Treasury : ITreasury
 {
     private readonly AivoraDbContext _dbContext;
-    private readonly decimal _commissionRate;
+    private readonly ICommissionCalculator _commissionCalculator;
     private readonly ILogger<Treasury> _logger;
     private readonly NotificationService.IService _notificationService;
     private readonly RealtimeService.IService _realtimeService;
 
-    public Treasury(AivoraDbContext dbContext, IOptions<CommissionOptions> commissionOptions, ILogger<Treasury> logger, NotificationService.IService notificationService, RealtimeService.IService realtimeService)
+    public Treasury(AivoraDbContext dbContext, ICommissionCalculator commissionCalculator, ILogger<Treasury> logger, NotificationService.IService notificationService, RealtimeService.IService realtimeService)
     {
         _dbContext = dbContext;
-        _commissionRate = commissionOptions.Value.Rate;
+        _commissionCalculator = commissionCalculator;
         _logger = logger;
         _notificationService = notificationService;
         _realtimeService = realtimeService;
@@ -142,7 +142,7 @@ public class Treasury : ITreasury
             var platformWallet = await GetWalletForUpdateAsync(SystemConstants.SystemUserId);
 
             var remainingAmount = milestone.Amount * 0.7m; // 70%
-            var commissionAmount = milestone.Amount * _commissionRate;
+            var commissionAmount = _commissionCalculator.CalculateCommission(milestone.Amount);
             var expertAmount = remainingAmount - commissionAmount;
 
             if (clientWallet.AvailableBalance < remainingAmount) throw new ValidationException("Insufficient balance for remaining payment.");

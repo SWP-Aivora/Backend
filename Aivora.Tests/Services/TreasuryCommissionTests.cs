@@ -39,12 +39,12 @@ public class TreasuryCommissionTests
         // 1. Create Users
         var clientUser = new User { Id = clientId, Email = "client@a.com", FullName = "Client", Role = UserRole.CLIENT, Status = UserStatus.ACTIVE, PasswordHash = "x" };
         var expertUser = new User { Id = expertId, Email = "expert@a.com", FullName = "Expert", Role = UserRole.EXPERT, Status = UserStatus.ACTIVE, PasswordHash = "x" };
-        var systemUser = new User { Id = SystemConstants.SystemUserId, Email = "system@aivora.com", FullName = "System Platform", Role = UserRole.ADMIN, Status = UserStatus.ACTIVE, PasswordHash = "x" };
+        var systemUser = new User { Id = SystemConstants.SystemUserId, Email = "system@aivora.com", FullName = "System Platform", Role = UserRole.SYSTEM, Status = UserStatus.ACTIVE, PasswordHash = "x" };
 
         // 2. Create Wallets
-        var clientWallet = new Wallet { UserId = clientId, AvailableBalance = 2000, Currency = "AICOIN" };
-        var expertWallet = new Wallet { UserId = expertId, AvailableBalance = 300, TotalEarned = 300, Currency = "AICOIN" }; // 30% deposit already paid
-        var platformWallet = new Wallet { UserId = SystemConstants.SystemUserId, AvailableBalance = 0, TotalEarned = 0, Currency = "AICOIN" };
+        var clientWallet = new Wallet { UserId = clientId, AvailableBalance = 2000, Currency = CurrencyConstants.AICOIN };
+        var expertWallet = new Wallet { UserId = expertId, AvailableBalance = 300, TotalEarned = 300, Currency = CurrencyConstants.AICOIN }; // 30% deposit already paid
+        var platformWallet = new Wallet { UserId = SystemConstants.SystemUserId, AvailableBalance = 0, TotalEarned = 0, Currency = CurrencyConstants.AICOIN };
 
         // 3. Create Project & Milestone
         var project = new Project
@@ -56,7 +56,7 @@ public class TreasuryCommissionTests
             ExpertId = expertId,
             Title = "Test Project",
             Status = ProjectStatus.ACTIVE,
-            Currency = "AICOIN",
+            Currency = CurrencyConstants.AICOIN,
             CreatedAt = DateTimeOffset.UtcNow
         };
 
@@ -67,7 +67,7 @@ public class TreasuryCommissionTests
             Amount = 1000, // Total: 1000. Remaining: 700. Commission: 10% * 1000 = 100. Expert gets: 600.
             Status = MilestoneStatus.SUBMITTED, // Ready to release
             Title = "Test Milestone",
-            Currency = "AICOIN",
+            Currency = CurrencyConstants.AICOIN,
             CreatedAt = DateTimeOffset.UtcNow
         };
 
@@ -80,7 +80,7 @@ public class TreasuryCommissionTests
         var commissionOptions = Options.Create(new CommissionOptions { Rate = 0.10m });
         var treasury = new Treasury(
             dbContext,
-            commissionOptions,
+            new CommissionCalculator(commissionOptions),
             Mock.Of<ILogger<Treasury>>(),
             Mock.Of<Aivora.Services.NotificationService.IService>(),
             new Aivora.Services.RealtimeService.NullRealtimeService()
@@ -114,3 +114,4 @@ public class TreasuryCommissionTests
         feeTransaction.Direction.Should().Be(TransactionDirection.CREDIT);
     }
 }
+

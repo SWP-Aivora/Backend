@@ -45,7 +45,7 @@ public class DisputeServiceTests
 
         var notificationService = new MockNotificationService();
         var commissionOptions = Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.CommissionOptions { Rate = 0.10m });
-        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, commissionOptions, Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(), notificationService, new Aivora.Services.RealtimeService.NullRealtimeService());
+        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(), notificationService, new Aivora.Services.RealtimeService.NullRealtimeService());
         var service = new Service(dbContext, treasury, notificationService);
         var request = new Request.OpenDisputeRequest { MilestoneId = milestoneId, Reason = "Poor quality" };
 
@@ -98,7 +98,7 @@ public class DisputeServiceTests
 
         var notificationService = new MockNotificationService();
         var commissionOptions = Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.CommissionOptions { Rate = 0.10m });
-        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, commissionOptions, Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(), notificationService, new Aivora.Services.RealtimeService.NullRealtimeService());
+        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(), notificationService, new Aivora.Services.RealtimeService.NullRealtimeService());
         var service = new Service(dbContext, treasury, notificationService);
         var resolveRequest = new Request.ResolveDisputeRequest
         {
@@ -151,3 +151,4 @@ public class DisputeServiceTests
             => throw new NotImplementedException();
     }
 }
+

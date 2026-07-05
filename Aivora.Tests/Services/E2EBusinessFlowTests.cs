@@ -139,7 +139,7 @@ public class E2EBusinessFlowTests
         milestone.Status.Should().Be(MilestoneStatus.CREATED);
 
         // Finance setup
-        var treasury = new Treasury(dbContext, Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.CommissionOptions { Rate = 0.10m }), Mock.Of<ILogger<Treasury>>(), mockNotification, new Aivora.Services.RealtimeService.NullRealtimeService());
+        var treasury = new Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.CommissionOptions { Rate = 0.10m })), Mock.Of<ILogger<Treasury>>(), mockNotification, new Aivora.Services.RealtimeService.NullRealtimeService());
         var milestoneService = new Aivora.Services.MilestoneService.Service(dbContext, treasury, mockNotification);
 
         var systemPlatformWallet = new Wallet { UserId = Aivora.Repositories.Constants.SystemConstants.SystemUserId, AvailableBalance = 0, Currency = "AICOIN" };
@@ -360,7 +360,7 @@ public class E2EBusinessFlowTests
         // 4. Client Funds Milestone (Escrow)
         // ----------------------------------------------------
         // Finance setup
-        var treasury = new Treasury(dbContext, Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.CommissionOptions { Rate = 0.10m }), Mock.Of<ILogger<Treasury>>(), mockNotification, new Aivora.Services.RealtimeService.NullRealtimeService());
+        var treasury = new Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.CommissionOptions { Rate = 0.10m })), Mock.Of<ILogger<Treasury>>(), mockNotification, new Aivora.Services.RealtimeService.NullRealtimeService());
         var milestoneService = new Aivora.Services.MilestoneService.Service(dbContext, treasury, mockNotification);
         var milestone = await dbContext.Milestones.FirstAsync(m => m.ProjectId == projectId);
 
@@ -417,7 +417,7 @@ public class E2EBusinessFlowTests
 
         // Finance setup
         var notificationService = new MockNotificationService();
-        var treasury = new Treasury(dbContext, Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.CommissionOptions { Rate = 0.10m }), Mock.Of<ILogger<Treasury>>(), notificationService, new Aivora.Services.RealtimeService.NullRealtimeService());
+        var treasury = new Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.CommissionOptions { Rate = 0.10m })), Mock.Of<ILogger<Treasury>>(), notificationService, new Aivora.Services.RealtimeService.NullRealtimeService());
         var milestoneService = new Aivora.Services.MilestoneService.Service(dbContext, treasury, notificationService);
         var reviewService = new Aivora.Services.ReviewService.Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
         var disputeService = new Aivora.Services.DisputeService.Service(dbContext, treasury, notificationService);
@@ -548,3 +548,4 @@ public class E2EBusinessFlowTests
             => throw new NotImplementedException();
     }
 }
+

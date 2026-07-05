@@ -1,6 +1,7 @@
 using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
+using Aivora.Repositories.Constants;
 using BCrypt.Net;
 using Microsoft.EntityFrameworkCore;
 
@@ -136,9 +137,10 @@ public class AivoraDataSeeder : IAivoraDataSeeder
             {
                 Id = Aivora.Repositories.Constants.SystemConstants.SystemUserId,
                 Email = "system@aivora.com",
-                PasswordHash = adminPasswordHash,
+                // Set an invalid hash so this account can never be logged into
+                PasswordHash = "x",
                 FullName = "System Platform",
-                Role = UserRole.ADMIN,
+                Role = UserRole.SYSTEM,
                 Status = UserStatus.ACTIVE,
                 CreatedAt = DateTimeOffset.UtcNow,
                 UpdatedAt = DateTimeOffset.UtcNow
@@ -656,7 +658,7 @@ public class AivoraDataSeeder : IAivoraDataSeeder
             Title = "E-commerce Website Development",
             Description = "Building a modern e-commerce platform with React and Node.js",
             TotalBudget = 7000,
-            Currency = "AICOIN",
+            Currency = CurrencyConstants.AICOIN,
             Status = ProjectStatus.ACTIVE,
             StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-10)),
             CreatedAt = DateTimeOffset.UtcNow,
@@ -673,7 +675,7 @@ public class AivoraDataSeeder : IAivoraDataSeeder
             Title = "Fitness Tracking Mobile App",
             Description = "Cross-platform fitness tracking app for iOS and Android",
             TotalBudget = 12000,
-            Currency = "AICOIN",
+            Currency = CurrencyConstants.AICOIN,
             Status = ProjectStatus.IN_REVIEW,
             StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-5)),
             CompletedAt = DateTimeOffset.UtcNow.AddDays(-1),
@@ -754,7 +756,7 @@ public class AivoraDataSeeder : IAivoraDataSeeder
             Description = "UI/UX design and project planning",
             AcceptanceCriteria = "Complete wireframes, mockups, and project plan",
             Amount = 2000,
-            Currency = "AICOIN",
+            Currency = CurrencyConstants.AICOIN,
             OrderIndex = 1,
             Status = MilestoneStatus.APPROVED,
             FundedAt = DateTimeOffset.UtcNow.AddDays(-8),
@@ -772,7 +774,7 @@ public class AivoraDataSeeder : IAivoraDataSeeder
             Description = "React frontend development with responsive design",
             AcceptanceCriteria = "Complete React app with all features implemented",
             Amount = 2500,
-            Currency = "AICOIN",
+            Currency = CurrencyConstants.AICOIN,
             OrderIndex = 2,
             Status = MilestoneStatus.IN_PROGRESS,
             FundedAt = DateTimeOffset.UtcNow.AddDays(-2),
@@ -787,7 +789,7 @@ public class AivoraDataSeeder : IAivoraDataSeeder
             Description = "Node.js backend, database, and deployment",
             AcceptanceCriteria = "Complete API, database setup, and deployment",
             Amount = 2500,
-            Currency = "AICOIN",
+            Currency = CurrencyConstants.AICOIN,
             OrderIndex = 3,
             Status = MilestoneStatus.CREATED,
             CreatedAt = DateTimeOffset.UtcNow,

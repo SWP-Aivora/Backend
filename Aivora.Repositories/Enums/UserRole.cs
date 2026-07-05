@@ -4,5 +4,6 @@ public enum UserRole
 {
     CLIENT,
     EXPERT,
-    ADMIN
+    ADMIN,
+    SYSTEM
 }
