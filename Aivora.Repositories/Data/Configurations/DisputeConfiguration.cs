@@ -15,7 +15,6 @@ public class DisputeConfiguration : IEntityTypeConfiguration<Dispute>
         builder.Property(x => x.Description).HasMaxLength(2000);
         builder.Property(x => x.ResolutionNote).HasMaxLength(2000);
         builder.Property(x => x.Status).HasConversion<string>().IsRequired();
-        builder.Property(x => x.ResolutionType).HasConversion<string>();
 
         // Relationships
         builder.HasOne(x => x.Project)

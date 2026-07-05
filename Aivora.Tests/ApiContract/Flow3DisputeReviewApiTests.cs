@@ -147,10 +147,7 @@ public class Flow3DisputeReviewApiTests : IClassFixture<ApiContractTestFactory>
         client = new ApiContractClient(_factory.CreateAuthenticatedClient(UserRole.ADMIN));
         var resolveReq = new
         {
-            resolutionType = "REFUND_TO_CLIENT",
-            resolutionNote = "Work quality did not meet requirements; refunding client.",
-            releaseAmount = 0,
-            refundAmount = 1000
+            resolutionNote = "Work quality did not meet requirements, returning to submitted."
         };
         var (resolveRes, resolveBody) = await client.PutAsync($"/api/v1/disputes/{disputeId}/resolve", resolveReq);
         resolveRes.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -164,6 +161,12 @@ public class Flow3DisputeReviewApiTests : IClassFixture<ApiContractTestFactory>
             requestMatchesDoc: true,
             responseMatchesDoc: resolveSuccess
         );
+
+        // 6.5 PUT /api/v1/milestones/{milestoneId}/approve
+        // The dispute only unlocked the milestone. The client must now approve it to finish the project.
+        client = new ApiContractClient(_factory.CreateAuthenticatedClient(UserRole.CLIENT));
+        var (approveRes, _) = await client.PutEmptyAsync($"/api/v1/milestones/{milestoneId}/approve");
+        approveRes.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // 7. POST /api/v1/reviews
         client = new ApiContractClient(_factory.CreateAuthenticatedClient(UserRole.CLIENT));
