@@ -305,7 +305,7 @@ def gather_previous_review_context(repo, pr_number, max_chars=6000):
     code, stdout, _ = run_cmd([
         "gh", "api", f"repos/{repo}/pulls/{pr_number}/reviews",
         "--jq", f'[.[] | select(.user.login == "github-actions[bot]" and '
-                f'((.body // "") | contains("{ISSUES_FOUND_MARKER}")))] | last | .body // empty',
+                f'((.body // "") | contains("{ISSUES_FOUND_MARKER}"))) | .body] | last // empty',
     ])
     if code != 0:
         return ""
