@@ -412,7 +412,7 @@ public class E2EBusinessFlowTests
         var treasury = new Treasury(dbContext, Mock.Of<ILogger<Treasury>>(), notificationService, new Aivora.Services.RealtimeService.NullRealtimeService());
         var milestoneService = new Aivora.Services.MilestoneService.Service(dbContext, treasury, notificationService);
         var reviewService = new Aivora.Services.ReviewService.Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
-        var disputeService = new Aivora.Services.DisputeService.Service(dbContext, notificationService);
+        var disputeService = new Aivora.Services.DisputeService.Service(dbContext, notificationService, Mock.Of<ILogger<Aivora.Services.DisputeService.Service>>());
 
         // ----------------------------------------------------
         // Negative Test 1: Release payment before deliverable approval (Milestone is FUNDED, not SUBMITTED)

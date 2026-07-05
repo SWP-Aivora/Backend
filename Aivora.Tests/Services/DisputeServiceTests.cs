@@ -4,6 +4,8 @@ using Aivora.Repositories.Enums;
 using Aivora.Services.DisputeService;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Moq;
 using Xunit;
 
 namespace Aivora.Tests.Services;
@@ -42,7 +44,7 @@ public class DisputeServiceTests
         await dbContext.SaveChangesAsync();
 
         var notificationService = new MockNotificationService();
-        var service = new Service(dbContext, notificationService);
+        var service = new Service(dbContext, notificationService, Mock.Of<ILogger<Service>>());
         var request = new Request.OpenDisputeRequest { MilestoneId = milestoneId, Reason = "Poor quality" };
 
         // Act
@@ -89,7 +91,7 @@ public class DisputeServiceTests
         await dbContext.SaveChangesAsync();
 
         var notificationService = new MockNotificationService();
-        var service = new Service(dbContext, notificationService);
+        var service = new Service(dbContext, notificationService, Mock.Of<ILogger<Service>>());
         var resolveRequest = new Request.ResolveDisputeRequest
         {
             ResolutionNote = "Resolved via external mediation"

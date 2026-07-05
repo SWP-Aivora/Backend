@@ -4,6 +4,7 @@ using Aivora.Repositories.Enums;
 using Aivora.Services.Exceptions;
 using Aivora.Services.NotificationService;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Aivora.Services.DisputeService;
 
@@ -11,11 +12,13 @@ public class Service : IService
 {
     private readonly AivoraDbContext _dbContext;
     private readonly NotificationService.IService _notificationService;
+    private readonly ILogger<Service> _logger;
 
-    public Service(AivoraDbContext dbContext, NotificationService.IService notificationService)
+    public Service(AivoraDbContext dbContext, NotificationService.IService notificationService, ILogger<Service> logger)
     {
         _dbContext = dbContext;
         _notificationService = notificationService;
+        _logger = logger;
     }
 
     public async Task<Response.DisputeResponse> OpenDisputeAsync(Guid userId, Request.OpenDisputeRequest request)
@@ -74,9 +77,9 @@ public class Service : IService
                     $"/disputes/{dispute.Id}"
                 );
             }
-            catch
+            catch (Exception ex)
             {
-                // Notification failure should not block the main business flow
+                _logger.LogError(ex, "Failed to send dispute opened notification to user {AgainstUserId}", againstUserId);
             }
 
             return await GetDisputeByIdAsync(userId, dispute.Id);
@@ -102,7 +105,8 @@ public class Service : IService
         if (dispute == null) throw new NotFoundException("Dispute not found.");
 
         var user = await _dbContext.Users.FindAsync(userId);
-        if (user!.Role != UserRole.ADMIN && dispute.OpenedBy != userId && dispute.AgainstUserId != userId)
+        if (user == null) throw new UnauthorizedException("User not found.");
+        if (user.Role != UserRole.ADMIN && dispute.OpenedBy != userId && dispute.AgainstUserId != userId)
             throw new UnauthorizedException("You are not authorized to view this dispute.");
 
         var againstUser = await _dbContext.Users.FindAsync(dispute.AgainstUserId);
@@ -122,7 +126,7 @@ public class Service : IService
             OpenedBy = dispute.OpenedBy,
             OpenerName = dispute.Opener.FullName,
             AgainstUserId = dispute.AgainstUserId,
-            AgainstUserName = againstUser!.FullName,
+            AgainstUserName = againstUser?.FullName ?? "Unknown User",
             Reason = dispute.Reason,
             Description = dispute.Description,
             Status = dispute.Status.ToString(),
@@ -195,7 +199,8 @@ public class Service : IService
             throw new ValidationException("Cannot add evidence to a closed dispute.");
 
         var user = await _dbContext.Users.FindAsync(userId);
-        if (user!.Role != UserRole.ADMIN && dispute.OpenedBy != userId && dispute.AgainstUserId != userId)
+        if (user == null) throw new UnauthorizedException("User not found.");
+        if (user.Role != UserRole.ADMIN && dispute.OpenedBy != userId && dispute.AgainstUserId != userId)
             throw new UnauthorizedException("You are not authorized to add evidence to this dispute.");
 
         var evidence = new DisputeEvidence
@@ -233,7 +238,7 @@ public class Service : IService
         var project = dispute.Project;
         var milestone = dispute.Milestone;
 
-        // Update dispute status — no financial operations
+        // Update dispute status
         dispute.Status = DisputeStatus.RESOLVED;
         dispute.ResolutionNote = request.ResolutionNote;
         dispute.ResolvedAt = DateTimeOffset.UtcNow;
@@ -242,16 +247,14 @@ public class Service : IService
         // Unlock milestone
         milestone.Status = MilestoneStatus.SUBMITTED;
 
-        await _dbContext.SaveChangesAsync();
-
         // Recalculate project status
-        var allMilestones = await _dbContext.Milestones.Where(m => m.ProjectId == project.Id).ToListAsync();
-        var hasDisputed = allMilestones.Any(m => m.Status == MilestoneStatus.DISPUTED);
+        var hasDisputed = await _dbContext.Milestones.AnyAsync(m => m.ProjectId == project.Id && m.Id != milestone.Id && m.Status == MilestoneStatus.DISPUTED);
         if (!hasDisputed)
         {
             project.Status = ProjectStatus.ACTIVE;
-            await _dbContext.SaveChangesAsync();
         }
+
+        await _dbContext.SaveChangesAsync();
 
         try
         {
@@ -271,9 +274,9 @@ public class Service : IService
                 $"/disputes/{dispute.Id}"
             );
         }
-        catch
+        catch (Exception ex)
         {
-            // Ignore notification errors
+            _logger.LogError(ex, "Failed to send dispute resolved notification for dispute {DisputeId}", dispute.Id);
         }
 
         return await GetDisputeByIdAsync(adminId, dispute.Id);
@@ -299,30 +302,29 @@ public class Service : IService
 
         // Revert milestone status
         milestone.Status = MilestoneStatus.IN_PROGRESS;
-        await _dbContext.SaveChangesAsync();
 
         // Recalculate project status
-        var allMilestones = await _dbContext.Milestones.Where(m => m.ProjectId == dispute.ProjectId).ToListAsync();
-        var hasDisputed = allMilestones.Any(m => m.Status == MilestoneStatus.DISPUTED);
+        var hasDisputed = await _dbContext.Milestones.AnyAsync(m => m.ProjectId == project.Id && m.Id != milestone.Id && m.Status == MilestoneStatus.DISPUTED);
         if (!hasDisputed)
         {
-            dispute.Project.Status = ProjectStatus.ACTIVE;
-            await _dbContext.SaveChangesAsync();
+            project.Status = ProjectStatus.ACTIVE;
         }
+
+        await _dbContext.SaveChangesAsync();
 
         try
         {
             await _notificationService.SendNotificationAsync(
                 dispute.AgainstUserId,
                 "Dispute closed",
-                $"The dispute for project {dispute.Project.Title} was closed by the user.",
+                $"The dispute for project {project.Title} was closed by the user.",
                 "DISPUTE_CLOSED",
                 $"/disputes/{dispute.Id}"
             );
         }
-        catch
+        catch (Exception ex)
         {
-            // Ignore notification errors
+            _logger.LogError(ex, "Failed to send dispute closed notification for dispute {DisputeId}", dispute.Id);
         }
 
         return await GetDisputeByIdAsync(userId, dispute.Id);
@@ -359,9 +361,9 @@ public class Service : IService
                 $"/disputes/{dispute.Id}"
             );
         }
-        catch
+        catch (Exception ex)
         {
-            // Ignore notification errors
+            _logger.LogError(ex, "Failed to send additional evidence requested notification for dispute {DisputeId}", dispute.Id);
         }
 
         return await GetDisputeByIdAsync(adminId, dispute.Id);
@@ -378,7 +380,8 @@ public class Service : IService
         if (evidence == null || evidence.DisputeId != disputeId) throw new NotFoundException("Evidence not found.");
 
         var user = await _dbContext.Users.FindAsync(userId);
-        if (user!.Role != UserRole.ADMIN && evidence.SubmittedBy != userId)
+        if (user == null) throw new UnauthorizedException("User not found.");
+        if (user.Role != UserRole.ADMIN && evidence.SubmittedBy != userId)
             throw new UnauthorizedException("You are not authorized to delete this evidence.");
 
         _dbContext.DisputeEvidences.Remove(evidence);

@@ -8,6 +8,8 @@ using Aivora.Services.Exceptions;
 using Aivora.Repositories.Data;
 using Aivora.Services.NotificationService;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Moq;
 using Xunit;
 using DisputeService = Aivora.Services.DisputeService.Service;
 
@@ -29,7 +31,7 @@ namespace Aivora.Tests.UnitTests
             _dbContext = new AivoraDbContext(options);
             _mockNotificationService = new MockNotificationService();
 
-            _disputeService = new DisputeService(_dbContext, _mockNotificationService);
+            _disputeService = new DisputeService(_dbContext, _mockNotificationService, Mock.Of<ILogger<DisputeService>>());
         }
 
         // ==================== ResolveDispute Tests ====================
