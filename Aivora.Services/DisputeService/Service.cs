@@ -60,8 +60,6 @@ public class Service : IService
             milestone.Status = MilestoneStatus.DISPUTED;
             milestone.Project.Status = ProjectStatus.DISPUTED;
 
-            // Freeze funds when dispute is opened
-            // await _treasury.FreezeFundsAsync(milestone.Id, "Dispute opened");
 
             _dbContext.Disputes.Add(dispute);
             await _dbContext.SaveChangesAsync();
@@ -311,12 +309,6 @@ public class Service : IService
             throw new ValidationException("Dispute is already resolved.");
         if (dispute.Status == DisputeStatus.CLOSED)
             throw new ValidationException("Dispute is already closed.");
-
-        // Unfreeze payment if it was frozen (backward compatible: old disputes have HELD)
-        if (dispute.Payment.Status == PaymentStatus.FROZEN)
-        {
-            // await _treasury.UnfreezeFundsAsync(dispute.MilestoneId, "Dispute closed");
-        }
 
         dispute.Status = DisputeStatus.CLOSED;
 

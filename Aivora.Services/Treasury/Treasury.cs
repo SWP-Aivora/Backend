@@ -224,15 +224,15 @@ public class Treasury : ITreasury
     public async Task RefundMilestoneAsync(Guid adminId, Guid milestoneId, decimal amount, string reason)
     {
         var milestone = await GetMilestoneWithProjectAsync(milestoneId);
-        var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestoneId && p.Status == PaymentStatus.RELEASED);
+        var payments = await _dbContext.Payments.Where(p => p.MilestoneId == milestoneId && p.Status == PaymentStatus.RELEASED).ToListAsync();
 
-        if (payment == null) throw new NotFoundException("Payment not found for refund.");
+        if (!payments.Any()) throw new NotFoundException("Payment not found for refund.");
 
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
-            var payerWallet = await GetWalletAsync(payment.PayerId);
-            var payeeWallet = await GetWalletAsync(payment.PayeeId);
+            var payerWallet = await GetWalletAsync(payments.First().PayerId);
+            var payeeWallet = await GetWalletAsync(payments.First().PayeeId);
 
             if (payeeWallet.AvailableBalance < amount) throw new ValidationException("Expert has insufficient funds for refund.");
 
@@ -241,8 +241,11 @@ public class Treasury : ITreasury
             payerWallet.AvailableBalance += amount;
 
             // 2. Update Payment
-            payment.Status = PaymentStatus.REFUNDED;
-            payment.RefundedAt = DateTimeOffset.UtcNow;
+            foreach (var payment in payments)
+            {
+                payment.Status = PaymentStatus.REFUNDED;
+                payment.RefundedAt = DateTimeOffset.UtcNow;
+            }
 
             // 3. Log Transaction
             _dbContext.WalletTransactions.Add(new WalletTransaction
@@ -255,7 +258,7 @@ public class Treasury : ITreasury
                 Description = $"Refund for milestone: {reason}",
                 BalanceBefore = payerWallet.AvailableBalance - amount,
                 BalanceAfter = payerWallet.AvailableBalance,
-                PaymentId = payment.Id
+                PaymentId = payments.First().Id
             });
 
             _dbContext.WalletTransactions.Add(new WalletTransaction
@@ -268,7 +271,7 @@ public class Treasury : ITreasury
                 Description = $"Clawback for milestone refund: {reason}",
                 BalanceBefore = payeeWallet.AvailableBalance + amount,
                 BalanceAfter = payeeWallet.AvailableBalance,
-                PaymentId = payment.Id
+                PaymentId = payments.First().Id
             });
 
             // 4. Update Milestone
@@ -292,17 +295,19 @@ public class Treasury : ITreasury
     public async Task SplitMilestoneFundsAsync(Guid milestoneId, decimal releaseToExpertAmount, decimal refundToClientAmount, string reason)
     {
         var milestone = await GetMilestoneWithProjectAsync(milestoneId);
-        var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestoneId && p.Status == PaymentStatus.RELEASED);
+        var payments = await _dbContext.Payments.Where(p => p.MilestoneId == milestoneId && p.Status == PaymentStatus.RELEASED).ToListAsync();
 
-        if (payment == null) throw new NotFoundException("Payment not found for split.");
-        if (releaseToExpertAmount + refundToClientAmount != payment.Amount)
+        if (!payments.Any()) throw new NotFoundException("Payment not found for split.");
+        
+        var totalAmount = payments.Sum(p => p.Amount);
+        if (releaseToExpertAmount + refundToClientAmount != totalAmount)
             throw new ValidationException("Total split amounts must equal payment amount.");
 
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
-            var payerWallet = await GetWalletAsync(payment.PayerId);
-            var payeeWallet = await GetWalletAsync(payment.PayeeId);
+            var payerWallet = await GetWalletAsync(payments.First().PayerId);
+            var payeeWallet = await GetWalletAsync(payments.First().PayeeId);
 
             // In 30/70 direct deposit, the expert already holds the full payment amount.
             // We just need to claw back the refundToClientAmount from the expert.
@@ -316,7 +321,10 @@ public class Treasury : ITreasury
             payeeWallet.TotalEarned -= refundToClientAmount;
 
             // 2. Update Payment
-            payment.Status = PaymentStatus.RELEASED;
+            foreach (var payment in payments)
+            {
+                payment.Status = PaymentStatus.RELEASED;
+            }
 
             // 3. Log Transactions (just for the refund portion)
             if (refundToClientAmount > 0)
@@ -331,7 +339,7 @@ public class Treasury : ITreasury
                     Description = $"Split resolution refund: {reason}",
                     BalanceBefore = payerWallet.AvailableBalance - refundToClientAmount,
                     BalanceAfter = payerWallet.AvailableBalance,
-                    PaymentId = payment.Id
+                    PaymentId = payments.First().Id
                 });
 
                 _dbContext.WalletTransactions.Add(new WalletTransaction
@@ -343,7 +351,7 @@ public class Treasury : ITreasury
                     Direction = TransactionDirection.DEBIT,
                     BalanceBefore = payeeWallet.AvailableBalance + refundToClientAmount,
                     BalanceAfter = payeeWallet.AvailableBalance,
-                    PaymentId = payment.Id
+                    PaymentId = payments.First().Id
                 });
             }
 
