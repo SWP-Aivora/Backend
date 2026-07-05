@@ -129,6 +129,19 @@ public class AivoraDataSeeder : IAivoraDataSeeder
                 Status = UserStatus.ACTIVE,
                 CreatedAt = DateTimeOffset.UtcNow,
                 UpdatedAt = DateTimeOffset.UtcNow
+            },
+
+            // System Platform User
+            new User
+            {
+                Id = Aivora.Repositories.Constants.SystemConstants.SystemUserId,
+                Email = "system@aivora.com",
+                PasswordHash = adminPasswordHash,
+                FullName = "System Platform",
+                Role = UserRole.ADMIN,
+                Status = UserStatus.ACTIVE,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
             }
         };
 
@@ -951,6 +964,16 @@ public class AivoraDataSeeder : IAivoraDataSeeder
             {
                 UserId = users.FirstOrDefault(u => u.Email == "expert4@example.com")!.Id,
                 AvailableBalance = 10000,
+                Currency = "AICOIN",
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
+            },
+
+            // Platform Wallet
+            new Wallet
+            {
+                UserId = Aivora.Repositories.Constants.SystemConstants.SystemUserId,
+                AvailableBalance = 0,
                 Currency = "AICOIN",
                 CreatedAt = DateTimeOffset.UtcNow,
                 UpdatedAt = DateTimeOffset.UtcNow

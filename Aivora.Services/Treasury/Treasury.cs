@@ -5,6 +5,9 @@ using Aivora.Services.Exceptions;
 using Aivora.Services.NotificationService;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Aivora.Repositories.Constants;
+using Aivora.Services.Options;
 
 namespace Aivora.Services.Treasury;
 
@@ -15,13 +18,15 @@ namespace Aivora.Services.Treasury;
 public class Treasury : ITreasury
 {
     private readonly AivoraDbContext _dbContext;
+    private readonly decimal _commissionRate;
     private readonly ILogger<Treasury> _logger;
     private readonly NotificationService.IService _notificationService;
     private readonly RealtimeService.IService _realtimeService;
 
-    public Treasury(AivoraDbContext dbContext, ILogger<Treasury> logger, NotificationService.IService notificationService, RealtimeService.IService realtimeService)
+    public Treasury(AivoraDbContext dbContext, IOptions<CommissionOptions> commissionOptions, ILogger<Treasury> logger, NotificationService.IService notificationService, RealtimeService.IService realtimeService)
     {
         _dbContext = dbContext;
+        _commissionRate = commissionOptions.Value.Rate;
         _logger = logger;
         _notificationService = notificationService;
         _realtimeService = realtimeService;
@@ -134,15 +139,20 @@ public class Treasury : ITreasury
         {
             var clientWallet = await GetWalletForUpdateAsync(clientId);
             var expertWallet = await GetWalletForUpdateAsync(milestone.Project.ExpertId);
+            var platformWallet = await GetWalletForUpdateAsync(SystemConstants.SystemUserId);
 
             var remainingAmount = milestone.Amount * 0.7m; // 70%
+            var commissionAmount = milestone.Amount * _commissionRate;
+            var expertAmount = remainingAmount - commissionAmount;
 
             if (clientWallet.AvailableBalance < remainingAmount) throw new ValidationException("Insufficient balance for remaining payment.");
 
             // 1. Move money directly
             clientWallet.AvailableBalance -= remainingAmount;
-            AddFundsToWallet(expertWallet, remainingAmount);
-            expertWallet.TotalEarned += remainingAmount;
+            AddFundsToWallet(expertWallet, expertAmount);
+            AddFundsToWallet(platformWallet, commissionAmount);
+            expertWallet.TotalEarned += expertAmount;
+            platformWallet.TotalEarned += commissionAmount;
 
             // 2. Create Payment (RELEASED immediately)
             var payment = new Payment
@@ -176,14 +186,30 @@ public class Treasury : ITreasury
             {
                 WalletId = expertWallet.Id,
                 UserId = expertWallet.UserId,
-                Amount = remainingAmount,
+                Amount = expertAmount,
                 Type = WalletTransactionType.PAYMENT_RELEASE,
                 Direction = TransactionDirection.CREDIT,
-                Description = $"Received 70% remaining for milestone: {milestone.Title}",
-                BalanceBefore = expertWallet.AvailableBalance - remainingAmount,
+                Description = $"Received remaining payment (after fee) for milestone: {milestone.Title}",
+                BalanceBefore = expertWallet.AvailableBalance - expertAmount,
                 BalanceAfter = expertWallet.AvailableBalance,
                 PaymentId = payment.Id
             });
+
+            if (commissionAmount > 0)
+            {
+                _dbContext.WalletTransactions.Add(new WalletTransaction
+                {
+                    WalletId = platformWallet.Id,
+                    UserId = platformWallet.UserId,
+                    Amount = commissionAmount,
+                    Type = WalletTransactionType.PLATFORM_FEE,
+                    Direction = TransactionDirection.CREDIT,
+                    Description = $"10% Platform fee for milestone: {milestone.Title}",
+                    BalanceBefore = platformWallet.AvailableBalance - commissionAmount,
+                    BalanceAfter = platformWallet.AvailableBalance,
+                    PaymentId = payment.Id
+                });
+            }
 
             // 4. Update Milestone & Project
             milestone.Status = MilestoneStatus.RELEASED;

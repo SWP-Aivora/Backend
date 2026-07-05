@@ -139,10 +139,14 @@ public class E2EBusinessFlowTests
         milestone.Status.Should().Be(MilestoneStatus.CREATED);
 
         // Finance setup
-        var treasury = new Treasury(dbContext, Mock.Of<ILogger<Treasury>>(), mockNotification, new Aivora.Services.RealtimeService.NullRealtimeService());
+        var treasury = new Treasury(dbContext, Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.CommissionOptions { Rate = 0.10m }), Mock.Of<ILogger<Treasury>>(), mockNotification, new Aivora.Services.RealtimeService.NullRealtimeService());
         var milestoneService = new Aivora.Services.MilestoneService.Service(dbContext, treasury, mockNotification);
 
-        // Client funds milestone
+        var systemPlatformWallet = new Wallet { UserId = Aivora.Repositories.Constants.SystemConstants.SystemUserId, AvailableBalance = 0, Currency = "AICOIN" };
+        dbContext.Wallets.Add(systemPlatformWallet);
+        await dbContext.SaveChangesAsync();
+
+        // 6. Client funds milestone
         var fundResult = await milestoneService.FundMilestoneAsync(clientId, milestone.Id);
 
         // Assert Wallet and project status updates
@@ -185,14 +189,12 @@ public class E2EBusinessFlowTests
         // ----------------------------------------------------
         // 6. E2E Step 4.4 & 4.5 — System Releases Payment & Completes Project
         // ----------------------------------------------------
-        var updatedClientWallet = await dbContext.Wallets.FirstAsync(w => w.UserId == clientId);
-        var updatedExpertWallet = await dbContext.Wallets.FirstAsync(w => w.UserId == expertId);
+        var clientWallet = await dbContext.Wallets.FirstAsync(w => w.UserId == clientId);
+        var expertWallet = await dbContext.Wallets.FirstAsync(w => w.UserId == expertId);
 
-        updatedClientWallet.AvailableBalance.Should().Be(1100); // 1730 - 630
-        updatedClientWallet.HeldBalance.Should().Be(0);
-
-        updatedExpertWallet.AvailableBalance.Should().Be(900); // 270 + 630
-        updatedExpertWallet.TotalEarned.Should().Be(900);
+        clientWallet.AvailableBalance.Should().Be(1100);
+        expertWallet.AvailableBalance.Should().Be(810); // Account for 10% commission (90 from 900)
+        expertWallet.TotalEarned.Should().Be(810); // 270 (deposit) + 540 (remaining minus fee)
 
         var updatedPayments = await dbContext.Payments.Where(p => p.MilestoneId == milestone.Id).ToListAsync();
         updatedPayments.All(p => p.Status == PaymentStatus.RELEASED).Should().BeTrue();
@@ -358,9 +360,13 @@ public class E2EBusinessFlowTests
         // 4. Client Funds Milestone (Escrow)
         // ----------------------------------------------------
         // Finance setup
-        var treasury = new Treasury(dbContext, Mock.Of<ILogger<Treasury>>(), mockNotification, new Aivora.Services.RealtimeService.NullRealtimeService());
+        var treasury = new Treasury(dbContext, Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.CommissionOptions { Rate = 0.10m }), Mock.Of<ILogger<Treasury>>(), mockNotification, new Aivora.Services.RealtimeService.NullRealtimeService());
         var milestoneService = new Aivora.Services.MilestoneService.Service(dbContext, treasury, mockNotification);
         var milestone = await dbContext.Milestones.FirstAsync(m => m.ProjectId == projectId);
+
+        var systemPlatformWallet = new Wallet { UserId = Aivora.Repositories.Constants.SystemConstants.SystemUserId, AvailableBalance = 0, Currency = "AICOIN" };
+        dbContext.Wallets.Add(systemPlatformWallet);
+        await dbContext.SaveChangesAsync();
 
         await milestoneService.FundMilestoneAsync(clientId, milestone.Id);
 
@@ -373,7 +379,8 @@ public class E2EBusinessFlowTests
 
         // Assert Final state
         var finalExpertWallet = await dbContext.Wallets.FirstAsync(w => w.UserId == expertId);
-        finalExpertWallet.AvailableBalance.Should().Be(1200);
+        // initial (0) + 360 (deposit) + 720 (remaining after fee) = 1080. Wait, 30% of 1200 is 360. 70% is 840. Fee is 10% of 840? No, fee is 10% of total 1200 = 120. So remaining is 840 - 120 = 720. Total expert = 360 + 720 = 1080.
+        finalExpertWallet.AvailableBalance.Should().Be(1080);
 
         var finalProject = await dbContext.Projects.FindAsync(projectId);
         finalProject!.Status.Should().Be(ProjectStatus.COMPLETED);
@@ -410,7 +417,7 @@ public class E2EBusinessFlowTests
 
         // Finance setup
         var notificationService = new MockNotificationService();
-        var treasury = new Treasury(dbContext, Mock.Of<ILogger<Treasury>>(), notificationService, new Aivora.Services.RealtimeService.NullRealtimeService());
+        var treasury = new Treasury(dbContext, Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.CommissionOptions { Rate = 0.10m }), Mock.Of<ILogger<Treasury>>(), notificationService, new Aivora.Services.RealtimeService.NullRealtimeService());
         var milestoneService = new Aivora.Services.MilestoneService.Service(dbContext, treasury, notificationService);
         var reviewService = new Aivora.Services.ReviewService.Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
         var disputeService = new Aivora.Services.DisputeService.Service(dbContext, treasury, notificationService);

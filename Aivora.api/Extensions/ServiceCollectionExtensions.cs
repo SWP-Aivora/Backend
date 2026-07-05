@@ -56,6 +56,7 @@ public static class ServiceCollectionExtensions
         services.Configure<CloudinaryOptions>(configuration.GetSection("CloudinaryOptions"));
         services.Configure<AIProviderOptions>(configuration.GetSection("AIProvider"));
         services.Configure<RateLimitOptions>(configuration.GetSection(RateLimitOptions.SectionName));
+        services.Configure<CommissionOptions>(configuration.GetSection("Commission"));
 
         return services;
     }
