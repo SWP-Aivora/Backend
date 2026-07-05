@@ -13,7 +13,7 @@ public static class WalletExtensions
         Wallet? wallet = null;
         var provider = dbContext.Database.ProviderName;
 
-        if (provider == "Microsoft.EntityFrameworkCore.InMemory" || provider == null || provider.Contains("InMemory") || provider.Contains("Sqlite") || provider.Contains("SQLite"))
+        if (provider == null || provider == "Microsoft.EntityFrameworkCore.InMemory" || provider.Contains("InMemory") || provider.Contains("Sqlite") || provider.Contains("SQLite"))
         {
             wallet = await dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
         }
@@ -23,7 +23,13 @@ public static class WalletExtensions
             var entityType = dbContext.Model.FindEntityType(typeof(Wallet));
             var tableName = entityType?.GetTableName() ?? "Wallets";
             var schema = entityType?.GetSchema();
-            
+
+            // Strict validation of identifiers to completely eliminate SQL injection risk and satisfy analyzers
+            if (!System.Text.RegularExpressions.Regex.IsMatch(tableName, @"^[a-zA-Z0-9_]+$"))
+                throw new InvalidOperationException("Invalid database table name.");
+            if (!string.IsNullOrEmpty(schema) && !System.Text.RegularExpressions.Regex.IsMatch(schema, @"^[a-zA-Z0-9_]+$"))
+                throw new InvalidOperationException("Invalid database schema name.");
+
             // Format table identifier (e.g. "dbo"."Wallets" or just "Wallets")
             var fullTableName = string.IsNullOrEmpty(schema) ? $"\"{tableName}\"" : $"\"{schema}\".\"{tableName}\"";
 
@@ -31,6 +37,9 @@ public static class WalletExtensions
             var storeObject = StoreObjectIdentifier.Table(tableName, schema);
             var userIdProperty = entityType?.FindProperty(nameof(Wallet.UserId));
             var userIdColumnName = userIdProperty?.GetColumnName(storeObject) ?? "UserId";
+
+            if (!System.Text.RegularExpressions.Regex.IsMatch(userIdColumnName, @"^[a-zA-Z0-9_]+$"))
+                throw new InvalidOperationException("Invalid database column name.");
             var escapedColumnName = $"\"{userIdColumnName}\"";
 
             if (provider.Contains("SqlServer") || provider.Contains("Microsoft.Data.SqlClient"))

@@ -26,9 +26,36 @@ public class Wallet : AuditableBaseEntity
         AvailableBalance += amount;
     }
 
+    public bool CanDebit(decimal amount, out string? reason)
+    {
+        reason = null;
+        if (amount < 0)
+        {
+            reason = "Amount must be non-negative.";
+            return false;
+        }
+
+        if (AvailableBalance >= amount)
+        {
+            return true;
+        }
+
+        var deficit = amount - AvailableBalance;
+        if (Debt + deficit > 1000m)
+        {
+            reason = $"Clawback failed. Operation would exceed the maximum debt limit of 1000 {Currency}. Current debt: {Debt}, deficit: {deficit}.";
+            return false;
+        }
+
+        return true;
+    }
+
     public void Debit(decimal amount)
     {
-        if (amount < 0) throw new ArgumentException("Amount must be non-negative.", nameof(amount));
+        if (!CanDebit(amount, out var reason))
+        {
+            throw new InvalidOperationException(reason);
+        }
 
         if (AvailableBalance >= amount)
         {
@@ -37,10 +64,6 @@ public class Wallet : AuditableBaseEntity
         else
         {
             var deficit = amount - AvailableBalance;
-            if (Debt + deficit > 1000m)
-            {
-                throw new InvalidOperationException($"Clawback failed. Operation would exceed the maximum debt limit of 1000 {Currency}.");
-            }
             AvailableBalance = 0;
             Debt += deficit;
         }

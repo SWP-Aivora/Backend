@@ -192,7 +192,7 @@ public class TreasuryRealtimeTests
 
         // Assert
         act.Should().Throw<InvalidOperationException>()
-            .WithMessage("Clawback failed. Operation would exceed the maximum debt limit of 1000 AICOIN.");
+            .WithMessage("*would exceed the maximum debt limit of 1000 AICOIN*");
     }
 
     [Fact]

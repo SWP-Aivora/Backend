@@ -56,6 +56,10 @@ public class Treasury : ITreasury
             var expertBalanceBefore = expertWallet.AvailableBalance;
 
             // 1. Move money directly
+            if (!clientWallet.CanDebit(depositAmount, out var debitError))
+            {
+                throw new ValidationException(debitError!);
+            }
             clientWallet.Debit(depositAmount);
             expertWallet.Credit(depositAmount);
             expertWallet.TotalEarned += depositAmount;
@@ -168,6 +172,10 @@ public class Treasury : ITreasury
             var expertBalanceBefore = expertWallet.AvailableBalance;
 
             // 1. Move money directly
+            if (!clientWallet.CanDebit(remainingAmount, out var debitError))
+            {
+                throw new ValidationException(debitError!);
+            }
             clientWallet.Debit(remainingAmount);
             expertWallet.Credit(remainingAmount);
             expertWallet.TotalEarned += remainingAmount;
@@ -278,10 +286,9 @@ public class Treasury : ITreasury
                 var payeeBalanceBefore = payeeWallet.AvailableBalance;
 
                 // Enforce safe debt limit check to prevent bad debt and prompt manual review
-                var deficit = payment.Amount - payeeWallet.AvailableBalance;
-                if (payeeWallet.Debt + deficit > 1000m)
+                if (!payeeWallet.CanDebit(payment.Amount, out var debitError))
                 {
-                    throw new ValidationException($"Refund failed: Expert's wallet has insufficient funds (Available: {payeeWallet.AvailableBalance} {payeeWallet.Currency}, Debt: {payeeWallet.Debt} {payeeWallet.Currency}). Processing this refund of {payment.Amount} {payeeWallet.Currency} would exceed the safe debt limit of 1000 {payeeWallet.Currency} and requires manual review.");
+                    throw new ValidationException($"Refund failed: Expert's wallet has insufficient funds (Available: {payeeWallet.AvailableBalance} {payeeWallet.Currency}, Debt: {payeeWallet.Debt} {payeeWallet.Currency}). Processing this refund of {payment.Amount} {payeeWallet.Currency} would exceed the safe debt limit of 1000 {payeeWallet.Currency} and requires manual review. Details: {debitError}");
                 }
 
                 // 1. Move money back (Clawback from expert to client)
@@ -383,10 +390,9 @@ public class Treasury : ITreasury
                     var payeeBalanceBefore = payeeWallet.AvailableBalance;
 
                     // Enforce safe debt limit check to prevent bad debt and prompt manual review
-                    var deficit = refundAllocation - payeeWallet.AvailableBalance;
-                    if (payeeWallet.Debt + deficit > 1000m)
+                    if (!payeeWallet.CanDebit(refundAllocation, out var debitError))
                     {
-                        throw new ValidationException($"Split failed: Expert's wallet has insufficient funds (Available: {payeeWallet.AvailableBalance} {payeeWallet.Currency}, Debt: {payeeWallet.Debt} {payeeWallet.Currency}). Processing this clawback of {refundAllocation} {payeeWallet.Currency} would exceed the safe debt limit of 1000 {payeeWallet.Currency} and requires manual review.");
+                        throw new ValidationException($"Split failed: Expert's wallet has insufficient funds (Available: {payeeWallet.AvailableBalance} {payeeWallet.Currency}, Debt: {payeeWallet.Debt} {payeeWallet.Currency}). Processing this clawback of {refundAllocation} {payeeWallet.Currency} would exceed the safe debt limit of 1000 {payeeWallet.Currency} and requires manual review. Details: {debitError}");
                     }
 
                     payeeWallet.Debit(refundAllocation);

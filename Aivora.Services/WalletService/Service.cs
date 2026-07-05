@@ -277,14 +277,11 @@ public class Service : IService
 
             // Deduct from client
             decimal clientBalanceBefore = currentWallet.AvailableBalance;
-            try
+            if (!currentWallet.CanDebit(request.Amount, out var debitError))
             {
-                currentWallet.Debit(request.Amount);
+                throw new ValidationException(debitError!);
             }
-            catch (InvalidOperationException ex)
-            {
-                throw new ValidationException(ex.Message);
-            }
+            currentWallet.Debit(request.Amount);
 
             // Add to expert (held until project completion)
             decimal expertBalanceBefore = currentExpertWallet.AvailableBalance;
