@@ -12,6 +12,7 @@ from review_bot import (
     filter_diff,
     filter_high_confidence,
     parse_json_response,
+    parse_linked_issue,
     truncate_diff,
 )
 
@@ -71,6 +72,15 @@ def test_changed_files_extracts_paths():
         "diff --git a/src/Bar.cs b/src/Bar.cs\n+y\n"
     )
     assert changed_files(diff) == ["src/Foo.cs", "src/Bar.cs"]
+
+
+def test_parse_linked_issue_variants():
+    assert parse_linked_issue("Closes #42") == "42"
+    assert parse_linked_issue("This fixes #7 for real") == "7"
+    assert parse_linked_issue("Resolved: #123") == "123"
+    assert parse_linked_issue("no issue reference here") is None
+    assert parse_linked_issue("") is None
+    assert parse_linked_issue(None) is None
 
 
 def test_b64_roundtrip():

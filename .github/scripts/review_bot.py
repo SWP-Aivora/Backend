@@ -204,6 +204,17 @@ def filter_high_confidence(issues, threshold=80):
     return [i for i in issues if i.get("confidence", 0) >= threshold]
 
 
+LINKED_ISSUE_RE = re.compile(r'\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s*#(\d+)', re.IGNORECASE)
+
+
+def parse_linked_issue(pr_body):
+    """Extract the issue number from a GitHub closing keyword (Closes/Fixes/Resolves #N)."""
+    if not pr_body:
+        return None
+    match = LINKED_ISSUE_RE.search(pr_body)
+    return match.group(1) if match else None
+
+
 def b64_encode(obj_or_str):
     s = obj_or_str if isinstance(obj_or_str, str) else json.dumps(obj_or_str)
     return base64.b64encode(s.encode("utf-8")).decode("ascii")
@@ -269,18 +280,49 @@ def gather_pr_history_context(diff, repo, current_pr_number, max_prs=5, max_file
     return "\n\n".join(parts)[:max_chars]
 
 
+def gather_linked_issue_context(repo, issue_number, max_chars=4000):
+    """Fetch the GitHub issue this PR closes (via Closes/Fixes/Resolves #N), if any."""
+    if not issue_number:
+        return ""
+    code, stdout, _ = run_cmd(["gh", "api", f"repos/{repo}/issues/{issue_number}", "--jq", "{title, body}"])
+    if code != 0 or not stdout.strip():
+        return ""
+    try:
+        data = json.loads(stdout)
+    except json.JSONDecodeError:
+        return ""
+    text = f"### Issue #{issue_number}: {data.get('title', '')}\n{data.get('body') or ''}"
+    return text[:max_chars]
+
+
+def gather_previous_review_context(repo, pr_number, max_chars=6000):
+    """Fetch this bot's own most recent review on this PR that actually reported issues,
+    so the verify pass can tell which findings were fixed since then."""
+    code, stdout, _ = run_cmd([
+        "gh", "api", f"repos/{repo}/pulls/{pr_number}/reviews",
+        "--jq", '[.[] | select(.user.login == "github-actions[bot]" and '
+                '(.body | contains("🚨 Phát hiện")))] | last | .body // empty',
+    ])
+    if code != 0:
+        return ""
+    return stdout.strip()[:max_chars]
+
+
 # ---------------------------------------------------------------------------
 # Prompt building
 # ---------------------------------------------------------------------------
 
-def build_pr_info(pr_meta):
-    return (
+def build_pr_info(pr_meta, linked_issue=""):
+    info = (
         f"## PR Information\n- **Title**: {pr_meta['title']}\n- **Author**: {pr_meta['author']}\n"
         f"- **Description**: {pr_meta['body']}"
     )
+    if linked_issue:
+        info += f"\n\n## Linked Issue (the PR is meant to resolve this)\n{linked_issue}"
+    return info
 
 
-def build_prompt(pass_name, pr_meta, diff, claude_md="", extra_context=""):
+def build_prompt(pass_name, pr_meta, diff, claude_md="", extra_context="", linked_issue=""):
     parts = [COMMON_HEADER]
     if pass_name == "claude-md":
         parts.append(f"## CLAUDE.md\n```\n{claude_md}\n```")
@@ -288,21 +330,29 @@ def build_prompt(pass_name, pr_meta, diff, claude_md="", extra_context=""):
     if extra_context:
         parts.append(f"## Extra Context\n```\n{extra_context}\n```")
     parts.append(OUTPUT_FORMAT_INSTRUCTIONS)
-    parts.append(build_pr_info(pr_meta))
+    parts.append(build_pr_info(pr_meta, linked_issue))
     parts.append(f"## Diff\n```diff\n{diff}\n```")
     return "\n\n".join(parts)
 
 
-def build_verify_prompt(pr_meta, diff, issues):
+def build_verify_prompt(pr_meta, diff, issues, linked_issue="", previous_review=""):
     parts = [
         "You are independently verifying issues found by earlier automated review passes on a .NET "
         "backend PR for the AIVORA Marketplace.",
         f"## Issues found by earlier review passes\n{json.dumps(issues, ensure_ascii=False, indent=2)}",
-        VERIFY_RUBRIC,
-        OUTPUT_FORMAT_INSTRUCTIONS,
-        build_pr_info(pr_meta),
-        f"## Diff (for reference)\n```diff\n{diff}\n```",
     ]
+    if previous_review:
+        parts.append(
+            "## Previous Bot Review On This Same PR\n"
+            "This is the bot's own last review comment from an earlier push to this PR. If the current "
+            "diff now fixes something it flagged, mention that explicitly in your summary (e.g. \"Đã fix "
+            "N/M vấn đề từ lần review trước\"). Do not re-report already-fixed issues.\n"
+            f"{previous_review}"
+        )
+    parts.append(VERIFY_RUBRIC)
+    parts.append(OUTPUT_FORMAT_INSTRUCTIONS)
+    parts.append(build_pr_info(pr_meta, linked_issue))
+    parts.append(f"## Diff (for reference)\n```diff\n{diff}\n```")
     return "\n\n".join(parts)
 
 
@@ -514,6 +564,7 @@ def cmd_pass(args):
     api_key, model, fallback_model = load_gemini_config()
     diff = b64_decode_str(require_env("DIFF_B64"))
     pr_meta = load_pr_meta()
+    repo = require_env("REPO")
 
     claude_md, extra_context = "", ""
     if args.pass_name == "claude-md":
@@ -521,9 +572,14 @@ def cmd_pass(args):
     elif args.pass_name == "git-blame":
         extra_context = gather_git_blame_context(diff)
     elif args.pass_name == "pr-history":
-        extra_context = gather_pr_history_context(diff, require_env("REPO"), require_env("PR_NUMBER"))
+        extra_context = gather_pr_history_context(diff, repo, require_env("PR_NUMBER"))
 
-    prompt = build_prompt(args.pass_name, pr_meta, diff, claude_md=claude_md, extra_context=extra_context)
+    linked_issue = gather_linked_issue_context(repo, parse_linked_issue(pr_meta["body"]))
+
+    prompt = build_prompt(
+        args.pass_name, pr_meta, diff,
+        claude_md=claude_md, extra_context=extra_context, linked_issue=linked_issue,
+    )
 
     print(f"Calling Gemini ({model}) for pass '{args.pass_name}'...")
     try:
@@ -568,7 +624,12 @@ def cmd_verify(_args):
         submit_review_with_fallback(repo, pr_number, head_sha, body, "APPROVE")
         return
 
-    prompt = build_verify_prompt(pr_meta, diff, all_issues)
+    linked_issue = gather_linked_issue_context(repo, parse_linked_issue(pr_meta["body"]))
+    previous_review = gather_previous_review_context(repo, pr_number)
+
+    prompt = build_verify_prompt(
+        pr_meta, diff, all_issues, linked_issue=linked_issue, previous_review=previous_review,
+    )
     print(f"Calling Gemini ({model}) to verify {len(all_issues)} candidate issue(s)...")
     try:
         response_text = call_gemini(prompt, api_key, model, fallback_model)
