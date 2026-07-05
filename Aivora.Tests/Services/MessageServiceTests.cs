@@ -93,4 +93,96 @@ public class MessageServiceTests
         updatedMsg2!.IsRead.Should().BeFalse(); // Client's own message shouldn't be marked read by client
         updatedMsg2.ReadAt.Should().BeNull();
     }
+
+    [Fact]
+    public async Task GetConversationMessagesAsync_Admin_WithOpenDispute_Success()
+    {
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var conversationId = Guid.NewGuid();
+
+        var conversation = new Conversation { Id = conversationId, ClientId = clientId, ExpertId = expertId, ProjectId = projectId };
+        var dispute = new Dispute 
+        { 
+            Id = Guid.NewGuid(), 
+            ProjectId = projectId, 
+            OpenedBy = clientId, 
+            AgainstUserId = expertId, 
+            Status = DisputeStatus.OPEN,
+            Reason = "Test"
+        };
+        var msg = new Message { ConversationId = conversationId, SenderId = clientId, Content = "Msg" };
+        var client = new User { Id = clientId, FullName = "Client", Email = "c@t.com", PasswordHash = "x" };
+
+        dbContext.Users.Add(client);
+        dbContext.Conversations.Add(conversation);
+        dbContext.Disputes.Add(dispute);
+        dbContext.Messages.Add(msg);
+        await dbContext.SaveChangesAsync();
+
+        var service = new Service(dbContext);
+
+        var result = await service.GetConversationMessagesAsync(adminId, conversationId, new Aivora.Services.Base.Request.PageRequest { PageIndex = 1, PageSize = 10 }, isAdmin: true);
+
+        result.Should().NotBeNull();
+        result.Items.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public async Task GetConversationMessagesAsync_Admin_NoDispute_ThrowsUnauthorized()
+    {
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var conversationId = Guid.NewGuid();
+
+        var conversation = new Conversation { Id = conversationId, ClientId = clientId, ExpertId = expertId, ProjectId = projectId };
+        
+        dbContext.Conversations.Add(conversation);
+        await dbContext.SaveChangesAsync();
+
+        var service = new Service(dbContext);
+
+        Func<Task> act = async () => await service.GetConversationMessagesAsync(adminId, conversationId, new Aivora.Services.Base.Request.PageRequest { PageIndex = 1, PageSize = 10 }, isAdmin: true);
+
+        await act.Should().ThrowAsync<Aivora.Services.Exceptions.UnauthorizedException>();
+    }
+
+    [Fact]
+    public async Task GetConversationMessagesAsync_Admin_ResolvedDispute_ThrowsUnauthorized()
+    {
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var conversationId = Guid.NewGuid();
+
+        var conversation = new Conversation { Id = conversationId, ClientId = clientId, ExpertId = expertId, ProjectId = projectId };
+        var dispute = new Dispute 
+        { 
+            Id = Guid.NewGuid(), 
+            ProjectId = projectId, 
+            OpenedBy = clientId, 
+            AgainstUserId = expertId, 
+            Status = DisputeStatus.RESOLVED,
+            Reason = "Test"
+        };
+
+        dbContext.Conversations.Add(conversation);
+        dbContext.Disputes.Add(dispute);
+        await dbContext.SaveChangesAsync();
+
+        var service = new Service(dbContext);
+
+        Func<Task> act = async () => await service.GetConversationMessagesAsync(adminId, conversationId, new Aivora.Services.Base.Request.PageRequest { PageIndex = 1, PageSize = 10 }, isAdmin: true);
+
+        await act.Should().ThrowAsync<Aivora.Services.Exceptions.UnauthorizedException>();
+    }
 }
+

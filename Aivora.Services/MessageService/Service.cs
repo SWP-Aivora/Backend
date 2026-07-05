@@ -65,9 +65,16 @@ public class Service : IService
         };
     }
 
-    public async Task<Base.Response.PageResult<Response.MessageResponse>> GetConversationMessagesAsync(Guid userId, Guid conversationId, Base.Request.PageRequest pageRequest)
+    public async Task<Base.Response.PageResult<Response.MessageResponse>> GetConversationMessagesAsync(Guid userId, Guid conversationId, Base.Request.PageRequest pageRequest, bool isAdmin = false)
     {
-        await EnsureConversationParticipantAsync(userId, conversationId);
+        if (isAdmin)
+        {
+            await EnsureAdminCanViewConversationAsync(conversationId);
+        }
+        else
+        {
+            await EnsureConversationParticipantAsync(userId, conversationId);
+        }
 
         var query = _dbContext.Messages
             .Include(m => m.Sender)
@@ -107,6 +114,28 @@ public class Service : IService
         if (conversation == null) throw new NotFoundException("Conversation not found.");
         if (conversation.ClientId != userId && conversation.ExpertId != userId)
             throw new UnauthorizedException("You are not a participant in this conversation.");
+    }
+
+    private async Task EnsureAdminCanViewConversationAsync(Guid conversationId)
+    {
+        var conversation = await _dbContext.Conversations.FindAsync(conversationId);
+        if (conversation == null) throw new NotFoundException("Conversation not found.");
+
+        if (!conversation.ProjectId.HasValue)
+        {
+            throw new UnauthorizedException("Admin can only view conversations related to a project.");
+        }
+
+        var hasOpenDispute = await _dbContext.Disputes
+            .AnyAsync(d => d.ProjectId == conversation.ProjectId.Value
+                && (d.Status == Aivora.Repositories.Enums.DisputeStatus.OPEN || d.Status == Aivora.Repositories.Enums.DisputeStatus.UNDER_REVIEW)
+                && ((d.OpenedBy == conversation.ClientId && d.AgainstUserId == conversation.ExpertId)
+                    || (d.OpenedBy == conversation.ExpertId && d.AgainstUserId == conversation.ClientId)));
+
+        if (!hasOpenDispute)
+        {
+            throw new UnauthorizedException("Admin can only view conversations with active disputes between the participants.");
+        }
     }
 
     public async Task<Response.MessageResponse> SendMessageAsync(Guid senderId, Request.SendMessageRequest request)
