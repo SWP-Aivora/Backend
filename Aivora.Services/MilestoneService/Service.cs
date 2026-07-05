@@ -144,9 +144,9 @@ public class Service : IService
             throw new ValidationException("Milestone must be in SUBMITTED status to be approved.");
 
         var hasActiveDispute = await _dbContext.Disputes
-            .AnyAsync(d => d.MilestoneId == milestoneId && 
+            .AnyAsync(d => d.MilestoneId == milestoneId &&
                           (d.Status == DisputeStatus.OPEN || d.Status == DisputeStatus.UNDER_REVIEW));
-                          
+
         if (hasActiveDispute)
             throw new ValidationException("Cannot approve milestone while there is an active dispute.");
 
