@@ -2,9 +2,9 @@ using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.DisputeService;
-using Microsoft.Extensions.Logging;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
 
@@ -44,8 +44,7 @@ public class DisputeServiceTests
         await dbContext.SaveChangesAsync();
 
         var notificationService = new MockNotificationService();
-        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(), notificationService, new Aivora.Services.RealtimeService.NullRealtimeService());
-        var service = new Service(dbContext, treasury, notificationService);
+        var service = new Service(dbContext, notificationService, Mock.Of<ILogger<Service>>());
         var request = new Request.OpenDisputeRequest { MilestoneId = milestoneId, Reason = "Poor quality" };
 
         // Act
@@ -60,13 +59,13 @@ public class DisputeServiceTests
         var updatedProject = await dbContext.Projects.FindAsync(projectId);
         updatedProject!.Status.Should().Be(ProjectStatus.DISPUTED);
 
-        // Payment is FROZEN when dispute is opened
+        // Payment should NOT be frozen (no Treasury involvement)
         var updatedPayment = await dbContext.Payments.FindAsync(payment.Id);
-        updatedPayment!.Status.Should().Be(PaymentStatus.FROZEN);
+        updatedPayment!.Status.Should().Be(PaymentStatus.HELD);
     }
 
     [Fact]
-    public async Task ResolveDisputeAsync_RefundToClient_UpdatesWalletsCorrectly()
+    public async Task ResolveDisputeAsync_ShouldUpdateStatusAndNote()
     {
         // Arrange
         var dbContext = GetDbContext();
@@ -78,17 +77,13 @@ public class DisputeServiceTests
         var expertUser = new User { Id = expertId, FullName = "Expert", Role = UserRole.EXPERT, Email = "e@t.com", PasswordHash = "x" };
         var adminUser = new User { Id = adminId, FullName = "Admin", Role = UserRole.ADMIN, Email = "a@t.com", PasswordHash = "x" };
 
-        var clientWallet = new Wallet { UserId = clientId, AvailableBalance = 0, HeldBalance = 500, Currency = "AICOIN" };
-        var expertWallet = new Wallet { UserId = expertId, AvailableBalance = 0, Currency = "AICOIN" };
-
         var project = new Project { Id = Guid.NewGuid(), ClientId = clientId, ExpertId = expertId, Title = "Resolve Project", Status = ProjectStatus.DISPUTED };
         var milestone = new Milestone { Id = Guid.NewGuid(), ProjectId = project.Id, Amount = 500, Status = MilestoneStatus.DISPUTED, Title = "M1" };
-        var payment = new Payment { Id = Guid.NewGuid(), MilestoneId = milestone.Id, ProjectId = project.Id, PayerId = clientId, PayeeId = expertId, Amount = 500, Status = PaymentStatus.FROZEN };
+        var payment = new Payment { Id = Guid.NewGuid(), MilestoneId = milestone.Id, ProjectId = project.Id, PayerId = clientId, PayeeId = expertId, Amount = 500, Status = PaymentStatus.HELD };
 
         var dispute = new Dispute { Id = Guid.NewGuid(), ProjectId = project.Id, MilestoneId = milestone.Id, PaymentId = payment.Id, OpenedBy = clientId, AgainstUserId = expertId, Status = DisputeStatus.OPEN, Reason = "X" };
 
         dbContext.Users.AddRange(clientUser, expertUser, adminUser);
-        dbContext.Wallets.AddRange(clientWallet, expertWallet);
         dbContext.Projects.Add(project);
         dbContext.Milestones.Add(milestone);
         dbContext.Payments.Add(payment);
@@ -96,27 +91,27 @@ public class DisputeServiceTests
         await dbContext.SaveChangesAsync();
 
         var notificationService = new MockNotificationService();
-        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(), notificationService, new Aivora.Services.RealtimeService.NullRealtimeService());
-        var service = new Service(dbContext, treasury, notificationService);
+        var service = new Service(dbContext, notificationService, Mock.Of<ILogger<Service>>());
         var resolveRequest = new Request.ResolveDisputeRequest
         {
-            ResolutionType = DisputeResolutionType.REFUND_TO_CLIENT,
-            ResolutionNote = "Validated refund"
+            ResolutionNote = "Resolved via external mediation"
         };
 
         // Act
         await service.ResolveDisputeAsync(adminId, dispute.Id, resolveRequest);
 
-        // Assert
-        var updatedClientWallet = await dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == clientId);
-        updatedClientWallet!.HeldBalance.Should().Be(0);
-        updatedClientWallet!.AvailableBalance.Should().Be(500);
-
-        var updatedPayment = await dbContext.Payments.FindAsync(payment.Id);
-        updatedPayment!.Status.Should().Be(PaymentStatus.REFUNDED);
-
+        // Assert - dispute status and note updated
         var updatedDispute = await dbContext.Disputes.FindAsync(dispute.Id);
         updatedDispute!.Status.Should().Be(DisputeStatus.RESOLVED);
+        updatedDispute!.ResolutionNote.Should().Be("Resolved via external mediation");
+
+        // Assert - milestone unlocked to SUBMITTED
+        var updatedMilestone = await dbContext.Milestones.FindAsync(milestone.Id);
+        updatedMilestone!.Status.Should().Be(MilestoneStatus.SUBMITTED);
+
+        // Assert - project reverted to ACTIVE
+        var updatedProject = await dbContext.Projects.FindAsync(project.Id);
+        updatedProject!.Status.Should().Be(ProjectStatus.ACTIVE);
     }
 
     private class MockNotificationService : Aivora.Services.NotificationService.IService

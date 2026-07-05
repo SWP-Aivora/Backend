@@ -14,7 +14,6 @@ public class Dispute : AuditableBaseEntity
     public string? Description { get; set; }
     public DisputeStatus Status { get; set; } = DisputeStatus.OPEN;
     public Guid? AdminId { get; set; }
-    public DisputeResolutionType? ResolutionType { get; set; }
     public string? ResolutionNote { get; set; }
     public DateTimeOffset? ResolvedAt { get; set; }
 

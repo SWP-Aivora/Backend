@@ -16,7 +16,6 @@ public class Response
         public string Reason { get; set; } = null!;
         public string? Description { get; set; }
         public string Status { get; set; } = null!;
-        public string? ResolutionType { get; set; }
         public string? ResolutionNote { get; set; }
         public DateTimeOffset? ResolvedAt { get; set; }
         public List<DisputeEvidenceResponse> Evidence { get; set; } = new();
