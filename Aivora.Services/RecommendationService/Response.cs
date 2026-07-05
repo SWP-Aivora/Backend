@@ -16,6 +16,8 @@ public class Response
         public decimal BudgetScore { get; set; }
         public decimal AvailabilityScore { get; set; }
         public decimal CompletionScore { get; set; }
+        public decimal DisputePenalty { get; set; }
+        public decimal DisputeRate { get; set; }
         public string? Explanation { get; set; }
         public decimal Rating { get; set; }
         public int CompletedProjects { get; set; }

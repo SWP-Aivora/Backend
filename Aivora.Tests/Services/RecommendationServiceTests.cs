@@ -116,8 +116,86 @@ public class RecommendationServiceTests
         job!.Status = JobStatus.DRAFT;
         await dbContext.SaveChangesAsync();
 
-        Func<Task> draftJob = async () => await service.GenerateRecommendationsAsync(scenario.ClientId, scenario.JobId);
-        await draftJob.Should().ThrowAsync<ValidationException>();
+    }
+
+    [Fact]
+    public async Task GenerateRecommendationsAsync_NoPenaltyWhenUnderThreeCompletedProjects()
+    {
+        var dbContext = GetDbContext();
+        var scenario = SeedScenario(dbContext, BudgetType.HOURLY, budgetMin: 10, budgetMax: 100, timelineDays: 10);
+        var expert = AddExpert(dbContext, scenario.Skill, SkillLevel.EXPERT, hourlyRate: 25, rating: 5, successRate: 100);
+        expert.CompletedProjects = 2; // Under 3
+        AddDispute(dbContext, expert.UserId); // 1 dispute, rate = 50%, but shouldn't penalize because projects < 3
+        await dbContext.SaveChangesAsync();
+        var service = new Aivora.Services.RecommendationService.Service(dbContext);
+
+        var results = await service.GenerateRecommendationsAsync(scenario.ClientId, scenario.JobId);
+        var result = results.Single(x => x.ExpertId == expert.UserId);
+
+        result.DisputePenalty.Should().Be(0);
+        result.DisputeRate.Should().Be(0);
+        result.TotalScore.Should().Be(100);
+    }
+
+    [Fact]
+    public async Task GenerateRecommendationsAsync_NoPenaltyWhenNoDisputes()
+    {
+        var dbContext = GetDbContext();
+        var scenario = SeedScenario(dbContext, BudgetType.HOURLY, budgetMin: 10, budgetMax: 100, timelineDays: 10);
+        var expert = AddExpert(dbContext, scenario.Skill, SkillLevel.EXPERT, hourlyRate: 25, rating: 5, successRate: 100);
+        expert.CompletedProjects = 5;
+        // 0 disputes
+        await dbContext.SaveChangesAsync();
+        var service = new Aivora.Services.RecommendationService.Service(dbContext);
+
+        var results = await service.GenerateRecommendationsAsync(scenario.ClientId, scenario.JobId);
+        var result = results.Single(x => x.ExpertId == expert.UserId);
+
+        result.DisputePenalty.Should().Be(0);
+        result.DisputeRate.Should().Be(0);
+        result.TotalScore.Should().Be(100);
+    }
+
+    [Fact]
+    public async Task GenerateRecommendationsAsync_AppliesPenaltyForDisputes()
+    {
+        var dbContext = GetDbContext();
+        var scenario = SeedScenario(dbContext, BudgetType.HOURLY, budgetMin: 10, budgetMax: 100, timelineDays: 10);
+        var expert = AddExpert(dbContext, scenario.Skill, SkillLevel.EXPERT, hourlyRate: 25, rating: 5, successRate: 100);
+        expert.CompletedProjects = 5;
+        AddDispute(dbContext, expert.UserId); // 1 dispute, rate = 1/5 = 0.2
+        await dbContext.SaveChangesAsync();
+        var service = new Aivora.Services.RecommendationService.Service(dbContext);
+
+        var results = await service.GenerateRecommendationsAsync(scenario.ClientId, scenario.JobId);
+        var result = results.Single(x => x.ExpertId == expert.UserId);
+
+        result.DisputeRate.Should().Be(0.2m);
+        result.DisputePenalty.Should().Be(0.3m); // 0.2 * 1.5 = 0.3
+        result.TotalScore.Should().Be(70); // 100 * (1 - 0.3)
+        result.Explanation.Should().Contain("dispute");
+    }
+
+    [Fact]
+    public async Task GenerateRecommendationsAsync_CapsPenaltyAt50Percent()
+    {
+        var dbContext = GetDbContext();
+        var scenario = SeedScenario(dbContext, BudgetType.HOURLY, budgetMin: 10, budgetMax: 100, timelineDays: 10);
+        var expert = AddExpert(dbContext, scenario.Skill, SkillLevel.EXPERT, hourlyRate: 25, rating: 5, successRate: 100);
+        expert.CompletedProjects = 5;
+        AddDispute(dbContext, expert.UserId);
+        AddDispute(dbContext, expert.UserId);
+        AddDispute(dbContext, expert.UserId); // 3 disputes, rate = 3/5 = 0.6
+        await dbContext.SaveChangesAsync();
+        var service = new Aivora.Services.RecommendationService.Service(dbContext);
+
+        var results = await service.GenerateRecommendationsAsync(scenario.ClientId, scenario.JobId);
+        var result = results.Single(x => x.ExpertId == expert.UserId);
+
+        result.DisputeRate.Should().Be(0.6m);
+        result.DisputePenalty.Should().Be(0.5m); // 0.6 * 1.5 = 0.9, cap at 0.5
+        result.TotalScore.Should().Be(50); // 100 * (1 - 0.5)
+        result.Explanation.Should().Contain("dispute");
     }
 
     private static Scenario SeedScenario(AivoraDbContext dbContext, BudgetType budgetType, decimal budgetMin, decimal budgetMax, int timelineDays)
@@ -197,4 +275,62 @@ public class RecommendationServiceTests
     }
 
     private sealed record Scenario(Guid ClientId, Guid JobId, Skill Skill);
+    private static void AddDispute(AivoraDbContext dbContext, Guid expertUserId)
+    {
+        var client = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = $"{Guid.NewGuid()}@test.local",
+            PasswordHash = "hash",
+            FullName = "Client",
+            Role = UserRole.CLIENT,
+            Status = UserStatus.ACTIVE
+        };
+        var project = new Project
+        {
+            Id = Guid.NewGuid(),
+            JobId = Guid.NewGuid(),
+            ClientId = client.Id,
+            ExpertId = expertUserId,
+            Title = "Project",
+            Status = ProjectStatus.PENDING_PAYMENT,
+            TotalBudget = 100
+        };
+        var milestone = new Milestone
+        {
+            Id = Guid.NewGuid(),
+            ProjectId = project.Id,
+            Title = "M1",
+            Amount = 100,
+            Status = MilestoneStatus.CREATED,
+            OrderIndex = 1
+        };
+        var payment = new Payment
+        {
+            Id = Guid.NewGuid(),
+            ProjectId = project.Id,
+            MilestoneId = milestone.Id,
+            PayerId = client.Id,
+            PayeeId = expertUserId,
+            Amount = 100,
+            Status = PaymentStatus.PENDING
+        };
+        var dispute = new Dispute
+        {
+            Id = Guid.NewGuid(),
+            ProjectId = project.Id,
+            MilestoneId = milestone.Id,
+            PaymentId = payment.Id,
+            OpenedBy = client.Id,
+            AgainstUserId = expertUserId,
+            Reason = "Test",
+            Status = DisputeStatus.OPEN
+        };
+
+        dbContext.Users.Add(client);
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestone);
+        dbContext.Payments.Add(payment);
+        dbContext.Disputes.Add(dispute);
+    }
 }

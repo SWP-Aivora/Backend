@@ -38,8 +38,15 @@ public class Service : IService
             .Where(e => e.User.Role == UserRole.EXPERT && e.User.Status == UserStatus.ACTIVE)
             .ToListAsync();
 
+        var expertIds = experts.Select(e => e.UserId).ToList();
+        var disputeCounts = await _dbContext.Disputes
+            .Where(d => expertIds.Contains(d.Project.ExpertId))
+            .GroupBy(d => d.Project.ExpertId)
+            .Select(g => new { ExpertId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.ExpertId, x => x.Count);
+
         var recommendations = experts
-            .Select(expert => BuildRecommendation(job, requiredSkills, expert))
+            .Select(expert => BuildRecommendation(job, requiredSkills, expert, disputeCounts.GetValueOrDefault(expert.UserId, 0)))
             .OrderByDescending(r => r.TotalScore)
             .Take(5)
             .ToList();
@@ -75,12 +82,14 @@ public class Service : IService
                 CompletionScore = r.CompletionScore,
                 Explanation = r.Explanation,
                 Rating = r.Expert.ExpertProfile.Rating,
-                CompletedProjects = r.Expert.ExpertProfile.CompletedProjects
+                CompletedProjects = r.Expert.ExpertProfile.CompletedProjects,
+                DisputeRate = r.DisputeRate,
+                DisputePenalty = r.DisputePenalty
             })
             .ToListAsync();
     }
 
-    private static RecommendationResult BuildRecommendation(JobPost job, List<RequiredSkill> requiredSkills, ExpertProfile expert)
+    private static RecommendationResult BuildRecommendation(JobPost job, List<RequiredSkill> requiredSkills, ExpertProfile expert, int disputeCount)
     {
         var skillScore = CalculateSkillScore(requiredSkills, expert, out var matchedSkillNames);
         var budgetScore = CalculateBudgetScore(job, expert);
@@ -96,6 +105,20 @@ public class Service : IService
             + (completionScore * 0.10m),
             2);
 
+        // Rationale for dispute penalty:
+        // - Count all opened disputes: The system no longer performs financial dispute resolution, so there is no reliable "resolution type" to infer who is right/wrong.
+        // - Denominator = COMPLETED projects: Unfinished/cancelled projects provide an unfair basis for evaluation.
+        // - Minimum threshold of 3 projects: Prevents a single dispute on the first project from "killing" a new expert's score (which would be a 100% dispute rate with too small a sample size).
+        var disputeRate = expert.CompletedProjects >= 3 && expert.CompletedProjects > 0
+            ? (decimal)disputeCount / expert.CompletedProjects
+            : 0m;
+        
+        // Rationale for penalty calculation:
+        // - 1.5x penalty factor, capped at 50%: A dispute rate >= 33% results in the maximum deduction.
+        // - The 50% cap ensures the score never reaches absolute 0, because other axes (skill, rating, etc.) still hold reference value.
+        var penalty = Math.Min(disputeRate * 1.5m, 0.5m);
+        totalScore = Math.Round(totalScore * (1 - penalty), 2);
+
         return new RecommendationResult
         {
             JobId = job.Id,
@@ -106,8 +129,10 @@ public class Service : IService
             BudgetScore = budgetScore,
             AvailabilityScore = availabilityScore,
             CompletionScore = completionScore,
+            DisputeRate = Math.Round(disputeRate, 4),
+            DisputePenalty = Math.Round(penalty, 4),
             TotalScore = totalScore,
-            Explanation = BuildExplanation(requiredSkills.Count, matchedSkillNames, expert, budgetScore)
+            Explanation = BuildExplanation(requiredSkills.Count, matchedSkillNames, expert, budgetScore, penalty)
         };
     }
 
@@ -173,7 +198,7 @@ public class Service : IService
         return Math.Round(Math.Max(0, 100 - (excess / budgetMax) * 100), 2);
     }
 
-    private static string BuildExplanation(int requiredSkillCount, List<string> matchedSkillNames, ExpertProfile expert, decimal budgetScore)
+    private static string BuildExplanation(int requiredSkillCount, List<string> matchedSkillNames, ExpertProfile expert, decimal budgetScore, decimal disputePenalty)
     {
         var explanation = matchedSkillNames.Count > 0
             ? $"Matches {matchedSkillNames.Count}/{requiredSkillCount} required skills ({string.Join(", ", matchedSkillNames)}). "
@@ -190,10 +215,15 @@ public class Service : IService
 
         if (expert.AvailabilityStatus == AvailabilityStatus.AVAILABLE)
         {
-            explanation += "Expert is available now.";
+            explanation += "Expert is available now. ";
         }
 
-        return explanation;
+        if (disputePenalty > 0)
+        {
+            explanation += $"Score reduced by {disputePenalty * 100:0.#}% due to high dispute rate on past projects. ";
+        }
+
+        return explanation.Trim();
     }
 
     private sealed record RequiredSkill(Guid SkillId, string SkillName);
