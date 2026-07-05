@@ -105,12 +105,12 @@ public class MessageServiceTests
         var conversationId = Guid.NewGuid();
 
         var conversation = new Conversation { Id = conversationId, ClientId = clientId, ExpertId = expertId, ProjectId = projectId };
-        var dispute = new Dispute 
-        { 
-            Id = Guid.NewGuid(), 
-            ProjectId = projectId, 
-            OpenedBy = clientId, 
-            AgainstUserId = expertId, 
+        var dispute = new Dispute
+        {
+            Id = Guid.NewGuid(),
+            ProjectId = projectId,
+            OpenedBy = clientId,
+            AgainstUserId = expertId,
             Status = DisputeStatus.OPEN,
             Reason = "Test"
         };
@@ -142,7 +142,7 @@ public class MessageServiceTests
         var conversationId = Guid.NewGuid();
 
         var conversation = new Conversation { Id = conversationId, ClientId = clientId, ExpertId = expertId, ProjectId = projectId };
-        
+
         dbContext.Conversations.Add(conversation);
         await dbContext.SaveChangesAsync();
 
@@ -164,12 +164,12 @@ public class MessageServiceTests
         var conversationId = Guid.NewGuid();
 
         var conversation = new Conversation { Id = conversationId, ClientId = clientId, ExpertId = expertId, ProjectId = projectId };
-        var dispute = new Dispute 
-        { 
-            Id = Guid.NewGuid(), 
-            ProjectId = projectId, 
-            OpenedBy = clientId, 
-            AgainstUserId = expertId, 
+        var dispute = new Dispute
+        {
+            Id = Guid.NewGuid(),
+            ProjectId = projectId,
+            OpenedBy = clientId,
+            AgainstUserId = expertId,
             Status = DisputeStatus.RESOLVED,
             Reason = "Test"
         };

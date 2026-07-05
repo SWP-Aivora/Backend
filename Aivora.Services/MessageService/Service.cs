@@ -118,21 +118,27 @@ public class Service : IService
 
     private async Task EnsureAdminCanViewConversationAsync(Guid conversationId)
     {
-        var conversation = await _dbContext.Conversations.FindAsync(conversationId);
-        if (conversation == null) throw new NotFoundException("Conversation not found.");
+        var conversationInfo = await _dbContext.Conversations
+            .Where(c => c.Id == conversationId)
+            .Select(c => new
+            {
+                c.Id,
+                c.ProjectId,
+                HasOpenDispute = _dbContext.Disputes.Any(d => d.ProjectId == c.ProjectId
+                    && (d.Status == Aivora.Repositories.Enums.DisputeStatus.OPEN || d.Status == Aivora.Repositories.Enums.DisputeStatus.UNDER_REVIEW)
+                    && ((d.OpenedBy == c.ClientId && d.AgainstUserId == c.ExpertId)
+                        || (d.OpenedBy == c.ExpertId && d.AgainstUserId == c.ClientId)))
+            })
+            .FirstOrDefaultAsync();
 
-        if (!conversation.ProjectId.HasValue)
+        if (conversationInfo == null) throw new NotFoundException("Conversation not found.");
+
+        if (!conversationInfo.ProjectId.HasValue)
         {
             throw new UnauthorizedException("Admin can only view conversations related to a project.");
         }
 
-        var hasOpenDispute = await _dbContext.Disputes
-            .AnyAsync(d => d.ProjectId == conversation.ProjectId.Value
-                && (d.Status == Aivora.Repositories.Enums.DisputeStatus.OPEN || d.Status == Aivora.Repositories.Enums.DisputeStatus.UNDER_REVIEW)
-                && ((d.OpenedBy == conversation.ClientId && d.AgainstUserId == conversation.ExpertId)
-                    || (d.OpenedBy == conversation.ExpertId && d.AgainstUserId == conversation.ClientId)));
-
-        if (!hasOpenDispute)
+        if (!conversationInfo.HasOpenDispute)
         {
             throw new UnauthorizedException("Admin can only view conversations with active disputes between the participants.");
         }
