@@ -170,4 +170,61 @@ public class WalletServiceTests
         walletInDb.Should().NotBeNull();
         walletInDb!.AvailableBalance.Should().Be(0); // Should not change since we only create payment URL
     }
+    [Fact]
+    public async Task WithdrawAsync_ClientCanWithdrawAvailableBalance_WithoutHeldBalance()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var userId = Guid.NewGuid();
+        var wallet = new Wallet { UserId = userId, AvailableBalance = 500000, HeldBalance = 0, Currency = "AICOIN" };
+        dbContext.Wallets.Add(wallet);
+        await dbContext.SaveChangesAsync();
+
+        var vnPayServiceMock = new Mock<IVNPayService>();
+        var notificationServiceMock = Mock.Of<Aivora.Services.NotificationService.IService>();
+        var service = new Service(dbContext, vnPayServiceMock.Object, notificationServiceMock);
+        
+        var request = new Request.WithdrawRequest { Amount = 100000, PaymentMethod = "BankTransfer", Description = "Test Withdraw" };
+
+        // Act
+        var result = await service.WithdrawAsync(userId, request);
+
+        // Assert
+        result.Wallet.AvailableBalance.Should().Be(400000);
+        result.Transaction.Amount.Should().Be(100000);
+        result.Transaction.Type.Should().Be(WalletTransactionType.WITHDRAWAL);
+        result.Transaction.Direction.Should().Be(TransactionDirection.DEBIT);
+        
+        var walletInDb = await dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
+        walletInDb!.AvailableBalance.Should().Be(400000);
+    }
+
+    [Fact]
+    public async Task WithdrawAsync_ClientCanWithdrawAvailableBalance_IgnoresHeldBalance()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var userId = Guid.NewGuid();
+        // Simulate a scenario where client somehow has HeldBalance (or just to prove Withdraw only cares about AvailableBalance)
+        var wallet = new Wallet { UserId = userId, AvailableBalance = 200000, HeldBalance = 999999, Currency = "AICOIN" };
+        dbContext.Wallets.Add(wallet);
+        await dbContext.SaveChangesAsync();
+
+        var vnPayServiceMock = new Mock<IVNPayService>();
+        var notificationServiceMock = Mock.Of<Aivora.Services.NotificationService.IService>();
+        var service = new Service(dbContext, vnPayServiceMock.Object, notificationServiceMock);
+        
+        var request = new Request.WithdrawRequest { Amount = 150000, PaymentMethod = "BankTransfer" };
+
+        // Act
+        var result = await service.WithdrawAsync(userId, request);
+
+        // Assert
+        result.Wallet.AvailableBalance.Should().Be(50000);
+        result.Wallet.HeldBalance.Should().Be(999999); // HeldBalance remains unchanged
+        
+        var walletInDb = await dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
+        walletInDb!.AvailableBalance.Should().Be(50000);
+        walletInDb.HeldBalance.Should().Be(999999);
+    }
 }
