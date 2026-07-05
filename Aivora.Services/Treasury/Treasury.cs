@@ -52,9 +52,12 @@ public class Treasury : ITreasury
 
             if (clientWallet.AvailableBalance < depositAmount) throw new ValidationException("Insufficient balance for deposit.");
 
+            var clientBalanceBefore = clientWallet.AvailableBalance;
+            var expertBalanceBefore = expertWallet.AvailableBalance;
+
             // 1. Move money directly
-            clientWallet.AvailableBalance -= depositAmount;
-            AddFundsToWallet(expertWallet, depositAmount);
+            clientWallet.Debit(depositAmount, bypassDebtLimit: false);
+            expertWallet.Credit(depositAmount);
             expertWallet.TotalEarned += depositAmount;
 
             // 2. Create Payment (RELEASED immediately)
@@ -80,7 +83,7 @@ public class Treasury : ITreasury
                 Type = WalletTransactionType.PAYMENT_RELEASE, // Or maybe a new type for deposit
                 Direction = TransactionDirection.DEBIT,
                 Description = $"Paid 30% deposit for milestone: {milestone.Title}",
-                BalanceBefore = clientWallet.AvailableBalance + depositAmount,
+                BalanceBefore = clientBalanceBefore,
                 BalanceAfter = clientWallet.AvailableBalance,
                 PaymentId = payment.Id
             });
@@ -93,7 +96,7 @@ public class Treasury : ITreasury
                 Type = WalletTransactionType.PAYMENT_RELEASE,
                 Direction = TransactionDirection.CREDIT,
                 Description = $"Received 30% deposit for milestone: {milestone.Title}",
-                BalanceBefore = expertWallet.AvailableBalance - depositAmount,
+                BalanceBefore = expertBalanceBefore,
                 BalanceAfter = expertWallet.AvailableBalance,
                 PaymentId = payment.Id
             });
@@ -159,9 +162,12 @@ public class Treasury : ITreasury
 
             if (clientWallet.AvailableBalance < remainingAmount) throw new ValidationException("Insufficient balance for remaining payment.");
 
+            var clientBalanceBefore = clientWallet.AvailableBalance;
+            var expertBalanceBefore = expertWallet.AvailableBalance;
+
             // 1. Move money directly
-            clientWallet.AvailableBalance -= remainingAmount;
-            AddFundsToWallet(expertWallet, remainingAmount);
+            clientWallet.Debit(remainingAmount, bypassDebtLimit: false);
+            expertWallet.Credit(remainingAmount);
             expertWallet.TotalEarned += remainingAmount;
 
             // 2. Create Payment (RELEASED immediately)
@@ -187,7 +193,7 @@ public class Treasury : ITreasury
                 Type = WalletTransactionType.PAYMENT_RELEASE,
                 Direction = TransactionDirection.DEBIT,
                 Description = $"Paid 70% remaining for milestone: {milestone.Title}",
-                BalanceBefore = clientWallet.AvailableBalance + remainingAmount,
+                BalanceBefore = clientBalanceBefore,
                 BalanceAfter = clientWallet.AvailableBalance,
                 PaymentId = payment.Id
             });
@@ -200,7 +206,7 @@ public class Treasury : ITreasury
                 Type = WalletTransactionType.PAYMENT_RELEASE,
                 Direction = TransactionDirection.CREDIT,
                 Description = $"Received 70% remaining for milestone: {milestone.Title}",
-                BalanceBefore = expertWallet.AvailableBalance - remainingAmount,
+                BalanceBefore = expertBalanceBefore,
                 BalanceAfter = expertWallet.AvailableBalance,
                 PaymentId = payment.Id
             });
@@ -270,8 +276,8 @@ public class Treasury : ITreasury
                 var payeeBalanceBefore = payeeWallet.AvailableBalance;
 
                 // 1. Move money back (Clawback from expert to client)
-                ClawbackFromWallet(payeeWallet, payment.Amount);
-                AddFundsToWallet(payerWallet, payment.Amount);
+                payeeWallet.Debit(payment.Amount, bypassDebtLimit: true);
+                payerWallet.Credit(payment.Amount);
                 payeeWallet.TotalEarned -= payment.Amount;
 
                 // 2. Update Payment
@@ -367,8 +373,8 @@ public class Treasury : ITreasury
                     var payerBalanceBefore = payerWallet.AvailableBalance;
                     var payeeBalanceBefore = payeeWallet.AvailableBalance;
 
-                    ClawbackFromWallet(payeeWallet, refundAllocation);
-                    AddFundsToWallet(payerWallet, refundAllocation);
+                    payeeWallet.Debit(refundAllocation, bypassDebtLimit: true);
+                    payerWallet.Credit(refundAllocation);
                     payeeWallet.TotalEarned -= refundAllocation;
 
                     _dbContext.WalletTransactions.Add(new WalletTransaction
@@ -491,34 +497,5 @@ public class Treasury : ITreasury
         return _dbContext.GetWalletForUpdateAsync(userId);
     }
 
-    private const decimal MaxDebtLimit = 1000m;
 
-    private void AddFundsToWallet(Wallet wallet, decimal amount)
-    {
-        if (wallet.Debt > 0)
-        {
-            var debtPayment = Math.Min(amount, wallet.Debt);
-            wallet.Debt -= debtPayment;
-            amount -= debtPayment;
-        }
-        wallet.AvailableBalance += amount;
-    }
-
-    private void ClawbackFromWallet(Wallet wallet, decimal amount)
-    {
-        if (wallet.AvailableBalance >= amount)
-        {
-            wallet.AvailableBalance -= amount;
-        }
-        else
-        {
-            var deficit = amount - wallet.AvailableBalance;
-            if (wallet.Debt + deficit > MaxDebtLimit)
-            {
-                throw new ValidationException($"Clawback failed. Operation would exceed the maximum debt limit of {MaxDebtLimit} {wallet.Currency}.");
-            }
-            wallet.AvailableBalance = 0;
-            wallet.Debt += deficit;
-        }
-    }
 }

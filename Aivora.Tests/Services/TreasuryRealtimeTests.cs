@@ -182,36 +182,31 @@ public class TreasuryRealtimeTests
     }
 
     [Fact]
-    public async Task ClawbackFromWallet_Should_Throw_ValidationException_When_DebtLimit_Exceeded()
+    public void Wallet_Debit_Should_Throw_InvalidOperationException_When_DebtLimit_Exceeded()
     {
-        var dbContext = GetDbContext();
-        var clientId = Guid.NewGuid();
-        var expertId = Guid.NewGuid();
+        // Arrange
+        var wallet = new Wallet { AvailableBalance = 0, Debt = 0, Currency = "AICOIN" };
 
-        var clientWallet = new Wallet { UserId = clientId, AvailableBalance = 1000, HeldBalance = 0, Currency = "AICOIN" };
-        var expertWallet = new Wallet { UserId = expertId, AvailableBalance = 0, HeldBalance = 0, Currency = "AICOIN" }; // Available balance is 0
-        var project = new Project { ClientId = clientId, ExpertId = expertId, Title = "Clawback Project" };
-        var milestone = new Milestone { Project = project, Amount = 1500, Status = MilestoneStatus.RELEASED, Title = "M1" }; // Amount 1500 exceeds MaxDebtLimit (1000)
+        // Act
+        var act = () => wallet.Debit(1500, bypassDebtLimit: false);
 
-        var payment = new Payment { Id = Guid.NewGuid(), MilestoneId = milestone.Id, ProjectId = project.Id, PayerId = clientId, PayeeId = expertId, Amount = 1500, Status = PaymentStatus.RELEASED, Currency = "AICOIN" };
-
-        dbContext.Wallets.AddRange(clientWallet, expertWallet);
-        dbContext.Projects.Add(project);
-        dbContext.Milestones.Add(milestone);
-        dbContext.Payments.Add(payment);
-        await dbContext.SaveChangesAsync();
-
-        var treasury = new Aivora.Services.Treasury.Treasury(
-            dbContext,
-            Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(),
-            Mock.Of<Aivora.Services.NotificationService.IService>(),
-            Mock.Of<Aivora.Services.RealtimeService.IService>()
-        );
-
-        Func<Task> act = async () => await treasury.RefundMilestoneAsync(Guid.NewGuid(), milestone.Id, "Disputed result");
-
-        await act.Should().ThrowAsync<Aivora.Services.Exceptions.ValidationException>()
+        // Assert
+        act.Should().Throw<InvalidOperationException>()
             .WithMessage("Clawback failed. Operation would exceed the maximum debt limit of 1000 AICOIN.");
+    }
+
+    [Fact]
+    public void Wallet_Debit_Should_Allow_Exceeding_DebtLimit_When_Bypassed()
+    {
+        // Arrange
+        var wallet = new Wallet { AvailableBalance = 0, Debt = 0, Currency = "AICOIN" };
+
+        // Act
+        wallet.Debit(1500, bypassDebtLimit: true);
+
+        // Assert
+        wallet.Debt.Should().Be(1500);
+        wallet.AvailableBalance.Should().Be(0);
     }
 }
 
