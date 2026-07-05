@@ -136,7 +136,6 @@ jobs:
     uses: ./.github/workflows/gemini-review-verify.yml
     with:
       model: ${{ vars.GEMINI_MODEL_STRONG || 'gemini-3.5-flash' }}
-      diff_b64: ${{ needs.prepare.outputs.diff_b64 }}
       repo: ${{ github.repository }}
       pr_number: ${{ github.event.pull_request.number }}
       pr_title: ${{ github.event.pull_request.title }}
