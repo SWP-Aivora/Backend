@@ -93,7 +93,7 @@ public class TreasuryRealtimeTests
         payment.Should().NotBeNull();
         payment.Amount.Should().Be(300);
         payment.Status.Should().Be(PaymentStatus.RELEASED);
-        
+
         milestone.Status.Should().Be(MilestoneStatus.IN_PROGRESS);
     }
 

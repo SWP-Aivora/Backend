@@ -39,7 +39,7 @@ public class Treasury : ITreasury
         {
             var clientWallet = await GetWalletAsync(clientId);
             var expertWallet = await GetWalletAsync(milestone.Project.ExpertId);
-            
+
             var depositAmount = milestone.Amount * 0.3m; // 30%
 
             if (clientWallet.AvailableBalance < depositAmount) throw new ValidationException("Insufficient balance for deposit.");
@@ -138,7 +138,7 @@ public class Treasury : ITreasury
         {
             var clientWallet = await GetWalletAsync(clientId);
             var expertWallet = await GetWalletAsync(milestone.Project.ExpertId);
-            
+
             var remainingAmount = milestone.Amount * 0.7m; // 70%
 
             if (clientWallet.AvailableBalance < remainingAmount) throw new ValidationException("Insufficient balance for remaining payment.");
@@ -233,7 +233,7 @@ public class Treasury : ITreasury
         {
             var payerWallet = await GetWalletAsync(payment.PayerId);
             var payeeWallet = await GetWalletAsync(payment.PayeeId);
-            
+
             if (payeeWallet.AvailableBalance < amount) throw new ValidationException("Expert has insufficient funds for refund.");
 
             // 1. Move money back (Clawback from expert to client)
@@ -257,7 +257,7 @@ public class Treasury : ITreasury
                 BalanceAfter = payerWallet.AvailableBalance,
                 PaymentId = payment.Id
             });
-            
+
             _dbContext.WalletTransactions.Add(new WalletTransaction
             {
                 WalletId = payeeWallet.Id,
@@ -333,7 +333,7 @@ public class Treasury : ITreasury
                     BalanceAfter = payerWallet.AvailableBalance,
                     PaymentId = payment.Id
                 });
-                
+
                 _dbContext.WalletTransactions.Add(new WalletTransaction
                 {
                     WalletId = payeeWallet.Id,

@@ -77,7 +77,7 @@ public class MilestoneServiceTests
         var expertWallet = new Wallet { UserId = expertId, AvailableBalance = 90, TotalEarned = 90, Currency = "AICOIN" };
         var project = new Project { Id = projectId, ClientId = clientId, ExpertId = expertId, Title = "Test Project", Status = ProjectStatus.ACTIVE, Currency = "AICOIN" };
         var milestone = new Milestone { Id = milestoneId, ProjectId = projectId, Amount = 300, Status = MilestoneStatus.SUBMITTED, Title = "Milestone 1", Currency = "AICOIN" };
-        
+
         // Mock the initial deposit payment so treasury can find it
         var depositPayment = new Payment { MilestoneId = milestoneId, ProjectId = projectId, PayerId = clientId, PayeeId = expertId, Amount = 90, Status = PaymentStatus.RELEASED, Currency = "AICOIN" };
 
