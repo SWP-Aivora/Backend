@@ -35,7 +35,7 @@ public class DisputeServiceTests
         var expertUser = new User { Id = expertId, FullName = "Expert", Role = UserRole.EXPERT, Email = "e@t.com", PasswordHash = "x" };
         var project = new Project { Id = projectId, ClientId = clientId, ExpertId = expertId, Title = "Dispute Project", Status = ProjectStatus.ACTIVE };
         var milestone = new Milestone { Id = milestoneId, ProjectId = projectId, Amount = 500, Status = MilestoneStatus.FUNDED, Title = "M1" };
-        var payment = new Payment { MilestoneId = milestoneId, ProjectId = projectId, PayerId = clientId, PayeeId = expertId, Amount = 500, Status = PaymentStatus.HELD };
+        var payment = new Payment { MilestoneId = milestoneId, ProjectId = projectId, PayerId = clientId, PayeeId = expertId, Amount = 500, Status = PaymentStatus.RELEASED };
 
         dbContext.Users.AddRange(clientUser, expertUser);
         dbContext.Projects.Add(project);
@@ -59,9 +59,9 @@ public class DisputeServiceTests
         var updatedProject = await dbContext.Projects.FindAsync(projectId);
         updatedProject!.Status.Should().Be(ProjectStatus.DISPUTED);
 
-        // Payment should NOT be frozen (no Treasury involvement)
+        // Payment remains RELEASED (no frozen logic)
         var updatedPayment = await dbContext.Payments.FindAsync(payment.Id);
-        updatedPayment!.Status.Should().Be(PaymentStatus.HELD);
+        updatedPayment!.Status.Should().Be(PaymentStatus.RELEASED);
     }
 
     [Fact]
@@ -79,7 +79,7 @@ public class DisputeServiceTests
 
         var project = new Project { Id = Guid.NewGuid(), ClientId = clientId, ExpertId = expertId, Title = "Resolve Project", Status = ProjectStatus.DISPUTED };
         var milestone = new Milestone { Id = Guid.NewGuid(), ProjectId = project.Id, Amount = 500, Status = MilestoneStatus.DISPUTED, Title = "M1" };
-        var payment = new Payment { Id = Guid.NewGuid(), MilestoneId = milestone.Id, ProjectId = project.Id, PayerId = clientId, PayeeId = expertId, Amount = 500, Status = PaymentStatus.HELD };
+        var payment = new Payment { Id = Guid.NewGuid(), MilestoneId = milestone.Id, ProjectId = project.Id, PayerId = clientId, PayeeId = expertId, Amount = 500, Status = PaymentStatus.RELEASED };
 
         var dispute = new Dispute { Id = Guid.NewGuid(), ProjectId = project.Id, MilestoneId = milestone.Id, PaymentId = payment.Id, OpenedBy = clientId, AgainstUserId = expertId, Status = DisputeStatus.OPEN, Reason = "X" };
 
@@ -100,7 +100,7 @@ public class DisputeServiceTests
         // Act
         await service.ResolveDisputeAsync(adminId, dispute.Id, resolveRequest);
 
-        // Assert - dispute status and note updated
+
         var updatedDispute = await dbContext.Disputes.FindAsync(dispute.Id);
         updatedDispute!.Status.Should().Be(DisputeStatus.RESOLVED);
         updatedDispute!.ResolutionNote.Should().Be("Resolved via external mediation");

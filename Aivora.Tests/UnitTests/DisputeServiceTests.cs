@@ -151,7 +151,7 @@ namespace Aivora.Tests.UnitTests
                 ProjectId = project.Id,
                 Title = "Test Milestone",
                 Amount = 1000,
-                Status = MilestoneStatus.FUNDED
+                Status = MilestoneStatus.IN_PROGRESS
             };
             _dbContext.Milestones.Add(milestone);
 
@@ -163,7 +163,7 @@ namespace Aivora.Tests.UnitTests
                 PayerId = client.Id,
                 PayeeId = expert.Id,
                 Amount = 1000,
-                Status = PaymentStatus.HELD
+                Status = PaymentStatus.RELEASED
             };
             _dbContext.Payments.Add(payment);
             await _dbContext.SaveChangesAsync();
@@ -188,7 +188,7 @@ namespace Aivora.Tests.UnitTests
 
             // Assert - payment should NOT be frozen (no Treasury.FreezeFunds call)
             var updatedPayment = await _dbContext.Payments.FindAsync(payment.Id);
-            Assert.Equal(PaymentStatus.HELD, updatedPayment!.Status);
+            Assert.Equal(PaymentStatus.RELEASED, updatedPayment!.Status);
         }
 
         [Fact]
@@ -237,6 +237,27 @@ namespace Aivora.Tests.UnitTests
             var dbProject = await _dbContext.Projects.FindAsync(dispute.ProjectId);
             Assert.NotNull(dbProject);
             Assert.Equal(ProjectStatus.ACTIVE, dbProject!.Status);
+        }
+
+        [Fact]
+        public async Task CloseDispute_ShouldNotAffectPaymentStatus()
+        {
+            // Arrange
+            var client = await SeedUserAsync(UserRole.CLIENT, "client@test.com");
+            var expert = await SeedUserAsync(UserRole.EXPERT, "expert@test.com");
+            var dispute = await SeedDisputeAsync(client.Id, expert.Id, DisputeStatus.OPEN);
+
+            // Simulate payment was RELEASED (deposit)
+            var payment = await _dbContext.Payments.FindAsync(dispute.PaymentId);
+            payment!.Status = PaymentStatus.RELEASED;
+            await _dbContext.SaveChangesAsync();
+
+            // Act
+            await _disputeService.CloseDisputeAsync(client.Id, dispute.Id);
+
+            // Assert
+            var updatedPayment = await _dbContext.Payments.FindAsync(dispute.PaymentId);
+            Assert.Equal(PaymentStatus.RELEASED, updatedPayment!.Status);
         }
 
         [Fact]
@@ -416,7 +437,7 @@ namespace Aivora.Tests.UnitTests
                 PayerId = openedBy,
                 PayeeId = againstUserId,
                 Amount = 1000,
-                Status = PaymentStatus.HELD
+                Status = PaymentStatus.RELEASED
             };
             _dbContext.Payments.Add(payment);
 
@@ -440,6 +461,7 @@ namespace Aivora.Tests.UnitTests
         {
             _dbContext.Dispose();
         }
+
 
         private class MockNotificationService : Aivora.Services.NotificationService.IService
         {

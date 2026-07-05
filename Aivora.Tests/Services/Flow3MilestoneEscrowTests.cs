@@ -135,31 +135,33 @@ public class Flow3MilestoneEscrowTests
         // Assert: Verify observable behavior changes
         // ----------------------------------------------------
         // 1. Milestone status changed
-        fundResult.Milestone.Status.Should().Be(MilestoneStatus.FUNDED);
-        fundResult.Milestone.FundedAt.Should().NotBeNull();
+        fundResult.Milestone.Status.Should().Be(MilestoneStatus.IN_PROGRESS);
+        fundResult.Milestone.DepositPaidAt.Should().NotBeNull();
 
-        // 2. Client wallet balance changed (Available decreased, Held increased)
-        fundResult.Wallet.AvailableBalance.Should().Be(1100); // 2000 - 900
-        fundResult.Wallet.HeldBalance.Should().Be(900);     // 0 + 900
+        // 2. Client wallet balance changed (Available decreased by 30% deposit, Held unchanged)
+        // 30% of 900 = 270
+        fundResult.Wallet.AvailableBalance.Should().Be(1730); // 2000 - 270
+        fundResult.Wallet.HeldBalance.Should().Be(0);     // 0 + 0
 
         // 3. Project status changed
         var updatedProject = await dbContext.Projects.FindAsync(projectId);
         updatedProject!.Status.Should().Be(ProjectStatus.ACTIVE);
         updatedProject.StartDate.Should().NotBeNull();
 
-        // 4. Payment was created with HELD status
+        // 4. Payment was created with RELEASED status for 30% deposit
         var payment = await dbContext.Payments
             .FirstOrDefaultAsync(p => p.MilestoneId == milestoneId);
         payment.Should().NotBeNull();
-        payment!.Status.Should().Be(PaymentStatus.HELD);
-        payment.HeldAt.Should().NotBeNull();
-        payment.Amount.Should().Be(900);
+        payment!.Status.Should().Be(PaymentStatus.RELEASED);
+        payment.HeldAt.Should().BeNull();
+        payment.ReleasedAt.Should().NotBeNull();
+        payment.Amount.Should().Be(270);
 
         // 5. Transaction log was created (check for audit trail)
         var transaction = await dbContext.WalletTransactions
-            .FirstOrDefaultAsync(t => t.UserId == clientId && t.Type == WalletTransactionType.ESCROW_HOLD);
+            .FirstOrDefaultAsync(t => t.UserId == clientId && t.Type == WalletTransactionType.PAYMENT_RELEASE);
         transaction.Should().NotBeNull();
-        transaction!.Amount.Should().Be(900);
+        transaction!.Amount.Should().Be(270);
         transaction.Direction.Should().Be(TransactionDirection.DEBIT);
 
         // Note: InMemory database doesn't always persist changes across DbContext instances
@@ -213,7 +215,7 @@ public class Flow3MilestoneEscrowTests
         var clientWallet = new Wallet
         {
             UserId = clientId,
-            AvailableBalance = 500,
+            AvailableBalance = 200, // Less than 270 (30% of 900)
             HeldBalance = 0,
             Currency = "AICOIN"
         };
@@ -265,7 +267,7 @@ public class Flow3MilestoneEscrowTests
         Func<Task> act = async () => await milestoneService.FundMilestoneAsync(clientId, milestoneId);
 
         await act.Should().ThrowAsync<ValidationException>()
-            .WithMessage("Insufficient balance.");
+            .WithMessage("Insufficient balance for deposit.");
 
         // Note: Exception thrown means transaction was rolled back
         // No state changes occurred due to atomic transaction

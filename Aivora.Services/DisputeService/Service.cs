@@ -31,9 +31,8 @@ public class Service : IService
         if (milestone.Project.ClientId != userId && milestone.Project.ExpertId != userId)
             throw new UnauthorizedException("You are not authorized to open a dispute for this project.");
 
-        // Find the payment associated with this milestone (for reference tracking)
-        var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestone.Id);
-        if (payment == null) throw new ValidationException("No payment found for this milestone.");
+        var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestone.Id && (p.Status == PaymentStatus.RELEASED || p.Status == PaymentStatus.HELD));
+        if (payment == null) throw new ValidationException("Only funded milestones with released payments can be disputed.");
 
         // Block re-opening dispute after CLOSED
         var hasClosedDispute = await _dbContext.Disputes
@@ -61,6 +60,7 @@ public class Service : IService
             // Gate: lock milestone and project
             milestone.Status = MilestoneStatus.DISPUTED;
             milestone.Project.Status = ProjectStatus.DISPUTED;
+
 
             _dbContext.Disputes.Add(dispute);
             await _dbContext.SaveChangesAsync();
@@ -296,7 +296,6 @@ public class Service : IService
 
         var project = dispute.Project;
         var milestone = dispute.Milestone;
-
         dispute.Status = DisputeStatus.CLOSED;
         dispute.ResolvedAt = DateTimeOffset.UtcNow;
 

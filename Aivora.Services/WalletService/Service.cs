@@ -4,6 +4,7 @@ using Aivora.Repositories.Enums;
 using Aivora.Services.Exceptions;
 using Aivora.Services.NotificationService;
 using Microsoft.EntityFrameworkCore;
+using Aivora.Services.Extensions;
 
 namespace Aivora.Services.WalletService;
 
@@ -36,7 +37,7 @@ public class Service : IService
         try
         {
             decimal balanceBefore = wallet.AvailableBalance;
-            wallet.AvailableBalance += request.Amount;
+            wallet.Credit(request.Amount);
 
             var walletTx = new WalletTransaction
             {
@@ -116,7 +117,7 @@ public class Service : IService
         try
         {
             decimal balanceBefore = wallet.AvailableBalance;
-            wallet.AvailableBalance += request.Amount;
+            wallet.Credit(request.Amount);
 
             var walletTx = new WalletTransaction
             {
@@ -186,14 +187,24 @@ public class Service : IService
 
         var wallet = await GetOrCreateWalletAsync(userId);
 
+        if (wallet.Debt > 0)
+            throw new ValidationException("Cannot withdraw while you have an outstanding debt.");
+
         if (wallet.AvailableBalance < request.Amount)
             throw new ValidationException("Insufficient balance for withdrawal.");
 
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
-            // Get fresh wallet within transaction
-            var currentWallet = await _dbContext.Wallets.FindAsync(wallet.Id);
+            // Get fresh wallet within transaction with pessimistic lock
+            Wallet currentWallet = await _dbContext.GetWalletForUpdateAsync(userId);
+
+            if (currentWallet.Debt > 0)
+                throw new ValidationException("Cannot withdraw while you have an outstanding debt.");
+
+            if (currentWallet.AvailableBalance < request.Amount)
+                throw new ValidationException("Insufficient balance for withdrawal.");
+
             decimal balanceBefore = currentWallet.AvailableBalance;
             currentWallet.AvailableBalance -= request.Amount;
 
@@ -266,11 +277,15 @@ public class Service : IService
 
             // Deduct from client
             decimal clientBalanceBefore = currentWallet.AvailableBalance;
-            currentWallet.AvailableBalance -= request.Amount;
+            if (!currentWallet.CanDebit(request.Amount, out var debitError))
+            {
+                throw new ValidationException(debitError!);
+            }
+            currentWallet.Debit(request.Amount);
 
             // Add to expert (held until project completion)
             decimal expertBalanceBefore = currentExpertWallet.AvailableBalance;
-            currentExpertWallet.AvailableBalance += request.Amount;
+            currentExpertWallet.Credit(request.Amount);
 
             // Create transactions
             var clientTx = new WalletTransaction
@@ -283,7 +298,7 @@ public class Service : IService
                 Description = request.Description ?? $"Transfer to expert",
                 PaymentId = null,
                 BalanceBefore = clientBalanceBefore,
-                BalanceAfter = wallet.AvailableBalance
+                BalanceAfter = currentWallet.AvailableBalance
             };
 
             var expertTx = new WalletTransaction
@@ -293,10 +308,10 @@ public class Service : IService
                 Amount = request.Amount,
                 Type = WalletTransactionType.TRANSFER,
                 Direction = TransactionDirection.CREDIT,
-                Description = request.Description ?? $"Transfer from client",
-                PaymentId = clientTx.PaymentId,
+                Description = request.Description ?? $"Received from client",
+                PaymentId = null,
                 BalanceBefore = expertBalanceBefore,
-                BalanceAfter = expertWallet.AvailableBalance
+                BalanceAfter = currentExpertWallet.AvailableBalance
             };
 
             _dbContext.WalletTransactions.AddRange(clientTx, expertTx);
@@ -345,7 +360,7 @@ public class Service : IService
 
             // Move from held to available balance for expert
             decimal balanceBefore = expertWallet.AvailableBalance;
-            expertWallet.AvailableBalance += milestone.Amount;
+            expertWallet.Credit(milestone.Amount);
 
             var walletTx = new WalletTransaction
             {

@@ -101,7 +101,7 @@ namespace Aivora.Tests.IntegrationTests
                 PayerId = client.Id,
                 PayeeId = expert.Id,
                 Amount = 1000,
-                Status = PaymentStatus.HELD,
+                Status = PaymentStatus.RELEASED,
                 CreatedAt = DateTimeOffset.UtcNow
             };
             dbContext.Payments.Add(payment);

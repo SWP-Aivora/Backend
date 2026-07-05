@@ -7,35 +7,24 @@ namespace Aivora.Services.Treasury;
 public interface ITreasury
 {
     /// <summary>
-    /// Thực hiện nộp tiền ký quỹ (Escrow) cho một Milestone.
-    /// Bao gồm: Kiểm tra ví, trừ tiền ví khả dụng, tăng tiền treo (held), tạo giao dịch, cập nhật Milestone và Project.
+    /// Thực hiện chuyển 30% tiền cọc trực tiếp từ Client sang Expert.
     /// </summary>
-    Task FundMilestoneAsync(Guid clientId, Guid milestoneId);
+    Task PayDepositAsync(Guid clientId, Guid milestoneId);
 
     /// <summary>
-    /// Giải ngân tiền từ Escrow cho Expert sau khi Milestone hoàn thành.
+    /// Thực hiện chuyển 70% tiền còn lại trực tiếp từ Client sang Expert.
     /// </summary>
-    Task ReleaseMilestoneAsync(Guid clientId, Guid milestoneId);
+    Task PayRemainingAsync(Guid clientId, Guid milestoneId);
 
     /// <summary>
-    /// Hoàn tiền từ Escrow lại cho Client.
+    /// Hoàn tiền lại cho Client.
     /// </summary>
-    Task RefundMilestoneAsync(Guid adminId, Guid milestoneId, decimal amount, string reason);
+    Task RefundMilestoneAsync(Guid adminId, Guid milestoneId, string reason);
 
     /// <summary>
-    /// Phân chia tiền ký quỹ khi có tranh chấp (Dispute).
+    /// Phân chia tiền khi có tranh chấp (Dispute).
     /// </summary>
     Task SplitMilestoneFundsAsync(Guid milestoneId, decimal releaseToExpertAmount, decimal refundToClientAmount, string reason);
-
-    /// <summary>
-    /// Đóng băng tiền ký quỹ (ví dụ: khi có tranh chấp).
-    /// </summary>
-    Task FreezeFundsAsync(Guid milestoneId, string reason);
-
-    /// <summary>
-    /// Giải phóng trạng thái đóng băng cho tiền ký quỹ.
-    /// </summary>
-    Task UnfreezeFundsAsync(Guid milestoneId, string reason);
 
     /// <summary>
     /// Đồng bộ trạng thái Project dựa trên trạng thái các Milestone.
