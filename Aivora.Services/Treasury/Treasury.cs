@@ -41,8 +41,9 @@ public class Treasury : ITreasury
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
-            var clientWallet = await GetWalletForUpdateAsync(clientId);
-            var expertWallet = await GetWalletForUpdateAsync(milestone.Project.ExpertId);
+            var wallets = await GetWalletsForUpdateAsync(clientId, milestone.Project.ExpertId);
+            var clientWallet = wallets.First(w => w.UserId == clientId);
+            var expertWallet = wallets.First(w => w.UserId == milestone.Project.ExpertId);
 
             var depositAmount = milestone.Amount * 0.3m; // 30%
 
@@ -137,9 +138,10 @@ public class Treasury : ITreasury
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
-            var clientWallet = await GetWalletForUpdateAsync(clientId);
-            var expertWallet = await GetWalletForUpdateAsync(milestone.Project.ExpertId);
-            var platformWallet = await GetWalletForUpdateAsync(SystemConstants.SystemUserId);
+            var wallets = await GetWalletsForUpdateAsync(clientId, milestone.Project.ExpertId, SystemConstants.SystemUserId);
+            var clientWallet = wallets.First(w => w.UserId == clientId);
+            var expertWallet = wallets.First(w => w.UserId == milestone.Project.ExpertId);
+            var platformWallet = wallets.First(w => w.UserId == SystemConstants.SystemUserId);
 
             var remainingAmount = milestone.Amount * 0.7m; // 70%
             var commissionAmount = _commissionCalculator.CalculateCommission(milestone.Amount);
@@ -251,16 +253,22 @@ public class Treasury : ITreasury
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
-            var payerWallet = await GetWalletForUpdateAsync(payments.First().PayerId);
-            var payeeWallet = await GetWalletForUpdateAsync(payments.First().PayeeId);
+            var payerId = payments.First().PayerId;
+            var payeeId = payments.First().PayeeId;
+            var wallets = await GetWalletsForUpdateAsync(payerId, payeeId);
+            var payerWallet = wallets.First(w => w.UserId == payerId);
+            var payeeWallet = wallets.First(w => w.UserId == payeeId);
 
             var amount = payments.Sum(p => p.Amount);
+            var commissionAmount = _commissionCalculator.CalculateCommission(milestone.Amount);
+            // Expert only received amount - commissionAmount (the rest went to platform wallet).
+            var expertActualEarned = amount - commissionAmount;
             // We do NOT check for insufficient funds because dispute clawbacks may cause a negative balance.
 
             // 1. Move money back (Clawback from expert to client)
             ClawbackFromWallet(payeeWallet, amount);
             AddFundsToWallet(payerWallet, amount);
-            payeeWallet.TotalEarned -= amount;
+            payeeWallet.TotalEarned = Math.Max(0, payeeWallet.TotalEarned - expertActualEarned);
 
             // 2. Update Payment
             foreach (var payment in payments)
@@ -326,8 +334,11 @@ public class Treasury : ITreasury
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
-            var payerWallet = await GetWalletForUpdateAsync(payments.First().PayerId);
-            var payeeWallet = await GetWalletForUpdateAsync(payments.First().PayeeId);
+            var payerId = payments.First().PayerId;
+            var payeeId = payments.First().PayeeId;
+            var wallets = await GetWalletsForUpdateAsync(payerId, payeeId);
+            var payerWallet = wallets.First(w => w.UserId == payerId);
+            var payeeWallet = wallets.First(w => w.UserId == payeeId);
 
             // In 30/70 direct deposit, the expert already holds the full payment amount.
             // We claw back the refundToClientAmount from the expert.
@@ -335,9 +346,14 @@ public class Treasury : ITreasury
             // 1. Move money
             ClawbackFromWallet(payeeWallet, refundToClientAmount);
             AddFundsToWallet(payerWallet, refundToClientAmount);
-            // Note: TotalEarned doesn't need adjustment if it was already credited when deposit was paid, 
-            // except we should reduce it if we claw back. Let's adjust it by the clawed back amount.
-            payeeWallet.TotalEarned -= refundToClientAmount;
+
+            // Adjust TotalEarned: expert originally earned (milestone.Amount - commission).
+            // After split, they keep releaseToExpertAmount. Compute the delta correctly.
+            var commissionAmount = _commissionCalculator.CalculateCommission(milestone.Amount);
+            var expertEarnedBefore = totalAmount - commissionAmount;
+            var delta = releaseToExpertAmount - expertEarnedBefore;
+            payeeWallet.TotalEarned += delta;
+            payeeWallet.TotalEarned = Math.Max(0, payeeWallet.TotalEarned);
 
             // 2. Update Payment
             foreach (var payment in payments)
@@ -454,12 +470,31 @@ public class Treasury : ITreasury
         return wallet ?? throw new NotFoundException($"Wallet for user {userId} not found.");
     }
 
+    /// <summary>
+    /// Locks multiple wallets in a consistent order (by UserId ascending) to prevent deadlocks
+    /// when concurrent transactions lock the same wallets in different order.
+    /// </summary>
+    private async Task<Wallet[]> GetWalletsForUpdateAsync(params Guid[] userIds)
+    {
+        var distinct = userIds.Distinct().OrderBy(id => id).ToArray();
+        var wallets = new List<Wallet>(distinct.Length);
+        foreach (var userId in distinct)
+        {
+            wallets.Add(await GetWalletForUpdateAsync(userId));
+        }
+        return wallets.ToArray();
+    }
+
     private async Task<Wallet> GetWalletForUpdateAsync(Guid userId)
     {
         Wallet? wallet = null;
-        if (_dbContext.Database.ProviderName != "Microsoft.EntityFrameworkCore.InMemory")
+        var isPostgres = (_dbContext.Database.ProviderName?.Contains("Npgsql") ?? false)
+                       || (_dbContext.Database.ProviderName?.Contains("PostgreSQL") ?? false);
+        if (isPostgres)
         {
-            wallet = await _dbContext.Wallets.FromSqlRaw("SELECT * FROM \"Wallets\" WHERE \"UserId\" = {0} FOR UPDATE", userId).FirstOrDefaultAsync();
+            wallet = await _dbContext.Wallets
+                .FromSqlRaw("SELECT * FROM \"Wallets\" WHERE \"UserId\" = {0} FOR UPDATE", userId)
+                .FirstOrDefaultAsync();
         }
         else
         {
@@ -488,6 +523,13 @@ public class Treasury : ITreasury
         else
         {
             var deficit = amount - wallet.AvailableBalance;
+            var maxDebt = _commissionCalculator.MaxDebtLimit;
+            if (maxDebt > 0 && wallet.Debt + deficit > maxDebt)
+            {
+                throw new ValidationException(
+                    $"Cannot claw back {amount}: expert's debt would exceed the limit of {maxDebt}. " +
+                    $"Current debt: {wallet.Debt}, available: {wallet.AvailableBalance}.");
+            }
             wallet.AvailableBalance = 0;
             wallet.Debt += deficit;
         }
