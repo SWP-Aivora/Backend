@@ -6,6 +6,7 @@ using Aivora.Services.NotificationService;
 using Microsoft.EntityFrameworkCore;
 using Aivora.Services.Extensions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Aivora.Services.Treasury;
 
@@ -19,13 +20,71 @@ public class Treasury : ITreasury
     private readonly ILogger<Treasury> _logger;
     private readonly NotificationService.IService _notificationService;
     private readonly RealtimeService.IService _realtimeService;
+    private readonly IServiceScopeFactory? _scopeFactory;
 
-    public Treasury(AivoraDbContext dbContext, ILogger<Treasury> logger, NotificationService.IService notificationService, RealtimeService.IService realtimeService)
+    public Treasury(
+        AivoraDbContext dbContext,
+        ILogger<Treasury> logger,
+        NotificationService.IService notificationService,
+        RealtimeService.IService realtimeService,
+        IServiceScopeFactory? scopeFactory = null)
     {
         _dbContext = dbContext;
         _logger = logger;
         _notificationService = notificationService;
         _realtimeService = realtimeService;
+        _scopeFactory = scopeFactory;
+    }
+
+    private void SendNotificationInBackground(Guid userId, string title, string message, string type, string linkUrl)
+    {
+        if (_scopeFactory == null)
+        {
+            // Fallback for tests/environments where scopeFactory is not configured
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _notificationService.SendNotificationAsync(userId, title, message, type, linkUrl);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to send notification synchronously (fallback) to user {UserId}.", userId);
+                }
+            });
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            const int maxRetries = 3;
+            int delayMs = 1000;
+            for (int i = 0; i < maxRetries; i++)
+            {
+                try
+                {
+                    using (var scope = _scopeFactory.CreateScope())
+                    {
+                        var notificationService = scope.ServiceProvider.GetRequiredService<NotificationService.IService>();
+                        await notificationService.SendNotificationAsync(userId, title, message, type, linkUrl);
+                    }
+                    return; // Success, exit
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Attempt {Attempt} failed to send notification in background to user {UserId}. Title: {Title}", i + 1, userId, title);
+                    if (i < maxRetries - 1)
+                    {
+                        await Task.Delay(delayMs);
+                        delayMs *= 2; // exponential backoff
+                    }
+                    else
+                    {
+                        _logger.LogError(ex, "All attempts failed to send notification to user {UserId}. Title: {Title}", userId, title);
+                    }
+                }
+            }
+        });
     }
     public async Task PayDepositAsync(Guid clientId, Guid milestoneId)
     {
@@ -117,20 +176,13 @@ public class Treasury : ITreasury
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
-            try
-            {
-                await _notificationService.SendNotificationAsync(
-                    milestone.Project.ExpertId,
-                    "Milestone deposit paid",
-                    $"The client has paid the 30% deposit for milestone \"{milestone.Title}\". You can start working on it.",
-                    "MILESTONE",
-                    $"/projects/{milestone.ProjectId}/milestones/{milestoneId}"
-                );
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to send notification for milestone {MilestoneId}", milestoneId);
-            }
+            SendNotificationInBackground(
+                milestone.Project.ExpertId,
+                "Milestone deposit paid",
+                $"The client has paid the 30% deposit for milestone \"{milestone.Title}\". You can start working on it.",
+                "MILESTONE",
+                $"/projects/{milestone.ProjectId}/milestones/{milestoneId}"
+            );
             _logger.LogInformation("✅ Milestone {MilestoneId} 30% deposit paid by Client {ClientId}", milestoneId, clientId);
         }
         catch (Exception ex)
@@ -230,20 +282,13 @@ public class Treasury : ITreasury
 
             await transaction.CommitAsync();
 
-            try
-            {
-                await _notificationService.SendNotificationAsync(
-                    milestone.Project.ExpertId,
-                    "Milestone approved and paid",
-                    $"The client has approved milestone \"{milestone.Title}\" and the remaining 70% has been released to your wallet.",
-                    "MILESTONE",
-                    $"/projects/{milestone.ProjectId}/milestones/{milestoneId}"
-                );
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to send notification for milestone {MilestoneId}", milestoneId);
-            }
+            SendNotificationInBackground(
+                milestone.Project.ExpertId,
+                "Milestone approved and paid",
+                $"The client has approved milestone \"{milestone.Title}\" and the remaining 70% has been released to your wallet.",
+                "MILESTONE",
+                $"/projects/{milestone.ProjectId}/milestones/{milestoneId}"
+            );
             _logger.LogInformation("✅ Remaining 70% funds released for Milestone {MilestoneId}", milestoneId);
         }
         catch (Exception ex)
