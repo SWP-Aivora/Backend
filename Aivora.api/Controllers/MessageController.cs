@@ -29,6 +29,7 @@ public class MessageController : ControllerBase
     }
 
     [HttpGet("{id}/messages")]
+    [Authorize(Policy = JwtExtensions.AdminOrParticipantPolicy)]
     public async Task<IActionResult> GetMessages(Guid id, [FromQuery] Aivora.Services.Base.Request.PageRequest pageRequest)
     {
         var userId = this.GetUserId();
