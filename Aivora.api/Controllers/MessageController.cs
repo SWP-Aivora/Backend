@@ -29,10 +29,12 @@ public class MessageController : ControllerBase
     }
 
     [HttpGet("{id}/messages")]
+    [Authorize(Policy = JwtExtensions.AdminOrParticipantPolicy)]
     public async Task<IActionResult> GetMessages(Guid id, [FromQuery] Aivora.Services.Base.Request.PageRequest pageRequest)
     {
         var userId = this.GetUserId();
-        var result = await _messageService.GetConversationMessagesAsync(userId, id, pageRequest);
+        var isAdmin = this.GetUserRole() == Aivora.Repositories.Enums.UserRole.ADMIN;
+        var result = await _messageService.GetConversationMessagesAsync(userId, id, pageRequest, isAdmin);
         return Ok(ApiResponseFactory.SuccessResponse(result, "Messages retrieved", HttpContext.TraceIdentifier));
     }
 

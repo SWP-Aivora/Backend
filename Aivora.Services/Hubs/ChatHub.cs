@@ -75,6 +75,11 @@ public class ChatHub : Hub
 
     public async Task SendMessage(Aivora.Services.MessageService.Request.SendMessageRequest request)
     {
+        if (Context.User?.GetUserRole() == Aivora.Repositories.Enums.UserRole.ADMIN)
+        {
+            throw new HubException("Admin is not allowed to send messages.");
+        }
+
         var senderId = GetCurrentUserId();
         var message = await _messageService.SendMessageAsync(senderId, request);
 
