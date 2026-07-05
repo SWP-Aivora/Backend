@@ -31,7 +31,7 @@ public class Service : IService
         if (milestone.Project.ClientId != userId && milestone.Project.ExpertId != userId)
             throw new UnauthorizedException("You are not authorized to open a dispute for this project.");
 
-        var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestone.Id && p.Status == PaymentStatus.RELEASED);
+        var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestone.Id && (p.Status == PaymentStatus.RELEASED || p.Status == PaymentStatus.HELD));
         if (payment == null) throw new ValidationException("Only funded milestones with released payments can be disputed.");
 
         // Block re-opening dispute after CLOSED
@@ -245,7 +245,7 @@ public class Service : IService
                 break;
 
             case DisputeResolutionType.REFUND_TO_CLIENT:
-                await _treasury.RefundMilestoneAsync(adminId, milestone.Id, dispute.Payment.Amount, $"Dispute resolved: Refund to client. Ref: {dispute.Id}");
+                await _treasury.RefundMilestoneAsync(adminId, milestone.Id, $"Dispute resolved: Refund to client. Ref: {dispute.Id}");
                 break;
 
             case DisputeResolutionType.SPLIT_PAYMENT:

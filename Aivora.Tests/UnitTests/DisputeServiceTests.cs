@@ -610,7 +610,7 @@ namespace Aivora.Tests.UnitTests
             public Task PayDepositAsync(Guid clientId, Guid milestoneId) => Task.CompletedTask;
             public Task PayRemainingAsync(Guid clientId, Guid milestoneId) => Task.CompletedTask;
 
-            public async Task RefundMilestoneAsync(Guid adminId, Guid milestoneId, decimal amount, string reason)
+            public async Task RefundMilestoneAsync(Guid adminId, Guid milestoneId, string reason)
             {
                 // Mock implementation - simulates refund without nested transaction
                 var milestone = await _dbContext.Milestones.FindAsync(milestoneId);

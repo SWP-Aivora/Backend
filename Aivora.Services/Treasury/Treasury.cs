@@ -221,24 +221,26 @@ public class Treasury : ITreasury
         }
     }
 
-    public async Task RefundMilestoneAsync(Guid adminId, Guid milestoneId, decimal amount, string reason)
+    public async Task RefundMilestoneAsync(Guid adminId, Guid milestoneId, string reason)
     {
         var milestone = await GetMilestoneWithProjectAsync(milestoneId);
         var payments = await _dbContext.Payments.Where(p => p.MilestoneId == milestoneId && p.Status == PaymentStatus.RELEASED).ToListAsync();
 
         if (!payments.Any()) throw new NotFoundException("Payment not found for refund.");
 
-        using var transaction = await _dbContext.Database.BeginTransactionAsync();
+        using var transaction = await _dbContext.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
         try
         {
             var payerWallet = await GetWalletAsync(payments.First().PayerId);
             var payeeWallet = await GetWalletAsync(payments.First().PayeeId);
 
-            if (payeeWallet.AvailableBalance < amount) throw new ValidationException("Expert has insufficient funds for refund.");
+            var amount = payments.Sum(p => p.Amount);
+            // We do NOT check for insufficient funds because dispute clawbacks may cause a negative balance.
 
             // 1. Move money back (Clawback from expert to client)
             payeeWallet.AvailableBalance -= amount;
             payerWallet.AvailableBalance += amount;
+            payeeWallet.TotalEarned -= amount;
 
             // 2. Update Payment
             foreach (var payment in payments)
@@ -301,17 +303,16 @@ public class Treasury : ITreasury
         
         var totalAmount = payments.Sum(p => p.Amount);
         if (releaseToExpertAmount + refundToClientAmount != totalAmount)
-            throw new ValidationException("Total split amounts must equal payment amount.");
+            throw new ValidationException($"Total split amounts ({releaseToExpertAmount + refundToClientAmount}) must equal actually paid amount ({totalAmount}).");
 
-        using var transaction = await _dbContext.Database.BeginTransactionAsync();
+        using var transaction = await _dbContext.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
         try
         {
             var payerWallet = await GetWalletAsync(payments.First().PayerId);
             var payeeWallet = await GetWalletAsync(payments.First().PayeeId);
 
             // In 30/70 direct deposit, the expert already holds the full payment amount.
-            // We just need to claw back the refundToClientAmount from the expert.
-            if (payeeWallet.AvailableBalance < refundToClientAmount) throw new ValidationException("Expert has insufficient funds for refund split.");
+            // We claw back the refundToClientAmount from the expert. No balance check so they can go negative.
 
             // 1. Move money
             payeeWallet.AvailableBalance -= refundToClientAmount;

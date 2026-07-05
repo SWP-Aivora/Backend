@@ -19,7 +19,7 @@ public interface ITreasury
     /// <summary>
     /// Hoàn tiền lại cho Client.
     /// </summary>
-    Task RefundMilestoneAsync(Guid adminId, Guid milestoneId, decimal amount, string reason);
+    Task RefundMilestoneAsync(Guid adminId, Guid milestoneId, string reason);
 
     /// <summary>
     /// Phân chia tiền khi có tranh chấp (Dispute).
