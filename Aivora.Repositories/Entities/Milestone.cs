@@ -15,6 +15,7 @@ public class Milestone : AuditableBaseEntity
     public int OrderIndex { get; set; }
     public MilestoneStatus Status { get; set; } = MilestoneStatus.CREATED;
     public DateTimeOffset? FundedAt { get; set; }
+    public DateTimeOffset? DepositPaidAt { get; set; }
     public DateTimeOffset? SubmittedAt { get; set; }
     public DateTimeOffset? ApprovedAt { get; set; }
     public DateTimeOffset? PaidAt { get; set; }

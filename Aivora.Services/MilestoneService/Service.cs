@@ -218,7 +218,8 @@ public class Service : IService
             DueDate = m.DueDate,
             OrderIndex = m.OrderIndex,
             CreatedAt = m.CreatedAt,
-            FundedAt = m.FundedAt
+            FundedAt = m.FundedAt,
+            DepositPaidAt = m.DepositPaidAt
         };
     }
 }

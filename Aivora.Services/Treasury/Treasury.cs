@@ -107,7 +107,7 @@ public class Treasury : ITreasury
 
             // 4. Update Milestone & Project status
             milestone.Status = MilestoneStatus.IN_PROGRESS;
-            milestone.FundedAt = DateTimeOffset.UtcNow; // Can reuse this field for deposit paid
+            milestone.DepositPaidAt = DateTimeOffset.UtcNow; // Record time deposit is paid
 
             if (milestone.Project.Status == ProjectStatus.PENDING_PAYMENT)
             {
