@@ -79,10 +79,10 @@ public class TreasuryCommissionTests
 
         var commissionOptions = Options.Create(new CommissionOptions { Rate = 0.10m });
         var treasury = new Treasury(
-            dbContext, 
+            dbContext,
             commissionOptions,
-            Mock.Of<ILogger<Treasury>>(), 
-            Mock.Of<Aivora.Services.NotificationService.IService>(), 
+            Mock.Of<ILogger<Treasury>>(),
+            Mock.Of<Aivora.Services.NotificationService.IService>(),
             new Aivora.Services.RealtimeService.NullRealtimeService()
         );
 
@@ -104,11 +104,11 @@ public class TreasuryCommissionTests
         // Platform gets 10% (100)
         updatedPlatformWallet.AvailableBalance.Should().Be(100);
         updatedPlatformWallet.TotalEarned.Should().Be(100);
-        
+
         // Ensure PLATFORM_FEE transaction log exists
         var feeTransaction = await dbContext.WalletTransactions
             .FirstOrDefaultAsync(t => t.UserId == SystemConstants.SystemUserId && t.Type == WalletTransactionType.PLATFORM_FEE);
-        
+
         feeTransaction.Should().NotBeNull();
         feeTransaction!.Amount.Should().Be(100);
         feeTransaction.Direction.Should().Be(TransactionDirection.CREDIT);
