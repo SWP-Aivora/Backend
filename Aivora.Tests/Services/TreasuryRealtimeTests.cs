@@ -133,5 +133,85 @@ public class TreasuryRealtimeTests
 
         milestone.Status.Should().Be(MilestoneStatus.RELEASED);
     }
+
+    [Fact]
+    public async Task RefundMilestoneAsync_Should_Log_Distinct_Transactions_For_Each_Payment()
+    {
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+
+        var clientWallet = new Wallet { UserId = clientId, AvailableBalance = 1000, HeldBalance = 0, Currency = "AICOIN" };
+        var expertWallet = new Wallet { UserId = expertId, AvailableBalance = 500, HeldBalance = 0, Currency = "AICOIN" };
+        var project = new Project { ClientId = clientId, ExpertId = expertId, Title = "Refund Project" };
+        var milestone = new Milestone { Project = project, Amount = 500, Status = MilestoneStatus.RELEASED, Title = "M1" };
+
+        var payment1 = new Payment { Id = Guid.NewGuid(), MilestoneId = milestone.Id, ProjectId = project.Id, PayerId = clientId, PayeeId = expertId, Amount = 150, Status = PaymentStatus.RELEASED, Currency = "AICOIN" };
+        var payment2 = new Payment { Id = Guid.NewGuid(), MilestoneId = milestone.Id, ProjectId = project.Id, PayerId = clientId, PayeeId = expertId, Amount = 350, Status = PaymentStatus.RELEASED, Currency = "AICOIN" };
+
+        dbContext.Wallets.AddRange(clientWallet, expertWallet);
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestone);
+        dbContext.Payments.AddRange(payment1, payment2);
+        await dbContext.SaveChangesAsync();
+
+        var treasury = new Aivora.Services.Treasury.Treasury(
+            dbContext,
+            Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(),
+            Mock.Of<Aivora.Services.NotificationService.IService>(),
+            Mock.Of<Aivora.Services.RealtimeService.IService>()
+        );
+
+        await treasury.RefundMilestoneAsync(Guid.NewGuid(), milestone.Id, "Disputed result");
+
+        clientWallet.AvailableBalance.Should().Be(1500); // 1000 + 150 + 350
+        expertWallet.AvailableBalance.Should().Be(0); // 500 - 500
+
+        var transactions = await dbContext.WalletTransactions.Where(t => t.Type == WalletTransactionType.REFUND).ToListAsync();
+        transactions.Count.Should().Be(4); // 2 transactions per payment (one credit client, one debit expert)
+
+        var p1Txns = transactions.Where(t => t.PaymentId == payment1.Id).ToList();
+        p1Txns.Count.Should().Be(2);
+        p1Txns.Any(t => t.Direction == TransactionDirection.CREDIT && t.UserId == clientId && t.Amount == 150).Should().BeTrue();
+        p1Txns.Any(t => t.Direction == TransactionDirection.DEBIT && t.UserId == expertId && t.Amount == 150).Should().BeTrue();
+
+        var p2Txns = transactions.Where(t => t.PaymentId == payment2.Id).ToList();
+        p2Txns.Count.Should().Be(2);
+        p2Txns.Any(t => t.Direction == TransactionDirection.CREDIT && t.UserId == clientId && t.Amount == 350).Should().BeTrue();
+        p2Txns.Any(t => t.Direction == TransactionDirection.DEBIT && t.UserId == expertId && t.Amount == 350).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ClawbackFromWallet_Should_Throw_ValidationException_When_DebtLimit_Exceeded()
+    {
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+
+        var clientWallet = new Wallet { UserId = clientId, AvailableBalance = 1000, HeldBalance = 0, Currency = "AICOIN" };
+        var expertWallet = new Wallet { UserId = expertId, AvailableBalance = 0, HeldBalance = 0, Currency = "AICOIN" }; // Available balance is 0
+        var project = new Project { ClientId = clientId, ExpertId = expertId, Title = "Clawback Project" };
+        var milestone = new Milestone { Project = project, Amount = 1500, Status = MilestoneStatus.RELEASED, Title = "M1" }; // Amount 1500 exceeds MaxDebtLimit (1000)
+
+        var payment = new Payment { Id = Guid.NewGuid(), MilestoneId = milestone.Id, ProjectId = project.Id, PayerId = clientId, PayeeId = expertId, Amount = 1500, Status = PaymentStatus.RELEASED, Currency = "AICOIN" };
+
+        dbContext.Wallets.AddRange(clientWallet, expertWallet);
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestone);
+        dbContext.Payments.Add(payment);
+        await dbContext.SaveChangesAsync();
+
+        var treasury = new Aivora.Services.Treasury.Treasury(
+            dbContext,
+            Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(),
+            Mock.Of<Aivora.Services.NotificationService.IService>(),
+            Mock.Of<Aivora.Services.RealtimeService.IService>()
+        );
+
+        Func<Task> act = async () => await treasury.RefundMilestoneAsync(Guid.NewGuid(), milestone.Id, "Disputed result");
+
+        await act.Should().ThrowAsync<Aivora.Services.Exceptions.ValidationException>()
+            .WithMessage("Clawback failed. Operation would exceed the maximum debt limit of 1000 AICOIN.");
+    }
 }
 

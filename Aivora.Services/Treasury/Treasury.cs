@@ -36,8 +36,16 @@ public class Treasury : ITreasury
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
-            var clientWallet = await GetWalletForUpdateAsync(clientId);
-            var expertWallet = await GetWalletForUpdateAsync(milestone.Project.ExpertId);
+            var firstId = clientId;
+            var secondId = milestone.Project.ExpertId;
+            if (firstId.CompareTo(secondId) > 0)
+            {
+                (firstId, secondId) = (secondId, firstId);
+            }
+            var wallet1 = await GetWalletForUpdateAsync(firstId);
+            var wallet2 = await GetWalletForUpdateAsync(secondId);
+            var clientWallet = (wallet1.UserId == clientId) ? wallet1 : wallet2;
+            var expertWallet = (wallet2.UserId == milestone.Project.ExpertId) ? wallet2 : wallet1;
 
             var depositAmount = milestone.Amount * 0.3m; // 30%
 
@@ -132,8 +140,16 @@ public class Treasury : ITreasury
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
-            var clientWallet = await GetWalletForUpdateAsync(clientId);
-            var expertWallet = await GetWalletForUpdateAsync(milestone.Project.ExpertId);
+            var firstId = clientId;
+            var secondId = milestone.Project.ExpertId;
+            if (firstId.CompareTo(secondId) > 0)
+            {
+                (firstId, secondId) = (secondId, firstId);
+            }
+            var wallet1 = await GetWalletForUpdateAsync(firstId);
+            var wallet2 = await GetWalletForUpdateAsync(secondId);
+            var clientWallet = (wallet1.UserId == clientId) ? wallet1 : wallet2;
+            var expertWallet = (wallet2.UserId == milestone.Project.ExpertId) ? wallet2 : wallet1;
 
             var remainingAmount = milestone.Amount * 0.7m; // 70%
 
@@ -222,52 +238,66 @@ public class Treasury : ITreasury
 
         if (!payments.Any()) throw new NotFoundException("Payment not found for refund.");
 
+        var amount = payments.Sum(p => p.Amount);
+
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
-            var payerWallet = await GetWalletForUpdateAsync(payments.First().PayerId);
-            var payeeWallet = await GetWalletForUpdateAsync(payments.First().PayeeId);
+            var payerId = payments.First().PayerId;
+            var payeeId = payments.First().PayeeId;
+            var firstId = payerId;
+            var secondId = payeeId;
+            if (firstId.CompareTo(secondId) > 0)
+            {
+                (firstId, secondId) = (secondId, firstId);
+            }
+            var wallet1 = await GetWalletForUpdateAsync(firstId);
+            var wallet2 = await GetWalletForUpdateAsync(secondId);
+            var payerWallet = (wallet1.UserId == payerId) ? wallet1 : wallet2;
+            var payeeWallet = (wallet2.UserId == payeeId) ? wallet2 : wallet1;
 
-            var amount = payments.Sum(p => p.Amount);
-            // We do NOT check for insufficient funds because dispute clawbacks may cause a negative balance.
-
-            // 1. Move money back (Clawback from expert to client)
-            ClawbackFromWallet(payeeWallet, amount);
-            AddFundsToWallet(payerWallet, amount);
-            payeeWallet.TotalEarned -= amount;
-
-            // 2. Update Payment
+            // Update and log transactions for each payment
             foreach (var payment in payments)
             {
+                var payerBalanceBefore = payerWallet.AvailableBalance;
+                var payeeBalanceBefore = payeeWallet.AvailableBalance;
+
+                // 1. Move money back (Clawback from expert to client)
+                ClawbackFromWallet(payeeWallet, payment.Amount);
+                AddFundsToWallet(payerWallet, payment.Amount);
+                payeeWallet.TotalEarned -= payment.Amount;
+
+                // 2. Update Payment
                 payment.Status = PaymentStatus.REFUNDED;
                 payment.RefundedAt = DateTimeOffset.UtcNow;
-            }
-            // 3. Log Transaction
-            _dbContext.WalletTransactions.Add(new WalletTransaction
-            {
-                WalletId = payerWallet.Id,
-                UserId = payerWallet.UserId,
-                Amount = amount,
-                Type = WalletTransactionType.REFUND,
-                Direction = TransactionDirection.CREDIT,
-                Description = $"Refund for milestone: {reason}",
-                BalanceBefore = payerWallet.AvailableBalance - amount,
-                BalanceAfter = payerWallet.AvailableBalance,
-                PaymentId = payments.First().Id
-            });
 
-            _dbContext.WalletTransactions.Add(new WalletTransaction
-            {
-                WalletId = payeeWallet.Id,
-                UserId = payeeWallet.UserId,
-                Amount = amount,
-                Type = WalletTransactionType.REFUND,
-                Direction = TransactionDirection.DEBIT,
-                Description = $"Clawback for milestone refund: {reason}",
-                BalanceBefore = payeeWallet.AvailableBalance + amount,
-                BalanceAfter = payeeWallet.AvailableBalance,
-                PaymentId = payments.First().Id
-            });
+                // 3. Log Transactions
+                _dbContext.WalletTransactions.Add(new WalletTransaction
+                {
+                    WalletId = payerWallet.Id,
+                    UserId = payerWallet.UserId,
+                    Amount = payment.Amount,
+                    Type = WalletTransactionType.REFUND,
+                    Direction = TransactionDirection.CREDIT,
+                    Description = $"Refund for milestone payment: {reason}",
+                    BalanceBefore = payerBalanceBefore,
+                    BalanceAfter = payerWallet.AvailableBalance,
+                    PaymentId = payment.Id
+                });
+
+                _dbContext.WalletTransactions.Add(new WalletTransaction
+                {
+                    WalletId = payeeWallet.Id,
+                    UserId = payeeWallet.UserId,
+                    Amount = payment.Amount,
+                    Type = WalletTransactionType.REFUND,
+                    Direction = TransactionDirection.DEBIT,
+                    Description = $"Clawback for milestone refund: {reason}",
+                    BalanceBefore = payeeBalanceBefore,
+                    BalanceAfter = payeeWallet.AvailableBalance,
+                    PaymentId = payment.Id
+                });
+            }
 
             // 4. Update Milestone
             milestone.Status = MilestoneStatus.REFUNDED;
@@ -300,51 +330,72 @@ public class Treasury : ITreasury
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
-            var payerWallet = await GetWalletForUpdateAsync(payments.First().PayerId);
-            var payeeWallet = await GetWalletForUpdateAsync(payments.First().PayeeId);
+            var payerId = payments.First().PayerId;
+            var payeeId = payments.First().PayeeId;
+            var firstId = payerId;
+            var secondId = payeeId;
+            if (firstId.CompareTo(secondId) > 0)
+            {
+                (firstId, secondId) = (secondId, firstId);
+            }
+            var wallet1 = await GetWalletForUpdateAsync(firstId);
+            var wallet2 = await GetWalletForUpdateAsync(secondId);
+            var payerWallet = (wallet1.UserId == payerId) ? wallet1 : wallet2;
+            var payeeWallet = (wallet2.UserId == payeeId) ? wallet2 : wallet1;
 
             // In 30/70 direct deposit, the expert already holds the full payment amount.
             // We claw back the refundToClientAmount from the expert.
 
-            // 1. Move money
-            ClawbackFromWallet(payeeWallet, refundToClientAmount);
-            AddFundsToWallet(payerWallet, refundToClientAmount);
-            // Note: TotalEarned doesn't need adjustment if it was already credited when deposit was paid, 
-            // except we should reduce it if we claw back. Let's adjust it by the clawed back amount.
-            payeeWallet.TotalEarned -= refundToClientAmount;
+            // 1. Move money & log transactions for the refund portion
+            if (refundToClientAmount > 0)
+            {
+                var remainingRefund = refundToClientAmount;
+                foreach (var payment in payments)
+                {
+                    if (remainingRefund <= 0) break;
+
+                    var refundAllocation = Math.Min(payment.Amount, remainingRefund);
+                    remainingRefund -= refundAllocation;
+
+                    var payerBalanceBefore = payerWallet.AvailableBalance;
+                    var payeeBalanceBefore = payeeWallet.AvailableBalance;
+
+                    ClawbackFromWallet(payeeWallet, refundAllocation);
+                    AddFundsToWallet(payerWallet, refundAllocation);
+                    payeeWallet.TotalEarned -= refundAllocation;
+
+                    _dbContext.WalletTransactions.Add(new WalletTransaction
+                    {
+                        WalletId = payerWallet.Id,
+                        UserId = payerWallet.UserId,
+                        Amount = refundAllocation,
+                        Type = WalletTransactionType.REFUND,
+                        Direction = TransactionDirection.CREDIT,
+                        Description = $"Split resolution refund: {reason}",
+                        BalanceBefore = payerBalanceBefore,
+                        BalanceAfter = payerWallet.AvailableBalance,
+                        PaymentId = payment.Id
+                    });
+
+                    _dbContext.WalletTransactions.Add(new WalletTransaction
+                    {
+                        WalletId = payeeWallet.Id,
+                        UserId = payeeWallet.UserId,
+                        Amount = refundAllocation,
+                        Type = WalletTransactionType.REFUND,
+                        Direction = TransactionDirection.DEBIT,
+                        Description = $"Split resolution refund clawback: {reason}",
+                        BalanceBefore = payeeBalanceBefore,
+                        BalanceAfter = payeeWallet.AvailableBalance,
+                        PaymentId = payment.Id
+                    });
+                }
+            }
 
             // 2. Update Payment
             foreach (var payment in payments)
             {
                 payment.Status = PaymentStatus.RELEASED;
-            }
-            // 3. Log Transactions (just for the refund portion)
-            if (refundToClientAmount > 0)
-            {
-                _dbContext.WalletTransactions.Add(new WalletTransaction
-                {
-                    WalletId = payerWallet.Id,
-                    UserId = payerWallet.UserId,
-                    Amount = refundToClientAmount,
-                    Type = WalletTransactionType.REFUND,
-                    Direction = TransactionDirection.CREDIT,
-                    Description = $"Split resolution refund: {reason}",
-                    BalanceBefore = payerWallet.AvailableBalance - refundToClientAmount,
-                    BalanceAfter = payerWallet.AvailableBalance,
-                    PaymentId = payments.First().Id
-                });
-
-                _dbContext.WalletTransactions.Add(new WalletTransaction
-                {
-                    WalletId = payeeWallet.Id,
-                    UserId = payeeWallet.UserId,
-                    Amount = refundToClientAmount,
-                    Type = WalletTransactionType.REFUND,
-                    Direction = TransactionDirection.DEBIT,
-                    BalanceBefore = payeeWallet.AvailableBalance + refundToClientAmount,
-                    BalanceAfter = payeeWallet.AvailableBalance,
-                    PaymentId = payments.First().Id
-                });
             }
             // 4. Update Milestone
             milestone.Status = MilestoneStatus.RELEASED;
@@ -431,16 +482,27 @@ public class Treasury : ITreasury
     private async Task<Wallet> GetWalletForUpdateAsync(Guid userId)
     {
         Wallet? wallet = null;
-        if (_dbContext.Database.ProviderName != "Microsoft.EntityFrameworkCore.InMemory")
-        {
-            wallet = await _dbContext.Wallets.FromSqlRaw("SELECT * FROM \"Wallets\" WHERE \"UserId\" = {0} FOR UPDATE", userId).FirstOrDefaultAsync();
-        }
-        else
+        var provider = _dbContext.Database.ProviderName;
+        if (provider == "Microsoft.EntityFrameworkCore.InMemory" || provider == null || provider.Contains("InMemory"))
         {
             wallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
         }
+        else if (provider.Contains("Sqlite") || provider.Contains("SQLite"))
+        {
+            wallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
+        }
+        else if (provider.Contains("SqlServer") || provider.Contains("Microsoft.Data.SqlClient"))
+        {
+            wallet = await _dbContext.Wallets.FromSqlRaw("SELECT * FROM \"Wallets\" WITH (UPDLOCK, ROWLOCK) WHERE \"UserId\" = {0}", userId).FirstOrDefaultAsync();
+        }
+        else // default to PostgreSQL syntax
+        {
+            wallet = await _dbContext.Wallets.FromSqlRaw("SELECT * FROM \"Wallets\" WHERE \"UserId\" = {0} FOR UPDATE", userId).FirstOrDefaultAsync();
+        }
         return wallet ?? throw new NotFoundException($"Wallet for user {userId} not found.");
     }
+
+    private const decimal MaxDebtLimit = 1000m;
 
     private void AddFundsToWallet(Wallet wallet, decimal amount)
     {
@@ -462,6 +524,10 @@ public class Treasury : ITreasury
         else
         {
             var deficit = amount - wallet.AvailableBalance;
+            if (wallet.Debt + deficit > MaxDebtLimit)
+            {
+                throw new ValidationException($"Clawback failed. Operation would exceed the maximum debt limit of {MaxDebtLimit} {wallet.Currency}.");
+            }
             wallet.AvailableBalance = 0;
             wallet.Debt += deficit;
         }
