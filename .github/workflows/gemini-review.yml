@@ -29,7 +29,6 @@ jobs:
     if: github.event.pull_request.draft == false
     outputs:
       has_changes: ${{ steps.run.outputs.has_changes }}
-      diff_b64: ${{ steps.run.outputs.diff_b64 }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -43,6 +42,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
         run: python3 .github/scripts/review_bot.py prepare
+      - uses: actions/upload-artifact@v4
+        if: steps.run.outputs.has_changes == 'true'
+        with:
+          name: pr-diff
+          path: pr_diff.txt
+          retention-days: 1
 
   pass-claude-md:
     name: "Pass: CLAUDE.md compliance"
@@ -51,7 +56,6 @@ jobs:
     uses: ./.github/workflows/gemini-review-pass.yml
     with:
       pass_name: claude-md
-      diff_b64: ${{ needs.prepare.outputs.diff_b64 }}
       model: ${{ vars.GEMINI_MODEL_LIGHT || 'gemini-3.1-flash-lite' }}
       repo: ${{ github.repository }}
       pr_number: ${{ github.event.pull_request.number }}
@@ -67,7 +71,6 @@ jobs:
     uses: ./.github/workflows/gemini-review-pass.yml
     with:
       pass_name: bug-scan
-      diff_b64: ${{ needs.prepare.outputs.diff_b64 }}
       model: ${{ vars.GEMINI_MODEL_LIGHT || 'gemini-3.1-flash-lite' }}
       repo: ${{ github.repository }}
       pr_number: ${{ github.event.pull_request.number }}
@@ -83,7 +86,6 @@ jobs:
     uses: ./.github/workflows/gemini-review-pass.yml
     with:
       pass_name: git-blame
-      diff_b64: ${{ needs.prepare.outputs.diff_b64 }}
       model: ${{ vars.GEMINI_MODEL_LIGHT || 'gemini-3.1-flash-lite' }}
       repo: ${{ github.repository }}
       pr_number: ${{ github.event.pull_request.number }}
@@ -99,7 +101,6 @@ jobs:
     uses: ./.github/workflows/gemini-review-pass.yml
     with:
       pass_name: pr-history
-      diff_b64: ${{ needs.prepare.outputs.diff_b64 }}
       model: ${{ vars.GEMINI_MODEL_LIGHT || 'gemini-3.1-flash-lite' }}
       repo: ${{ github.repository }}
       pr_number: ${{ github.event.pull_request.number }}
@@ -115,7 +116,6 @@ jobs:
     uses: ./.github/workflows/gemini-review-pass.yml
     with:
       pass_name: code-comment
-      diff_b64: ${{ needs.prepare.outputs.diff_b64 }}
       model: ${{ vars.GEMINI_MODEL_LIGHT || 'gemini-3.1-flash-lite' }}
       repo: ${{ github.repository }}
       pr_number: ${{ github.event.pull_request.number }}
@@ -136,16 +136,10 @@ jobs:
     uses: ./.github/workflows/gemini-review-verify.yml
     with:
       model: ${{ vars.GEMINI_MODEL_STRONG || 'gemini-3.5-flash' }}
-      diff_b64: ${{ needs.prepare.outputs.diff_b64 }}
       repo: ${{ github.repository }}
       pr_number: ${{ github.event.pull_request.number }}
       pr_title: ${{ github.event.pull_request.title }}
       pr_body: ${{ github.event.pull_request.body }}
       pr_author: ${{ github.event.pull_request.user.login }}
       head_sha: ${{ github.event.pull_request.head.sha }}
-      issues_claude_md_b64: ${{ needs.pass-claude-md.outputs.issues_b64 }}
-      issues_bug_scan_b64: ${{ needs.pass-bug-scan.outputs.issues_b64 }}
-      issues_git_blame_b64: ${{ needs.pass-git-blame.outputs.issues_b64 }}
-      issues_pr_history_b64: ${{ needs.pass-pr-history.outputs.issues_b64 }}
-      issues_code_comment_b64: ${{ needs.pass-code-comment.outputs.issues_b64 }}
     secrets: inherit

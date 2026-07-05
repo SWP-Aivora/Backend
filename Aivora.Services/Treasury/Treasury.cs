@@ -6,6 +6,9 @@ using Aivora.Services.NotificationService;
 using Microsoft.EntityFrameworkCore;
 using Aivora.Services.Extensions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Aivora.Repositories.Constants;
+using Aivora.Services.Options;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Aivora.Services.Treasury;
@@ -17,6 +20,7 @@ namespace Aivora.Services.Treasury;
 public class Treasury : ITreasury
 {
     private readonly AivoraDbContext _dbContext;
+    private readonly ICommissionCalculator _commissionCalculator;
     private readonly ILogger<Treasury> _logger;
     private readonly NotificationService.IService _notificationService;
     private readonly RealtimeService.IService _realtimeService;
@@ -24,12 +28,14 @@ public class Treasury : ITreasury
 
     public Treasury(
         AivoraDbContext dbContext,
+        ICommissionCalculator commissionCalculator,
         ILogger<Treasury> logger,
         NotificationService.IService notificationService,
         RealtimeService.IService realtimeService,
         IServiceScopeFactory? scopeFactory = null)
     {
         _dbContext = dbContext;
+        _commissionCalculator = commissionCalculator;
         _logger = logger;
         _notificationService = notificationService;
         _realtimeService = realtimeService;
@@ -96,16 +102,9 @@ public class Treasury : ITreasury
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
-            var firstId = clientId;
-            var secondId = milestone.Project.ExpertId;
-            if (firstId.CompareTo(secondId) > 0)
-            {
-                (firstId, secondId) = (secondId, firstId);
-            }
-            var wallet1 = await GetWalletForUpdateAsync(firstId);
-            var wallet2 = await GetWalletForUpdateAsync(secondId);
-            var clientWallet = (wallet1.UserId == clientId) ? wallet1 : wallet2;
-            var expertWallet = (wallet2.UserId == milestone.Project.ExpertId) ? wallet2 : wallet1;
+            var wallets = await GetWalletsForUpdateAsync(clientId, milestone.Project.ExpertId);
+            var clientWallet = wallets.First(w => w.UserId == clientId);
+            var expertWallet = wallets.First(w => w.UserId == milestone.Project.ExpertId);
 
             var depositAmount = milestone.Amount * 0.3m; // 30%
 
@@ -205,18 +204,14 @@ public class Treasury : ITreasury
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
-            var firstId = clientId;
-            var secondId = milestone.Project.ExpertId;
-            if (firstId.CompareTo(secondId) > 0)
-            {
-                (firstId, secondId) = (secondId, firstId);
-            }
-            var wallet1 = await GetWalletForUpdateAsync(firstId);
-            var wallet2 = await GetWalletForUpdateAsync(secondId);
-            var clientWallet = (wallet1.UserId == clientId) ? wallet1 : wallet2;
-            var expertWallet = (wallet2.UserId == milestone.Project.ExpertId) ? wallet2 : wallet1;
+            var wallets = await GetWalletsForUpdateAsync(clientId, milestone.Project.ExpertId, SystemConstants.SystemUserId);
+            var clientWallet = wallets.First(w => w.UserId == clientId);
+            var expertWallet = wallets.First(w => w.UserId == milestone.Project.ExpertId);
+            var platformWallet = wallets.First(w => w.UserId == SystemConstants.SystemUserId);
 
             var remainingAmount = milestone.Amount * 0.7m; // 70%
+            var commissionAmount = _commissionCalculator.CalculateCommission(milestone.Amount);
+            var expertAmount = remainingAmount - commissionAmount;
 
             if (clientWallet.AvailableBalance < remainingAmount) throw new ValidationException("Insufficient balance for remaining payment.");
 
@@ -229,8 +224,10 @@ public class Treasury : ITreasury
                 throw new ValidationException(debitError!);
             }
             clientWallet.Debit(remainingAmount);
-            expertWallet.Credit(remainingAmount);
-            expertWallet.TotalEarned += remainingAmount;
+            expertWallet.Credit(expertAmount);
+            platformWallet.Credit(commissionAmount);
+            expertWallet.TotalEarned += expertAmount;
+            platformWallet.TotalEarned += commissionAmount;
 
             // 2. Create Payment (RELEASED immediately)
             var payment = new Payment
@@ -264,14 +261,30 @@ public class Treasury : ITreasury
             {
                 WalletId = expertWallet.Id,
                 UserId = expertWallet.UserId,
-                Amount = remainingAmount,
+                Amount = expertAmount,
                 Type = WalletTransactionType.PAYMENT_RELEASE,
                 Direction = TransactionDirection.CREDIT,
-                Description = $"Received 70% remaining for milestone: {milestone.Title}",
+                Description = $"Received remaining payment (after fee) for milestone: {milestone.Title}",
                 BalanceBefore = expertBalanceBefore,
                 BalanceAfter = expertWallet.AvailableBalance,
                 PaymentId = payment.Id
             });
+
+            if (commissionAmount > 0)
+            {
+                _dbContext.WalletTransactions.Add(new WalletTransaction
+                {
+                    WalletId = platformWallet.Id,
+                    UserId = platformWallet.UserId,
+                    Amount = commissionAmount,
+                    Type = WalletTransactionType.PLATFORM_FEE,
+                    Direction = TransactionDirection.CREDIT,
+                    Description = $"10% Platform fee for milestone: {milestone.Title}",
+                    BalanceBefore = platformWallet.AvailableBalance - commissionAmount,
+                    BalanceAfter = platformWallet.AvailableBalance,
+                    PaymentId = payment.Id
+                });
+            }
 
             // 4. Update Milestone & Project
             milestone.Status = MilestoneStatus.RELEASED;
@@ -312,33 +325,31 @@ public class Treasury : ITreasury
         {
             var payerId = payments.First().PayerId;
             var payeeId = payments.First().PayeeId;
-            var firstId = payerId;
-            var secondId = payeeId;
-            if (firstId.CompareTo(secondId) > 0)
-            {
-                (firstId, secondId) = (secondId, firstId);
-            }
-            var wallet1 = await GetWalletForUpdateAsync(firstId);
-            var wallet2 = await GetWalletForUpdateAsync(secondId);
-            var payerWallet = (wallet1.UserId == payerId) ? wallet1 : wallet2;
-            var payeeWallet = (wallet2.UserId == payeeId) ? wallet2 : wallet1;
+            var wallets = await GetWalletsForUpdateAsync(payerId, payeeId);
+            var payerWallet = wallets.First(w => w.UserId == payerId);
+            var payeeWallet = wallets.First(w => w.UserId == payeeId);
 
-            // Update and log transactions for each payment
             foreach (var payment in payments)
             {
                 var payerBalanceBefore = payerWallet.AvailableBalance;
                 var payeeBalanceBefore = payeeWallet.AvailableBalance;
 
                 // Enforce safe debt limit check to prevent bad debt and prompt manual review
-                if (!payeeWallet.CanDebit(payment.Amount, out var debitError))
+                var maxDebt = _commissionCalculator.MaxDebtLimit;
+                if (!payeeWallet.CanDebit(payment.Amount, maxDebt, out var debitError))
                 {
-                    throw new ValidationException($"Refund failed: Expert's wallet has insufficient funds (Available: {payeeWallet.AvailableBalance} {payeeWallet.Currency}, Debt: {payeeWallet.Debt} {payeeWallet.Currency}). Processing this refund of {payment.Amount} {payeeWallet.Currency} would exceed the safe debt limit of 1000 {payeeWallet.Currency} and requires manual review. Details: {debitError}");
+                    throw new ValidationException($"Refund failed: Expert's wallet has insufficient funds (Available: {payeeWallet.AvailableBalance} {payeeWallet.Currency}, Debt: {payeeWallet.Debt} {payeeWallet.Currency}). Processing this refund of {payment.Amount} {payeeWallet.Currency} would exceed the safe debt limit of {maxDebt} {payeeWallet.Currency} and requires manual review. Details: {debitError}");
                 }
 
                 // 1. Move money back (Clawback from expert to client)
-                payeeWallet.Debit(payment.Amount);
+                payeeWallet.Debit(payment.Amount, maxDebt);
                 payerWallet.Credit(payment.Amount);
-                payeeWallet.TotalEarned -= payment.Amount;
+
+                // Adjust TotalEarned: expert only received payment.Amount - commission
+                var isRemainingPayment = (payment.Amount == milestone.Amount * 0.7m);
+                var commissionAmount = isRemainingPayment ? _commissionCalculator.CalculateCommission(milestone.Amount) : 0m;
+                var expertActualEarned = payment.Amount - commissionAmount;
+                payeeWallet.TotalEarned = Math.Max(0, payeeWallet.TotalEarned - expertActualEarned);
 
                 // 2. Update Payment
                 payment.Status = PaymentStatus.REFUNDED;
@@ -404,16 +415,9 @@ public class Treasury : ITreasury
         {
             var payerId = payments.First().PayerId;
             var payeeId = payments.First().PayeeId;
-            var firstId = payerId;
-            var secondId = payeeId;
-            if (firstId.CompareTo(secondId) > 0)
-            {
-                (firstId, secondId) = (secondId, firstId);
-            }
-            var wallet1 = await GetWalletForUpdateAsync(firstId);
-            var wallet2 = await GetWalletForUpdateAsync(secondId);
-            var payerWallet = (wallet1.UserId == payerId) ? wallet1 : wallet2;
-            var payeeWallet = (wallet2.UserId == payeeId) ? wallet2 : wallet1;
+            var wallets = await GetWalletsForUpdateAsync(payerId, payeeId);
+            var payerWallet = wallets.First(w => w.UserId == payerId);
+            var payeeWallet = wallets.First(w => w.UserId == payeeId);
 
             // In 30/70 direct deposit, the expert already holds the full payment amount.
             // We claw back the refundToClientAmount from the expert.
@@ -433,14 +437,14 @@ public class Treasury : ITreasury
                     var payeeBalanceBefore = payeeWallet.AvailableBalance;
 
                     // Enforce safe debt limit check to prevent bad debt and prompt manual review
-                    if (!payeeWallet.CanDebit(refundAllocation, out var debitError))
+                    var maxDebt = _commissionCalculator.MaxDebtLimit;
+                    if (!payeeWallet.CanDebit(refundAllocation, maxDebt, out var debitError))
                     {
-                        throw new ValidationException($"Split failed: Expert's wallet has insufficient funds (Available: {payeeWallet.AvailableBalance} {payeeWallet.Currency}, Debt: {payeeWallet.Debt} {payeeWallet.Currency}). Processing this clawback of {refundAllocation} {payeeWallet.Currency} would exceed the safe debt limit of 1000 {payeeWallet.Currency} and requires manual review. Details: {debitError}");
+                        throw new ValidationException($"Split failed: Expert's wallet has insufficient funds (Available: {payeeWallet.AvailableBalance} {payeeWallet.Currency}, Debt: {payeeWallet.Debt} {payeeWallet.Currency}). Processing this clawback of {refundAllocation} {payeeWallet.Currency} would exceed the safe debt limit of {maxDebt} {payeeWallet.Currency} and requires manual review. Details: {debitError}");
                     }
 
-                    payeeWallet.Debit(refundAllocation);
+                    payeeWallet.Debit(refundAllocation, maxDebt);
                     payerWallet.Credit(refundAllocation);
-                    payeeWallet.TotalEarned -= refundAllocation;
 
                     _dbContext.WalletTransactions.Add(new WalletTransaction
                     {
@@ -468,6 +472,13 @@ public class Treasury : ITreasury
                         PaymentId = payment.Id
                     });
                 }
+
+                // Adjust TotalEarned once outside the loop
+                var commissionAmount = _commissionCalculator.CalculateCommission(milestone.Amount);
+                var expertEarnedBefore = totalAmount - commissionAmount;
+                var delta = releaseToExpertAmount - expertEarnedBefore;
+                payeeWallet.TotalEarned += delta;
+                payeeWallet.TotalEarned = Math.Max(0, payeeWallet.TotalEarned);
             }
 
             // 2. Update Payment
@@ -565,10 +576,23 @@ public class Treasury : ITreasury
         return wallet ?? throw new NotFoundException($"Wallet for user {userId} not found.");
     }
 
+    /// <summary>
+    /// Locks multiple wallets in a consistent order (by UserId ascending) to prevent deadlocks
+    /// when concurrent transactions lock the same wallets in different order.
+    /// </summary>
+    private async Task<Wallet[]> GetWalletsForUpdateAsync(params Guid[] userIds)
+    {
+        var distinct = userIds.Distinct().OrderBy(id => id).ToArray();
+        var wallets = new List<Wallet>(distinct.Length);
+        foreach (var userId in distinct)
+        {
+            wallets.Add(await GetWalletForUpdateAsync(userId));
+        }
+        return wallets.ToArray();
+    }
+
     private Task<Wallet> GetWalletForUpdateAsync(Guid userId)
     {
         return _dbContext.GetWalletForUpdateAsync(userId);
     }
-
-
 }

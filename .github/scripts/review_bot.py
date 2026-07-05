@@ -562,12 +562,14 @@ def cmd_prepare(_args):
 
     truncated = truncate_diff(filtered)
     write_github_output("has_changes", "true")
-    write_github_output("diff_b64", b64_encode(truncated))
+    with open("pr_diff.txt", "w", encoding="utf-8") as f:
+        f.write(b64_encode(truncated))
 
 
 def cmd_pass(args):
     api_key, model, fallback_model = load_gemini_config()
-    diff = b64_decode_str(require_env("DIFF_B64"))
+    with open("pr_diff.txt", "r", encoding="utf-8") as f:
+        diff = b64_decode_str(f.read().strip())
     pr_meta = load_pr_meta()
     repo = require_env("REPO")
 
@@ -596,7 +598,8 @@ def cmd_pass(args):
         sys.exit(1)
 
     print(f"Pass '{args.pass_name}' found {len(issues)} issue(s).")
-    write_github_output("issues_b64", b64_encode(issues))
+    with open(f"issues_{args.pass_name}.txt", "w", encoding="utf-8") as f:
+        f.write(b64_encode(issues))
 
 
 ISSUE_ENV_VARS = [
@@ -613,14 +616,20 @@ def cmd_verify(_args):
     repo = require_env("REPO")
     pr_number = require_env("PR_NUMBER")
     head_sha = require_env("HEAD_SHA")
-    diff = b64_decode_str(require_env("DIFF_B64"))
+    
+    with open("pr_diff.txt", "r", encoding="utf-8") as f:
+        diff = b64_decode_str(f.read().strip())
+        
     pr_meta = load_pr_meta()
 
     all_issues = []
-    for env_var in ISSUE_ENV_VARS:
-        raw = os.environ.get(env_var, "")
-        if raw:
-            all_issues.extend(b64_decode_json(raw))
+    for pass_name in PASS_INSTRUCTIONS.keys():
+        filename = f"issues_{pass_name}.txt"
+        if os.path.exists(filename):
+            with open(filename, "r", encoding="utf-8") as f:
+                raw = f.read().strip()
+                if raw:
+                    all_issues.extend(b64_decode_json(raw))
 
     if not all_issues:
         print("No issues reported by any pass. Approving PR.")

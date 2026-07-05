@@ -6,6 +6,9 @@ using Aivora.Services.Treasury;
 using Microsoft.Extensions.Logging;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Aivora.Services.Options;
 using Moq;
 using Xunit;
 
@@ -43,7 +46,8 @@ public class MilestoneServiceTests
         await dbContext.SaveChangesAsync();
 
         // Finance setup
-        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService());
+        var commissionOptions = Options.Create(new CommissionOptions { Rate = 0.10m });
+        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService());
         var service = new Service(dbContext, treasury, Mock.Of<Aivora.Services.NotificationService.IService>());
 
         // Act
@@ -75,20 +79,23 @@ public class MilestoneServiceTests
 
         var clientWallet = new Wallet { UserId = clientId, AvailableBalance = 700, HeldBalance = 0, Currency = "AICOIN" };
         var expertWallet = new Wallet { UserId = expertId, AvailableBalance = 90, TotalEarned = 90, Currency = "AICOIN" };
+        var systemPlatformWallet = new Wallet { UserId = Aivora.Repositories.Constants.SystemConstants.SystemUserId, AvailableBalance = 0, Currency = "AICOIN" };
+
         var project = new Project { Id = projectId, ClientId = clientId, ExpertId = expertId, Title = "Test Project", Status = ProjectStatus.ACTIVE, Currency = "AICOIN" };
         var milestone = new Milestone { Id = milestoneId, ProjectId = projectId, Amount = 300, Status = MilestoneStatus.SUBMITTED, Title = "Milestone 1", Currency = "AICOIN" };
 
         // Mock the initial deposit payment so treasury can find it
         var depositPayment = new Payment { MilestoneId = milestoneId, ProjectId = projectId, PayerId = clientId, PayeeId = expertId, Amount = 90, Status = PaymentStatus.RELEASED, Currency = "AICOIN" };
 
-        dbContext.Wallets.AddRange(clientWallet, expertWallet);
+        dbContext.Wallets.AddRange(clientWallet, expertWallet, systemPlatformWallet);
         dbContext.Projects.Add(project);
         dbContext.Milestones.Add(milestone);
         dbContext.Payments.Add(depositPayment);
         await dbContext.SaveChangesAsync();
 
         // Finance setup
-        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService());
+        var commissionOptions = Options.Create(new CommissionOptions { Rate = 0.10m });
+        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService());
         var service = new Service(dbContext, treasury, Mock.Of<Aivora.Services.NotificationService.IService>());
 
         // Act
@@ -101,12 +108,14 @@ public class MilestoneServiceTests
         updatedClientWallet!.AvailableBalance.Should().Be(490); // 700 - 210
 
         var updatedExpertWallet = await dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == expertId);
-        updatedExpertWallet!.AvailableBalance.Should().Be(300); // 90 + 210
-        updatedExpertWallet!.TotalEarned.Should().Be(300); // 90 + 210
+        // Fee = 10% of 300 = 30. Remaining to expert = 210 - 30 = 180.
+        updatedExpertWallet!.AvailableBalance.Should().Be(270); // 90 + 180
+        updatedExpertWallet!.TotalEarned.Should().Be(270); // 90 + 180
 
-        // In PayRemainingAsync, a new payment is created for the remaining 70%
+        // In PayRemainingAsync, a new payment is created for the remaining 70% (fee is tracked via WalletTransaction)
         var payments = await dbContext.Payments.Where(p => p.MilestoneId == milestoneId).ToListAsync();
         payments.Count.Should().Be(2);
         payments.All(p => p.Status == PaymentStatus.RELEASED).Should().BeTrue();
     }
 }
+

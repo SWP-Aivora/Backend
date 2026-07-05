@@ -5,10 +5,13 @@ using System.Threading.Tasks;
 using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
+using Aivora.Repositories.Constants;
+using Aivora.Services.Options;
 using Aivora.Services.Treasury;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
 
@@ -42,12 +45,8 @@ public class TreasuryRealtimeTests
         await dbContext.SaveChangesAsync();
 
         var mockRealtime = new Mock<Aivora.Services.RealtimeService.IService>();
-        var treasury = new Aivora.Services.Treasury.Treasury(
-            dbContext,
-            Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(),
-            Mock.Of<Aivora.Services.NotificationService.IService>(),
-            mockRealtime.Object
-        );
+        var commissionOptions = Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.CommissionOptions { Rate = 0.10m });
+        var treasury = new Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), mockRealtime.Object);
 
         await treasury.SyncProjectStatusAsync(project.Id);
 
@@ -66,8 +65,8 @@ public class TreasuryRealtimeTests
         var clientId = Guid.NewGuid();
         var expertId = Guid.NewGuid();
 
-        var clientWallet = new Wallet { UserId = clientId, AvailableBalance = 1000, HeldBalance = 0, Currency = "VND" };
-        var expertWallet = new Wallet { UserId = expertId, AvailableBalance = 0, HeldBalance = 0, Currency = "VND" };
+        var clientWallet = new Wallet { UserId = clientId, AvailableBalance = 1000, HeldBalance = 0, Currency = CurrencyConstants.VND };
+        var expertWallet = new Wallet { UserId = expertId, AvailableBalance = 0, HeldBalance = 0, Currency = CurrencyConstants.VND };
         var project = new Project { ClientId = clientId, ExpertId = expertId, Title = "P1" };
         var milestone = new Milestone { Project = project, Amount = 1000, Status = MilestoneStatus.CREATED, Title = "M1" };
 
@@ -78,6 +77,7 @@ public class TreasuryRealtimeTests
 
         var treasury = new Aivora.Services.Treasury.Treasury(
             dbContext,
+            new Aivora.Services.Treasury.CommissionCalculator(Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.CommissionOptions { Rate = 0.10m })),
             Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(),
             Mock.Of<Aivora.Services.NotificationService.IService>(),
             Mock.Of<Aivora.Services.RealtimeService.IService>()
@@ -104,18 +104,20 @@ public class TreasuryRealtimeTests
         var clientId = Guid.NewGuid();
         var expertId = Guid.NewGuid();
 
-        var clientWallet = new Wallet { UserId = clientId, AvailableBalance = 1000, HeldBalance = 0, Currency = "VND" };
-        var expertWallet = new Wallet { UserId = expertId, AvailableBalance = 300, HeldBalance = 0, Currency = "VND" };
+        var clientWallet = new Wallet { UserId = clientId, AvailableBalance = 1000, HeldBalance = 0, Currency = CurrencyConstants.VND };
+        var expertWallet = new Wallet { UserId = expertId, AvailableBalance = 300, HeldBalance = 0, Currency = CurrencyConstants.VND };
         var project = new Project { ClientId = clientId, ExpertId = expertId, Title = "P1" };
         var milestone = new Milestone { Project = project, Amount = 1000, Status = MilestoneStatus.SUBMITTED, Title = "M1" };
 
-        dbContext.Wallets.AddRange(clientWallet, expertWallet);
+        var systemPlatformWallet = new Wallet { UserId = Aivora.Repositories.Constants.SystemConstants.SystemUserId, AvailableBalance = 0, Currency = CurrencyConstants.VND };
+        dbContext.Wallets.AddRange(clientWallet, expertWallet, systemPlatformWallet);
         dbContext.Projects.Add(project);
         dbContext.Milestones.Add(milestone);
         await dbContext.SaveChangesAsync();
 
         var treasury = new Aivora.Services.Treasury.Treasury(
             dbContext,
+            new Aivora.Services.Treasury.CommissionCalculator(Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.CommissionOptions { Rate = 0.10m })),
             Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(),
             Mock.Of<Aivora.Services.NotificationService.IService>(),
             Mock.Of<Aivora.Services.RealtimeService.IService>()
@@ -123,9 +125,9 @@ public class TreasuryRealtimeTests
 
         await treasury.PayRemainingAsync(clientId, milestone.Id);
 
-        // 70% of 1000 = 700
+        // 70% of 1000 = 700. Fee = 100. Expert gets 600.
         clientWallet.AvailableBalance.Should().Be(300);
-        expertWallet.AvailableBalance.Should().Be(1000);
+        expertWallet.AvailableBalance.Should().Be(900); // 300 + 600
 
         var payment = await dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestone.Id && p.Amount == 700);
         payment.Should().NotBeNull();
@@ -155,8 +157,10 @@ public class TreasuryRealtimeTests
         dbContext.Payments.AddRange(payment1, payment2);
         await dbContext.SaveChangesAsync();
 
+        var commissionOptions = Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.CommissionOptions { Rate = 0.10m, MaxDebtLimit = 1000m });
         var treasury = new Aivora.Services.Treasury.Treasury(
             dbContext,
+            new CommissionCalculator(commissionOptions),
             Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(),
             Mock.Of<Aivora.Services.NotificationService.IService>(),
             Mock.Of<Aivora.Services.RealtimeService.IService>()
@@ -216,8 +220,10 @@ public class TreasuryRealtimeTests
         dbContext.Payments.Add(payment);
         await dbContext.SaveChangesAsync();
 
+        var commissionOptions = Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.CommissionOptions { Rate = 0.10m, MaxDebtLimit = 1000m });
         var treasury = new Aivora.Services.Treasury.Treasury(
             dbContext,
+            new CommissionCalculator(commissionOptions),
             Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(),
             Mock.Of<Aivora.Services.NotificationService.IService>(),
             Mock.Of<Aivora.Services.RealtimeService.IService>()
@@ -252,8 +258,10 @@ public class TreasuryRealtimeTests
         dbContext.Payments.Add(payment);
         await dbContext.SaveChangesAsync();
 
+        var commissionOptions = Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.CommissionOptions { Rate = 0.10m, MaxDebtLimit = 1000m });
         var treasury = new Aivora.Services.Treasury.Treasury(
             dbContext,
+            new CommissionCalculator(commissionOptions),
             Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(),
             Mock.Of<Aivora.Services.NotificationService.IService>(),
             Mock.Of<Aivora.Services.RealtimeService.IService>()
@@ -285,8 +293,10 @@ public class TreasuryRealtimeTests
         dbContext.Milestones.Add(milestone);
         await dbContext.SaveChangesAsync();
 
+        var commissionOptions = Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.CommissionOptions { Rate = 0.10m, MaxDebtLimit = 1000m });
         var treasury = new Aivora.Services.Treasury.Treasury(
             dbContext,
+            new CommissionCalculator(commissionOptions),
             Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(),
             Mock.Of<Aivora.Services.NotificationService.IService>(),
             Mock.Of<Aivora.Services.RealtimeService.IService>()
@@ -300,4 +310,5 @@ public class TreasuryRealtimeTests
             .WithMessage("Cannot release remaining funds while the milestone is disputed.");
     }
 }
+
 

@@ -80,7 +80,8 @@ public static class ApiContractTestData
         db.Wallets.AddRange(
             new Wallet { Id = ClientWalletId, UserId = ClientUserId, AvailableBalance = 10000, Currency = "AICOIN" },
             new Wallet { Id = ExpertWalletId, UserId = ExpertUserId, AvailableBalance = 0, Currency = "AICOIN" },
-            new Wallet { Id = AdminWalletId, UserId = AdminUserId, AvailableBalance = 0, Currency = "AICOIN" }
+            new Wallet { Id = AdminWalletId, UserId = AdminUserId, AvailableBalance = 0, Currency = "AICOIN" },
+            new Wallet { Id = Guid.NewGuid(), UserId = Aivora.Repositories.Constants.SystemConstants.SystemUserId, AvailableBalance = 0, Currency = "AICOIN" }
         );
 
         // Profiles (required by several endpoints)
