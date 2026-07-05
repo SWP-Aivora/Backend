@@ -222,18 +222,18 @@ public class Treasury : ITreasury
 
         if (!payments.Any()) throw new NotFoundException("Payment not found for refund.");
 
-        using var transaction = await _dbContext.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+        using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
-            var payerWallet = await GetWalletAsync(payments.First().PayerId);
-            var payeeWallet = await GetWalletAsync(payments.First().PayeeId);
+            var payerWallet = await GetWalletForUpdateAsync(payments.First().PayerId);
+            var payeeWallet = await GetWalletForUpdateAsync(payments.First().PayeeId);
 
             var amount = payments.Sum(p => p.Amount);
             // We do NOT check for insufficient funds because dispute clawbacks may cause a negative balance.
 
             // 1. Move money back (Clawback from expert to client)
-            payeeWallet.AvailableBalance -= amount;
-            payerWallet.AvailableBalance += amount;
+            ClawbackFromWallet(payeeWallet, amount);
+            AddFundsToWallet(payerWallet, amount);
             payeeWallet.TotalEarned -= amount;
 
             // 2. Update Payment
