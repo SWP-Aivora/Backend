@@ -3,6 +3,7 @@ using System;
 using Aivora.Repositories.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Aivora.Repositories.Data.Migrations
 {
     [DbContext(typeof(AivoraDbContext))]
-    partial class AivoraDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260705023721_AddDisputePenaltyToRecommendation")]
+    partial class AddDisputePenaltyToRecommendation
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -354,6 +357,9 @@ namespace Aivora.Repositories.Data.Migrations
                     b.Property<string>("ResolutionNote")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("ResolutionType")
+                        .HasColumnType("text");
 
                     b.Property<DateTimeOffset?>("ResolvedAt")
                         .HasColumnType("timestamp with time zone");
@@ -875,9 +881,6 @@ namespace Aivora.Repositories.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)");
-
-                    b.Property<DateTimeOffset?>("DepositPaidAt")
-                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Description")
                         .HasMaxLength(1000)
@@ -1447,10 +1450,6 @@ namespace Aivora.Repositories.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)");
-
-                    b.Property<decimal>("Debt")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
 
                     b.Property<decimal>("HeldBalance")
                         .HasPrecision(18, 2)
