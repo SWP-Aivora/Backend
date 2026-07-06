@@ -183,7 +183,7 @@ public class WalletServiceTests
         var vnPayServiceMock = new Mock<IVNPayService>();
         var notificationServiceMock = Mock.Of<Aivora.Services.NotificationService.IService>();
         var service = new Service(dbContext, vnPayServiceMock.Object, notificationServiceMock);
-        
+
         var request = new Request.WithdrawRequest { Amount = 100000, PaymentMethod = "BankTransfer", Description = "Test Withdraw" };
 
         // Act
@@ -194,7 +194,7 @@ public class WalletServiceTests
         result.Transaction.Amount.Should().Be(100000);
         result.Transaction.Type.Should().Be(WalletTransactionType.WITHDRAWAL);
         result.Transaction.Direction.Should().Be(TransactionDirection.DEBIT);
-        
+
         var walletInDb = await dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
         walletInDb!.AvailableBalance.Should().Be(400000);
     }
@@ -213,7 +213,7 @@ public class WalletServiceTests
         var vnPayServiceMock = new Mock<IVNPayService>();
         var notificationServiceMock = Mock.Of<Aivora.Services.NotificationService.IService>();
         var service = new Service(dbContext, vnPayServiceMock.Object, notificationServiceMock);
-        
+
         var request = new Request.WithdrawRequest { Amount = 150000, PaymentMethod = "BankTransfer" };
 
         // Act
@@ -222,7 +222,7 @@ public class WalletServiceTests
         // Assert
         result.Wallet.AvailableBalance.Should().Be(50000);
         result.Wallet.HeldBalance.Should().Be(999999); // HeldBalance remains unchanged
-        
+
         var walletInDb = await dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
         walletInDb!.AvailableBalance.Should().Be(50000);
         walletInDb.HeldBalance.Should().Be(999999);

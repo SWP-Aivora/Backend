@@ -1,3 +1,6 @@
+using System.Text.Json.Serialization;
+using Aivora.Repositories.Enums;
+
 namespace Aivora.Services.MessageService;
 
 public class Response
@@ -24,6 +27,10 @@ public class Response
         public Guid ConversationId { get; set; }
         public Guid SenderId { get; set; }
         public string SenderName { get; set; } = null!;
+
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        public UserRole SenderRole { get; set; }
+
         public string? Content { get; set; }
         public string? AttachmentUrl { get; set; }
         public bool IsRead { get; set; }
