@@ -14,6 +14,8 @@ public class RecommendationResult : AuditableBaseEntity
     public decimal CompletionScore { get; set; }
     public decimal DisputePenalty { get; set; }
     public decimal DisputeRate { get; set; }
+    public decimal OverdueRate { get; set; }
+    public decimal OverduePenalty { get; set; }
     public string? Explanation { get; set; }
 
     // Navigation Properties

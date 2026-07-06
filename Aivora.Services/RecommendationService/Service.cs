@@ -45,8 +45,37 @@ public class Service : IService
             .Select(g => new { ExpertId = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.ExpertId, x => x.Count);
 
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var milestoneStats = await _dbContext.Milestones
+            .Where(m => expertIds.Contains(m.Project.ExpertId)
+                && (m.Project.Status == ProjectStatus.ACTIVE || m.Project.Status == ProjectStatus.DISPUTED))
+            .GroupBy(m => m.Project.ExpertId)
+            .Select(g => new
+            {
+                ExpertId = g.Key,
+                TotalCount = g.Count(),
+                OverdueCount = g.Count(m => m.DueDate != null 
+                    && m.DueDate < today 
+                    && m.Status != MilestoneStatus.COMPLETED 
+                    && m.Status != MilestoneStatus.RELEASED 
+                    && m.Status != MilestoneStatus.REFUNDED 
+                    && m.Status != MilestoneStatus.APPROVED)
+            })
+            .ToDictionaryAsync(x => x.ExpertId, x => (Total: x.TotalCount, Overdue: x.OverdueCount));
+
         var recommendations = experts
-            .Select(expert => BuildRecommendation(job, requiredSkills, expert, disputeCounts.GetValueOrDefault(expert.UserId, 0)))
+            .Select(expert =>
+            {
+                var disputeCount = disputeCounts.GetValueOrDefault(expert.UserId, 0);
+                var milestoneStat = milestoneStats.GetValueOrDefault(expert.UserId, (Total: 0, Overdue: 0));
+                return BuildRecommendation(
+                    job,
+                    requiredSkills,
+                    expert,
+                    disputeCount,
+                    milestoneStat.Total,
+                    milestoneStat.Overdue);
+            })
             .OrderByDescending(r => r.TotalScore)
             .Take(5)
             .ToList();
@@ -84,12 +113,20 @@ public class Service : IService
                 Rating = r.Expert.ExpertProfile.Rating,
                 CompletedProjects = r.Expert.ExpertProfile.CompletedProjects,
                 DisputeRate = r.DisputeRate,
-                DisputePenalty = r.DisputePenalty
+                DisputePenalty = r.DisputePenalty,
+                OverdueRate = r.OverdueRate,
+                OverduePenalty = r.OverduePenalty
             })
             .ToListAsync();
     }
 
-    private static RecommendationResult BuildRecommendation(JobPost job, List<RequiredSkill> requiredSkills, ExpertProfile expert, int disputeCount)
+    private static RecommendationResult BuildRecommendation(
+        JobPost job,
+        List<RequiredSkill> requiredSkills,
+        ExpertProfile expert,
+        int disputeCount,
+        int totalMilestoneCount,
+        int overdueMilestoneCount)
     {
         var skillScore = CalculateSkillScore(requiredSkills, expert, out var matchedSkillNames);
         var budgetScore = CalculateBudgetScore(job, expert);
@@ -117,7 +154,13 @@ public class Service : IService
         // - 1.5x penalty factor, capped at 50%: A dispute rate >= 33% results in the maximum deduction.
         // - The 50% cap ensures the score never reaches absolute 0, because other axes (skill, rating, etc.) still hold reference value.
         var penalty = Math.Min(disputeRate * 1.5m, 0.5m);
-        totalScore = Math.Round(totalScore * (1 - penalty), 2);
+
+        var overdueRate = totalMilestoneCount > 0
+            ? (decimal)overdueMilestoneCount / totalMilestoneCount
+            : 0m;
+
+        var overduePenalty = Math.Min(overdueRate * 0.3m, 0.3m);
+        totalScore = Math.Round(totalScore * (1 - penalty) * (1 - overduePenalty), 2);
 
         return new RecommendationResult
         {
@@ -131,8 +174,10 @@ public class Service : IService
             CompletionScore = completionScore,
             DisputeRate = Math.Round(disputeRate, 4),
             DisputePenalty = Math.Round(penalty, 4),
+            OverdueRate = Math.Round(overdueRate, 4),
+            OverduePenalty = Math.Round(overduePenalty, 4),
             TotalScore = totalScore,
-            Explanation = BuildExplanation(requiredSkills.Count, matchedSkillNames, expert, budgetScore, penalty)
+            Explanation = BuildExplanation(requiredSkills.Count, matchedSkillNames, expert, budgetScore, penalty, overduePenalty)
         };
     }
 
@@ -198,7 +243,13 @@ public class Service : IService
         return Math.Round(Math.Max(0, 100 - (excess / budgetMax) * 100), 2);
     }
 
-    private static string BuildExplanation(int requiredSkillCount, List<string> matchedSkillNames, ExpertProfile expert, decimal budgetScore, decimal disputePenalty)
+    private static string BuildExplanation(
+        int requiredSkillCount,
+        List<string> matchedSkillNames,
+        ExpertProfile expert,
+        decimal budgetScore,
+        decimal disputePenalty,
+        decimal overduePenalty)
     {
         var explanation = matchedSkillNames.Count > 0
             ? $"Matches {matchedSkillNames.Count}/{requiredSkillCount} required skills ({string.Join(", ", matchedSkillNames)}). "
@@ -221,6 +272,11 @@ public class Service : IService
         if (disputePenalty > 0)
         {
             explanation += $"Score reduced by {disputePenalty * 100:0.#}% due to high dispute rate on past projects. ";
+        }
+
+        if (overduePenalty > 0)
+        {
+            explanation += $"Score reduced by {overduePenalty * 100:0.#}% due to overdue milestones on past projects. ";
         }
 
         return explanation.Trim();

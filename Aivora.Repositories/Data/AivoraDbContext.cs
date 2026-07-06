@@ -77,8 +77,14 @@ public class AivoraDbContext : DbContext
             .SelectMany(t => t.GetProperties())
             .Where(p => p.ClrType == typeof(decimal) || p.ClrType == typeof(decimal?)))
         {
-            property.SetPrecision(18);
-            property.SetScale(2);
+            if (property.GetPrecision() == null)
+            {
+                property.SetPrecision(18);
+            }
+            if (property.GetScale() == null)
+            {
+                property.SetScale(2);
+            }
         }
 
         base.OnModelCreating(modelBuilder);

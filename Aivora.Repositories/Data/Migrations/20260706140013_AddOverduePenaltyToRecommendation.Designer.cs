@@ -3,6 +3,7 @@ using System;
 using Aivora.Repositories.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Aivora.Repositories.Data.Migrations
 {
     [DbContext(typeof(AivoraDbContext))]
-    partial class AivoraDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260706140013_AddOverduePenaltyToRecommendation")]
+    partial class AddOverduePenaltyToRecommendation
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -924,6 +927,58 @@ namespace Aivora.Repositories.Data.Migrations
                     b.HasIndex("ProjectId");
 
                     b.ToTable("Milestones", (string)null);
+                });
+
+            modelBuilder.Entity("Aivora.Repositories.Entities.MilestoneStep", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CompletedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateOnly?>("DueDate")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("MilestoneId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("OrderIndex")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompletedByUserId");
+
+                    b.HasIndex("MilestoneId");
+
+                    b.ToTable("MilestoneSteps", (string)null);
                 });
 
             modelBuilder.Entity("Aivora.Repositories.Entities.Notification", b =>
@@ -1845,6 +1900,24 @@ namespace Aivora.Repositories.Data.Migrations
                     b.Navigation("Project");
                 });
 
+            modelBuilder.Entity("Aivora.Repositories.Entities.MilestoneStep", b =>
+                {
+                    b.HasOne("Aivora.Repositories.Entities.User", "CompletedByUser")
+                        .WithMany()
+                        .HasForeignKey("CompletedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Aivora.Repositories.Entities.Milestone", "Milestone")
+                        .WithMany("Steps")
+                        .HasForeignKey("MilestoneId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CompletedByUser");
+
+                    b.Navigation("Milestone");
+                });
+
             modelBuilder.Entity("Aivora.Repositories.Entities.Notification", b =>
                 {
                     b.HasOne("Aivora.Repositories.Entities.User", "User")
@@ -2080,6 +2153,8 @@ namespace Aivora.Repositories.Data.Migrations
             modelBuilder.Entity("Aivora.Repositories.Entities.Milestone", b =>
                 {
                     b.Navigation("Deliverables");
+
+                    b.Navigation("Steps");
                 });
 
             modelBuilder.Entity("Aivora.Repositories.Entities.Project", b =>
