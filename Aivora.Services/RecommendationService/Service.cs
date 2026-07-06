@@ -42,8 +42,18 @@ public class Service : IService
         if (requiredSkills.Count > 0)
         {
             var requiredSkillIds = requiredSkills.Select(rs => rs.SkillId).ToList();
-            activeExpertsQuery = activeExpertsQuery.Where(e => e.ExpertSkills.Any(es => requiredSkillIds.Contains(es.SkillId)));
+            activeExpertsQuery = activeExpertsQuery
+                .Where(e => e.ExpertSkills.Any(es => requiredSkillIds.Contains(es.SkillId)))
+                .OrderByDescending(e => e.ExpertSkills.Count(es => requiredSkillIds.Contains(es.SkillId)))
+                .ThenByDescending(e => e.Rating);
         }
+        else
+        {
+            activeExpertsQuery = activeExpertsQuery.OrderByDescending(e => e.Rating);
+        }
+
+        // Limit the candidate pool to the top 50 experts at database level to prevent memory issues
+        activeExpertsQuery = activeExpertsQuery.Take(50);
 
         var activeExpertIdsQuery = activeExpertsQuery.Select(e => e.UserId);
 

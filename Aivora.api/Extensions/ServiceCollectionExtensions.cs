@@ -57,7 +57,10 @@ public static class ServiceCollectionExtensions
         services.Configure<AIProviderOptions>(configuration.GetSection("AIProvider"));
         services.Configure<RateLimitOptions>(configuration.GetSection(RateLimitOptions.SectionName));
         services.Configure<CommissionOptions>(configuration.GetSection("Commission"));
-        services.Configure<RecommendationOptions>(configuration.GetSection("Recommendation"));
+        services.AddOptions<RecommendationOptions>()
+            .Bind(configuration.GetSection("Recommendation"))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
 
         return services;
     }
