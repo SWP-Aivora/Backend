@@ -44,7 +44,7 @@ public class MilestoneStepServiceTests
 
         var project = new Project { Id = projectId, ClientId = clientId, ExpertId = expertId, Title = "Test Project", Status = ProjectStatus.ACTIVE };
         var milestone = new Milestone { Id = milestoneId, ProjectId = projectId, Title = "Milestone 1", Amount = 100 };
-        
+
         var step1 = new MilestoneStep { Id = Guid.NewGuid(), MilestoneId = milestoneId, Title = "Step B", OrderIndex = 2, Status = MilestoneStepStatus.PENDING };
         var step2 = new MilestoneStep { Id = Guid.NewGuid(), MilestoneId = milestoneId, Title = "Step A", OrderIndex = 1, Status = MilestoneStepStatus.PENDING };
         var step3 = new MilestoneStep { Id = Guid.NewGuid(), MilestoneId = milestoneId, Title = "Step C", OrderIndex = 3, Status = MilestoneStepStatus.PENDING };
@@ -324,7 +324,7 @@ public class MilestoneStepServiceTests
 
         var project = new Project { Id = projectId, ClientId = clientId, ExpertId = expertId, Title = "Test Project", Status = ProjectStatus.ACTIVE };
         var milestone = new Milestone { Id = milestoneId, ProjectId = projectId, Title = "Milestone 1", Amount = 100 };
-        
+
         var step1 = new MilestoneStep { Id = Guid.NewGuid(), MilestoneId = milestoneId, Title = "Step 1", OrderIndex = 1, Status = MilestoneStepStatus.PENDING };
         var step2 = new MilestoneStep { Id = Guid.NewGuid(), MilestoneId = milestoneId, Title = "Step 2", OrderIndex = 2, Status = MilestoneStepStatus.PENDING };
         var step3 = new MilestoneStep { Id = Guid.NewGuid(), MilestoneId = milestoneId, Title = "Step 3", OrderIndex = 3, Status = MilestoneStepStatus.PENDING };
@@ -335,7 +335,7 @@ public class MilestoneStepServiceTests
         await dbContext.SaveChangesAsync();
 
         var service = GetService(dbContext);
-        
+
         // Let's reorder: step3 (index 1), step1 (index 2), step2 (index 3)
         var stepIds = new List<Guid> { step3.Id, step1.Id, step2.Id };
 

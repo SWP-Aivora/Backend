@@ -70,13 +70,13 @@ public class Service : IService
 
         if (milestone == null) throw new NotFoundException("Milestone not found.");
         if (milestone.Project.ClientId != userId) throw new UnauthorizedException("Only the client can update milestones.");
-        
+
         if (milestone.Status != MilestoneStatus.CREATED)
         {
-            if (request.Title != null || 
-                request.Description != null || 
-                request.AcceptanceCriteria != null || 
-                request.Amount.HasValue || 
+            if (request.Title != null ||
+                request.Description != null ||
+                request.AcceptanceCriteria != null ||
+                request.Amount.HasValue ||
                 request.OrderIndex.HasValue)
             {
                 throw new ValidationException("Only DueDate can be updated on active milestones.");
@@ -218,8 +218,8 @@ public class Service : IService
         var exists = await _dbContext.Milestones.AnyAsync(m => m.Id == milestoneId);
         if (!exists) throw new NotFoundException("Milestone not found.");
 
-        var isAuthorized = await _dbContext.Milestones.AnyAsync(m => 
-            m.Id == milestoneId && 
+        var isAuthorized = await _dbContext.Milestones.AnyAsync(m =>
+            m.Id == milestoneId &&
             (m.Project.ClientId == userId || m.Project.ExpertId == userId));
         if (!isAuthorized) throw new UnauthorizedException("Access denied.");
 
@@ -258,9 +258,9 @@ public class Service : IService
         if (project.Status == ProjectStatus.COMPLETED || project.Status == ProjectStatus.CANCELLED)
             throw new ValidationException("Cannot add steps to a completed or cancelled project.");
 
-        if (milestone.Status == MilestoneStatus.APPROVED || 
-            milestone.Status == MilestoneStatus.RELEASED || 
-            milestone.Status == MilestoneStatus.COMPLETED || 
+        if (milestone.Status == MilestoneStatus.APPROVED ||
+            milestone.Status == MilestoneStatus.RELEASED ||
+            milestone.Status == MilestoneStatus.COMPLETED ||
             milestone.Status == MilestoneStatus.REFUNDED)
             throw new ValidationException("Cannot add steps to a finalized milestone.");
 
@@ -304,9 +304,9 @@ public class Service : IService
         if (step.Milestone.Project.Status == ProjectStatus.COMPLETED || step.Milestone.Project.Status == ProjectStatus.CANCELLED)
             throw new ValidationException("Cannot modify steps in a completed or cancelled project.");
 
-        if (step.Milestone.Status == MilestoneStatus.APPROVED || 
-            step.Milestone.Status == MilestoneStatus.RELEASED || 
-            step.Milestone.Status == MilestoneStatus.COMPLETED || 
+        if (step.Milestone.Status == MilestoneStatus.APPROVED ||
+            step.Milestone.Status == MilestoneStatus.RELEASED ||
+            step.Milestone.Status == MilestoneStatus.COMPLETED ||
             step.Milestone.Status == MilestoneStatus.REFUNDED)
             throw new ValidationException("Cannot modify steps for a finalized milestone.");
 
@@ -346,9 +346,9 @@ public class Service : IService
         if (step.Milestone.Project.Status == ProjectStatus.COMPLETED || step.Milestone.Project.Status == ProjectStatus.CANCELLED)
             throw new ValidationException("Cannot modify steps in a completed or cancelled project.");
 
-        if (step.Milestone.Status == MilestoneStatus.APPROVED || 
-            step.Milestone.Status == MilestoneStatus.RELEASED || 
-            step.Milestone.Status == MilestoneStatus.COMPLETED || 
+        if (step.Milestone.Status == MilestoneStatus.APPROVED ||
+            step.Milestone.Status == MilestoneStatus.RELEASED ||
+            step.Milestone.Status == MilestoneStatus.COMPLETED ||
             step.Milestone.Status == MilestoneStatus.REFUNDED)
             throw new ValidationException("Cannot modify steps for a finalized milestone.");
 
@@ -373,9 +373,9 @@ public class Service : IService
         if (project.Status == ProjectStatus.COMPLETED || project.Status == ProjectStatus.CANCELLED)
             throw new ValidationException("Cannot modify steps in a completed or cancelled project.");
 
-        if (step.Milestone.Status == MilestoneStatus.APPROVED || 
-            step.Milestone.Status == MilestoneStatus.RELEASED || 
-            step.Milestone.Status == MilestoneStatus.COMPLETED || 
+        if (step.Milestone.Status == MilestoneStatus.APPROVED ||
+            step.Milestone.Status == MilestoneStatus.RELEASED ||
+            step.Milestone.Status == MilestoneStatus.COMPLETED ||
             step.Milestone.Status == MilestoneStatus.REFUNDED)
             throw new ValidationException("Cannot modify steps for a finalized milestone.");
 
@@ -444,9 +444,9 @@ public class Service : IService
         if (milestone.Project.Status == ProjectStatus.COMPLETED || milestone.Project.Status == ProjectStatus.CANCELLED)
             throw new ValidationException("Cannot modify steps in a completed or cancelled project.");
 
-        if (milestone.Status == MilestoneStatus.APPROVED || 
-            milestone.Status == MilestoneStatus.RELEASED || 
-            milestone.Status == MilestoneStatus.COMPLETED || 
+        if (milestone.Status == MilestoneStatus.APPROVED ||
+            milestone.Status == MilestoneStatus.RELEASED ||
+            milestone.Status == MilestoneStatus.COMPLETED ||
             milestone.Status == MilestoneStatus.REFUNDED)
             throw new ValidationException("Cannot modify steps for a finalized milestone.");
 
