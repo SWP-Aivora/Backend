@@ -170,15 +170,15 @@ public class MilestoneStepServiceTests
 
         var project = new Project { Id = projectId, ClientId = clientId, ExpertId = expertId, Title = "Test Project", Status = ProjectStatus.ACTIVE };
         var milestone = new Milestone { Id = milestoneId, ProjectId = projectId, Title = "Milestone 1", Amount = 100 };
-        var step = new MilestoneStep 
-        { 
-            Id = stepId, 
-            MilestoneId = milestoneId, 
-            Title = "Original Title", 
-            Description = "Original Description", 
+        var step = new MilestoneStep
+        {
+            Id = stepId,
+            MilestoneId = milestoneId,
+            Title = "Original Title",
+            Description = "Original Description",
             DueDate = new DateOnly(2026, 7, 7),
-            OrderIndex = 1, 
-            Status = MilestoneStepStatus.PENDING 
+            OrderIndex = 1,
+            Status = MilestoneStepStatus.PENDING
         };
 
         dbContext.Projects.Add(project);
