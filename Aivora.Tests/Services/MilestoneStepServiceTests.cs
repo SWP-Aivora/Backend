@@ -158,6 +158,62 @@ public class MilestoneStepServiceTests
     }
 
     [Fact]
+    public async Task UpdateMilestoneStepAsync_NullableFieldsHandling()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var milestoneId = Guid.NewGuid();
+        var stepId = Guid.NewGuid();
+
+        var project = new Project { Id = projectId, ClientId = clientId, ExpertId = expertId, Title = "Test Project", Status = ProjectStatus.ACTIVE };
+        var milestone = new Milestone { Id = milestoneId, ProjectId = projectId, Title = "Milestone 1", Amount = 100 };
+        var step = new MilestoneStep 
+        { 
+            Id = stepId, 
+            MilestoneId = milestoneId, 
+            Title = "Original Title", 
+            Description = "Original Description", 
+            DueDate = new DateOnly(2026, 7, 7),
+            OrderIndex = 1, 
+            Status = MilestoneStepStatus.PENDING 
+        };
+
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestone);
+        dbContext.MilestoneSteps.Add(step);
+        await dbContext.SaveChangesAsync();
+
+        var service = GetService(dbContext);
+
+        // Case 1: Unspecified fields (Description and DueDate are omitted/default null but IsSet is false)
+        var requestNoChange = new Request.UpdateMilestoneStepRequest
+        {
+            Title = "New Title Only"
+        };
+        var result1 = await service.UpdateMilestoneStepAsync(clientId, stepId, requestNoChange);
+        result1.Title.Should().Be("New Title Only");
+        result1.Description.Should().Be("Original Description"); // preserved
+        result1.DueDate.Should().Be(new DateOnly(2026, 7, 7)); // preserved
+
+        // Case 2: Explicitly setting fields to null
+        var requestNullify = new Request.UpdateMilestoneStepRequest
+        {
+            Description = null,
+            DueDate = null
+        };
+        var result2 = await service.UpdateMilestoneStepAsync(clientId, stepId, requestNullify);
+        result2.Description.Should().BeNull(); // cleared
+        result2.DueDate.Should().BeNull(); // cleared
+
+        var dbStep = await dbContext.MilestoneSteps.FirstOrDefaultAsync(s => s.Id == stepId);
+        dbStep!.Description.Should().BeNull();
+        dbStep.DueDate.Should().BeNull();
+    }
+
+    [Fact]
     public async Task DeleteMilestoneStepAsync_Success()
     {
         // Arrange

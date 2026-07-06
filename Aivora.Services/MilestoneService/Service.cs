@@ -325,8 +325,8 @@ public class Service : IService
             throw new ValidationException("Cannot modify steps for a finalized milestone.");
 
         if (request.Title != null) step.Title = request.Title;
-        if (request.Description != null) step.Description = request.Description;
-        if (request.DueDate.HasValue) step.DueDate = request.DueDate.Value;
+        if (request.IsDescriptionSet) step.Description = request.Description;
+        if (request.IsDueDateSet) step.DueDate = request.DueDate;
         if (request.OrderIndex.HasValue) step.OrderIndex = request.OrderIndex.Value;
 
         await _dbContext.SaveChangesAsync();
