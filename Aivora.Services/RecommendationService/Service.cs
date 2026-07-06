@@ -39,6 +39,12 @@ public class Service : IService
         var activeExpertsQuery = _dbContext.ExpertProfiles
             .Where(e => e.User.Role == UserRole.EXPERT && e.User.Status == UserStatus.ACTIVE);
 
+        if (requiredSkills.Count > 0)
+        {
+            var requiredSkillIds = requiredSkills.Select(rs => rs.SkillId).ToList();
+            activeExpertsQuery = activeExpertsQuery.Where(e => e.ExpertSkills.Any(es => requiredSkillIds.Contains(es.SkillId)));
+        }
+
         var activeExpertIdsQuery = activeExpertsQuery.Select(e => e.UserId);
 
         var disputeCounts = await _dbContext.Disputes
