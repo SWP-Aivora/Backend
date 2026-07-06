@@ -55,17 +55,17 @@ public class Service : IService
         // Limit the candidate pool to the top 50 experts at database level to prevent memory issues
         activeExpertsQuery = activeExpertsQuery.Take(50);
 
-        var activeExpertIdsQuery = activeExpertsQuery.Select(e => e.UserId);
+        var expertIds = await activeExpertsQuery.Select(e => e.UserId).ToListAsync();
 
         var disputeCounts = await _dbContext.Disputes
-            .Where(d => activeExpertIdsQuery.Contains(d.Project.ExpertId))
+            .Where(d => expertIds.Contains(d.Project.ExpertId))
             .GroupBy(d => d.Project.ExpertId)
             .Select(g => new { ExpertId = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.ExpertId, x => x.Count);
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var milestoneStats = await _dbContext.Milestones
-            .Where(m => activeExpertIdsQuery.Contains(m.Project.ExpertId)
+            .Where(m => expertIds.Contains(m.Project.ExpertId)
                 && (m.Project.Status == ProjectStatus.ACTIVE || m.Project.Status == ProjectStatus.DISPUTED))
             .GroupBy(m => m.Project.ExpertId)
             .Select(g => new
@@ -81,9 +81,10 @@ public class Service : IService
             })
             .ToDictionaryAsync(x => x.ExpertId, x => (Total: x.TotalCount, Overdue: x.OverdueCount));
 
-        var experts = await activeExpertsQuery
+        var experts = await _dbContext.ExpertProfiles
             .Include(e => e.User)
             .Include(e => e.ExpertSkills).ThenInclude(es => es.Skill)
+            .Where(e => expertIds.Contains(e.UserId))
             .ToListAsync();
 
         var recommendations = experts
