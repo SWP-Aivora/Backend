@@ -69,7 +69,7 @@ public class ChatHubTests
             ConversationId = conversationId,
             SenderId = adminId,
             SenderName = "Admin",
-            SenderRole = "ADMIN",
+            SenderRole = UserRole.ADMIN,
             Content = "Hello from Admin",
             CreatedAt = DateTimeOffset.UtcNow
         };

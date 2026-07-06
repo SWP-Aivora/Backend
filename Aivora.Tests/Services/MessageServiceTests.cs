@@ -194,7 +194,7 @@ public class MessageServiceTests
         // Assert
         result.Content.Should().Be("Hello from Admin");
         result.SenderId.Should().Be(adminId);
-        result.SenderRole.Should().Be("ADMIN");
+        result.SenderRole.Should().Be(UserRole.ADMIN);
 
         var msgInDb = await dbContext.Messages.FirstOrDefaultAsync(m => m.ConversationId == conversationId);
         msgInDb.Should().NotBeNull();
@@ -292,17 +292,17 @@ public class MessageServiceTests
         // Act & Assert 1: Client
         var clientRequest = new Request.SendMessageRequest { ConversationId = conversationId, Content = "Client msg" };
         var clientResult = await service.SendMessageAsync(clientId, UserRole.CLIENT, clientRequest);
-        clientResult.SenderRole.Should().Be("CLIENT");
+        clientResult.SenderRole.Should().Be(UserRole.CLIENT);
 
         // Act & Assert 2: Expert
         var expertRequest = new Request.SendMessageRequest { ConversationId = conversationId, Content = "Expert msg" };
         var expertResult = await service.SendMessageAsync(expertId, UserRole.EXPERT, expertRequest);
-        expertResult.SenderRole.Should().Be("EXPERT");
+        expertResult.SenderRole.Should().Be(UserRole.EXPERT);
 
         // Act & Assert 3: Admin
         var adminRequest = new Request.SendMessageRequest { ConversationId = conversationId, Content = "Admin msg" };
         var adminResult = await service.SendMessageAsync(adminId, UserRole.ADMIN, adminRequest);
-        adminResult.SenderRole.Should().Be("ADMIN");
+        adminResult.SenderRole.Should().Be(UserRole.ADMIN);
     }
 
     [Fact]

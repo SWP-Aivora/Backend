@@ -18,6 +18,8 @@ public class Service : IService
     public async Task<Response.ConversationResponse> GetOrCreateConversationAsync(Guid clientId, Guid expertId, Guid? jobId = null, Guid? projectId = null)
     {
         var conversation = await _dbContext.Conversations
+            .Include(c => c.Client)
+            .Include(c => c.Expert)
             .FirstOrDefaultAsync(c => c.ClientId == clientId && c.ExpertId == expertId && c.JobId == jobId && c.ProjectId == projectId);
 
         if (conversation == null)
@@ -31,9 +33,13 @@ public class Service : IService
             };
             _dbContext.Conversations.Add(conversation);
             await _dbContext.SaveChangesAsync();
+
+            // Load navigation properties for the new conversation
+            conversation.Client = await _dbContext.Users.FindAsync(clientId);
+            conversation.Expert = await _dbContext.Users.FindAsync(expertId);
         }
 
-        return await MapToConversationResponse(conversation, clientId); // Default to client for unread
+        return await MapToConversationResponse(conversation, clientId, isUnreadApplicable: true); // Client is never admin
     }
 
     public async Task<Base.Response.PageResult<Response.ConversationResponse>> GetUserConversationsAsync(Guid userId, Base.Request.PageRequest pageRequest)
@@ -95,7 +101,7 @@ public class Service : IService
             ConversationId = m.ConversationId,
             SenderId = m.SenderId,
             SenderName = m.Sender.FullName,
-            SenderRole = m.Sender.Role.ToString(),
+            SenderRole = m.Sender.Role,
             Content = m.Content,
             AttachmentUrl = m.AttachmentUrl,
             IsRead = m.IsRead,
@@ -203,7 +209,7 @@ public class Service : IService
             ConversationId = message.ConversationId,
             SenderId = message.SenderId,
             SenderName = senderName,
-            SenderRole = senderRole.ToString(),
+            SenderRole = senderRole,
             Content = message.Content,
             AttachmentUrl = message.AttachmentUrl,
             IsRead = message.IsRead,
@@ -288,7 +294,7 @@ public class Service : IService
         };
     }
 
-    private async Task<Response.ConversationResponse> MapToConversationResponse(Conversation c, Guid currentUserId)
+    private async Task<Response.ConversationResponse> MapToConversationResponse(Conversation c, Guid currentUserId, bool? isUnreadApplicable = null)
     {
         // Force load navigation properties if they are null (due to potential missing includes in some calls)
         if (c.Client == null)
@@ -308,22 +314,25 @@ public class Service : IService
             }
         }
 
-        var lastMsg = await _dbContext.Messages
-            .Where(m => m.ConversationId == c.Id)
-            .OrderByDescending(m => m.CreatedAt)
-            .FirstOrDefaultAsync();
+        var lastMsg = c.Messages != null && c.Messages.Any()
+            ? c.Messages.OrderByDescending(m => m.CreatedAt).FirstOrDefault()
+            : await _dbContext.Messages
+                .Where(m => m.ConversationId == c.Id)
+                .OrderByDescending(m => m.CreatedAt)
+                .FirstOrDefaultAsync();
 
-        var isUnreadApplicable = currentUserId != Guid.Empty;
-        if (isUnreadApplicable)
+        bool unreadApplicable;
+        if (isUnreadApplicable.HasValue)
         {
-            var user = await _dbContext.Users.FindAsync(currentUserId);
-            if (user == null || user.Role == UserRole.ADMIN)
-            {
-                isUnreadApplicable = false;
-            }
+            unreadApplicable = isUnreadApplicable.Value;
+        }
+        else
+        {
+            var user = currentUserId != Guid.Empty ? await _dbContext.Users.FindAsync(currentUserId) : null;
+            unreadApplicable = user != null && user.Role != Aivora.Repositories.Enums.UserRole.ADMIN;
         }
 
-        var unreadCount = isUnreadApplicable
+        var unreadCount = unreadApplicable
             ? await _dbContext.Messages.CountAsync(m => m.ConversationId == c.Id && m.SenderId != currentUserId && !m.IsRead)
             : 0;
 
