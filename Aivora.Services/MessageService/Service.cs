@@ -115,7 +115,7 @@ public class Service : IService
     {
         var conversation = await _dbContext.Conversations.FindAsync(conversationId);
         if (conversation == null) throw new NotFoundException("Conversation not found.");
-        
+
         if (conversation.ClientId == userId || conversation.ExpertId == userId)
         {
             return;
@@ -169,7 +169,7 @@ public class Service : IService
         if (senderRole == UserRole.ADMIN)
         {
             await EnsureAdminCanViewConversationAsync(conversation);
-            
+
             var adminUser = await _dbContext.Users.FindAsync(senderId);
             senderName = adminUser?.FullName ?? "Admin User";
         }
@@ -179,9 +179,9 @@ public class Service : IService
             {
                 throw new UnauthorizedException("You are not a participant in this conversation.");
             }
-            
-            senderName = conversation.ClientId == senderId 
-                ? (conversation.Client?.FullName ?? "Client") 
+
+            senderName = conversation.ClientId == senderId
+                ? (conversation.Client?.FullName ?? "Client")
                 : (conversation.Expert?.FullName ?? "Expert");
         }
 
@@ -215,7 +215,7 @@ public class Service : IService
     {
         var conversation = await _dbContext.Conversations.FindAsync(conversationId);
         if (conversation == null) throw new NotFoundException("Conversation not found.");
-        
+
         if (conversation.ClientId != userId && conversation.ExpertId != userId)
         {
             throw new UnauthorizedException("You are not a participant in this conversation.");

@@ -392,7 +392,7 @@ public class MessageServiceTests
         var client = new User { Id = clientId, FullName = "Client", Email = "c@t.com", PasswordHash = "x", Role = UserRole.CLIENT };
         var expert = new User { Id = expertId, FullName = "Expert", Email = "e@t.com", PasswordHash = "x", Role = UserRole.EXPERT };
         var admin = new User { Id = adminId, FullName = "Admin", Email = "admin@t.com", PasswordHash = "x", Role = UserRole.ADMIN };
-        
+
         // Conversation with Project context and open dispute (which would let admin view it, but NOT mark as read)
         var conversation = new Conversation { Id = conversationId, ClientId = clientId, ExpertId = expertId, ProjectId = projectId };
         var dispute = new Dispute
@@ -433,7 +433,7 @@ public class MessageServiceTests
         var client = new User { Id = clientId, FullName = "Client", Email = "c@t.com", PasswordHash = "x", Role = UserRole.CLIENT };
         var expert = new User { Id = expertId, FullName = "Expert", Email = "e@t.com", PasswordHash = "x", Role = UserRole.EXPERT };
         var admin = new User { Id = adminId, FullName = "Admin", Email = "admin@t.com", PasswordHash = "x", Role = UserRole.ADMIN };
-        
+
         var conversation = new Conversation { Id = conversationId, ClientId = clientId, ExpertId = expertId, ProjectId = projectId };
         var dispute = new Dispute
         {
