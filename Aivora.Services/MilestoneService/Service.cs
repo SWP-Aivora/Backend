@@ -25,6 +25,7 @@ public class Service : IService
     {
         var milestone = await _dbContext.Milestones
             .Include(m => m.Project)
+            .Include(m => m.Steps)
             .FirstOrDefaultAsync(m => m.Id == milestoneId);
 
         if (milestone == null) throw new NotFoundException("Milestone not found.");
@@ -66,6 +67,7 @@ public class Service : IService
     {
         var milestone = await _dbContext.Milestones
             .Include(m => m.Project)
+            .Include(m => m.Steps)
             .FirstOrDefaultAsync(m => m.Id == milestoneId);
 
         if (milestone == null) throw new NotFoundException("Milestone not found.");
@@ -112,6 +114,11 @@ public class Service : IService
 
         if (milestone == null)
             throw new InvalidOperationException($"Milestone {milestoneId} not tracked after funding.");
+
+        if (!_dbContext.Entry(milestone).Collection(m => m.Steps).IsLoaded)
+        {
+            await _dbContext.Entry(milestone).Collection(m => m.Steps).LoadAsync();
+        }
         if (clientWallet == null)
             throw new InvalidOperationException($"Wallet for user {userId} not tracked after funding.");
         if (payment == null)
@@ -171,6 +178,11 @@ public class Service : IService
         milestone = _dbContext.Milestones.Local.FirstOrDefault(m => m.Id == milestoneId);
         if (milestone == null)
             throw new InvalidOperationException($"Milestone {milestoneId} not tracked after release.");
+
+        if (!_dbContext.Entry(milestone).Collection(m => m.Steps).IsLoaded)
+        {
+            await _dbContext.Entry(milestone).Collection(m => m.Steps).LoadAsync();
+        }
         return MapToResponse(milestone);
     }
 
@@ -178,6 +190,7 @@ public class Service : IService
     {
         var milestone = await _dbContext.Milestones
             .Include(m => m.Project)
+            .Include(m => m.Steps)
             .FirstOrDefaultAsync(m => m.Id == milestoneId);
 
         if (milestone == null) throw new NotFoundException("Milestone not found.");
@@ -215,13 +228,14 @@ public class Service : IService
 
     public async Task<List<Response.MilestoneStepResponse>> GetMilestoneStepsAsync(Guid userId, Guid milestoneId)
     {
-        var exists = await _dbContext.Milestones.AnyAsync(m => m.Id == milestoneId);
-        if (!exists) throw new NotFoundException("Milestone not found.");
+        var milestone = await _dbContext.Milestones
+            .Include(m => m.Project)
+            .FirstOrDefaultAsync(m => m.Id == milestoneId);
 
-        var isAuthorized = await _dbContext.Milestones.AnyAsync(m =>
-            m.Id == milestoneId &&
-            (m.Project.ClientId == userId || m.Project.ExpertId == userId));
-        if (!isAuthorized) throw new UnauthorizedException("Access denied.");
+        if (milestone == null) throw new NotFoundException("Milestone not found.");
+
+        if (milestone.Project.ClientId != userId && milestone.Project.ExpertId != userId)
+            throw new UnauthorizedException("Access denied.");
 
         return await _dbContext.MilestoneSteps
             .AsNoTracking()
