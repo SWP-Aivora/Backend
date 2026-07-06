@@ -25,6 +25,7 @@ public class Service : IService
     {
         var milestone = await _dbContext.Milestones
             .Include(m => m.Project)
+            .Include(m => m.Steps)
             .FirstOrDefaultAsync(m => m.Id == milestoneId);
 
         if (milestone == null) throw new NotFoundException("Milestone not found.");
@@ -66,12 +67,23 @@ public class Service : IService
     {
         var milestone = await _dbContext.Milestones
             .Include(m => m.Project)
+            .Include(m => m.Steps)
             .FirstOrDefaultAsync(m => m.Id == milestoneId);
 
         if (milestone == null) throw new NotFoundException("Milestone not found.");
         if (milestone.Project.ClientId != userId) throw new UnauthorizedException("Only the client can update milestones.");
+
         if (milestone.Status != MilestoneStatus.CREATED)
-            throw new ValidationException("Only CREATED milestones can be updated.");
+        {
+            if (request.Title != null ||
+                request.Description != null ||
+                request.AcceptanceCriteria != null ||
+                request.Amount.HasValue ||
+                request.OrderIndex.HasValue)
+            {
+                throw new ValidationException("Only DueDate can be updated on active milestones.");
+            }
+        }
 
         if (request.Title != null) milestone.Title = request.Title;
         if (request.Description != null) milestone.Description = request.Description;
@@ -102,6 +114,11 @@ public class Service : IService
 
         if (milestone == null)
             throw new InvalidOperationException($"Milestone {milestoneId} not tracked after funding.");
+
+        if (!_dbContext.Entry(milestone).Collection(m => m.Steps).IsLoaded)
+        {
+            await _dbContext.Entry(milestone).Collection(m => m.Steps).LoadAsync();
+        }
         if (clientWallet == null)
             throw new InvalidOperationException($"Wallet for user {userId} not tracked after funding.");
         if (payment == null)
@@ -161,6 +178,11 @@ public class Service : IService
         milestone = _dbContext.Milestones.Local.FirstOrDefault(m => m.Id == milestoneId);
         if (milestone == null)
             throw new InvalidOperationException($"Milestone {milestoneId} not tracked after release.");
+
+        if (!_dbContext.Entry(milestone).Collection(m => m.Steps).IsLoaded)
+        {
+            await _dbContext.Entry(milestone).Collection(m => m.Steps).LoadAsync();
+        }
         return MapToResponse(milestone);
     }
 
@@ -168,6 +190,7 @@ public class Service : IService
     {
         var milestone = await _dbContext.Milestones
             .Include(m => m.Project)
+            .Include(m => m.Steps)
             .FirstOrDefaultAsync(m => m.Id == milestoneId);
 
         if (milestone == null) throw new NotFoundException("Milestone not found.");
@@ -203,6 +226,269 @@ public class Service : IService
         return MapToResponse(milestone);
     }
 
+    public async Task<List<Response.MilestoneStepResponse>> GetMilestoneStepsAsync(Guid userId, Guid milestoneId)
+    {
+        var milestone = await _dbContext.Milestones
+            .Include(m => m.Project)
+            .FirstOrDefaultAsync(m => m.Id == milestoneId);
+
+        if (milestone == null) throw new NotFoundException("Milestone not found.");
+
+        if (milestone.Project.ClientId != userId && milestone.Project.ExpertId != userId)
+            throw new UnauthorizedException("Access denied.");
+
+        return await _dbContext.MilestoneSteps
+            .AsNoTracking()
+            .Where(s => s.MilestoneId == milestoneId)
+            .OrderBy(s => s.OrderIndex)
+            .Select(s => new Response.MilestoneStepResponse
+            {
+                Id = s.Id,
+                MilestoneId = s.MilestoneId,
+                Title = s.Title,
+                Description = s.Description,
+                OrderIndex = s.OrderIndex,
+                Status = s.Status,
+                DueDate = s.DueDate,
+                CompletedAt = s.CompletedAt,
+                CompletedByUserId = s.CompletedByUserId
+            })
+            .ToListAsync();
+    }
+
+    public async Task<Response.MilestoneStepResponse> AddMilestoneStepAsync(Guid userId, Guid milestoneId, Request.CreateMilestoneStepRequest request)
+    {
+        var milestone = await _dbContext.Milestones
+            .Include(m => m.Project)
+            .FirstOrDefaultAsync(m => m.Id == milestoneId);
+
+        if (milestone == null) throw new NotFoundException("Milestone not found.");
+
+        var project = milestone.Project;
+        if (project == null) throw new NotFoundException("Project not found.");
+
+        if (project.ClientId != userId) throw new UnauthorizedException("Only the client can add milestone steps.");
+
+        if (project.Status == ProjectStatus.COMPLETED || project.Status == ProjectStatus.CANCELLED)
+            throw new ValidationException("Cannot add steps to a completed or cancelled project.");
+
+        if (milestone.Status == MilestoneStatus.APPROVED ||
+            milestone.Status == MilestoneStatus.RELEASED ||
+            milestone.Status == MilestoneStatus.COMPLETED ||
+            milestone.Status == MilestoneStatus.REFUNDED)
+            throw new ValidationException("Cannot add steps to a finalized milestone.");
+
+        var step = new MilestoneStep
+        {
+            MilestoneId = milestoneId,
+            Title = request.Title,
+            Description = request.Description,
+            OrderIndex = request.OrderIndex,
+            Status = MilestoneStepStatus.PENDING,
+            DueDate = request.DueDate
+        };
+
+        _dbContext.MilestoneSteps.Add(step);
+        await _dbContext.SaveChangesAsync();
+
+        return new Response.MilestoneStepResponse
+        {
+            Id = step.Id,
+            MilestoneId = step.MilestoneId,
+            Title = step.Title,
+            Description = step.Description,
+            OrderIndex = step.OrderIndex,
+            Status = step.Status,
+            DueDate = step.DueDate
+        };
+    }
+
+    public async Task<Response.MilestoneStepResponse> UpdateMilestoneStepAsync(Guid userId, Guid stepId, Request.UpdateMilestoneStepRequest request)
+    {
+        var step = await _dbContext.MilestoneSteps
+            .Include(s => s.Milestone)
+            .ThenInclude(m => m.Project)
+            .FirstOrDefaultAsync(s => s.Id == stepId);
+
+        if (step == null) throw new NotFoundException("Milestone step not found.");
+
+        if (step.Milestone.Project.ClientId != userId)
+            throw new UnauthorizedException("Only the client can update milestone steps.");
+
+        if (step.Milestone.Project.Status == ProjectStatus.COMPLETED || step.Milestone.Project.Status == ProjectStatus.CANCELLED)
+            throw new ValidationException("Cannot modify steps in a completed or cancelled project.");
+
+        if (step.Milestone.Status == MilestoneStatus.APPROVED ||
+            step.Milestone.Status == MilestoneStatus.RELEASED ||
+            step.Milestone.Status == MilestoneStatus.COMPLETED ||
+            step.Milestone.Status == MilestoneStatus.REFUNDED)
+            throw new ValidationException("Cannot modify steps for a finalized milestone.");
+
+        if (request.Title != null) step.Title = request.Title;
+        if (request.IsDescriptionSet) step.Description = request.Description;
+        if (request.IsDueDateSet) step.DueDate = request.DueDate;
+        if (request.OrderIndex.HasValue) step.OrderIndex = request.OrderIndex.Value;
+
+        await _dbContext.SaveChangesAsync();
+
+        return new Response.MilestoneStepResponse
+        {
+            Id = step.Id,
+            MilestoneId = step.MilestoneId,
+            Title = step.Title,
+            Description = step.Description,
+            OrderIndex = step.OrderIndex,
+            Status = step.Status,
+            DueDate = step.DueDate,
+            CompletedAt = step.CompletedAt,
+            CompletedByUserId = step.CompletedByUserId
+        };
+    }
+
+    public async Task DeleteMilestoneStepAsync(Guid userId, Guid stepId)
+    {
+        var step = await _dbContext.MilestoneSteps
+            .Include(s => s.Milestone)
+            .ThenInclude(m => m.Project)
+            .FirstOrDefaultAsync(s => s.Id == stepId);
+
+        if (step == null) throw new NotFoundException("Milestone step not found.");
+
+        if (step.Milestone.Project.ClientId != userId)
+            throw new UnauthorizedException("Only the client can delete milestone steps.");
+
+        if (step.Milestone.Project.Status == ProjectStatus.COMPLETED || step.Milestone.Project.Status == ProjectStatus.CANCELLED)
+            throw new ValidationException("Cannot modify steps in a completed or cancelled project.");
+
+        if (step.Milestone.Status == MilestoneStatus.APPROVED ||
+            step.Milestone.Status == MilestoneStatus.RELEASED ||
+            step.Milestone.Status == MilestoneStatus.COMPLETED ||
+            step.Milestone.Status == MilestoneStatus.REFUNDED)
+            throw new ValidationException("Cannot modify steps for a finalized milestone.");
+
+        _dbContext.MilestoneSteps.Remove(step);
+        await _dbContext.SaveChangesAsync();
+    }
+
+    public async Task<Response.MilestoneStepResponse> UpdateStepStatusAsync(Guid userId, Guid stepId, Request.UpdateStepStatusRequest request)
+    {
+        var step = await _dbContext.MilestoneSteps
+            .Include(s => s.Milestone)
+            .ThenInclude(m => m.Project)
+            .FirstOrDefaultAsync(s => s.Id == stepId);
+
+        if (step == null) throw new NotFoundException("Milestone step not found.");
+
+        var project = step.Milestone.Project;
+
+        if (project.ClientId != userId && project.ExpertId != userId)
+            throw new UnauthorizedException("Access denied.");
+
+        if (project.Status == ProjectStatus.COMPLETED || project.Status == ProjectStatus.CANCELLED)
+            throw new ValidationException("Cannot modify steps in a completed or cancelled project.");
+
+        if (step.Milestone.Status == MilestoneStatus.APPROVED ||
+            step.Milestone.Status == MilestoneStatus.RELEASED ||
+            step.Milestone.Status == MilestoneStatus.COMPLETED ||
+            step.Milestone.Status == MilestoneStatus.REFUNDED)
+            throw new ValidationException("Cannot modify steps for a finalized milestone.");
+
+        if (request.Status != step.Status)
+        {
+            if (step.Status == MilestoneStepStatus.COMPLETED || step.Status == MilestoneStepStatus.SKIPPED)
+            {
+                throw new ValidationException("Cannot change status of a completed or skipped step.");
+            }
+
+            if (request.Status == MilestoneStepStatus.PENDING)
+            {
+                throw new ValidationException("Cannot transition step back to PENDING.");
+            }
+
+            if (request.Status == MilestoneStepStatus.IN_PROGRESS || request.Status == MilestoneStepStatus.COMPLETED)
+            {
+                if (project.ExpertId != userId)
+                    throw new UnauthorizedException("Only the expert can start or complete steps.");
+
+                if (request.Status == MilestoneStepStatus.COMPLETED)
+                {
+                    step.CompletedAt = DateTimeOffset.UtcNow;
+                    step.CompletedByUserId = userId;
+                }
+            }
+            else if (request.Status == MilestoneStepStatus.SKIPPED)
+            {
+                if (project.ClientId != userId)
+                    throw new UnauthorizedException("Only the client can skip steps.");
+            }
+            else
+            {
+                throw new ValidationException("Invalid status transition.");
+            }
+
+            step.Status = request.Status;
+            await _dbContext.SaveChangesAsync();
+        }
+
+        return new Response.MilestoneStepResponse
+        {
+            Id = step.Id,
+            MilestoneId = step.MilestoneId,
+            Title = step.Title,
+            Description = step.Description,
+            OrderIndex = step.OrderIndex,
+            Status = step.Status,
+            DueDate = step.DueDate,
+            CompletedAt = step.CompletedAt,
+            CompletedByUserId = step.CompletedByUserId
+        };
+    }
+
+    public async Task ReorderMilestoneStepsAsync(Guid userId, Guid milestoneId, List<Guid> stepIds)
+    {
+        var milestone = await _dbContext.Milestones
+            .Include(m => m.Project)
+            .FirstOrDefaultAsync(m => m.Id == milestoneId);
+
+        if (milestone == null) throw new NotFoundException("Milestone not found.");
+
+        if (milestone.Project.ClientId != userId)
+            throw new UnauthorizedException("Only the client can reorder steps.");
+
+        if (milestone.Project.Status == ProjectStatus.COMPLETED || milestone.Project.Status == ProjectStatus.CANCELLED)
+            throw new ValidationException("Cannot modify steps in a completed or cancelled project.");
+
+        if (milestone.Status == MilestoneStatus.APPROVED ||
+            milestone.Status == MilestoneStatus.RELEASED ||
+            milestone.Status == MilestoneStatus.COMPLETED ||
+            milestone.Status == MilestoneStatus.REFUNDED)
+            throw new ValidationException("Cannot modify steps for a finalized milestone.");
+
+        var steps = await _dbContext.MilestoneSteps
+            .Where(s => s.MilestoneId == milestoneId)
+            .ToListAsync();
+
+        var dbStepIds = steps.Select(s => s.Id).ToHashSet();
+
+        if (stepIds.Distinct().Count() != dbStepIds.Count || !stepIds.All(dbStepIds.Contains))
+        {
+            throw new ValidationException("All step IDs must be provided for reordering.");
+        }
+
+        for (int i = 0; i < stepIds.Count; i++)
+        {
+            var stepId = stepIds[i];
+            var step = steps.FirstOrDefault(s => s.Id == stepId);
+            if (step != null)
+            {
+                step.OrderIndex = i + 1;
+            }
+        }
+
+        await _dbContext.SaveChangesAsync();
+    }
+
+
     private static Response.MilestoneResponse MapToResponse(Milestone m)
     {
         return new Response.MilestoneResponse
@@ -219,7 +505,23 @@ public class Service : IService
             OrderIndex = m.OrderIndex,
             CreatedAt = m.CreatedAt,
             FundedAt = m.FundedAt,
-            DepositPaidAt = m.DepositPaidAt
+            DepositPaidAt = m.DepositPaidAt,
+            SubmittedAt = m.SubmittedAt,
+            ApprovedAt = m.ApprovedAt,
+            PaidAt = m.PaidAt,
+            ReleasedAt = m.ReleasedAt,
+            Steps = m.Steps?.Select(s => new Response.MilestoneStepResponse
+            {
+                Id = s.Id,
+                MilestoneId = s.MilestoneId,
+                Title = s.Title,
+                Description = s.Description,
+                OrderIndex = s.OrderIndex,
+                Status = s.Status,
+                DueDate = s.DueDate,
+                CompletedAt = s.CompletedAt,
+                CompletedByUserId = s.CompletedByUserId
+            }).ToList()
         };
     }
 }

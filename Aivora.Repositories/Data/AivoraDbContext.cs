@@ -31,6 +31,7 @@ public class AivoraDbContext : DbContext
     public DbSet<ProposalMilestone> ProposalMilestones => Set<ProposalMilestone>();
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<Milestone> Milestones => Set<Milestone>();
+    public DbSet<MilestoneStep> MilestoneSteps => Set<MilestoneStep>();
     public DbSet<Deliverable> Deliverables => Set<Deliverable>();
 
     // Finance

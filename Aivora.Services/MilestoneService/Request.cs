@@ -1,3 +1,5 @@
+using Aivora.Repositories.Enums;
+
 namespace Aivora.Services.MilestoneService;
 
 public class Request
@@ -21,5 +23,51 @@ public class Request
         public decimal? Amount { get; set; }
         public DateOnly? DueDate { get; set; }
         public int? OrderIndex { get; set; }
+    }
+
+    public class CreateMilestoneStepRequest
+    {
+        public string Title { get; set; } = null!;
+        public string? Description { get; set; }
+        public DateOnly? DueDate { get; set; }
+        public int OrderIndex { get; set; }
+    }
+
+    public class UpdateMilestoneStepRequest
+    {
+        private string? _description;
+        private DateOnly? _dueDate;
+
+        public string? Title { get; set; }
+
+        public string? Description
+        {
+            get => _description;
+            set
+            {
+                _description = value;
+                IsDescriptionSet = true;
+            }
+        }
+
+        public DateOnly? DueDate
+        {
+            get => _dueDate;
+            set
+            {
+                _dueDate = value;
+                IsDueDateSet = true;
+            }
+        }
+
+        public int? OrderIndex { get; set; }
+
+        public bool IsDescriptionSet { get; private set; }
+        public bool IsDueDateSet { get; private set; }
+    }
+
+    public class UpdateStepStatusRequest
+    {
+        public MilestoneStepStatus Status { get; set; }
     }
 }
