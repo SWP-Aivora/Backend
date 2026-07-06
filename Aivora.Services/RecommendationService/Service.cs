@@ -36,22 +36,20 @@ public class Service : IService
             .DistinctBy(x => x.SkillId)
             .ToList();
 
-        var experts = await _dbContext.ExpertProfiles
-            .Include(e => e.User)
-            .Include(e => e.ExpertSkills).ThenInclude(es => es.Skill)
-            .Where(e => e.User.Role == UserRole.EXPERT && e.User.Status == UserStatus.ACTIVE)
-            .ToListAsync();
+        var activeExpertsQuery = _dbContext.ExpertProfiles
+            .Where(e => e.User.Role == UserRole.EXPERT && e.User.Status == UserStatus.ACTIVE);
 
-        var expertIds = experts.Select(e => e.UserId).ToList();
+        var activeExpertIdsQuery = activeExpertsQuery.Select(e => e.UserId);
+
         var disputeCounts = await _dbContext.Disputes
-            .Where(d => expertIds.Contains(d.Project.ExpertId))
+            .Where(d => activeExpertIdsQuery.Contains(d.Project.ExpertId))
             .GroupBy(d => d.Project.ExpertId)
             .Select(g => new { ExpertId = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.ExpertId, x => x.Count);
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var milestoneStats = await _dbContext.Milestones
-            .Where(m => expertIds.Contains(m.Project.ExpertId)
+            .Where(m => activeExpertIdsQuery.Contains(m.Project.ExpertId)
                 && (m.Project.Status == ProjectStatus.ACTIVE || m.Project.Status == ProjectStatus.DISPUTED))
             .GroupBy(m => m.Project.ExpertId)
             .Select(g => new
@@ -66,6 +64,11 @@ public class Service : IService
                     && m.Status != MilestoneStatus.APPROVED)
             })
             .ToDictionaryAsync(x => x.ExpertId, x => (Total: x.TotalCount, Overdue: x.OverdueCount));
+
+        var experts = await activeExpertsQuery
+            .Include(e => e.User)
+            .Include(e => e.ExpertSkills).ThenInclude(es => es.Skill)
+            .ToListAsync();
 
         var recommendations = experts
             .Select(expert =>

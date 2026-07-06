@@ -12,8 +12,7 @@ namespace Aivora.Tests.Services;
 
 public class RecommendationServiceTests
 {
-    private static readonly IOptions<RecommendationOptions> DefaultOptions = 
-        Options.Create(new RecommendationOptions());
+    private static readonly IOptions<RecommendationOptions> DefaultOptions = Options.Create(new RecommendationOptions());
     private static AivoraDbContext GetDbContext()
     {
         var options = new DbContextOptionsBuilder<AivoraDbContext>()
