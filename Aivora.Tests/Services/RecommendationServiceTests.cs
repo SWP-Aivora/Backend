@@ -2,14 +2,18 @@ using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.Exceptions;
+using Aivora.Services.Options;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace Aivora.Tests.Services;
 
 public class RecommendationServiceTests
 {
+    private static readonly IOptions<RecommendationOptions> DefaultOptions = 
+        Options.Create(new RecommendationOptions());
     private static AivoraDbContext GetDbContext()
     {
         var options = new DbContextOptionsBuilder<AivoraDbContext>()
@@ -26,7 +30,7 @@ public class RecommendationServiceTests
         var beginner = AddExpert(dbContext, scenario.Skill, SkillLevel.BEGINNER, hourlyRate: 25, rating: 4, successRate: 80);
         var expert = AddExpert(dbContext, scenario.Skill, SkillLevel.EXPERT, hourlyRate: 25, rating: 4, successRate: 80);
         await dbContext.SaveChangesAsync();
-        var service = new Aivora.Services.RecommendationService.Service(dbContext);
+        var service = new Aivora.Services.RecommendationService.Service(dbContext, DefaultOptions);
 
         var results = await service.GenerateRecommendationsAsync(scenario.ClientId, scenario.JobId);
 
@@ -40,7 +44,7 @@ public class RecommendationServiceTests
         var scenario = SeedScenario(dbContext, BudgetType.HOURLY, budgetMin: 50, budgetMax: 100, timelineDays: 10);
         var expert = AddExpert(dbContext, scenario.Skill, SkillLevel.EXPERT, hourlyRate: 75, rating: 4, successRate: 80);
         await dbContext.SaveChangesAsync();
-        var service = new Aivora.Services.RecommendationService.Service(dbContext);
+        var service = new Aivora.Services.RecommendationService.Service(dbContext, DefaultOptions);
 
         var results = await service.GenerateRecommendationsAsync(scenario.ClientId, scenario.JobId);
 
@@ -54,7 +58,7 @@ public class RecommendationServiceTests
         var scenario = SeedScenario(dbContext, BudgetType.FIXED, budgetMin: 500, budgetMax: 600, timelineDays: 2);
         var expert = AddExpert(dbContext, scenario.Skill, SkillLevel.EXPERT, hourlyRate: 50, rating: 4, successRate: 80);
         await dbContext.SaveChangesAsync();
-        var service = new Aivora.Services.RecommendationService.Service(dbContext);
+        var service = new Aivora.Services.RecommendationService.Service(dbContext, DefaultOptions);
 
         var results = await service.GenerateRecommendationsAsync(scenario.ClientId, scenario.JobId);
 
@@ -68,7 +72,7 @@ public class RecommendationServiceTests
         var scenario = SeedScenario(dbContext, BudgetType.HOURLY, budgetMin: 10, budgetMax: 100, timelineDays: 10);
         var expert = AddExpert(dbContext, scenario.Skill, SkillLevel.EXPERT, hourlyRate: 25, rating: 4.5m, successRate: 92, availability: AvailabilityStatus.BUSY);
         await dbContext.SaveChangesAsync();
-        var service = new Aivora.Services.RecommendationService.Service(dbContext);
+        var service = new Aivora.Services.RecommendationService.Service(dbContext, DefaultOptions);
 
         var results = await service.GenerateRecommendationsAsync(scenario.ClientId, scenario.JobId);
         var result = results.Single(x => x.ExpertId == expert.UserId);
@@ -85,7 +89,7 @@ public class RecommendationServiceTests
         var scenario = SeedScenario(dbContext, BudgetType.HOURLY, budgetMin: 10, budgetMax: 100, timelineDays: 10);
         var expert = AddExpert(dbContext, scenario.Skill, SkillLevel.EXPERT, hourlyRate: 25, rating: 5, successRate: 100);
         await dbContext.SaveChangesAsync();
-        var service = new Aivora.Services.RecommendationService.Service(dbContext);
+        var service = new Aivora.Services.RecommendationService.Service(dbContext, DefaultOptions);
 
         await service.GenerateRecommendationsAsync(scenario.ClientId, scenario.JobId);
 
@@ -107,7 +111,7 @@ public class RecommendationServiceTests
         var scenario = SeedScenario(dbContext, BudgetType.HOURLY, budgetMin: 10, budgetMax: 100, timelineDays: 10);
         AddExpert(dbContext, scenario.Skill, SkillLevel.EXPERT, hourlyRate: 25, rating: 5, successRate: 100);
         await dbContext.SaveChangesAsync();
-        var service = new Aivora.Services.RecommendationService.Service(dbContext);
+        var service = new Aivora.Services.RecommendationService.Service(dbContext, DefaultOptions);
 
         Func<Task> wrongOwner = async () => await service.GenerateRecommendationsAsync(Guid.NewGuid(), scenario.JobId);
         await wrongOwner.Should().ThrowAsync<NotFoundException>();
@@ -127,7 +131,7 @@ public class RecommendationServiceTests
         expert.CompletedProjects = 2; // Under 3
         AddDispute(dbContext, expert.UserId); // 1 dispute, rate = 50%, but shouldn't penalize because projects < 3
         await dbContext.SaveChangesAsync();
-        var service = new Aivora.Services.RecommendationService.Service(dbContext);
+        var service = new Aivora.Services.RecommendationService.Service(dbContext, DefaultOptions);
 
         var results = await service.GenerateRecommendationsAsync(scenario.ClientId, scenario.JobId);
         var result = results.Single(x => x.ExpertId == expert.UserId);
@@ -146,7 +150,7 @@ public class RecommendationServiceTests
         expert.CompletedProjects = 5;
         // 0 disputes
         await dbContext.SaveChangesAsync();
-        var service = new Aivora.Services.RecommendationService.Service(dbContext);
+        var service = new Aivora.Services.RecommendationService.Service(dbContext, DefaultOptions);
 
         var results = await service.GenerateRecommendationsAsync(scenario.ClientId, scenario.JobId);
         var result = results.Single(x => x.ExpertId == expert.UserId);
@@ -165,7 +169,7 @@ public class RecommendationServiceTests
         expert.CompletedProjects = 5;
         AddDispute(dbContext, expert.UserId); // 1 dispute, rate = 1/5 = 0.2
         await dbContext.SaveChangesAsync();
-        var service = new Aivora.Services.RecommendationService.Service(dbContext);
+        var service = new Aivora.Services.RecommendationService.Service(dbContext, DefaultOptions);
 
         var results = await service.GenerateRecommendationsAsync(scenario.ClientId, scenario.JobId);
         var result = results.Single(x => x.ExpertId == expert.UserId);
@@ -187,7 +191,7 @@ public class RecommendationServiceTests
         AddDispute(dbContext, expert.UserId);
         AddDispute(dbContext, expert.UserId); // 3 disputes, rate = 3/5 = 0.6
         await dbContext.SaveChangesAsync();
-        var service = new Aivora.Services.RecommendationService.Service(dbContext);
+        var service = new Aivora.Services.RecommendationService.Service(dbContext, DefaultOptions);
 
         var results = await service.GenerateRecommendationsAsync(scenario.ClientId, scenario.JobId);
         var result = results.Single(x => x.ExpertId == expert.UserId);
@@ -215,7 +219,7 @@ public class RecommendationServiceTests
         );
 
         await dbContext.SaveChangesAsync();
-        var service = new Aivora.Services.RecommendationService.Service(dbContext);
+        var service = new Aivora.Services.RecommendationService.Service(dbContext, DefaultOptions);
 
         var results = await service.GenerateRecommendationsAsync(scenario.ClientId, scenario.JobId);
         var result = results.Single(x => x.ExpertId == expert.UserId);
@@ -241,7 +245,7 @@ public class RecommendationServiceTests
         );
 
         await dbContext.SaveChangesAsync();
-        var service = new Aivora.Services.RecommendationService.Service(dbContext);
+        var service = new Aivora.Services.RecommendationService.Service(dbContext, DefaultOptions);
 
         var results = await service.GenerateRecommendationsAsync(scenario.ClientId, scenario.JobId);
         var result = results.Single(x => x.ExpertId == expert.UserId);
@@ -277,7 +281,7 @@ public class RecommendationServiceTests
             (MilestoneStatus.FUNDED, yesterday));
 
         await dbContext.SaveChangesAsync();
-        var service = new Aivora.Services.RecommendationService.Service(dbContext);
+        var service = new Aivora.Services.RecommendationService.Service(dbContext, DefaultOptions);
 
         var results = await service.GenerateRecommendationsAsync(scenario.ClientId, scenario.JobId);
         var result = results.Single(x => x.ExpertId == expert.UserId);

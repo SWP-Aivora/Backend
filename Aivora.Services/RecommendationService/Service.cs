@@ -2,17 +2,21 @@ using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.Exceptions;
+using Aivora.Services.Options;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Aivora.Services.RecommendationService;
 
 public class Service : IService
 {
     private readonly AivoraDbContext _dbContext;
+    private readonly RecommendationOptions _options;
 
-    public Service(AivoraDbContext dbContext)
+    public Service(AivoraDbContext dbContext, IOptions<RecommendationOptions> options)
     {
         _dbContext = dbContext;
+        _options = options.Value;
     }
 
     public async Task<List<Response.RecommendationResponse>> GenerateRecommendationsAsync(Guid clientId, Guid jobId)
@@ -120,7 +124,7 @@ public class Service : IService
             .ToListAsync();
     }
 
-    private static RecommendationResult BuildRecommendation(
+    private RecommendationResult BuildRecommendation(
         JobPost job,
         List<RequiredSkill> requiredSkills,
         ExpertProfile expert,
@@ -153,13 +157,13 @@ public class Service : IService
         // Rationale for penalty calculation:
         // - 1.5x penalty factor, capped at 50%: A dispute rate >= 33% results in the maximum deduction.
         // - The 50% cap ensures the score never reaches absolute 0, because other axes (skill, rating, etc.) still hold reference value.
-        var penalty = Math.Min(disputeRate * 1.5m, 0.5m);
+        var penalty = Math.Min(disputeRate * _options.DisputePenaltyFactor, _options.MaxDisputePenalty);
 
         var overdueRate = totalMilestoneCount > 0
             ? (decimal)overdueMilestoneCount / totalMilestoneCount
             : 0m;
 
-        var overduePenalty = Math.Min(overdueRate * 0.3m, 0.3m);
+        var overduePenalty = Math.Min(overdueRate * _options.OverduePenaltyFactor, _options.MaxOverduePenalty);
         totalScore = Math.Round(totalScore * (1 - penalty) * (1 - overduePenalty), 2);
 
         return new RecommendationResult
