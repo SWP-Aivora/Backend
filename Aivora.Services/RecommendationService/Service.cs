@@ -54,11 +54,11 @@ public class Service : IService
             {
                 ExpertId = g.Key,
                 TotalCount = g.Count(),
-                OverdueCount = g.Count(m => m.DueDate != null 
-                    && m.DueDate < today 
-                    && m.Status != MilestoneStatus.COMPLETED 
-                    && m.Status != MilestoneStatus.RELEASED 
-                    && m.Status != MilestoneStatus.REFUNDED 
+                OverdueCount = g.Count(m => m.DueDate != null
+                    && m.DueDate < today
+                    && m.Status != MilestoneStatus.COMPLETED
+                    && m.Status != MilestoneStatus.RELEASED
+                    && m.Status != MilestoneStatus.REFUNDED
                     && m.Status != MilestoneStatus.APPROVED)
             })
             .ToDictionaryAsync(x => x.ExpertId, x => (Total: x.TotalCount, Overdue: x.OverdueCount));

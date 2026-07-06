@@ -263,17 +263,17 @@ public class RecommendationServiceTests
         var tomorrow = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1));
 
         // 1. ACTIVE project -> 1 overdue, 1 on-time milestone (Total = 2, Overdue = 1)
-        AddProjectWithMilestonesAndStatus(dbContext, expert.UserId, ProjectStatus.ACTIVE, 
+        AddProjectWithMilestonesAndStatus(dbContext, expert.UserId, ProjectStatus.ACTIVE,
             (MilestoneStatus.FUNDED, yesterday),
             (MilestoneStatus.IN_PROGRESS, tomorrow));
         // 2. DISPUTED project -> 1 overdue milestone (Total = 1, Overdue = 1)
-        AddProjectWithMilestonesAndStatus(dbContext, expert.UserId, ProjectStatus.DISPUTED, 
+        AddProjectWithMilestonesAndStatus(dbContext, expert.UserId, ProjectStatus.DISPUTED,
             (MilestoneStatus.FUNDED, yesterday));
         // 3. CANCELLED project -> 1 overdue milestone (Total = 1, Overdue = 1) - should NOT be counted
-        AddProjectWithMilestonesAndStatus(dbContext, expert.UserId, ProjectStatus.CANCELLED, 
+        AddProjectWithMilestonesAndStatus(dbContext, expert.UserId, ProjectStatus.CANCELLED,
             (MilestoneStatus.FUNDED, yesterday));
         // 4. COMPLETED project -> 1 overdue milestone (Total = 1, Overdue = 1) - should NOT be counted
-        AddProjectWithMilestonesAndStatus(dbContext, expert.UserId, ProjectStatus.COMPLETED, 
+        AddProjectWithMilestonesAndStatus(dbContext, expert.UserId, ProjectStatus.COMPLETED,
             (MilestoneStatus.FUNDED, yesterday));
 
         await dbContext.SaveChangesAsync();
@@ -293,9 +293,9 @@ public class RecommendationServiceTests
     {
         var dbContext = GetDbContext();
         var entityType = dbContext.Model.FindEntityType(typeof(RecommendationResult));
-        
+
         entityType.Should().NotBeNull();
-        
+
         var overdueRate = entityType!.FindProperty(nameof(RecommendationResult.OverdueRate));
         overdueRate.Should().NotBeNull();
         overdueRate!.GetPrecision().Should().Be(18);
