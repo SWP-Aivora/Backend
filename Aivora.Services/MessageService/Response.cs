@@ -24,6 +24,7 @@ public class Response
         public Guid ConversationId { get; set; }
         public Guid SenderId { get; set; }
         public string SenderName { get; set; } = null!;
+        public string SenderRole { get; set; } = null!;
         public string? Content { get; set; }
         public string? AttachmentUrl { get; set; }
         public bool IsRead { get; set; }

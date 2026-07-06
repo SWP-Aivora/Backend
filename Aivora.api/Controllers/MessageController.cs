@@ -33,8 +33,8 @@ public class MessageController : ControllerBase
     public async Task<IActionResult> GetMessages(Guid id, [FromQuery] Aivora.Services.Base.Request.PageRequest pageRequest)
     {
         var userId = this.GetUserId();
-        var isAdmin = this.GetUserRole() == Aivora.Repositories.Enums.UserRole.ADMIN;
-        var result = await _messageService.GetConversationMessagesAsync(userId, id, pageRequest, isAdmin);
+        var userRole = this.GetUserRole();
+        var result = await _messageService.GetConversationMessagesAsync(userId, userRole, id, pageRequest);
         return Ok(ApiResponseFactory.SuccessResponse(result, "Messages retrieved", HttpContext.TraceIdentifier));
     }
 
@@ -52,5 +52,17 @@ public class MessageController : ControllerBase
         var clientId = this.GetUserId();
         var result = await _messageService.GetOrCreateConversationAsync(clientId, expertId, jobId, projectId);
         return Ok(ApiResponseFactory.SuccessResponse(result, "Conversation initialized", HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("admin")]
+    [Authorize(Policy = JwtExtensions.AdminPolicy)]
+    public async Task<IActionResult> GetAdminConversations(
+        [FromQuery] Guid? jobId,
+        [FromQuery] Guid? projectId,
+        [FromQuery] Guid? userId,
+        [FromQuery] Aivora.Services.Base.Request.PageRequest pageRequest)
+    {
+        var result = await _messageService.GetAdminConversationsAsync(jobId, projectId, userId, pageRequest);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Conversations retrieved for admin", HttpContext.TraceIdentifier));
     }
 }
