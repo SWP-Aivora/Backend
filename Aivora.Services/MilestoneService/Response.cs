@@ -19,6 +19,24 @@ public class Response
         public DateTimeOffset CreatedAt { get; set; }
         public DateTimeOffset? FundedAt { get; set; }
         public DateTimeOffset? DepositPaidAt { get; set; }
+        public DateTimeOffset? SubmittedAt { get; set; }
+        public DateTimeOffset? ApprovedAt { get; set; }
+        public DateTimeOffset? PaidAt { get; set; }
+        public DateTimeOffset? ReleasedAt { get; set; }
+        public List<MilestoneStepResponse>? Steps { get; set; }
+    }
+
+    public class MilestoneStepResponse
+    {
+        public Guid Id { get; set; }
+        public Guid MilestoneId { get; set; }
+        public string Title { get; set; } = null!;
+        public string? Description { get; set; }
+        public int OrderIndex { get; set; }
+        public MilestoneStepStatus Status { get; set; }
+        public DateOnly? DueDate { get; set; }
+        public DateTimeOffset? CompletedAt { get; set; }
+        public Guid? CompletedByUserId { get; set; }
     }
 
     public class FundResultResponse

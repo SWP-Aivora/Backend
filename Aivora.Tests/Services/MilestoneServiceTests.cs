@@ -1,9 +1,9 @@
 using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
+using Aivora.Services.Exceptions;
 using Aivora.Services.MilestoneService;
 using Aivora.Services.Treasury;
-using Microsoft.Extensions.Logging;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -116,6 +116,67 @@ public class MilestoneServiceTests
         var payments = await dbContext.Payments.Where(p => p.MilestoneId == milestoneId).ToListAsync();
         payments.Count.Should().Be(2);
         payments.All(p => p.Status == PaymentStatus.RELEASED).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task UpdateMilestoneAsync_RelaxesDueDateConstraint_ForActiveMilestones()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var milestoneId = Guid.NewGuid();
+
+        var project = new Project { Id = projectId, ClientId = clientId, ExpertId = expertId, Title = "Test Project", Status = ProjectStatus.ACTIVE };
+        // Status is not CREATED (e.g. IN_PROGRESS)
+        var milestone = new Milestone { Id = milestoneId, ProjectId = projectId, Amount = 300, Status = MilestoneStatus.IN_PROGRESS, Title = "Milestone 1", DueDate = new DateOnly(2026, 7, 7) };
+
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestone);
+        await dbContext.SaveChangesAsync();
+
+        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>());
+        var request = new Request.UpdateMilestoneRequest
+        {
+            DueDate = new DateOnly(2026, 7, 10)
+        };
+
+        // Act
+        var result = await service.UpdateMilestoneAsync(clientId, milestoneId, request);
+
+        // Assert
+        result.DueDate.Should().Be(new DateOnly(2026, 7, 10));
+        var dbMilestone = await dbContext.Milestones.FindAsync(milestoneId);
+        dbMilestone!.DueDate.Should().Be(new DateOnly(2026, 7, 10));
+    }
+
+    [Fact]
+    public async Task UpdateMilestoneAsync_NonDueDateUpdateOnActiveMilestone_ThrowsValidationException()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var milestoneId = Guid.NewGuid();
+
+        var project = new Project { Id = projectId, ClientId = clientId, ExpertId = expertId, Title = "Test Project", Status = ProjectStatus.ACTIVE };
+        var milestone = new Milestone { Id = milestoneId, ProjectId = projectId, Amount = 300, Status = MilestoneStatus.IN_PROGRESS, Title = "Milestone 1" };
+
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestone);
+        await dbContext.SaveChangesAsync();
+
+        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>());
+        var request = new Request.UpdateMilestoneRequest
+        {
+            Title = "Updated Title"
+        };
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            service.UpdateMilestoneAsync(clientId, milestoneId, request));
     }
 }
 

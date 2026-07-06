@@ -24,5 +24,6 @@ public class Milestone : AuditableBaseEntity
     // Navigation Properties
     public virtual Project Project { get; set; } = null!;
     public virtual ICollection<Deliverable> Deliverables { get; set; } = new List<Deliverable>();
+    public virtual ICollection<MilestoneStep> Steps { get; set; } = new List<MilestoneStep>();
 }
 
