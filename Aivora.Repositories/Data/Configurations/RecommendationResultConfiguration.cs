@@ -12,6 +12,10 @@ public class RecommendationResultConfiguration : IEntityTypeConfiguration<Recomm
         builder.HasKey(x => x.Id);
 
         builder.Property(x => x.Explanation).HasMaxLength(2000);
+        builder.Property(x => x.OverdueRate).HasPrecision(18, 4);
+        builder.Property(x => x.OverduePenalty).HasPrecision(18, 4);
+        builder.Property(x => x.DisputeRate).HasPrecision(18, 4);
+        builder.Property(x => x.DisputePenalty).HasPrecision(18, 4);
 
         // Relationships
         builder.HasOne(x => x.Job)

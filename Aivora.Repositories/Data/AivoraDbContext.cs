@@ -73,15 +73,11 @@ public class AivoraDbContext : DbContext
             }
         }
 
-        // Global Precision for Decimal
-        foreach (var property in modelBuilder.Model.GetEntityTypes()
-            .SelectMany(t => t.GetProperties())
-            .Where(p => p.ClrType == typeof(decimal) || p.ClrType == typeof(decimal?)))
-        {
-            property.SetPrecision(18);
-            property.SetScale(2);
-        }
-
         base.OnModelCreating(modelBuilder);
+    }
+
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        configurationBuilder.Properties<decimal>().HavePrecision(18, 2);
     }
 }
