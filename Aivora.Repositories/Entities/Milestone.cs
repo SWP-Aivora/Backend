@@ -21,6 +21,8 @@ public class Milestone : AuditableBaseEntity
     public DateTimeOffset? PaidAt { get; set; }
     public DateTimeOffset? ReleasedAt { get; set; }
 
+    public bool IsSettled => Status == MilestoneStatus.RELEASED || Status == MilestoneStatus.REFUNDED;
+
     // Navigation Properties
     public virtual Project Project { get; set; } = null!;
     public virtual ICollection<Deliverable> Deliverables { get; set; } = new List<Deliverable>();

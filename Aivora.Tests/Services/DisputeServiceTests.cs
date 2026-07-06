@@ -1,123 +1,482 @@
-using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.DisputeService;
+using Aivora.Services.Exceptions;
+using Aivora.Repositories.Data;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
+using DisputeService = Aivora.Services.DisputeService.Service;
 
 namespace Aivora.Tests.Services;
 
-public class DisputeServiceTests
+public class DisputeServiceTests : IDisposable
 {
-    private AivoraDbContext GetDbContext()
+    private readonly AivoraDbContext _dbContext;
+    private readonly Aivora.Services.DisputeService.IService _disputeService;
+    private readonly MockNotificationService _mockNotificationService;
+
+    public DisputeServiceTests()
     {
         var options = new DbContextOptionsBuilder<AivoraDbContext>()
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .ConfigureWarnings(x => x.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning))
+            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning))
             .Options;
-        return new AivoraDbContext(options);
+
+        _dbContext = new AivoraDbContext(options);
+        _mockNotificationService = new MockNotificationService();
+
+        _disputeService = new DisputeService(_dbContext, _mockNotificationService, Mock.Of<ILogger<DisputeService>>());
     }
 
-    [Fact]
-    public async Task OpenDisputeAsync_UpdatesMilestoneAndProjectStatuses()
-    {
-        // Arrange
-        var dbContext = GetDbContext();
-        var clientId = Guid.NewGuid();
-        var expertId = Guid.NewGuid();
-        var projectId = Guid.NewGuid();
-        var milestoneId = Guid.NewGuid();
-
-        var clientUser = new User { Id = clientId, FullName = "Client", Role = UserRole.CLIENT, Email = "c@t.com", PasswordHash = "x" };
-        var expertUser = new User { Id = expertId, FullName = "Expert", Role = UserRole.EXPERT, Email = "e@t.com", PasswordHash = "x" };
-        var project = new Project { Id = projectId, ClientId = clientId, ExpertId = expertId, Title = "Dispute Project", Status = ProjectStatus.ACTIVE };
-        var milestone = new Milestone { Id = milestoneId, ProjectId = projectId, Amount = 500, Status = MilestoneStatus.FUNDED, Title = "M1" };
-        var payment = new Payment { MilestoneId = milestoneId, ProjectId = projectId, PayerId = clientId, PayeeId = expertId, Amount = 500, Status = PaymentStatus.RELEASED };
-
-        dbContext.Users.AddRange(clientUser, expertUser);
-        dbContext.Projects.Add(project);
-        dbContext.Milestones.Add(milestone);
-        dbContext.Payments.Add(payment);
-        await dbContext.SaveChangesAsync();
-
-        var notificationService = new MockNotificationService();
-        var service = new Service(dbContext, notificationService, Mock.Of<ILogger<Service>>());
-        var request = new Request.OpenDisputeRequest { MilestoneId = milestoneId, Reason = "Poor quality" };
-
-        // Act
-        var result = await service.OpenDisputeAsync(clientId, request);
-
-        // Assert
-        result.Status.Should().Be(DisputeStatus.OPEN.ToString());
-
-        var updatedMilestone = await dbContext.Milestones.FindAsync(milestoneId);
-        updatedMilestone!.Status.Should().Be(MilestoneStatus.DISPUTED);
-
-        var updatedProject = await dbContext.Projects.FindAsync(projectId);
-        updatedProject!.Status.Should().Be(ProjectStatus.DISPUTED);
-
-        // Payment remains RELEASED (no frozen logic)
-        var updatedPayment = await dbContext.Payments.FindAsync(payment.Id);
-        updatedPayment!.Status.Should().Be(PaymentStatus.RELEASED);
-    }
+    // ==================== ResolveDispute Tests ====================
 
     [Fact]
-    public async Task ResolveDisputeAsync_ShouldUpdateStatusAndNote()
+    public async Task ResolveDispute_ShouldOnlyUpdateStatusAndNote()
     {
         // Arrange
-        var dbContext = GetDbContext();
-        var clientId = Guid.NewGuid();
-        var expertId = Guid.NewGuid();
-        var adminId = Guid.NewGuid();
+        var admin = await SeedUserAsync(UserRole.ADMIN, "admin@test.com");
+        var client = await SeedUserAsync(UserRole.CLIENT, "client@test.com");
+        var expert = await SeedUserAsync(UserRole.EXPERT, "expert@test.com");
+        var dispute = await SeedDisputeAsync(client.Id, expert.Id, DisputeStatus.OPEN);
 
-        var clientUser = new User { Id = clientId, FullName = "Client", Role = UserRole.CLIENT, Email = "c@t.com", PasswordHash = "x" };
-        var expertUser = new User { Id = expertId, FullName = "Expert", Role = UserRole.EXPERT, Email = "e@t.com", PasswordHash = "x" };
-        var adminUser = new User { Id = adminId, FullName = "Admin", Role = UserRole.ADMIN, Email = "a@t.com", PasswordHash = "x" };
-
-        var project = new Project { Id = Guid.NewGuid(), ClientId = clientId, ExpertId = expertId, Title = "Resolve Project", Status = ProjectStatus.DISPUTED };
-        var milestone = new Milestone { Id = Guid.NewGuid(), ProjectId = project.Id, Amount = 500, Status = MilestoneStatus.DISPUTED, Title = "M1" };
-        var payment = new Payment { Id = Guid.NewGuid(), MilestoneId = milestone.Id, ProjectId = project.Id, PayerId = clientId, PayeeId = expertId, Amount = 500, Status = PaymentStatus.RELEASED };
-
-        var dispute = new Dispute { Id = Guid.NewGuid(), ProjectId = project.Id, MilestoneId = milestone.Id, PaymentId = payment.Id, OpenedBy = clientId, AgainstUserId = expertId, Status = DisputeStatus.OPEN, Reason = "X" };
-
-        dbContext.Users.AddRange(clientUser, expertUser, adminUser);
-        dbContext.Projects.Add(project);
-        dbContext.Milestones.Add(milestone);
-        dbContext.Payments.Add(payment);
-        dbContext.Disputes.Add(dispute);
-        await dbContext.SaveChangesAsync();
-
-        var notificationService = new MockNotificationService();
-        var service = new Service(dbContext, notificationService, Mock.Of<ILogger<Service>>());
-        var resolveRequest = new Request.ResolveDisputeRequest
+        var request = new Aivora.Services.DisputeService.Request.ResolveDisputeRequest
         {
             ResolutionNote = "Resolved via external mediation"
         };
 
         // Act
-        await service.ResolveDisputeAsync(adminId, dispute.Id, resolveRequest);
+        var response = await _disputeService.ResolveDisputeAsync(admin.Id, dispute.Id, request);
 
+        // Assert
+        response.Should().NotBeNull();
+        response.Status.Should().Be(DisputeStatus.RESOLVED.ToString());
+        response.ResolutionNote.Should().Be("Resolved via external mediation");
+        response.ResolvedAt.Should().NotBeNull();
+    }
 
-        var updatedDispute = await dbContext.Disputes.FindAsync(dispute.Id);
-        updatedDispute!.Status.Should().Be(DisputeStatus.RESOLVED);
-        updatedDispute!.ResolutionNote.Should().Be("Resolved via external mediation");
+    [Fact]
+    public async Task ResolveDispute_ShouldAutoUnlockMilestone()
+    {
+        // Arrange
+        var admin = await SeedUserAsync(UserRole.ADMIN, "admin@test.com");
+        var client = await SeedUserAsync(UserRole.CLIENT, "client@test.com");
+        var expert = await SeedUserAsync(UserRole.EXPERT, "expert@test.com");
+        var dispute = await SeedDisputeAsync(client.Id, expert.Id, DisputeStatus.OPEN);
 
-        // Assert - milestone unlocked to SUBMITTED
-        var updatedMilestone = await dbContext.Milestones.FindAsync(milestone.Id);
-        updatedMilestone!.Status.Should().Be(MilestoneStatus.SUBMITTED);
+        var request = new Aivora.Services.DisputeService.Request.ResolveDisputeRequest
+        {
+            ResolutionNote = "Mediation complete"
+        };
 
-        // Assert - project reverted to ACTIVE
-        var updatedProject = await dbContext.Projects.FindAsync(project.Id);
-        updatedProject!.Status.Should().Be(ProjectStatus.ACTIVE);
+        // Act
+        await _disputeService.ResolveDisputeAsync(admin.Id, dispute.Id, request);
+
+        // Assert - milestone should be unlocked to SUBMITTED
+        var dbMilestone = await _dbContext.Milestones.FindAsync(dispute.MilestoneId);
+        dbMilestone.Should().NotBeNull();
+        dbMilestone!.Status.Should().Be(MilestoneStatus.SUBMITTED);
+    }
+
+    [Fact]
+    public async Task ResolveDispute_ShouldSyncProjectStatus()
+    {
+        // Arrange
+        var admin = await SeedUserAsync(UserRole.ADMIN, "admin@test.com");
+        var client = await SeedUserAsync(UserRole.CLIENT, "client@test.com");
+        var expert = await SeedUserAsync(UserRole.EXPERT, "expert@test.com");
+        var dispute = await SeedDisputeAsync(client.Id, expert.Id, DisputeStatus.OPEN);
+
+        var request = new Aivora.Services.DisputeService.Request.ResolveDisputeRequest
+        {
+            ResolutionNote = "External arbitration"
+        };
+
+        // Act
+        await _disputeService.ResolveDisputeAsync(admin.Id, dispute.Id, request);
+
+        // Assert - project should revert from DISPUTED to ACTIVE
+        var dbProject = await _dbContext.Projects.FindAsync(dispute.ProjectId);
+        dbProject.Should().NotBeNull();
+        dbProject!.Status.Should().Be(ProjectStatus.ACTIVE);
+    }
+
+    [Fact]
+    public async Task ResolveDispute_AlreadyResolved_ShouldThrowValidation()
+    {
+        // Arrange
+        var admin = await SeedUserAsync(UserRole.ADMIN, "admin@test.com");
+        var client = await SeedUserAsync(UserRole.CLIENT, "client@test.com");
+        var expert = await SeedUserAsync(UserRole.EXPERT, "expert@test.com");
+        var dispute = await SeedDisputeAsync(client.Id, expert.Id, DisputeStatus.RESOLVED);
+
+        var request = new Aivora.Services.DisputeService.Request.ResolveDisputeRequest
+        {
+            ResolutionNote = "Try again"
+        };
+
+        // Act & Assert
+        var act = () => _disputeService.ResolveDisputeAsync(admin.Id, dispute.Id, request);
+        var ex = await act.Should().ThrowAsync<ValidationException>();
+        ex.Which.Message.ToLower().Should().Contain("already");
+    }
+
+    // ==================== OpenDispute Tests ====================
+
+    [Fact]
+    public async Task OpenDispute_ShouldGateMilestone()
+    {
+        // Arrange
+        var client = await SeedUserAsync(UserRole.CLIENT, "client@test.com");
+        var expert = await SeedUserAsync(UserRole.EXPERT, "expert@test.com");
+
+        var project = new Project
+        {
+            Id = Guid.NewGuid(),
+            ClientId = client.Id,
+            ExpertId = expert.Id,
+            Status = ProjectStatus.ACTIVE,
+            Title = "Test Project"
+        };
+        _dbContext.Projects.Add(project);
+
+        var milestone = new Milestone
+        {
+            Id = Guid.NewGuid(),
+            ProjectId = project.Id,
+            Title = "Test Milestone",
+            Amount = 1000,
+            Status = MilestoneStatus.IN_PROGRESS
+        };
+        _dbContext.Milestones.Add(milestone);
+
+        var payment = new Payment
+        {
+            Id = Guid.NewGuid(),
+            MilestoneId = milestone.Id,
+            ProjectId = project.Id,
+            PayerId = client.Id,
+            PayeeId = expert.Id,
+            Amount = 1000,
+            Status = PaymentStatus.RELEASED
+        };
+        _dbContext.Payments.Add(payment);
+        await _dbContext.SaveChangesAsync();
+
+        var request = new Aivora.Services.DisputeService.Request.OpenDisputeRequest
+        {
+            MilestoneId = milestone.Id,
+            Reason = "Test dispute reason"
+        };
+
+        // Act
+        var response = await _disputeService.OpenDisputeAsync(client.Id, request);
+
+        // Assert - milestone should be DISPUTED (gated)
+        response.Should().NotBeNull();
+        var updatedMilestone = await _dbContext.Milestones.FindAsync(milestone.Id);
+        updatedMilestone!.Status.Should().Be(MilestoneStatus.DISPUTED);
+
+        // Assert - project should be DISPUTED
+        var updatedProject = await _dbContext.Projects.FindAsync(project.Id);
+        updatedProject!.Status.Should().Be(ProjectStatus.DISPUTED);
+
+        // Assert - payment should NOT be frozen (no Treasury.FreezeFunds call)
+        var updatedPayment = await _dbContext.Payments.FindAsync(payment.Id);
+        updatedPayment!.Status.Should().Be(PaymentStatus.RELEASED);
+    }
+
+    [Fact]
+    public async Task OpenDispute_WithClosedDispute_ShouldThrowValidation()
+    {
+        // Arrange
+        var client = await SeedUserAsync(UserRole.CLIENT, "client@test.com");
+        var expert = await SeedUserAsync(UserRole.EXPERT, "expert@test.com");
+        var dispute = await SeedDisputeAsync(client.Id, expert.Id, DisputeStatus.CLOSED);
+
+        var request = new Aivora.Services.DisputeService.Request.OpenDisputeRequest
+        {
+            MilestoneId = dispute.MilestoneId,
+            Reason = "Second dispute"
+        };
+
+        // Act & Assert
+        var act = () => _disputeService.OpenDisputeAsync(client.Id, request);
+        var ex = await act.Should().ThrowAsync<ValidationException>();
+        ex.Which.Message.ToLower().Should().Contain("already closed");
+    }
+
+    // ==================== CloseDispute Tests ====================
+
+    [Fact]
+    public async Task CloseDispute_ByOpener_ShouldUnlockMilestone()
+    {
+        // Arrange
+        var client = await SeedUserAsync(UserRole.CLIENT, "client@test.com");
+        var expert = await SeedUserAsync(UserRole.EXPERT, "expert@test.com");
+        var dispute = await SeedDisputeAsync(client.Id, expert.Id, DisputeStatus.OPEN);
+
+        // Act
+        var response = await _disputeService.CloseDisputeAsync(client.Id, dispute.Id);
+
+        // Assert
+        response.Should().NotBeNull();
+        response.Status.Should().Be(DisputeStatus.CLOSED.ToString());
+
+        // Milestone should revert from DISPUTED to IN_PROGRESS
+        var dbMilestone = await _dbContext.Milestones.FindAsync(dispute.MilestoneId);
+        dbMilestone.Should().NotBeNull();
+        dbMilestone!.Status.Should().Be(MilestoneStatus.IN_PROGRESS);
+
+        // Project should revert from DISPUTED to ACTIVE
+        var dbProject = await _dbContext.Projects.FindAsync(dispute.ProjectId);
+        dbProject.Should().NotBeNull();
+        dbProject!.Status.Should().Be(ProjectStatus.ACTIVE);
+    }
+
+    [Fact]
+    public async Task CloseDispute_ShouldNotAffectPaymentStatus()
+    {
+        // Arrange
+        var client = await SeedUserAsync(UserRole.CLIENT, "client@test.com");
+        var expert = await SeedUserAsync(UserRole.EXPERT, "expert@test.com");
+        var dispute = await SeedDisputeAsync(client.Id, expert.Id, DisputeStatus.OPEN);
+
+        // Simulate payment was RELEASED (deposit)
+        var payment = await _dbContext.Payments.FindAsync(dispute.PaymentId);
+        payment!.Status = PaymentStatus.RELEASED;
+        await _dbContext.SaveChangesAsync();
+
+        // Act
+        await _disputeService.CloseDisputeAsync(client.Id, dispute.Id);
+
+        // Assert
+        var updatedPayment = await _dbContext.Payments.FindAsync(dispute.PaymentId);
+        updatedPayment!.Status.Should().Be(PaymentStatus.RELEASED);
+    }
+
+    [Fact]
+    public async Task CloseDispute_ByNonOpener_ShouldThrowUnauthorized()
+    {
+        // Arrange
+        var client = await SeedUserAsync(UserRole.CLIENT, "client@test.com");
+        var expert = await SeedUserAsync(UserRole.EXPERT, "expert@test.com");
+        var dispute = await SeedDisputeAsync(client.Id, expert.Id, DisputeStatus.OPEN);
+
+        // Act & Assert - expert (not the opener) tries to close
+        var act = () => _disputeService.CloseDisputeAsync(expert.Id, dispute.Id);
+        var ex = await act.Should().ThrowAsync<UnauthorizedException>();
+        ex.Which.Message.ToLower().Should().Contain("only the user who opened the dispute can close it");
+    }
+
+    [Fact]
+    public async Task CloseDispute_AlreadyResolved_ShouldThrowValidation()
+    {
+        // Arrange
+        var client = await SeedUserAsync(UserRole.CLIENT, "client@test.com");
+        var expert = await SeedUserAsync(UserRole.EXPERT, "expert@test.com");
+        var dispute = await SeedDisputeAsync(client.Id, expert.Id, DisputeStatus.RESOLVED);
+
+        // Act & Assert
+        var act = () => _disputeService.CloseDisputeAsync(client.Id, dispute.Id);
+        var ex = await act.Should().ThrowAsync<ValidationException>();
+        ex.Which.Message.ToLower().Should().Contain("already");
+    }
+
+    [Fact]
+    public async Task CloseDispute_AlreadyClosed_ShouldThrowValidation()
+    {
+        // Arrange
+        var client = await SeedUserAsync(UserRole.CLIENT, "client@test.com");
+        var expert = await SeedUserAsync(UserRole.EXPERT, "expert@test.com");
+        var dispute = await SeedDisputeAsync(client.Id, expert.Id, DisputeStatus.CLOSED);
+
+        // Act & Assert
+        var act = () => _disputeService.CloseDisputeAsync(client.Id, dispute.Id);
+        var ex = await act.Should().ThrowAsync<ValidationException>();
+        ex.Which.Message.ToLower().Should().Contain("already");
+    }
+
+    // ==================== RequestEvidence Tests ====================
+
+    [Fact]
+    public async Task RequestEvidence_ByAdmin_ShouldSetUnderReviewAndSendNotification()
+    {
+        // Arrange
+        var admin = await SeedUserAsync(UserRole.ADMIN, "admin@test.com");
+        var client = await SeedUserAsync(UserRole.CLIENT, "client@test.com");
+        var expert = await SeedUserAsync(UserRole.EXPERT, "expert@test.com");
+        var dispute = await SeedDisputeAsync(client.Id, expert.Id, DisputeStatus.OPEN);
+
+        var request = new Aivora.Services.DisputeService.Request.RequestEvidenceRequest
+        {
+            Note = "Please provide additional screenshots"
+        };
+
+        // Act
+        var response = await _disputeService.RequestEvidenceAsync(admin.Id, dispute.Id, request);
+
+        // Assert
+        response.Should().NotBeNull();
+        response.Status.Should().Be(DisputeStatus.UNDER_REVIEW.ToString());
+        _mockNotificationService.WasCalled.Should().BeTrue();
+        // It sends to both, the last one is againstUserId
+        _mockNotificationService.LastUserId.Should().Be(expert.Id);
+    }
+
+    [Fact]
+    public async Task RequestEvidence_AlreadyResolved_ShouldThrowValidation()
+    {
+        // Arrange
+        var admin = await SeedUserAsync(UserRole.ADMIN, "admin@test.com");
+        var client = await SeedUserAsync(UserRole.CLIENT, "client@test.com");
+        var expert = await SeedUserAsync(UserRole.EXPERT, "expert@test.com");
+        var dispute = await SeedDisputeAsync(client.Id, expert.Id, DisputeStatus.RESOLVED);
+
+        var request = new Aivora.Services.DisputeService.Request.RequestEvidenceRequest
+        {
+            Note = "Additional evidence"
+        };
+
+        // Act & Assert
+        var act = () => _disputeService.RequestEvidenceAsync(admin.Id, dispute.Id, request);
+        var ex = await act.Should().ThrowAsync<ValidationException>();
+        ex.Which.Message.ToLower().Should().Contain("already");
+    }
+
+    // ==================== DeleteEvidence Tests ====================
+
+    [Fact]
+    public async Task DeleteEvidence_ByOpener_ShouldSucceed()
+    {
+        // Arrange
+        var client = await SeedUserAsync(UserRole.CLIENT, "client@test.com");
+        var expert = await SeedUserAsync(UserRole.EXPERT, "expert@test.com");
+        var dispute = await SeedDisputeAsync(client.Id, expert.Id, DisputeStatus.OPEN);
+
+        var evidence = new DisputeEvidence
+        {
+            Id = Guid.NewGuid(),
+            DisputeId = dispute.Id,
+            SubmittedBy = client.Id,
+            Content = "Test evidence content"
+        };
+        _dbContext.DisputeEvidences.Add(evidence);
+        await _dbContext.SaveChangesAsync();
+
+        // Act
+        await _disputeService.DeleteEvidenceAsync(client.Id, dispute.Id, evidence.Id);
+
+        // Assert
+        var dbEvidence = await _dbContext.DisputeEvidences.FindAsync(evidence.Id);
+        dbEvidence.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task DeleteEvidence_NotFound_ShouldThrowNotFound()
+    {
+        // Arrange
+        var client = await SeedUserAsync(UserRole.CLIENT, "client@test.com");
+        var expert = await SeedUserAsync(UserRole.EXPERT, "expert@test.com");
+        var dispute = await SeedDisputeAsync(client.Id, expert.Id, DisputeStatus.OPEN);
+
+        // Act & Assert
+        var act = () => _disputeService.DeleteEvidenceAsync(client.Id, dispute.Id, Guid.NewGuid());
+        await act.Should().ThrowAsync<NotFoundException>();
+    }
+
+    // ==================== Helpers ====================
+
+    private async Task<User> SeedUserAsync(UserRole role, string email)
+    {
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Role = role,
+            Email = email,
+            FullName = $"{role} User",
+            PasswordHash = "hash"
+        };
+        _dbContext.Users.Add(user);
+        await _dbContext.SaveChangesAsync();
+        return user;
+    }
+
+    private async Task<Dispute> SeedDisputeAsync(Guid openedBy, Guid againstUserId, DisputeStatus status)
+    {
+        var project = new Project
+        {
+            Id = Guid.NewGuid(),
+            ClientId = openedBy,
+            ExpertId = againstUserId,
+            Status = status == DisputeStatus.RESOLVED ? ProjectStatus.COMPLETED : ProjectStatus.ACTIVE,
+            Title = "Test Project"
+        };
+        _dbContext.Projects.Add(project);
+
+        var milestone = new Milestone
+        {
+            Id = Guid.NewGuid(),
+            ProjectId = project.Id,
+            Title = "Test Milestone",
+            Amount = 1000,
+            Status = status == DisputeStatus.RESOLVED ? MilestoneStatus.RELEASED : MilestoneStatus.DISPUTED
+        };
+        _dbContext.Milestones.Add(milestone);
+
+        var payment = new Payment
+        {
+            Id = Guid.NewGuid(),
+            MilestoneId = milestone.Id,
+            ProjectId = project.Id,
+            PayerId = openedBy,
+            PayeeId = againstUserId,
+            Amount = 1000,
+            Status = PaymentStatus.RELEASED
+        };
+        _dbContext.Payments.Add(payment);
+
+        var dispute = new Dispute
+        {
+            Id = Guid.NewGuid(),
+            ProjectId = project.Id,
+            MilestoneId = milestone.Id,
+            PaymentId = payment.Id,
+            OpenedBy = openedBy,
+            AgainstUserId = againstUserId,
+            Reason = "Test reason",
+            Status = status
+        };
+        _dbContext.Disputes.Add(dispute);
+        await _dbContext.SaveChangesAsync();
+        return dispute;
+    }
+
+    public void Dispose()
+    {
+        _dbContext.Dispose();
     }
 
     private class MockNotificationService : Aivora.Services.NotificationService.IService
     {
+        public bool WasCalled { get; private set; }
+        public Guid LastUserId { get; private set; }
+        public string? LastTitle { get; private set; }
+        public string? LastMessage { get; private set; }
+        public string? LastType { get; private set; }
+        public string? LastLinkUrl { get; private set; }
+
         public Task<Aivora.Services.NotificationService.Response.NotificationResponse> SendNotificationAsync(Guid userId, string title, string message, string? type = null, string? linkUrl = null)
-            => Task.FromResult(new Aivora.Services.NotificationService.Response.NotificationResponse
+        {
+            WasCalled = true;
+            LastUserId = userId;
+            LastTitle = title;
+            LastMessage = message;
+            LastType = type;
+            LastLinkUrl = linkUrl;
+            return Task.FromResult(new Aivora.Services.NotificationService.Response.NotificationResponse
             {
                 Id = Guid.NewGuid(),
                 Title = title,
@@ -127,6 +486,7 @@ public class DisputeServiceTests
                 IsRead = false,
                 CreatedAt = DateTimeOffset.UtcNow
             });
+        }
 
         public Task<Aivora.Services.Base.Response.PageResult<Aivora.Services.NotificationService.Response.NotificationResponse>> GetUserNotificationsAsync(Guid userId, Aivora.Services.Base.Request.PageRequest pageRequest)
             => throw new NotImplementedException();
@@ -141,4 +501,3 @@ public class DisputeServiceTests
             => throw new NotImplementedException();
     }
 }
-
