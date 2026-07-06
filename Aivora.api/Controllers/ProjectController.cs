@@ -52,15 +52,6 @@ public class ProjectController : ControllerBase
         return Ok(ApiResponseFactory.SuccessResponse(result, "Project cancelled successfully", HttpContext.TraceIdentifier));
     }
 
-    [HttpPost("{id}/complete")]
-    [Authorize(Policy = JwtExtensions.ClientPolicy)]
-    public async Task<IActionResult> CompleteProject(Guid id)
-    {
-        var userId = this.GetUserId();
-        var result = await _projectService.CompleteProjectAsync(userId, id);
-        return Ok(ApiResponseFactory.SuccessResponse(result, "Project completed successfully", HttpContext.TraceIdentifier));
-    }
-
     [HttpPost("{id}/milestones")]
     [Authorize(Policy = JwtExtensions.ClientPolicy)]
     public async Task<IActionResult> CreateMilestone(Guid id, [FromBody] Aivora.Services.MilestoneService.Request.CreateMilestoneRequest request)

@@ -518,7 +518,7 @@ public class Treasury : ITreasury
         }
 
         // Terminal milestones are PAID or REFUNDED
-        var allSettled = project.Milestones.All(m => m.Status == MilestoneStatus.RELEASED || m.Status == MilestoneStatus.REFUNDED);
+        var allSettled = project.Milestones.All(m => m.IsSettled);
 
         if (allSettled && project.Milestones.Any())
         {
@@ -551,16 +551,6 @@ public class Treasury : ITreasury
             project.Status = ProjectStatus.ACTIVE;
         }
         await _dbContext.SaveChangesAsync();
-    }
-    public async Task MarkProjectDisputedAsync(Guid projectId)
-    {
-        var project = await _dbContext.Projects.FindAsync(projectId);
-        if (project != null && project.Status != ProjectStatus.DISPUTED)
-        {
-            project.Status = ProjectStatus.DISPUTED;
-            await _dbContext.SaveChangesAsync();
-            _logger.LogWarning("⚠️ Project {ProjectId} status set to DISPUTED.", projectId);
-        }
     }
     private async Task<Milestone> GetMilestoneWithProjectAsync(Guid milestoneId)
     {

@@ -31,9 +31,4 @@ public interface ITreasury
     /// Giải quyết bug 'hanging project' bằng cách tính cả Milestone đã REFUNDED.
     /// </summary>
     Task SyncProjectStatusAsync(Guid projectId);
-
-    /// <summary>
-    /// Chuyển Project sang trạng thái DISPUTED.
-    /// </summary>
-    Task MarkProjectDisputedAsync(Guid projectId);
 }

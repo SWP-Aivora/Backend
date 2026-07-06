@@ -331,67 +331,6 @@ public class Service : IService
         }
     }
 
-    public async Task<Response.DepositResultResponse> ReleasePaymentFromMilestoneAsync(Guid userId, Guid milestoneId)
-    {
-        var milestone = await _dbContext.Milestones
-            .Include(m => m.Project)
-                .ThenInclude(p => p.Expert)
-            .FirstOrDefaultAsync(m => m.Id == milestoneId);
-
-        if (milestone == null) throw new NotFoundException("Milestone not found.");
-        if (milestone.Project.ClientId != userId) throw new UnauthorizedException("Only client can release milestone payment.");
-
-        // Business rule: Can only release if milestone is COMPLETED
-        if (milestone.Status != MilestoneStatus.COMPLETED)
-            throw new ValidationException("Can only release payment for completed milestones.");
-
-        if (milestone.Status == MilestoneStatus.RELEASED)
-            throw new ValidationException("Payment for this milestone has already been released.");
-
-        var expertWallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == milestone.Project.ExpertId);
-        if (expertWallet == null) throw new NotFoundException("Expert wallet not found.");
-
-        using var transaction = await _dbContext.Database.BeginTransactionAsync();
-        try
-        {
-            // Mark milestone as released
-            milestone.Status = MilestoneStatus.RELEASED;
-            milestone.ReleasedAt = DateTimeOffset.UtcNow;
-
-            // Move from held to available balance for expert
-            decimal balanceBefore = expertWallet.AvailableBalance;
-            expertWallet.Credit(milestone.Amount);
-
-            var walletTx = new WalletTransaction
-            {
-                WalletId = expertWallet.Id,
-                UserId = milestone.Project.ExpertId,
-                Amount = milestone.Amount,
-                Type = WalletTransactionType.MILESTONE_RELEASE,
-                Direction = TransactionDirection.CREDIT,
-                PaymentId = null,
-                Description = $"Milestone payment release for {milestone.Title}",
-                BalanceBefore = balanceBefore,
-                BalanceAfter = expertWallet.AvailableBalance
-            };
-
-            _dbContext.WalletTransactions.Add(walletTx);
-            await _dbContext.SaveChangesAsync();
-            await transaction.CommitAsync();
-
-            return new Response.DepositResultResponse
-            {
-                Wallet = MapToResponse(expertWallet),
-                Transaction = MapToTxResponse(walletTx)
-            };
-        }
-        catch (Exception ex)
-        {
-            await transaction.RollbackAsync();
-            throw new ValidationException($"Transaction failed: {ex.Message}");
-        }
-    }
-
     private async Task<Wallet> GetOrCreateWalletAsync(Guid userId)
     {
         var wallet = await _dbContext.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);

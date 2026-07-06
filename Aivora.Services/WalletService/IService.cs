@@ -11,5 +11,4 @@ public interface IService
     Task<Response.VnPayDepositResponse> DepositViaVNPayAsync(Guid userId, Request.VnPayDepositRequest request);
     Task<Response.DepositResultResponse> WithdrawAsync(Guid userId, Request.WithdrawRequest request);
     Task<Response.DepositResultResponse> TransferToExpertAsync(Guid userId, Request.TransferRequest request);
-    Task<Response.DepositResultResponse> ReleasePaymentFromMilestoneAsync(Guid userId, Guid milestoneId);
 }
