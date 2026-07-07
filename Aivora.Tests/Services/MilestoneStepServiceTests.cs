@@ -432,6 +432,44 @@ public class MilestoneStepServiceTests
     }
 
     [Fact]
+    public async Task UpdateStepStatusAsync_ExpertBlock_NotificationFailure_StillPersistsStatus()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var milestoneId = Guid.NewGuid();
+        var stepId = Guid.NewGuid();
+
+        var project = new Project { Id = projectId, ClientId = clientId, ExpertId = expertId, Title = "Test Project", Status = ProjectStatus.ACTIVE };
+        var milestone = new Milestone { Id = milestoneId, ProjectId = projectId, Title = "Milestone 1", Amount = 100 };
+        var step = new MilestoneStep { Id = stepId, MilestoneId = milestoneId, Title = "Step", OrderIndex = 1, Status = MilestoneStepStatus.IN_PROGRESS };
+
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestone);
+        dbContext.MilestoneSteps.Add(step);
+        await dbContext.SaveChangesAsync();
+
+        var notificationMock = new Mock<Aivora.Services.NotificationService.IService>();
+        notificationMock
+            .Setup(n => n.SendNotificationAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>()))
+            .ThrowsAsync(new Exception("Simulated notification outage"));
+        var service = new Service(dbContext, Mock.Of<ITreasury>(), notificationMock.Object);
+
+        var request = new Request.UpdateStepStatusRequest { Status = MilestoneStepStatus.BLOCKED, Reason = "Waiting on client access" };
+
+        // Act
+        var result = await service.UpdateStepStatusAsync(expertId, stepId, request);
+
+        // Assert
+        result.Status.Should().Be(MilestoneStepStatus.BLOCKED);
+        var dbStep = await dbContext.MilestoneSteps.FirstOrDefaultAsync(s => s.Id == stepId);
+        dbStep!.Status.Should().Be(MilestoneStepStatus.BLOCKED);
+        notificationMock.Verify(n => n.SendNotificationAsync(clientId, It.IsAny<string>(), It.Is<string>(m => m.Contains("Waiting on client access")), "MILESTONE", It.IsAny<string?>()), Times.Once);
+    }
+
+    [Fact]
     public async Task UpdateStepStatusAsync_ExpertBlockWithoutReason_ThrowsValidationException()
     {
         // Arrange
