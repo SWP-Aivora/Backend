@@ -98,35 +98,13 @@ public class Service : IService
 
     public async Task<Response.FundResultResponse> FundMilestoneAsync(Guid userId, Guid milestoneId)
     {
-        // Sử dụng Treasury để xử lý logic phức tạp (PayDepositAsync)
-        await _treasury.PayDepositAsync(userId, milestoneId);
-
-        // Lấy dữ liệu từ change tracker sau khi Treasury xử lý xong.
-        // Treasury đã load/create các entity này trong cùng một DbContext (scoped),
-        // nên chúng đã được tracked. Dùng .Local thay vì query DB để tránh
-        // lỗi "Sequence contains no elements" do connection pool / transaction visibility.
-        var milestone = _dbContext.Milestones.Local
-            .FirstOrDefault(m => m.Id == milestoneId);
-        var clientWallet = _dbContext.Wallets.Local
-            .FirstOrDefault(w => w.UserId == userId);
-        var payment = _dbContext.Payments.Local
-            .FirstOrDefault(p => p.MilestoneId == milestoneId && p.Status == PaymentStatus.RELEASED);
-
-        if (milestone == null)
-            throw new InvalidOperationException($"Milestone {milestoneId} not tracked after funding.");
-
-        if (!_dbContext.Entry(milestone).Collection(m => m.Steps).IsLoaded)
-        {
-            await _dbContext.Entry(milestone).Collection(m => m.Steps).LoadAsync();
-        }
-        if (clientWallet == null)
-            throw new InvalidOperationException($"Wallet for user {userId} not tracked after funding.");
-        if (payment == null)
-            throw new InvalidOperationException($"Payment for milestone {milestoneId} not tracked after funding.");
+        var result = await _treasury.PayDepositAsync(userId, milestoneId);
+        var payment = result.Payments.Single();
+        var clientWallet = result.ClientWallet;
 
         return new Response.FundResultResponse
         {
-            Milestone = MapToResponse(milestone),
+            Milestone = MapToResponse(result.Milestone),
             Payment = new Response.PaymentInfo
             {
                 Id = payment.Id,
@@ -150,40 +128,9 @@ public class Service : IService
 
     public async Task<Response.MilestoneResponse> ApproveMilestoneAsync(Guid userId, Guid milestoneId)
     {
-        // Validate milestone status at service layer before delegating to Treasury.
-        // Deliberately narrower than Treasury.ReleaseMilestoneAsync's own check (SUBMITTED
-        // or DISPUTED): a client is only allowed to approve directly while SUBMITTED. Once
-        // DISPUTED, release must go through admin dispute resolution
-        // (DisputeService.ResolveDisputeAsync calls Treasury.ReleaseMilestoneAsync directly).
-        var milestone = await _dbContext.Milestones.FirstOrDefaultAsync(m => m.Id == milestoneId);
-        if (milestone == null) throw new NotFoundException("Milestone not found.");
-        if (milestone.Status != MilestoneStatus.SUBMITTED)
-            throw new ValidationException("Milestone must be in SUBMITTED status to be approved.");
-
-        var hasActiveDispute = await _dbContext.Disputes
-            .AnyAsync(d => d.MilestoneId == milestoneId &&
-                          (d.Status == DisputeStatus.OPEN || d.Status == DisputeStatus.UNDER_REVIEW));
-
-        if (hasActiveDispute)
-            throw new ValidationException("Cannot approve milestone while there is an active dispute.");
-
-        // Delegate to Treasury which handles all persistence internally
-        // (opens its own transaction, calls SaveChangesAsync, commits).
-        await _treasury.PayRemainingAsync(userId, milestoneId);
-
-        // Read from the change tracker rather than re-querying the DB. Treasury loads/
-        // mutates this same tracked entity in the same scoped DbContext, so .Local already
-        // reflects the committed state. A fresh query here risks the same "Sequence
-        // contains no elements" failure that FundMilestoneAsync hit (see commit eae5221).
-        milestone = _dbContext.Milestones.Local.FirstOrDefault(m => m.Id == milestoneId);
-        if (milestone == null)
-            throw new InvalidOperationException($"Milestone {milestoneId} not tracked after release.");
-
-        if (!_dbContext.Entry(milestone).Collection(m => m.Steps).IsLoaded)
-        {
-            await _dbContext.Entry(milestone).Collection(m => m.Steps).LoadAsync();
-        }
-        return MapToResponse(milestone);
+        // Mọi luật chặn release (SUBMITTED, active dispute) sống trong Treasury.
+        var result = await _treasury.PayRemainingAsync(userId, milestoneId);
+        return MapToResponse(result.Milestone);
     }
 
     public async Task<Response.MilestoneResponse> RequestRevisionAsync(Guid userId, Guid milestoneId, string reason)
