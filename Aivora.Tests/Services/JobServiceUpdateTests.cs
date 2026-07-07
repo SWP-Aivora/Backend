@@ -176,4 +176,28 @@ public class JobServiceUpdateTests
 
         mockRealtime.Verify(r => r.SendJobStatusUpdateAsync(client.Id, job.Id, Aivora.Repositories.Enums.JobStatus.OPEN, "J"), Times.Once);
     }
+
+    [Fact]
+    public async Task CancelJobAsync_NotOwner_ThrowsNotFoundException()
+    {
+        var dbContext = GetDbContext();
+        var service = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService());
+
+        var job = new JobPost
+        {
+            ClientId = Guid.NewGuid(),
+            Title = "Test Job",
+            OriginalDescription = "Desc",
+            CategoryId = Guid.NewGuid(),
+            Status = JobStatus.OPEN
+        };
+        dbContext.JobPosts.Add(job);
+        await dbContext.SaveChangesAsync();
+
+        Func<Task> act = async () => await service.CancelJobAsync(Guid.NewGuid(), job.Id, "Not my job");
+        await act.Should().ThrowAsync<NotFoundException>();
+
+        var dbJob = await dbContext.JobPosts.FindAsync(job.Id);
+        dbJob!.Status.Should().Be(JobStatus.OPEN);
+    }
 }
