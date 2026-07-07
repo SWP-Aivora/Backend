@@ -1,6 +1,7 @@
 using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
+using Aivora.Services.AIMilestoneStepAssistantService;
 using Aivora.Services.Exceptions;
 using Aivora.Services.NotificationService;
 using Aivora.Services.Treasury;
@@ -13,12 +14,18 @@ public class Service : IService
     private readonly AivoraDbContext _dbContext;
     private readonly ITreasury _treasury;
     private readonly NotificationService.IService _notificationService;
+    private readonly IAIMilestoneStepSuggestionProvider _stepSuggestionProvider;
 
-    public Service(AivoraDbContext dbContext, ITreasury treasury, NotificationService.IService notificationService)
+    public Service(
+        AivoraDbContext dbContext,
+        ITreasury treasury,
+        NotificationService.IService notificationService,
+        IAIMilestoneStepSuggestionProvider stepSuggestionProvider)
     {
         _dbContext = dbContext;
         _treasury = treasury;
         _notificationService = notificationService;
+        _stepSuggestionProvider = stepSuggestionProvider;
     }
 
     public async Task<Response.MilestoneResponse> GetMilestoneByIdAsync(Guid userId, Guid milestoneId)
@@ -202,6 +209,31 @@ public class Service : IService
                 BlockedReason = s.BlockedReason
             })
             .ToListAsync();
+    }
+
+    public async Task<Response.MilestoneStepSuggestionResponse> SuggestMilestoneStepsAsync(Guid userId, Guid milestoneId, CancellationToken cancellationToken = default)
+    {
+        var milestone = await _dbContext.Milestones
+            .Include(m => m.Project)
+            .FirstOrDefaultAsync(m => m.Id == milestoneId, cancellationToken);
+
+        if (milestone == null) throw new NotFoundException("Milestone not found.");
+        if (milestone.Project.ExpertId != userId) throw new UnauthorizedException("Only the expert can suggest milestone steps.");
+
+        var draft = await _stepSuggestionProvider.GenerateSuggestionAsync(
+            new AIMilestoneStepAssistantService.Request.SuggestMilestoneStepsRequest
+            {
+                Title = milestone.Title,
+                Description = milestone.Description,
+                AcceptanceCriteria = milestone.AcceptanceCriteria
+            },
+            cancellationToken);
+
+        return new Response.MilestoneStepSuggestionResponse
+        {
+            Steps = draft.Steps.Select(s => new Response.SuggestedMilestoneStep { Title = s.Title, Description = s.Description }).ToList(),
+            AIModel = draft.AIModel
+        };
     }
 
     public async Task<Response.MilestoneStepResponse> AddMilestoneStepAsync(Guid userId, Guid milestoneId, Request.CreateMilestoneStepRequest request)

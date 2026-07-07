@@ -40,6 +40,18 @@ public class Response
         public string? BlockedReason { get; set; }
     }
 
+    public class SuggestedMilestoneStep
+    {
+        public string Title { get; set; } = null!;
+        public string? Description { get; set; }
+    }
+
+    public class MilestoneStepSuggestionResponse
+    {
+        public List<SuggestedMilestoneStep> Steps { get; set; } = new();
+        public string AIModel { get; set; } = null!;
+    }
+
     public class FundResultResponse
     {
         public MilestoneResponse Milestone { get; set; } = null!;
