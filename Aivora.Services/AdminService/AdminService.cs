@@ -166,7 +166,7 @@ public class AdminService : IAdminService
             TotalExperts = await _dbContext.Users.CountAsync(u => u.Role == UserRole.EXPERT),
             TotalJobs = await _dbContext.JobPosts.CountAsync(),
             ActiveProjects = await _dbContext.Projects.CountAsync(p => p.Status == ProjectStatus.ACTIVE),
-            OpenDisputes = await _dbContext.Disputes.CountAsync(d => d.Status == DisputeStatus.OPEN),
+            OpenDisputes = await _dbContext.Disputes.CountAsync(d => d.Status == DisputeStatus.OPEN || d.Status == DisputeStatus.UNDER_REVIEW),
             TotalEscrowAmount = await _dbContext.Wallets.SumAsync(w => w.HeldBalance)
         };
     }
