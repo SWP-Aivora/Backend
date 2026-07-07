@@ -92,7 +92,7 @@ public class Treasury : ITreasury
             }
         });
     }
-    public async Task PayDepositAsync(Guid clientId, Guid milestoneId)
+    public async Task<TreasuryResult> PayDepositAsync(Guid clientId, Guid milestoneId)
     {
         var milestone = await GetMilestoneWithProjectAsync(milestoneId);
 
@@ -183,6 +183,7 @@ public class Treasury : ITreasury
                 $"/projects/{milestone.ProjectId}/milestones/{milestoneId}"
             );
             _logger.LogInformation("✅ Milestone {MilestoneId} 30% deposit paid by Client {ClientId}", milestoneId, clientId);
+            return new TreasuryResult(milestone, clientWallet, expertWallet, [payment]);
         }
         catch (Exception ex)
         {
@@ -191,7 +192,7 @@ public class Treasury : ITreasury
             throw;
         }
     }
-    public async Task PayRemainingAsync(Guid clientId, Guid milestoneId)
+    public async Task<TreasuryResult> PayRemainingAsync(Guid clientId, Guid milestoneId)
     {
         var milestone = await GetMilestoneWithProjectAsync(milestoneId);
 
@@ -200,6 +201,12 @@ public class Treasury : ITreasury
             throw new ValidationException("Cannot release remaining funds while the milestone is disputed.");
         if (milestone.Status != MilestoneStatus.SUBMITTED)
             throw new ValidationException("Milestone must be in SUBMITTED status to release remaining funds.");
+
+        var hasActiveDispute = await _dbContext.Disputes
+            .AnyAsync(d => d.MilestoneId == milestoneId &&
+                          (d.Status == DisputeStatus.OPEN || d.Status == DisputeStatus.UNDER_REVIEW));
+        if (hasActiveDispute)
+            throw new ValidationException("Cannot release remaining funds while there is an active dispute.");
 
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
@@ -303,6 +310,7 @@ public class Treasury : ITreasury
                 $"/projects/{milestone.ProjectId}/milestones/{milestoneId}"
             );
             _logger.LogInformation("✅ Remaining 70% funds released for Milestone {MilestoneId}", milestoneId);
+            return new TreasuryResult(milestone, clientWallet, expertWallet, [payment]);
         }
         catch (Exception ex)
         {
@@ -311,7 +319,7 @@ public class Treasury : ITreasury
             throw;
         }
     }
-    public async Task RefundMilestoneAsync(Guid adminId, Guid milestoneId, string reason)
+    public async Task<TreasuryResult> RefundMilestoneAsync(Guid adminId, Guid milestoneId, string reason)
     {
         var milestone = await GetMilestoneWithProjectAsync(milestoneId);
         var payments = await _dbContext.Payments.Where(p => p.MilestoneId == milestoneId && p.Status == PaymentStatus.RELEASED).ToListAsync();
@@ -391,6 +399,7 @@ public class Treasury : ITreasury
             await transaction.CommitAsync();
 
             _logger.LogInformation("✅ Refunded {Amount} for Milestone {MilestoneId}", amount, milestoneId);
+            return new TreasuryResult(milestone, ClientWallet: payerWallet, ExpertWallet: payeeWallet, payments);
         }
         catch (Exception ex)
         {
@@ -399,7 +408,7 @@ public class Treasury : ITreasury
             throw;
         }
     }
-    public async Task SplitMilestoneFundsAsync(Guid milestoneId, decimal releaseToExpertAmount, decimal refundToClientAmount, string reason)
+    public async Task<TreasuryResult> SplitMilestoneFundsAsync(Guid milestoneId, decimal releaseToExpertAmount, decimal refundToClientAmount, string reason)
     {
         var milestone = await GetMilestoneWithProjectAsync(milestoneId);
         var payments = await _dbContext.Payments.Where(p => p.MilestoneId == milestoneId && p.Status == PaymentStatus.RELEASED).ToListAsync();
@@ -495,6 +504,7 @@ public class Treasury : ITreasury
             await transaction.CommitAsync();
 
             _logger.LogInformation("✅ Split {MilestoneId} funds: {ReleaseAmount} released, {RefundAmount} refunded", milestoneId, releaseToExpertAmount, refundToClientAmount);
+            return new TreasuryResult(milestone, ClientWallet: payerWallet, ExpertWallet: payeeWallet, payments);
         }
         catch (Exception ex)
         {
@@ -556,6 +566,7 @@ public class Treasury : ITreasury
     {
         var milestone = await _dbContext.Milestones
             .Include(m => m.Project).ThenInclude(p => p.Milestones)
+            .Include(m => m.Steps)
             .FirstOrDefaultAsync(m => m.Id == milestoneId);
 
         return milestone ?? throw new NotFoundException("Milestone not found.");

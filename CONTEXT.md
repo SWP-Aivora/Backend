@@ -73,6 +73,12 @@
 
 #### 💰 Payment Domain
 
+**Treasury (Kho bạc)**
+- *Bản chất:* Bộ phận duy nhất được phép luân chuyển tiền giữa các Wallet — mọi thay đổi số dư liên quan đến Milestone đều đi qua Treasury
+- *Nghiệp vụ:* Trả cọc (30% khi Milestone bắt đầu), tất toán (70% còn lại trừ commission khi Milestone được approve), hoàn tiền (clawback từ Expert về Client), phân chia (chia tiền giữa Expert và Client khi Dispute được giải quyết)
+- *Quan trọng:* Luật chặn chuyển tiền (trạng thái Milestone, Dispute đang mở, hạn mức nợ) sống trong Treasury — không nơi nào khác
+- *Tránh dùng:* FinancialLedger, PaymentService, escrow service
+
 **Wallet**
 - *Bản chất:* Tài khoản escrow cho từng User
 - *Thuộc tính:* Balance, Currency

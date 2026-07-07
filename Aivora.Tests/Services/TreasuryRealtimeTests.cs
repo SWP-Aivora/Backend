@@ -276,6 +276,45 @@ public class TreasuryRealtimeTests
     }
 
     [Fact]
+    public async Task PayRemainingAsync_Should_Throw_ValidationException_When_Active_Dispute_Record_Exists()
+    {
+        // Arrange: milestone is SUBMITTED but an OPEN dispute record exists
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+
+        var clientWallet = new Wallet { UserId = clientId, AvailableBalance = 1000, HeldBalance = 0, Currency = "AICOIN" };
+        var expertWallet = new Wallet { UserId = expertId, AvailableBalance = 0, HeldBalance = 0, Currency = "AICOIN" };
+        var project = new Project { ClientId = clientId, ExpertId = expertId, Title = "Active Dispute Project" };
+        var milestone = new Milestone { Project = project, Amount = 1000, Status = MilestoneStatus.SUBMITTED, Title = "M1" };
+        var payment = new Payment { MilestoneId = milestone.Id, ProjectId = project.Id, PayerId = clientId, PayeeId = expertId, Amount = 300, Status = PaymentStatus.RELEASED, Currency = "AICOIN" };
+        var dispute = new Dispute { ProjectId = project.Id, MilestoneId = milestone.Id, PaymentId = payment.Id, OpenedBy = clientId, AgainstUserId = expertId, Reason = "Quality issue", Status = DisputeStatus.OPEN };
+
+        dbContext.Wallets.AddRange(clientWallet, expertWallet);
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestone);
+        dbContext.Payments.Add(payment);
+        dbContext.Disputes.Add(dispute);
+        await dbContext.SaveChangesAsync();
+
+        var commissionOptions = Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.CommissionOptions { Rate = 0.10m, MaxDebtLimit = 1000m });
+        var treasury = new Aivora.Services.Treasury.Treasury(
+            dbContext,
+            new CommissionCalculator(commissionOptions),
+            Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(),
+            Mock.Of<Aivora.Services.NotificationService.IService>(),
+            Mock.Of<Aivora.Services.RealtimeService.IService>()
+        );
+
+        // Act
+        Func<Task> act = async () => await treasury.PayRemainingAsync(clientId, milestone.Id);
+
+        // Assert
+        await act.Should().ThrowAsync<Aivora.Services.Exceptions.ValidationException>()
+            .WithMessage("*active dispute*");
+    }
+
+    [Fact]
     public async Task PayRemainingAsync_Should_Throw_ValidationException_When_Milestone_Is_Disputed()
     {
         // Arrange
