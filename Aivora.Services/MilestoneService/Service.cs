@@ -267,7 +267,7 @@ public class Service : IService
         var project = milestone.Project;
         if (project == null) throw new NotFoundException("Project not found.");
 
-        if (project.ClientId != userId) throw new UnauthorizedException("Only the client can add milestone steps.");
+        if (project.ExpertId != userId) throw new UnauthorizedException("Only the expert can add milestone steps.");
 
         if (project.Status == ProjectStatus.COMPLETED || project.Status == ProjectStatus.CANCELLED)
             throw new ValidationException("Cannot add steps to a completed or cancelled project.");
@@ -312,8 +312,8 @@ public class Service : IService
 
         if (step == null) throw new NotFoundException("Milestone step not found.");
 
-        if (step.Milestone.Project.ClientId != userId)
-            throw new UnauthorizedException("Only the client can update milestone steps.");
+        if (step.Milestone.Project.ExpertId != userId)
+            throw new UnauthorizedException("Only the expert can update milestone steps.");
 
         if (step.Milestone.Project.Status == ProjectStatus.COMPLETED || step.Milestone.Project.Status == ProjectStatus.CANCELLED)
             throw new ValidationException("Cannot modify steps in a completed or cancelled project.");
@@ -354,8 +354,8 @@ public class Service : IService
 
         if (step == null) throw new NotFoundException("Milestone step not found.");
 
-        if (step.Milestone.Project.ClientId != userId)
-            throw new UnauthorizedException("Only the client can delete milestone steps.");
+        if (step.Milestone.Project.ExpertId != userId)
+            throw new UnauthorizedException("Only the expert can delete milestone steps.");
 
         if (step.Milestone.Project.Status == ProjectStatus.COMPLETED || step.Milestone.Project.Status == ProjectStatus.CANCELLED)
             throw new ValidationException("Cannot modify steps in a completed or cancelled project.");
@@ -418,8 +418,8 @@ public class Service : IService
             }
             else if (request.Status == MilestoneStepStatus.SKIPPED)
             {
-                if (project.ClientId != userId)
-                    throw new UnauthorizedException("Only the client can skip steps.");
+                if (project.ExpertId != userId)
+                    throw new UnauthorizedException("Only the expert can skip steps.");
             }
             else
             {
@@ -452,8 +452,8 @@ public class Service : IService
 
         if (milestone == null) throw new NotFoundException("Milestone not found.");
 
-        if (milestone.Project.ClientId != userId)
-            throw new UnauthorizedException("Only the client can reorder steps.");
+        if (milestone.Project.ExpertId != userId)
+            throw new UnauthorizedException("Only the expert can reorder steps.");
 
         if (milestone.Project.Status == ProjectStatus.COMPLETED || milestone.Project.Status == ProjectStatus.CANCELLED)
             throw new ValidationException("Cannot modify steps in a completed or cancelled project.");
