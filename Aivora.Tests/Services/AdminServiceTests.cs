@@ -23,6 +23,30 @@ public class AdminServiceTests
     }
 
     [Fact]
+    public async Task GetDashboardStatsAsync_CountsOpenAndUnderReviewDisputes()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        dbContext.Disputes.AddRange(
+            new Dispute { ProjectId = Guid.NewGuid(), MilestoneId = Guid.NewGuid(), PaymentId = Guid.NewGuid(), OpenedBy = Guid.NewGuid(), AgainstUserId = Guid.NewGuid(), Reason = "Quality", Status = DisputeStatus.OPEN },
+            new Dispute { ProjectId = Guid.NewGuid(), MilestoneId = Guid.NewGuid(), PaymentId = Guid.NewGuid(), OpenedBy = Guid.NewGuid(), AgainstUserId = Guid.NewGuid(), Reason = "Scope", Status = DisputeStatus.UNDER_REVIEW },
+            new Dispute { ProjectId = Guid.NewGuid(), MilestoneId = Guid.NewGuid(), PaymentId = Guid.NewGuid(), OpenedBy = Guid.NewGuid(), AgainstUserId = Guid.NewGuid(), Reason = "Old", Status = DisputeStatus.RESOLVED },
+            new Dispute { ProjectId = Guid.NewGuid(), MilestoneId = Guid.NewGuid(), PaymentId = Guid.NewGuid(), OpenedBy = Guid.NewGuid(), AgainstUserId = Guid.NewGuid(), Reason = "Closed", Status = DisputeStatus.CLOSED }
+        );
+        await dbContext.SaveChangesAsync();
+
+        var service = new AdminService(dbContext, Mock.Of<ILogger<AdminService>>(), Mock.Of<Aivora.Services.NotificationService.IService>());
+
+        // Act
+        var result = await service.GetDashboardStatsAsync();
+
+        // Assert
+        // UNDER_REVIEW disputes still leave the project/milestone marked DISPUTED (only Resolve/Close revert
+        // it), so the dashboard's count must include them to stay consistent with Project Management's view.
+        result.OpenDisputes.Should().Be(2);
+    }
+
+    [Fact]
     public async Task SuspendUserAsync_Succeeds_WhenUserIsValid()
     {
         // Arrange
