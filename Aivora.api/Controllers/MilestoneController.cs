@@ -142,7 +142,6 @@ public class MilestoneController : ControllerBase
     }
 
     [HttpPut("~/api/v1/steps/{id}/status")]
-    [Authorize(Policy = JwtExtensions.ExpertPolicy)]
     public async Task<IActionResult> UpdateStepStatus(Guid id, [FromBody] Request.UpdateStepStatusRequest request)
     {
         var userId = this.GetUserId();

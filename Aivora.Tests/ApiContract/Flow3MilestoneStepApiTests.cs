@@ -152,9 +152,11 @@ public class Flow3MilestoneStepApiTests : IClassFixture<ApiContractTestFactory>
             requestMatchesDoc: true, responseMatchesDoc: startSuccess
         );
 
-        // Client cannot skip (previously allowed) — Expert-only policy blocks it entirely
+        // Client cannot skip (previously allowed) — the status route is no longer Expert-only at the
+        // policy level (Client needs it too, for unblock), so the rejection now comes from the service's
+        // per-transition ownership check (401) rather than the route-level role policy (403).
         var (clientSkipRes, _) = await client.PutAsync($"/api/v1/steps/{step2Id}/status", new { status = "SKIPPED" });
-        clientSkipRes.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        clientSkipRes.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
 
         // Expert can skip
         var (skipRes, _) = await expertClient.PutAsync($"/api/v1/steps/{step2Id}/status", new { status = "SKIPPED" });
@@ -204,6 +206,68 @@ public class Flow3MilestoneStepApiTests : IClassFixture<ApiContractTestFactory>
         var (finalizedAddRes, _) = await expertClient2.PostAsync(
             $"/api/v1/milestones/{finalizedMilestoneId}/steps", new { title = "Too late", orderIndex = 1 });
         finalizedAddRes.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        _factory.Tracker.ExportResults();
+    }
+
+    [Fact]
+    public async Task Run_Flow3_MilestoneStep_BlockUnblock_Sequence()
+    {
+        var client = new ApiContractClient(_factory.CreateAuthenticatedClient(UserRole.CLIENT));
+        var milestoneId = await CreateProjectWithMilestoneAsync(client, "BlockUnblock", 700);
+
+        var expertClient = new ApiContractClient(_factory.CreateAuthenticatedClient(UserRole.EXPERT));
+
+        var (createStepRes, createStepBody) = await expertClient.PostAsync(
+            $"/api/v1/milestones/{milestoneId}/steps",
+            new { title = "Blockable step", description = "Needs client input", orderIndex = 1 });
+        createStepRes.StatusCode.Should().Be(HttpStatusCode.OK);
+        var stepIdStr = createStepBody?.GetProperty("data").GetProperty("id").GetString();
+        Guid.TryParse(stepIdStr, out var stepId);
+
+        // Cannot block a step that isn't IN_PROGRESS yet
+        var (blockPendingRes, _) = await expertClient.PutAsync(
+            $"/api/v1/steps/{stepId}/status", new { status = "BLOCKED", reason = "too early" });
+        blockPendingRes.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        await expertClient.PutAsync($"/api/v1/steps/{stepId}/status", new { status = "IN_PROGRESS" });
+
+        // Blocking without a reason is rejected
+        var (blockNoReasonRes, _) = await expertClient.PutAsync(
+            $"/api/v1/steps/{stepId}/status", new { status = "BLOCKED" });
+        blockNoReasonRes.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        // Client cannot block
+        var (clientBlockRes, _) = await client.PutAsync(
+            $"/api/v1/steps/{stepId}/status", new { status = "BLOCKED", reason = "client trying to block" });
+        clientBlockRes.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+
+        // Expert blocks with a reason
+        var (blockRes, blockBody) = await expertClient.PutAsync(
+            $"/api/v1/steps/{stepId}/status", new { status = "BLOCKED", reason = "Waiting on client access" });
+        blockRes.StatusCode.Should().Be(HttpStatusCode.OK);
+        bool blockSuccess = blockBody?.GetProperty("success").GetBoolean() ?? false;
+        blockBody?.GetProperty("data").GetProperty("blockedReason").GetString().Should().Be("Waiting on client access");
+        _factory.Tracker.Record(
+            "Flow 3", "PUT", "/api/v1/steps/{id}/status (block)", 200, (int)blockRes.StatusCode,
+            requestMatchesDoc: true, responseMatchesDoc: blockSuccess
+        );
+
+        // Expert cannot unblock
+        var (expertUnblockRes, _) = await expertClient.PutAsync(
+            $"/api/v1/steps/{stepId}/status", new { status = "IN_PROGRESS" });
+        expertUnblockRes.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+
+        // Client unblocks
+        var (unblockRes, unblockBody) = await client.PutAsync(
+            $"/api/v1/steps/{stepId}/status", new { status = "IN_PROGRESS" });
+        unblockRes.StatusCode.Should().Be(HttpStatusCode.OK);
+        bool unblockSuccess = unblockBody?.GetProperty("success").GetBoolean() ?? false;
+        unblockBody?.GetProperty("data").GetProperty("status").GetString().Should().Be("IN_PROGRESS");
+        _factory.Tracker.Record(
+            "Flow 3", "PUT", "/api/v1/steps/{id}/status (unblock)", 200, (int)unblockRes.StatusCode,
+            requestMatchesDoc: true, responseMatchesDoc: unblockSuccess
+        );
 
         _factory.Tracker.ExportResults();
     }

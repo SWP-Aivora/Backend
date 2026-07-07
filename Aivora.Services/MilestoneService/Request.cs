@@ -69,5 +69,6 @@ public class Request
     public class UpdateStepStatusRequest
     {
         public MilestoneStepStatus Status { get; set; }
+        public string? Reason { get; set; }
     }
 }

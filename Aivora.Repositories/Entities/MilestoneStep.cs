@@ -13,6 +13,7 @@ public class MilestoneStep : AuditableBaseEntity
     public DateOnly? DueDate { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }
     public Guid? CompletedByUserId { get; set; }
+    public string? BlockedReason { get; set; }
 
     // Navigation Properties
     public virtual Milestone Milestone { get; set; } = null!;

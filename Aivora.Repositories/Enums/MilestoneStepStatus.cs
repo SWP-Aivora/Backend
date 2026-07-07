@@ -8,5 +8,6 @@ public enum MilestoneStepStatus
     PENDING,
     IN_PROGRESS,
     COMPLETED,
-    SKIPPED
+    SKIPPED,
+    BLOCKED
 }
