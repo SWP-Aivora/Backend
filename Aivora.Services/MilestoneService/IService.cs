@@ -9,6 +9,7 @@ public interface IService
     Task<Response.MilestoneResponse> ApproveMilestoneAsync(Guid userId, Guid milestoneId);
     Task<Response.MilestoneResponse> RequestRevisionAsync(Guid userId, Guid milestoneId, string reason);
     Task<List<Response.MilestoneStepResponse>> GetMilestoneStepsAsync(Guid userId, Guid milestoneId);
+    Task<Response.MilestoneStepSuggestionResponse> SuggestMilestoneStepsAsync(Guid userId, Guid milestoneId, CancellationToken cancellationToken = default);
     Task<Response.MilestoneStepResponse> AddMilestoneStepAsync(Guid userId, Guid milestoneId, Request.CreateMilestoneStepRequest request);
     Task<Response.MilestoneStepResponse> UpdateMilestoneStepAsync(Guid userId, Guid stepId, Request.UpdateMilestoneStepRequest request);
     Task DeleteMilestoneStepAsync(Guid userId, Guid stepId);

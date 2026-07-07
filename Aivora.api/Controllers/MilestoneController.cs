@@ -123,6 +123,16 @@ public class MilestoneController : ControllerBase
         return Ok(ApiResponseFactory.SuccessResponse(result, "Milestone step added successfully", HttpContext.TraceIdentifier));
     }
 
+    [HttpPost("{id}/steps/suggest")]
+    [Authorize(Policy = JwtExtensions.ExpertPolicy)]
+    [EnableRateLimiting("AI")]
+    public async Task<IActionResult> SuggestMilestoneSteps(Guid id, CancellationToken cancellationToken)
+    {
+        var userId = this.GetUserId();
+        var result = await _milestoneService.SuggestMilestoneStepsAsync(userId, id, cancellationToken);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Milestone step suggestions generated", HttpContext.TraceIdentifier));
+    }
+
     [HttpPut("~/api/v1/steps/{id}")]
     [Authorize(Policy = JwtExtensions.ExpertPolicy)]
     public async Task<IActionResult> UpdateMilestoneStep(Guid id, [FromBody] Request.UpdateMilestoneStepRequest request)

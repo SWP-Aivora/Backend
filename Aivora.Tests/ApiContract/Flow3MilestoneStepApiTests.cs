@@ -271,4 +271,35 @@ public class Flow3MilestoneStepApiTests : IClassFixture<ApiContractTestFactory>
 
         _factory.Tracker.ExportResults();
     }
+
+    [Fact]
+    public async Task Run_Flow3_MilestoneStep_SuggestSteps_Sequence()
+    {
+        var client = new ApiContractClient(_factory.CreateAuthenticatedClient(UserRole.CLIENT));
+        var milestoneId = await CreateProjectWithMilestoneAsync(client, "Suggest", 800);
+
+        var expertClient = new ApiContractClient(_factory.CreateAuthenticatedClient(UserRole.EXPERT));
+
+        // Expert can request suggestions; nothing is persisted by the call alone
+        var (suggestRes, suggestBody) = await expertClient.PostAsync($"/api/v1/milestones/{milestoneId}/steps/suggest", new { });
+        suggestRes.StatusCode.Should().Be(HttpStatusCode.OK);
+        bool suggestSuccess = suggestBody?.GetProperty("success").GetBoolean() ?? false;
+        var steps = suggestBody?.GetProperty("data").GetProperty("steps");
+        steps.HasValue.Should().BeTrue();
+        steps!.Value.GetArrayLength().Should().BeGreaterThan(0);
+        _factory.Tracker.Record(
+            "Flow 3", "POST", "/api/v1/milestones/{id}/steps/suggest", 200, (int)suggestRes.StatusCode,
+            requestMatchesDoc: true, responseMatchesDoc: suggestSuccess
+        );
+
+        var (getStepsAfterSuggestRes, getStepsAfterSuggestBody) = await client.GetAsync($"/api/v1/milestones/{milestoneId}/steps");
+        getStepsAfterSuggestRes.StatusCode.Should().Be(HttpStatusCode.OK);
+        getStepsAfterSuggestBody?.GetProperty("data").GetArrayLength().Should().Be(0);
+
+        // Client cannot request suggestions
+        var (clientSuggestRes, _) = await client.PostAsync($"/api/v1/milestones/{milestoneId}/steps/suggest", new { });
+        clientSuggestRes.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        _factory.Tracker.ExportResults();
+    }
 }

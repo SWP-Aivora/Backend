@@ -188,6 +188,19 @@ public static class ServiceCollectionExtensions
         });
         services.AddScoped<Aivora.Services.AIJobRefinementService.IService, Aivora.Services.AIJobRefinementService.Service>();
 
+        services.AddScoped<Aivora.Services.AIMilestoneStepAssistantService.Prompting.AIMilestoneStepSuggestionPromptBuilder>();
+        services.AddScoped<Aivora.Services.AIMilestoneStepAssistantService.Parsing.AIMilestoneStepSuggestionParser>();
+        services.AddScoped<Aivora.Services.AIMilestoneStepAssistantService.Providers.MockAIMilestoneStepSuggestionProvider>();
+        services.AddScoped<Aivora.Services.AIMilestoneStepAssistantService.Providers.GeminiAIMilestoneStepSuggestionProvider>();
+        services.AddScoped<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<AIProviderOptions>>().Value;
+            return string.Equals(options.Provider, "Gemini", StringComparison.OrdinalIgnoreCase)
+                   && !string.IsNullOrWhiteSpace(options.ApiKey)
+                ? sp.GetRequiredService<Aivora.Services.AIMilestoneStepAssistantService.Providers.GeminiAIMilestoneStepSuggestionProvider>()
+                : sp.GetRequiredService<Aivora.Services.AIMilestoneStepAssistantService.Providers.MockAIMilestoneStepSuggestionProvider>();
+        });
+
         services.AddScoped<Aivora.Services.RecommendationService.IService, Aivora.Services.RecommendationService.Service>();
         services.AddScoped<Aivora.Services.ProjectService.IService, Aivora.Services.ProjectService.Service>();
         services.AddScoped<Aivora.Services.MilestoneService.IService, Aivora.Services.MilestoneService.Service>();

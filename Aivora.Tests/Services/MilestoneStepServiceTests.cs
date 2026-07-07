@@ -28,7 +28,8 @@ public class MilestoneStepServiceTests
         return new Service(
             dbContext,
             Mock.Of<ITreasury>(),
-            Mock.Of<Aivora.Services.NotificationService.IService>()
+            Mock.Of<Aivora.Services.NotificationService.IService>(),
+            Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>()
         );
     }
 
@@ -455,7 +456,7 @@ public class MilestoneStepServiceTests
         notificationMock
             .Setup(n => n.SendNotificationAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>()))
             .ThrowsAsync(new Exception("Simulated notification outage"));
-        var service = new Service(dbContext, Mock.Of<ITreasury>(), notificationMock.Object);
+        var service = new Service(dbContext, Mock.Of<ITreasury>(), notificationMock.Object, Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
 
         var request = new Request.UpdateStepStatusRequest { Status = MilestoneStepStatus.BLOCKED, Reason = "Waiting on client access" };
 
