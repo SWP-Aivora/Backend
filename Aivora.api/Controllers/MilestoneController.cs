@@ -103,4 +103,59 @@ public class MilestoneController : ControllerBase
         var result = await _deliverableService.SubmitDeliverableAsync(expertId, id, request);
         return Ok(ApiResponseFactory.SuccessResponse(result, "Deliverable submitted successfully", HttpContext.TraceIdentifier));
     }
+
+    // --- Milestone Step Endpoints ---
+
+    [HttpGet("{id}/steps")]
+    public async Task<IActionResult> GetMilestoneSteps(Guid id)
+    {
+        var userId = this.GetUserId();
+        var result = await _milestoneService.GetMilestoneStepsAsync(userId, id);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Milestone steps retrieved successfully", HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("{id}/steps")]
+    [Authorize(Policy = JwtExtensions.ExpertPolicy)]
+    public async Task<IActionResult> AddMilestoneStep(Guid id, [FromBody] Request.CreateMilestoneStepRequest request)
+    {
+        var userId = this.GetUserId();
+        var result = await _milestoneService.AddMilestoneStepAsync(userId, id, request);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Milestone step added successfully", HttpContext.TraceIdentifier));
+    }
+
+    [HttpPut("~/api/v1/steps/{id}")]
+    [Authorize(Policy = JwtExtensions.ExpertPolicy)]
+    public async Task<IActionResult> UpdateMilestoneStep(Guid id, [FromBody] Request.UpdateMilestoneStepRequest request)
+    {
+        var userId = this.GetUserId();
+        var result = await _milestoneService.UpdateMilestoneStepAsync(userId, id, request);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Milestone step updated successfully", HttpContext.TraceIdentifier));
+    }
+
+    [HttpDelete("~/api/v1/steps/{id}")]
+    [Authorize(Policy = JwtExtensions.ExpertPolicy)]
+    public async Task<IActionResult> DeleteMilestoneStep(Guid id)
+    {
+        var userId = this.GetUserId();
+        await _milestoneService.DeleteMilestoneStepAsync(userId, id);
+        return Ok(ApiResponseFactory.SuccessResponse(null, "Milestone step deleted successfully", HttpContext.TraceIdentifier));
+    }
+
+    [HttpPut("~/api/v1/steps/{id}/status")]
+    [Authorize(Policy = JwtExtensions.ExpertPolicy)]
+    public async Task<IActionResult> UpdateStepStatus(Guid id, [FromBody] Request.UpdateStepStatusRequest request)
+    {
+        var userId = this.GetUserId();
+        var result = await _milestoneService.UpdateStepStatusAsync(userId, id, request);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Milestone step status updated successfully", HttpContext.TraceIdentifier));
+    }
+
+    [HttpPut("{id}/steps/reorder")]
+    [Authorize(Policy = JwtExtensions.ExpertPolicy)]
+    public async Task<IActionResult> ReorderMilestoneSteps(Guid id, [FromBody] List<Guid> stepIds)
+    {
+        var userId = this.GetUserId();
+        await _milestoneService.ReorderMilestoneStepsAsync(userId, id, stepIds);
+        return Ok(ApiResponseFactory.SuccessResponse(null, "Milestone steps reordered successfully", HttpContext.TraceIdentifier));
+    }
 }

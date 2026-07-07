@@ -97,7 +97,7 @@ public class MilestoneStepServiceTests
         };
 
         // Act
-        var result = await service.AddMilestoneStepAsync(clientId, milestoneId, request);
+        var result = await service.AddMilestoneStepAsync(expertId, milestoneId, request);
 
         // Assert
         result.Should().NotBeNull();
@@ -142,7 +142,7 @@ public class MilestoneStepServiceTests
         };
 
         // Act
-        var result = await service.UpdateMilestoneStepAsync(clientId, stepId, request);
+        var result = await service.UpdateMilestoneStepAsync(expertId, stepId, request);
 
         // Assert
         result.Should().NotBeNull();
@@ -193,7 +193,7 @@ public class MilestoneStepServiceTests
         {
             Title = "New Title Only"
         };
-        var result1 = await service.UpdateMilestoneStepAsync(clientId, stepId, requestNoChange);
+        var result1 = await service.UpdateMilestoneStepAsync(expertId, stepId, requestNoChange);
         result1.Title.Should().Be("New Title Only");
         result1.Description.Should().Be("Original Description"); // preserved
         result1.DueDate.Should().Be(new DateOnly(2026, 7, 7)); // preserved
@@ -204,7 +204,7 @@ public class MilestoneStepServiceTests
             Description = null,
             DueDate = null
         };
-        var result2 = await service.UpdateMilestoneStepAsync(clientId, stepId, requestNullify);
+        var result2 = await service.UpdateMilestoneStepAsync(expertId, stepId, requestNullify);
         result2.Description.Should().BeNull(); // cleared
         result2.DueDate.Should().BeNull(); // cleared
 
@@ -236,7 +236,7 @@ public class MilestoneStepServiceTests
         var service = GetService(dbContext);
 
         // Act
-        await service.DeleteMilestoneStepAsync(clientId, stepId);
+        await service.DeleteMilestoneStepAsync(expertId, stepId);
 
         // Assert
         var dbStep = await dbContext.MilestoneSteps.FirstOrDefaultAsync(s => s.Id == stepId);
@@ -282,7 +282,7 @@ public class MilestoneStepServiceTests
     }
 
     [Fact]
-    public async Task UpdateStepStatusAsync_ClientSkipped_Success()
+    public async Task UpdateStepStatusAsync_ExpertSkipped_Success()
     {
         // Arrange
         var dbContext = GetDbContext();
@@ -305,7 +305,7 @@ public class MilestoneStepServiceTests
         var request = new Request.UpdateStepStatusRequest { Status = MilestoneStepStatus.SKIPPED };
 
         // Act
-        var result = await service.UpdateStepStatusAsync(clientId, stepId, request);
+        var result = await service.UpdateStepStatusAsync(expertId, stepId, request);
 
         // Assert
         result.Should().NotBeNull();
@@ -316,7 +316,7 @@ public class MilestoneStepServiceTests
     }
 
     [Fact]
-    public async Task AddMilestoneStepAsync_ByNonClient_ThrowsUnauthorizedException()
+    public async Task AddMilestoneStepAsync_ByNonExpert_ThrowsUnauthorizedException()
     {
         // Arrange
         var dbContext = GetDbContext();
@@ -337,7 +337,7 @@ public class MilestoneStepServiceTests
 
         // Act & Assert
         await Assert.ThrowsAsync<UnauthorizedException>(() =>
-            service.AddMilestoneStepAsync(expertId, milestoneId, request));
+            service.AddMilestoneStepAsync(clientId, milestoneId, request));
     }
 
     [Fact]
@@ -369,6 +369,34 @@ public class MilestoneStepServiceTests
     }
 
     [Fact]
+    public async Task UpdateStepStatusAsync_ClientSkip_ThrowsUnauthorizedException()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var milestoneId = Guid.NewGuid();
+        var stepId = Guid.NewGuid();
+
+        var project = new Project { Id = projectId, ClientId = clientId, ExpertId = expertId, Title = "Test Project", Status = ProjectStatus.ACTIVE };
+        var milestone = new Milestone { Id = milestoneId, ProjectId = projectId, Title = "Milestone 1", Amount = 100 };
+        var step = new MilestoneStep { Id = stepId, MilestoneId = milestoneId, Title = "Step", OrderIndex = 1, Status = MilestoneStepStatus.PENDING };
+
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestone);
+        dbContext.MilestoneSteps.Add(step);
+        await dbContext.SaveChangesAsync();
+
+        var service = GetService(dbContext);
+        var request = new Request.UpdateStepStatusRequest { Status = MilestoneStepStatus.SKIPPED };
+
+        // Act & Assert
+        await Assert.ThrowsAsync<UnauthorizedException>(() =>
+            service.UpdateStepStatusAsync(clientId, stepId, request));
+    }
+
+    [Fact]
     public async Task ReorderMilestoneStepsAsync_Success()
     {
         // Arrange
@@ -396,7 +424,7 @@ public class MilestoneStepServiceTests
         var stepIds = new List<Guid> { step3.Id, step1.Id, step2.Id };
 
         // Act
-        await service.ReorderMilestoneStepsAsync(clientId, milestoneId, stepIds);
+        await service.ReorderMilestoneStepsAsync(expertId, milestoneId, stepIds);
 
         // Assert
         var dbStep1 = await dbContext.MilestoneSteps.FindAsync(step1.Id);
@@ -409,7 +437,7 @@ public class MilestoneStepServiceTests
     }
 
     [Fact]
-    public async Task ReorderMilestoneStepsAsync_ByNonClient_ThrowsUnauthorizedException()
+    public async Task ReorderMilestoneStepsAsync_ByNonExpert_ThrowsUnauthorizedException()
     {
         // Arrange
         var dbContext = GetDbContext();
@@ -429,7 +457,7 @@ public class MilestoneStepServiceTests
 
         // Act & Assert
         await Assert.ThrowsAsync<UnauthorizedException>(() =>
-            service.ReorderMilestoneStepsAsync(expertId, milestoneId, new List<Guid>()));
+            service.ReorderMilestoneStepsAsync(clientId, milestoneId, new List<Guid>()));
     }
 
     [Theory]
@@ -458,17 +486,17 @@ public class MilestoneStepServiceTests
 
         // Act & Assert for UpdateMilestoneStepAsync
         var updateEx = await Assert.ThrowsAsync<ValidationException>(() =>
-            service.UpdateMilestoneStepAsync(clientId, stepId, new Request.UpdateMilestoneStepRequest { Title = "New Title" }));
+            service.UpdateMilestoneStepAsync(expertId, stepId, new Request.UpdateMilestoneStepRequest { Title = "New Title" }));
         updateEx.Message.Should().Be("Cannot modify steps in a completed or cancelled project.");
 
         // Act & Assert for DeleteMilestoneStepAsync
         var deleteEx = await Assert.ThrowsAsync<ValidationException>(() =>
-            service.DeleteMilestoneStepAsync(clientId, stepId));
+            service.DeleteMilestoneStepAsync(expertId, stepId));
         deleteEx.Message.Should().Be("Cannot modify steps in a completed or cancelled project.");
 
         // Act & Assert for ReorderMilestoneStepsAsync
         var reorderEx = await Assert.ThrowsAsync<ValidationException>(() =>
-            service.ReorderMilestoneStepsAsync(clientId, milestoneId, new List<Guid> { stepId }));
+            service.ReorderMilestoneStepsAsync(expertId, milestoneId, new List<Guid> { stepId }));
         reorderEx.Message.Should().Be("Cannot modify steps in a completed or cancelled project.");
 
         // Act & Assert for UpdateStepStatusAsync
@@ -505,17 +533,17 @@ public class MilestoneStepServiceTests
 
         // Act & Assert for UpdateMilestoneStepAsync
         var updateEx = await Assert.ThrowsAsync<ValidationException>(() =>
-            service.UpdateMilestoneStepAsync(clientId, stepId, new Request.UpdateMilestoneStepRequest { Title = "New Title" }));
+            service.UpdateMilestoneStepAsync(expertId, stepId, new Request.UpdateMilestoneStepRequest { Title = "New Title" }));
         updateEx.Message.Should().Be("Cannot modify steps for a finalized milestone.");
 
         // Act & Assert for DeleteMilestoneStepAsync
         var deleteEx = await Assert.ThrowsAsync<ValidationException>(() =>
-            service.DeleteMilestoneStepAsync(clientId, stepId));
+            service.DeleteMilestoneStepAsync(expertId, stepId));
         deleteEx.Message.Should().Be("Cannot modify steps for a finalized milestone.");
 
         // Act & Assert for ReorderMilestoneStepsAsync
         var reorderEx = await Assert.ThrowsAsync<ValidationException>(() =>
-            service.ReorderMilestoneStepsAsync(clientId, milestoneId, new List<Guid> { stepId }));
+            service.ReorderMilestoneStepsAsync(expertId, milestoneId, new List<Guid> { stepId }));
         reorderEx.Message.Should().Be("Cannot modify steps for a finalized milestone.");
 
         // Act & Assert for UpdateStepStatusAsync
@@ -552,7 +580,7 @@ public class MilestoneStepServiceTests
 
         // Act & Assert
         var ex = await Assert.ThrowsAsync<ValidationException>(() =>
-            service.ReorderMilestoneStepsAsync(clientId, milestoneId, stepIds));
+            service.ReorderMilestoneStepsAsync(expertId, milestoneId, stepIds));
         ex.Message.Should().Be("All step IDs must be provided for reordering.");
     }
 
@@ -586,7 +614,7 @@ public class MilestoneStepServiceTests
 
         // Act & Assert
         var ex = await Assert.ThrowsAsync<ValidationException>(() =>
-            service.AddMilestoneStepAsync(clientId, milestoneId, request));
+            service.AddMilestoneStepAsync(expertId, milestoneId, request));
         ex.Message.Should().Be("Cannot add steps to a finalized milestone.");
     }
 
@@ -618,7 +646,7 @@ public class MilestoneStepServiceTests
 
         // Act & Assert
         var ex = await Assert.ThrowsAsync<ValidationException>(() =>
-            service.ReorderMilestoneStepsAsync(clientId, milestoneId, stepIds));
+            service.ReorderMilestoneStepsAsync(expertId, milestoneId, stepIds));
         ex.Message.Should().Be("All step IDs must be provided for reordering.");
     }
 
@@ -650,7 +678,7 @@ public class MilestoneStepServiceTests
 
         // Act & Assert
         var ex = await Assert.ThrowsAsync<ValidationException>(() =>
-            service.ReorderMilestoneStepsAsync(clientId, milestoneId, stepIds));
+            service.ReorderMilestoneStepsAsync(expertId, milestoneId, stepIds));
         ex.Message.Should().Be("All step IDs must be provided for reordering.");
     }
 }

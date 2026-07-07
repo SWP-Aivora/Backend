@@ -1,0 +1,210 @@
+using System.Net;
+using Aivora.Repositories.Enums;
+using FluentAssertions;
+using Xunit;
+
+namespace Aivora.Tests.ApiContract;
+
+[Collection("ApiContract")]
+public class Flow3MilestoneStepApiTests : IClassFixture<ApiContractTestFactory>
+{
+    private readonly ApiContractTestFactory _factory;
+
+    public Flow3MilestoneStepApiTests(ApiContractTestFactory factory)
+    {
+        _factory = factory;
+        _factory.SeedDatabase();
+    }
+
+    private async Task<Guid> CreateProjectWithMilestoneAsync(ApiContractClient client, string label, decimal amount)
+    {
+        var createJobReq = new
+        {
+            title = $"Step Board {label}",
+            originalDescription = "Job for checking milestone steps",
+            categoryId = ApiContractTestData.CategoryId,
+            budgetType = "FIXED",
+            budgetMin = amount,
+            budgetMax = amount,
+            currency = "AICOIN",
+            timelineDays = 14,
+            visibility = "PUBLIC",
+            skillIds = new List<Guid> { ApiContractTestData.SkillId }
+        };
+        var (_, jobBody) = await client.PostAsync("/api/v1/jobs", createJobReq);
+        var jobIdStr = jobBody?.GetProperty("data").GetProperty("id").GetString();
+        Guid.TryParse(jobIdStr, out var jobId);
+        await client.PostAsync($"/api/v1/jobs/{jobId}/publish", new { });
+
+        var expertClient = new ApiContractClient(_factory.CreateAuthenticatedClient(UserRole.EXPERT));
+        var createProposalReq = new
+        {
+            jobId,
+            coverLetter = $"Proposal for {label}.",
+            proposedBudget = amount,
+            proposedTimelineDays = 10,
+            milestones = new List<object>
+            {
+                new { title = $"{label} Milestone", description = "Deliverable", amount, dueDays = 5, orderIndex = 1, acceptanceCriteria = "Criteria" }
+            }
+        };
+        var (_, propBody) = await expertClient.PostAsync($"/api/v1/jobs/{jobId}/proposals", createProposalReq);
+        var proposalIdStr = propBody?.GetProperty("data").GetProperty("id").GetString();
+        Guid.TryParse(proposalIdStr, out var proposalId);
+
+        var (_, accBody) = await client.PutEmptyAsync($"/api/v1/proposals/{proposalId}/accept");
+        var projectIdStr = accBody?.GetProperty("data").GetProperty("projectId").GetString();
+        Guid.TryParse(projectIdStr, out var projectId);
+
+        var (_, getProjBody) = await client.GetAsync($"/api/v1/projects/{projectId}");
+        var milestonesArray = getProjBody?.GetProperty("data").GetProperty("milestones");
+        var milestoneIdStr = milestonesArray?[0].GetProperty("id").GetString();
+        Guid.TryParse(milestoneIdStr, out var milestoneId);
+
+        return milestoneId;
+    }
+
+    [Fact]
+    public async Task Run_Flow3_MilestoneStep_API_Verification_Sequence()
+    {
+        var client = new ApiContractClient(_factory.CreateAuthenticatedClient(UserRole.CLIENT));
+        var milestoneId = await CreateProjectWithMilestoneAsync(client, "Steps", 900);
+
+        var expertClient = new ApiContractClient(_factory.CreateAuthenticatedClient(UserRole.EXPERT));
+
+        // 1. POST /api/v1/milestones/{id}/steps — Expert can create
+        var (createStep1Res, createStep1Body) = await expertClient.PostAsync(
+            $"/api/v1/milestones/{milestoneId}/steps",
+            new { title = "Step 1", description = "First step", orderIndex = 1 });
+        createStep1Res.StatusCode.Should().Be(HttpStatusCode.OK);
+        bool createStep1Success = createStep1Body?.GetProperty("success").GetBoolean() ?? false;
+        var step1IdStr = createStep1Body?.GetProperty("data").GetProperty("id").GetString();
+        Guid.TryParse(step1IdStr, out var step1Id);
+        _factory.Tracker.Record(
+            "Flow 3", "POST", "/api/v1/milestones/{id}/steps", 200, (int)createStep1Res.StatusCode,
+            requestMatchesDoc: true, responseMatchesDoc: createStep1Success
+        );
+
+        var (createStep2Res, createStep2Body) = await expertClient.PostAsync(
+            $"/api/v1/milestones/{milestoneId}/steps",
+            new { title = "Step 2", description = "Second step", orderIndex = 2 });
+        createStep2Res.StatusCode.Should().Be(HttpStatusCode.OK);
+        var step2IdStr = createStep2Body?.GetProperty("data").GetProperty("id").GetString();
+        Guid.TryParse(step2IdStr, out var step2Id);
+
+        var (createStep3Res, createStep3Body) = await expertClient.PostAsync(
+            $"/api/v1/milestones/{milestoneId}/steps",
+            new { title = "Step 3", description = "Third step", orderIndex = 3 });
+        createStep3Res.StatusCode.Should().Be(HttpStatusCode.OK);
+        var step3IdStr = createStep3Body?.GetProperty("data").GetProperty("id").GetString();
+        Guid.TryParse(step3IdStr, out var step3Id);
+
+        // 2. Client cannot create steps
+        var (clientCreateRes, _) = await client.PostAsync(
+            $"/api/v1/milestones/{milestoneId}/steps",
+            new { title = "Client Step", orderIndex = 4 });
+        clientCreateRes.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        // 3. GET /api/v1/milestones/{id}/steps — either party
+        var (getStepsRes, getStepsBody) = await client.GetAsync($"/api/v1/milestones/{milestoneId}/steps");
+        getStepsRes.StatusCode.Should().Be(HttpStatusCode.OK);
+        bool getStepsSuccess = getStepsBody?.GetProperty("success").GetBoolean() ?? false;
+        _factory.Tracker.Record(
+            "Flow 3", "GET", "/api/v1/milestones/{id}/steps", 200, (int)getStepsRes.StatusCode,
+            requestMatchesDoc: true, responseMatchesDoc: getStepsSuccess
+        );
+
+        // 4. PUT /api/v1/steps/{id} — Expert can update, Client cannot
+        var (updateStepRes, updateStepBody) = await expertClient.PutAsync(
+            $"/api/v1/steps/{step1Id}", new { title = "Step 1 Updated" });
+        updateStepRes.StatusCode.Should().Be(HttpStatusCode.OK);
+        bool updateStepSuccess = updateStepBody?.GetProperty("success").GetBoolean() ?? false;
+        _factory.Tracker.Record(
+            "Flow 3", "PUT", "/api/v1/steps/{id}", 200, (int)updateStepRes.StatusCode,
+            requestMatchesDoc: true, responseMatchesDoc: updateStepSuccess
+        );
+
+        var (clientUpdateRes, _) = await client.PutAsync($"/api/v1/steps/{step1Id}", new { title = "Nope" });
+        clientUpdateRes.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        // 5. PUT /api/v1/milestones/{id}/steps/reorder — Expert only
+        var (reorderRes, reorderBody) = await expertClient.PutAsync(
+            $"/api/v1/milestones/{milestoneId}/steps/reorder",
+            new List<Guid> { step3Id, step2Id, step1Id });
+        reorderRes.StatusCode.Should().Be(HttpStatusCode.OK);
+        bool reorderSuccess = reorderBody?.GetProperty("success").GetBoolean() ?? false;
+        _factory.Tracker.Record(
+            "Flow 3", "PUT", "/api/v1/milestones/{id}/steps/reorder", 200, (int)reorderRes.StatusCode,
+            requestMatchesDoc: true, responseMatchesDoc: reorderSuccess
+        );
+
+        var (clientReorderRes, _) = await client.PutAsync(
+            $"/api/v1/milestones/{milestoneId}/steps/reorder", new List<Guid> { step1Id, step2Id, step3Id });
+        clientReorderRes.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        // 6. PUT /api/v1/steps/{id}/status — full transition matrix
+        var (startRes, startBody) = await expertClient.PutAsync(
+            $"/api/v1/steps/{step1Id}/status", new { status = "IN_PROGRESS" });
+        startRes.StatusCode.Should().Be(HttpStatusCode.OK);
+        bool startSuccess = startBody?.GetProperty("success").GetBoolean() ?? false;
+        _factory.Tracker.Record(
+            "Flow 3", "PUT", "/api/v1/steps/{id}/status", 200, (int)startRes.StatusCode,
+            requestMatchesDoc: true, responseMatchesDoc: startSuccess
+        );
+
+        // Client cannot skip (previously allowed) — Expert-only policy blocks it entirely
+        var (clientSkipRes, _) = await client.PutAsync($"/api/v1/steps/{step2Id}/status", new { status = "SKIPPED" });
+        clientSkipRes.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        // Expert can skip
+        var (skipRes, _) = await expertClient.PutAsync($"/api/v1/steps/{step2Id}/status", new { status = "SKIPPED" });
+        skipRes.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // SKIPPED is terminal — no further transition
+        var (reopenSkippedRes, _) = await expertClient.PutAsync($"/api/v1/steps/{step2Id}/status", new { status = "IN_PROGRESS" });
+        reopenSkippedRes.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        // PENDING/IN_PROGRESS -> COMPLETED
+        var (completeRes, _) = await expertClient.PutAsync($"/api/v1/steps/{step1Id}/status", new { status = "COMPLETED" });
+        completeRes.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // COMPLETED is terminal — no further transition
+        var (reopenCompletedRes, _) = await expertClient.PutAsync($"/api/v1/steps/{step1Id}/status", new { status = "IN_PROGRESS" });
+        reopenCompletedRes.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        // Direct transition back to PENDING is disallowed (from a non-terminal state)
+        await expertClient.PutAsync($"/api/v1/steps/{step3Id}/status", new { status = "IN_PROGRESS" });
+        var (backToPendingRes, _) = await expertClient.PutAsync($"/api/v1/steps/{step3Id}/status", new { status = "PENDING" });
+        backToPendingRes.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        // 7. DELETE /api/v1/steps/{id} — Expert only
+        var (clientDeleteRes, _) = await client.DeleteAsync($"/api/v1/steps/{step3Id}");
+        clientDeleteRes.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        var (deleteRes, deleteBody) = await expertClient.DeleteAsync($"/api/v1/steps/{step3Id}");
+        deleteRes.StatusCode.Should().Be(HttpStatusCode.OK);
+        bool deleteSuccess = deleteBody?.GetProperty("success").GetBoolean() ?? false;
+        _factory.Tracker.Record(
+            "Flow 3", "DELETE", "/api/v1/steps/{id}", 200, (int)deleteRes.StatusCode,
+            requestMatchesDoc: true, responseMatchesDoc: deleteSuccess
+        );
+
+        // 8. Step mutation rejected once the Milestone is finalized
+        var finalizedMilestoneId = await CreateProjectWithMilestoneAsync(client, "Finalized", 400);
+        await client.PutEmptyAsync($"/api/v1/milestones/{finalizedMilestoneId}/fund");
+        var expertClient2 = new ApiContractClient(_factory.CreateAuthenticatedClient(UserRole.EXPERT));
+        await expertClient2.PostAsync($"/api/v1/milestones/{finalizedMilestoneId}/deliverables", new
+        {
+            description = "Done",
+            fileUrl = "https://example.com/deliverable.zip",
+            demoUrl = "https://example.com/demo"
+        });
+        await client.PutEmptyAsync($"/api/v1/milestones/{finalizedMilestoneId}/approve");
+
+        var (finalizedAddRes, _) = await expertClient2.PostAsync(
+            $"/api/v1/milestones/{finalizedMilestoneId}/steps", new { title = "Too late", orderIndex = 1 });
+        finalizedAddRes.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        _factory.Tracker.ExportResults();
+    }
+}
