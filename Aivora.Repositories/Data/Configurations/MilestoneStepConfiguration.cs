@@ -14,6 +14,7 @@ public class MilestoneStepConfiguration : IEntityTypeConfiguration<MilestoneStep
         builder.Property(x => x.Title).IsRequired().HasMaxLength(255);
         builder.Property(x => x.Description).HasMaxLength(1000);
         builder.Property(x => x.Status).HasConversion<string>().IsRequired();
+        builder.Property(x => x.BlockedReason).HasMaxLength(1000);
 
         // Relationships
         builder.HasOne(x => x.Milestone)

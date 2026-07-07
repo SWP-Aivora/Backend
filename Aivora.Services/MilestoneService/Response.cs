@@ -37,6 +37,7 @@ public class Response
         public DateOnly? DueDate { get; set; }
         public DateTimeOffset? CompletedAt { get; set; }
         public Guid? CompletedByUserId { get; set; }
+        public string? BlockedReason { get; set; }
     }
 
     public class FundResultResponse

@@ -198,7 +198,8 @@ public class Service : IService
                 Status = s.Status,
                 DueDate = s.DueDate,
                 CompletedAt = s.CompletedAt,
-                CompletedByUserId = s.CompletedByUserId
+                CompletedByUserId = s.CompletedByUserId,
+                BlockedReason = s.BlockedReason
             })
             .ToListAsync();
     }
@@ -288,7 +289,8 @@ public class Service : IService
             Status = step.Status,
             DueDate = step.DueDate,
             CompletedAt = step.CompletedAt,
-            CompletedByUserId = step.CompletedByUserId
+            CompletedByUserId = step.CompletedByUserId,
+            BlockedReason = step.BlockedReason
         };
     }
 
@@ -352,7 +354,30 @@ public class Service : IService
                 throw new ValidationException("Cannot transition step back to PENDING.");
             }
 
-            if (request.Status == MilestoneStepStatus.IN_PROGRESS || request.Status == MilestoneStepStatus.COMPLETED)
+            if (step.Status == MilestoneStepStatus.BLOCKED)
+            {
+                if (request.Status != MilestoneStepStatus.IN_PROGRESS)
+                    throw new ValidationException("A blocked step can only be unblocked back to IN_PROGRESS.");
+
+                if (project.ClientId != userId)
+                    throw new UnauthorizedException("Only the client can unblock a step.");
+
+                step.BlockedReason = null;
+            }
+            else if (request.Status == MilestoneStepStatus.BLOCKED)
+            {
+                if (step.Status != MilestoneStepStatus.IN_PROGRESS)
+                    throw new ValidationException("Only an in-progress step can be blocked.");
+
+                if (project.ExpertId != userId)
+                    throw new UnauthorizedException("Only the expert can block a step.");
+
+                if (string.IsNullOrWhiteSpace(request.Reason))
+                    throw new ValidationException("A reason is required to block a step.");
+
+                step.BlockedReason = request.Reason;
+            }
+            else if (request.Status == MilestoneStepStatus.IN_PROGRESS || request.Status == MilestoneStepStatus.COMPLETED)
             {
                 if (project.ExpertId != userId)
                     throw new UnauthorizedException("Only the expert can start or complete steps.");
@@ -373,8 +398,44 @@ public class Service : IService
                 throw new ValidationException("Invalid status transition.");
             }
 
+            var wasBlocked = step.Status == MilestoneStepStatus.BLOCKED;
             step.Status = request.Status;
             await _dbContext.SaveChangesAsync();
+
+            if (request.Status == MilestoneStepStatus.BLOCKED)
+            {
+                try
+                {
+                    await _notificationService.SendNotificationAsync(
+                        project.ClientId,
+                        "Step blocked",
+                        $"The expert has blocked step \"{step.Title}\" on milestone \"{step.Milestone.Title}\". Reason: {step.BlockedReason}",
+                        "MILESTONE",
+                        $"/projects/{project.Id}/milestones/{step.MilestoneId}"
+                    );
+                }
+                catch
+                {
+                    // Notification failure should not block the main business flow
+                }
+            }
+            else if (wasBlocked)
+            {
+                try
+                {
+                    await _notificationService.SendNotificationAsync(
+                        project.ExpertId,
+                        "Step unblocked",
+                        $"The client has unblocked step \"{step.Title}\" on milestone \"{step.Milestone.Title}\".",
+                        "MILESTONE",
+                        $"/projects/{project.Id}/milestones/{step.MilestoneId}"
+                    );
+                }
+                catch
+                {
+                    // Notification failure should not block the main business flow
+                }
+            }
         }
 
         return new Response.MilestoneStepResponse
@@ -387,7 +448,8 @@ public class Service : IService
             Status = step.Status,
             DueDate = step.DueDate,
             CompletedAt = step.CompletedAt,
-            CompletedByUserId = step.CompletedByUserId
+            CompletedByUserId = step.CompletedByUserId,
+            BlockedReason = step.BlockedReason
         };
     }
 
@@ -467,7 +529,8 @@ public class Service : IService
                 Status = s.Status,
                 DueDate = s.DueDate,
                 CompletedAt = s.CompletedAt,
-                CompletedByUserId = s.CompletedByUserId
+                CompletedByUserId = s.CompletedByUserId,
+                BlockedReason = s.BlockedReason
             }).ToList()
         };
     }
