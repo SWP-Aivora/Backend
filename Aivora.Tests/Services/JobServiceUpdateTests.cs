@@ -137,6 +137,79 @@ public class JobServiceUpdateTests
     }
 
     [Fact]
+    public async Task UpdateJobAsync_TwiceKeepingSameSkill_DoesNotThrow()
+    {
+        var dbContext = GetDbContext();
+        var (_, _, clientId) = SetupClient(dbContext);
+        var service = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService());
+
+        var skillA = Guid.NewGuid();
+        var skillB = Guid.NewGuid();
+        var skillC = Guid.NewGuid();
+
+        var job = new JobPost
+        {
+            ClientId = clientId,
+            Title = "Test Job",
+            OriginalDescription = "Desc",
+            CategoryId = Guid.NewGuid(),
+            Status = JobStatus.DRAFT
+        };
+        dbContext.JobPosts.Add(job);
+        await dbContext.SaveChangesAsync();
+
+        // First update sets skills [A, B]
+        await service.UpdateJobAsync(clientId, job.Id, new Request.UpdateJobRequest
+        {
+            SkillIds = new List<Guid> { skillA, skillB }
+        });
+
+        // Second update keeps A, drops B, adds C -> A gets removed+re-added with same JobId+SkillId
+        Func<Task> act = async () => await service.UpdateJobAsync(clientId, job.Id, new Request.UpdateJobRequest
+        {
+            SkillIds = new List<Guid> { skillA, skillC }
+        });
+
+        await act.Should().NotThrowAsync();
+
+        var result = await service.GetJobByIdAsync(job.Id);
+        result.Skills.Select(s => s.Id).Should().BeEquivalentTo(new[] { skillA, skillC });
+    }
+
+    [Fact]
+    public async Task UpdateJobAsync_ReAddingPreviouslyRemovedSkill_DoesNotThrow()
+    {
+        var dbContext = GetDbContext();
+        var (_, _, clientId) = SetupClient(dbContext);
+        var service = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService());
+
+        var skillA = Guid.NewGuid();
+        var skillB = Guid.NewGuid();
+
+        var job = new JobPost
+        {
+            ClientId = clientId,
+            Title = "Test Job",
+            OriginalDescription = "Desc",
+            CategoryId = Guid.NewGuid(),
+            Status = JobStatus.DRAFT
+        };
+        dbContext.JobPosts.Add(job);
+        await dbContext.SaveChangesAsync();
+
+        // Set [A, B], then drop B, then re-add B (B row was soft-deleted in between)
+        await service.UpdateJobAsync(clientId, job.Id, new Request.UpdateJobRequest { SkillIds = new List<Guid> { skillA, skillB } });
+        await service.UpdateJobAsync(clientId, job.Id, new Request.UpdateJobRequest { SkillIds = new List<Guid> { skillA } });
+
+        Func<Task> act = async () => await service.UpdateJobAsync(clientId, job.Id, new Request.UpdateJobRequest { SkillIds = new List<Guid> { skillA, skillB } });
+
+        await act.Should().NotThrowAsync();
+
+        var result = await service.GetJobByIdAsync(job.Id);
+        result.Skills.Select(s => s.Id).Should().BeEquivalentTo(new[] { skillA, skillB });
+    }
+
+    [Fact]
     public async Task UpdateJobAsync_NotOwner_ThrowsNotFoundException()
     {
         var dbContext = GetDbContext();
