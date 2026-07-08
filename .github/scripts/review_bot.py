@@ -195,23 +195,13 @@ def strip_json_fences(text):
 
 def parse_json_response(text):
     try:
-        return json.loads(text, strict=False)
-    except Exception:
-        pass
-
-    cleaned = strip_json_fences(text)
-    start = cleaned.find('{')
-    if start != -1:
-        cleaned = cleaned[start:]
-    try:
-        obj, _ = json.JSONDecoder(strict=False).raw_decode(cleaned)
+        return json.loads(text)
+    except json.JSONDecodeError:
+        cleaned = strip_json_fences(text)
+        # Gemini occasionally appends extra content after the JSON object
+        # (e.g. a repeated/explanatory second blob) - take just the first value.
+        obj, _ = json.JSONDecoder().raw_decode(cleaned)
         return obj
-    except Exception:
-        start = text.find('{')
-        end = text.rfind('}')
-        if start != -1 and end != -1 and end > start:
-            return json.loads(text[start:end + 1], strict=False)
-        raise
 
 
 def filter_high_confidence(issues, threshold=80):
