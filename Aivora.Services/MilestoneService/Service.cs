@@ -327,13 +327,15 @@ public class Service : IService
     {
         var step = await _dbContext.MilestoneSteps
             .Include(s => s.Milestone)
-            .ThenInclude(m => m.Project)
+                .ThenInclude(m => m.Project)
             .FirstOrDefaultAsync(s => s.Id == stepId);
 
-        if (step == null) throw new NotFoundException("Milestone step not found.");
-        if (step.Milestone?.Project == null) throw new NotFoundException("Milestone project not found.");
+        if (step == null || step.Milestone == null || step.Milestone.Project == null)
+            throw new NotFoundException("Milestone step or project not found.");
 
-        if (step.Milestone.Project.ClientId != userId)
+        var project = step.Milestone.Project;
+
+        if (project.ClientId != userId)
             throw new UnauthorizedException("Only the client can manage milestone steps.");
 
         if (IsSystemDefaultStep(step.Title))
@@ -342,7 +344,7 @@ public class Service : IService
         if (request.Title != null && IsSystemDefaultStep(request.Title))
             throw new ValidationException("Cannot rename custom step to a reserved system title.");
 
-        if (step.Milestone.Project.Status == ProjectStatus.COMPLETED || step.Milestone.Project.Status == ProjectStatus.CANCELLED)
+        if (project.Status == ProjectStatus.COMPLETED || project.Status == ProjectStatus.CANCELLED)
             throw new ValidationException("Cannot modify steps in a completed or cancelled project.");
 
         if (step.Milestone.Status == MilestoneStatus.APPROVED ||
@@ -377,19 +379,21 @@ public class Service : IService
     {
         var step = await _dbContext.MilestoneSteps
             .Include(s => s.Milestone)
-            .ThenInclude(m => m.Project)
+                .ThenInclude(m => m.Project)
             .FirstOrDefaultAsync(s => s.Id == stepId);
 
-        if (step == null) throw new NotFoundException("Milestone step not found.");
-        if (step.Milestone?.Project == null) throw new NotFoundException("Milestone project not found.");
+        if (step == null || step.Milestone == null || step.Milestone.Project == null)
+            throw new NotFoundException("Milestone step or project not found.");
 
-        if (step.Milestone.Project.ClientId != userId)
+        var project = step.Milestone.Project;
+
+        if (project.ClientId != userId)
             throw new UnauthorizedException("Only the client can manage milestone steps.");
 
         if (IsSystemDefaultStep(step.Title))
             throw new ValidationException("Cannot modify or delete default system milestone steps.");
 
-        if (step.Milestone.Project.Status == ProjectStatus.COMPLETED || step.Milestone.Project.Status == ProjectStatus.CANCELLED)
+        if (project.Status == ProjectStatus.COMPLETED || project.Status == ProjectStatus.CANCELLED)
             throw new ValidationException("Cannot modify steps in a completed or cancelled project.");
 
         if (step.Milestone.Status == MilestoneStatus.APPROVED ||
@@ -406,11 +410,11 @@ public class Service : IService
     {
         var step = await _dbContext.MilestoneSteps
             .Include(s => s.Milestone)
-            .ThenInclude(m => m.Project)
+                .ThenInclude(m => m.Project)
             .FirstOrDefaultAsync(s => s.Id == stepId);
 
-        if (step == null) throw new NotFoundException("Milestone step not found.");
-        if (step.Milestone?.Project == null) throw new NotFoundException("Milestone project not found.");
+        if (step == null || step.Milestone == null || step.Milestone.Project == null)
+            throw new NotFoundException("Milestone step or project not found.");
 
         var project = step.Milestone.Project;
 
