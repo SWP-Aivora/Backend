@@ -115,7 +115,7 @@ public class MilestoneController : ControllerBase
     }
 
     [HttpPost("{id}/steps")]
-    [Authorize(Policy = JwtExtensions.ExpertPolicy)]
+    [Authorize(Policy = JwtExtensions.ClientPolicy)]
     public async Task<IActionResult> AddMilestoneStep(Guid id, [FromBody] Request.CreateMilestoneStepRequest request)
     {
         var userId = this.GetUserId();
@@ -134,7 +134,7 @@ public class MilestoneController : ControllerBase
     }
 
     [HttpPut("~/api/v1/steps/{id}")]
-    [Authorize(Policy = JwtExtensions.ExpertPolicy)]
+    [Authorize(Policy = JwtExtensions.ClientPolicy)]
     public async Task<IActionResult> UpdateMilestoneStep(Guid id, [FromBody] Request.UpdateMilestoneStepRequest request)
     {
         var userId = this.GetUserId();
@@ -143,7 +143,7 @@ public class MilestoneController : ControllerBase
     }
 
     [HttpDelete("~/api/v1/steps/{id}")]
-    [Authorize(Policy = JwtExtensions.ExpertPolicy)]
+    [Authorize(Policy = JwtExtensions.ClientPolicy)]
     public async Task<IActionResult> DeleteMilestoneStep(Guid id)
     {
         var userId = this.GetUserId();
@@ -152,6 +152,7 @@ public class MilestoneController : ControllerBase
     }
 
     [HttpPut("~/api/v1/steps/{id}/status")]
+    [Authorize(Policy = JwtExtensions.ClientPolicy)]
     public async Task<IActionResult> UpdateStepStatus(Guid id, [FromBody] Request.UpdateStepStatusRequest request)
     {
         var userId = this.GetUserId();
@@ -160,7 +161,7 @@ public class MilestoneController : ControllerBase
     }
 
     [HttpPut("{id}/steps/reorder")]
-    [Authorize(Policy = JwtExtensions.ExpertPolicy)]
+    [Authorize(Policy = JwtExtensions.ClientPolicy)]
     public async Task<IActionResult> ReorderMilestoneSteps(Guid id, [FromBody] List<Guid> stepIds)
     {
         var userId = this.GetUserId();

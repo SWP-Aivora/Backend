@@ -167,6 +167,28 @@ public class Treasury : ITreasury
             milestone.Status = MilestoneStatus.IN_PROGRESS;
             milestone.DepositPaidAt = DateTimeOffset.UtcNow; // Record time deposit is paid
 
+            var hasFundedStep = milestone.Steps?.Any(s => s.Title == "Funded") == true ||
+                await _dbContext.MilestoneSteps.AnyAsync(s => s.MilestoneId == milestoneId && s.Title == "Funded");
+
+            if (!hasFundedStep)
+            {
+                var depositMaxOrderIndex = await _dbContext.MilestoneSteps
+                    .Where(s => s.MilestoneId == milestoneId)
+                    .Select(s => (int?)s.OrderIndex)
+                    .MaxAsync() ?? 0;
+
+                _dbContext.MilestoneSteps.Add(new MilestoneStep
+                {
+                    MilestoneId = milestoneId,
+                    Title = "Funded",
+                    Description = "Milestone funded",
+                    OrderIndex = depositMaxOrderIndex + 1,
+                    Status = MilestoneStepStatus.COMPLETED,
+                    CompletedAt = DateTimeOffset.UtcNow,
+                    CompletedByUserId = clientId
+                });
+            }
+
             if (milestone.Project.Status == ProjectStatus.PENDING_PAYMENT)
             {
                 milestone.Project.Status = ProjectStatus.ACTIVE;
@@ -298,8 +320,27 @@ public class Treasury : ITreasury
             milestone.ApprovedAt = DateTimeOffset.UtcNow;
             milestone.PaidAt = DateTimeOffset.UtcNow;
 
-            await SyncProjectStatusAsync(milestone.ProjectId);
+            var hasCompletedStep = milestone.Steps?.Any(s => s.Title == "Completed") == true ||
+                await _dbContext.MilestoneSteps.AnyAsync(s => s.MilestoneId == milestoneId && s.Title == "Completed");
 
+            if (!hasCompletedStep)
+            {
+                var completedMaxOrderIndex = milestone.Steps?.Max(s => (int?)s.OrderIndex) ?? 0;
+
+                _dbContext.MilestoneSteps.Add(new MilestoneStep
+                {
+                    MilestoneId = milestoneId,
+                    Title = "Completed",
+                    Description = "Milestone completed",
+                    OrderIndex = completedMaxOrderIndex + 1,
+                    Status = MilestoneStepStatus.COMPLETED,
+                    CompletedAt = DateTimeOffset.UtcNow,
+                    CompletedByUserId = clientId
+                });
+            }
+
+            await SyncProjectStatusAsync(milestone.ProjectId);
+            await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
             SendNotificationInBackground(
