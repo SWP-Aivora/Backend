@@ -120,8 +120,34 @@ public class Service : IService
 
         if (request.SkillIds != null)
         {
-            _dbContext.JobSkills.RemoveRange(job.JobSkills);
-            job.JobSkills = NormalizeGuidList(request.SkillIds).Select(skillId => new JobSkill { SkillId = skillId }).ToList();
+            var targetSkillIds = NormalizeGuidList(request.SkillIds);
+            var currentSkillIds = job.JobSkills.Select(js => js.SkillId).ToList();
+
+            foreach (var skill in job.JobSkills.Where(js => !targetSkillIds.Contains(js.SkillId)).ToList())
+            {
+                _dbContext.JobSkills.Remove(skill);
+            }
+
+            var skillIdsToAdd = targetSkillIds.Except(currentSkillIds).ToList();
+            if (skillIdsToAdd.Count > 0)
+            {
+                // Revive rows that were soft-deleted in a previous update instead of inserting a
+                // duplicate (JobId, SkillId) row, which would violate the unique index.
+                var revivable = await _dbContext.JobSkills
+                    .IgnoreQueryFilters()
+                    .Where(js => js.JobId == jobId && js.IsDeleted && skillIdsToAdd.Contains(js.SkillId))
+                    .ToListAsync();
+
+                foreach (var skill in revivable)
+                {
+                    skill.IsDeleted = false;
+                }
+
+                foreach (var skillId in skillIdsToAdd.Except(revivable.Select(s => s.SkillId)))
+                {
+                    _dbContext.JobSkills.Add(new JobSkill { JobId = jobId, SkillId = skillId });
+                }
+            }
         }
 
         if (request.Milestones != null)
