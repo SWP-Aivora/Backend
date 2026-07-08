@@ -213,7 +213,9 @@ public class Service : IService
 
     public async Task<Response.MilestoneStepSuggestionResponse> SuggestMilestoneStepsAsync(Guid userId, Guid milestoneId, CancellationToken cancellationToken = default)
     {
+        // Eagerly load Project to verify ExpertId authorization and prevent N+1 queries
         var milestone = await _dbContext.Milestones
+            .AsNoTracking()
             .Include(m => m.Project)
             .FirstOrDefaultAsync(m => m.Id == milestoneId, cancellationToken);
 
