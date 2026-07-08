@@ -314,24 +314,27 @@ public class Treasury : ITreasury
             milestone.ApprovedAt = DateTimeOffset.UtcNow;
             milestone.PaidAt = DateTimeOffset.UtcNow;
 
-            var completedMaxOrderIndex = await _dbContext.MilestoneSteps
-                .Where(s => s.MilestoneId == milestoneId)
-                .Select(s => (int?)s.OrderIndex)
-                .MaxAsync() ?? 0;
+            var hasCompletedStep = milestone.Steps?.Any(s => s.Title == "Completed") == true ||
+                await _dbContext.MilestoneSteps.AnyAsync(s => s.MilestoneId == milestoneId && s.Title == "Completed");
 
-            _dbContext.MilestoneSteps.Add(new MilestoneStep
+            if (!hasCompletedStep)
             {
-                MilestoneId = milestoneId,
-                Title = "Completed",
-                Description = "Milestone completed",
-                OrderIndex = completedMaxOrderIndex + 1,
-                Status = MilestoneStepStatus.COMPLETED,
-                CompletedAt = DateTimeOffset.UtcNow,
-                CompletedByUserId = clientId
-            });
+                var completedMaxOrderIndex = milestone.Steps?.Max(s => (int?)s.OrderIndex) ?? 0;
+
+                _dbContext.MilestoneSteps.Add(new MilestoneStep
+                {
+                    MilestoneId = milestoneId,
+                    Title = "Completed",
+                    Description = "Milestone completed",
+                    OrderIndex = completedMaxOrderIndex + 1,
+                    Status = MilestoneStepStatus.COMPLETED,
+                    CompletedAt = DateTimeOffset.UtcNow,
+                    CompletedByUserId = clientId
+                });
+            }
 
             await SyncProjectStatusAsync(milestone.ProjectId);
-
+            await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
             SendNotificationInBackground(

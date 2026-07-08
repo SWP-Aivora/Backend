@@ -31,11 +31,14 @@ public class Service : IService
     public async Task<Response.MilestoneResponse> GetMilestoneByIdAsync(Guid userId, Guid milestoneId)
     {
         var milestone = await _dbContext.Milestones
+            .AsNoTracking()
             .Include(m => m.Project)
             .Include(m => m.Steps)
             .FirstOrDefaultAsync(m => m.Id == milestoneId);
 
         if (milestone == null) throw new NotFoundException("Milestone not found.");
+
+        if (milestone.Project == null) throw new NotFoundException("Project not found.");
 
         if (milestone.Project.ClientId != userId && milestone.Project.ExpertId != userId)
             throw new UnauthorizedException("Access denied.");
@@ -195,10 +198,13 @@ public class Service : IService
     public async Task<List<Response.MilestoneStepResponse>> GetMilestoneStepsAsync(Guid userId, Guid milestoneId)
     {
         var milestone = await _dbContext.Milestones
+            .AsNoTracking()
             .Include(m => m.Project)
             .FirstOrDefaultAsync(m => m.Id == milestoneId);
 
         if (milestone == null) throw new NotFoundException("Milestone not found.");
+
+        if (milestone.Project == null) throw new NotFoundException("Project not found.");
 
         if (milestone.Project.ClientId != userId && milestone.Project.ExpertId != userId)
             throw new UnauthorizedException("Access denied.");
@@ -260,11 +266,18 @@ public class Service : IService
 
     private static bool IsSystemDefaultStep(string? title)
     {
-        return title == "Created" || title == "Funded" || title == "Completed";
+        if (string.IsNullOrWhiteSpace(title)) return false;
+        var trimmed = title.Trim();
+        return trimmed.Equals("Created", StringComparison.OrdinalIgnoreCase) ||
+               trimmed.Equals("Funded", StringComparison.OrdinalIgnoreCase) ||
+               trimmed.Equals("Completed", StringComparison.OrdinalIgnoreCase);
     }
 
     public async Task<Response.MilestoneStepResponse> AddMilestoneStepAsync(Guid userId, Guid milestoneId, Request.CreateMilestoneStepRequest request)
     {
+        if (IsSystemDefaultStep(request.Title))
+            throw new ValidationException("Cannot create custom steps with reserved system titles ('Created', 'Funded', 'Completed').");
+
         var milestone = await _dbContext.Milestones
             .Include(m => m.Project)
             .FirstOrDefaultAsync(m => m.Id == milestoneId);
@@ -318,12 +331,16 @@ public class Service : IService
             .FirstOrDefaultAsync(s => s.Id == stepId);
 
         if (step == null) throw new NotFoundException("Milestone step not found.");
+        if (step.Milestone?.Project == null) throw new NotFoundException("Milestone project not found.");
 
         if (step.Milestone.Project.ClientId != userId)
             throw new UnauthorizedException("Only the client can manage milestone steps.");
 
         if (IsSystemDefaultStep(step.Title))
             throw new ValidationException("Cannot modify or delete default system milestone steps.");
+
+        if (request.Title != null && IsSystemDefaultStep(request.Title))
+            throw new ValidationException("Cannot rename custom step to a reserved system title.");
 
         if (step.Milestone.Project.Status == ProjectStatus.COMPLETED || step.Milestone.Project.Status == ProjectStatus.CANCELLED)
             throw new ValidationException("Cannot modify steps in a completed or cancelled project.");
@@ -364,6 +381,7 @@ public class Service : IService
             .FirstOrDefaultAsync(s => s.Id == stepId);
 
         if (step == null) throw new NotFoundException("Milestone step not found.");
+        if (step.Milestone?.Project == null) throw new NotFoundException("Milestone project not found.");
 
         if (step.Milestone.Project.ClientId != userId)
             throw new UnauthorizedException("Only the client can manage milestone steps.");
@@ -392,6 +410,7 @@ public class Service : IService
             .FirstOrDefaultAsync(s => s.Id == stepId);
 
         if (step == null) throw new NotFoundException("Milestone step not found.");
+        if (step.Milestone?.Project == null) throw new NotFoundException("Milestone project not found.");
 
         var project = step.Milestone.Project;
 
@@ -507,13 +526,18 @@ public class Service : IService
     public async Task ReorderMilestoneStepsAsync(Guid userId, Guid milestoneId, List<Guid> stepIds)
     {
         var milestone = await _dbContext.Milestones
+            .AsNoTracking()
             .Include(m => m.Project)
             .FirstOrDefaultAsync(m => m.Id == milestoneId);
 
         if (milestone == null) throw new NotFoundException("Milestone not found.");
+        if (milestone.Project == null) throw new NotFoundException("Project not found.");
 
         if (milestone.Project.ClientId != userId)
             throw new UnauthorizedException("Only the client can manage milestone steps.");
+
+        if (stepIds == null || stepIds.Count == 0)
+            throw new ValidationException("Step IDs list cannot be empty.");
 
         if (milestone.Project.Status == ProjectStatus.COMPLETED || milestone.Project.Status == ProjectStatus.CANCELLED)
             throw new ValidationException("Cannot modify steps in a completed or cancelled project.");
