@@ -14,4 +14,6 @@ public interface IService
     Task<Response.ExpertProfileResponse> GetPublicExpertProfileAsync(Guid expertId);
     Task<List<Response.ExpertProfileResponse>> GetFeaturedExpertsAsync(int count);
     Task<Response.PaginatedExpertListResponse> SearchExpertsAsync(Request.SearchExpertsRequest request);
+    Task<Response.PaginatedCompletedProjectListResponse> GetPublicCompletedProjectsAsync(Guid expertId, int page = 1, int pageSize = 10);
 }
+

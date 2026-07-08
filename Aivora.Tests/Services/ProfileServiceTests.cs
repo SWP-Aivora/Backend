@@ -174,4 +174,176 @@ public class ProfileServiceTests
         pendingUpdate.ExperienceYears.Should().Be(10);
         pendingUpdate.Status.Should().Be(ProfileUpdateStatus.PENDING);
     }
+
+    [Fact]
+    public async Task GetPublicCompletedProjectsAsync_ReturnsOnlyCompletedProjects_AndMapsReview()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+
+        var client = new User
+        {
+            Id = clientId,
+            FullName = "Client Display Name",
+            Email = "client@test.com",
+            Role = UserRole.CLIENT,
+            PasswordHash = "hash"
+        };
+
+        var expert = new User
+        {
+            Id = expertId,
+            FullName = "Expert Name",
+            Email = "expert@test.com",
+            Role = UserRole.EXPERT,
+            PasswordHash = "hash"
+        };
+
+        var expertProfile = new ExpertProfile
+        {
+            Id = Guid.NewGuid(),
+            UserId = expertId,
+            Title = "AI Specialist"
+        };
+
+        var completedProject = new Project
+        {
+            Id = Guid.NewGuid(),
+            ClientId = clientId,
+            ExpertId = expertId,
+            Title = "Completed Project",
+            Description = "Completed Project Summary",
+            Status = ProjectStatus.COMPLETED
+        };
+
+        var activeProject = new Project
+        {
+            Id = Guid.NewGuid(),
+            ClientId = clientId,
+            ExpertId = expertId,
+            Title = "Active Project",
+            Description = "Active Project Summary",
+            Status = ProjectStatus.ACTIVE
+        };
+
+        var cancelledProject = new Project
+        {
+            Id = Guid.NewGuid(),
+            ClientId = clientId,
+            ExpertId = expertId,
+            Title = "Cancelled Project",
+            Description = "Cancelled Project Summary",
+            Status = ProjectStatus.CANCELLED
+        };
+
+        var review = new Review
+        {
+            Id = Guid.NewGuid(),
+            ProjectId = completedProject.Id,
+            ReviewerId = clientId,
+            RevieweeId = expertId,
+            Rating = 5,
+            Comment = "Excellent"
+        };
+
+        dbContext.Users.AddRange(client, expert);
+        dbContext.ExpertProfiles.Add(expertProfile);
+        dbContext.Projects.AddRange(completedProject, activeProject, cancelledProject);
+        dbContext.Reviews.Add(review);
+        await dbContext.SaveChangesAsync();
+
+        var service = new Aivora.Services.ProfileService.Service(dbContext);
+
+        // Act
+        var result = await service.GetPublicCompletedProjectsAsync(expertId);
+
+        // Assert
+        result.Projects.Should().HaveCount(1);
+        var projectSummary = result.Projects[0];
+        projectSummary.Title.Should().Be("Completed Project");
+        projectSummary.Summary.Should().Be("Completed Project Summary");
+        projectSummary.Rating.Should().Be(5);
+        projectSummary.ReviewComment.Should().Be("Excellent");
+        projectSummary.ClientDisplayName.Should().Be("Client Display Name");
+    }
+
+    [Fact]
+    public async Task GetPublicCompletedProjectsAsync_SupportsPagination()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+
+        var client = new User
+        {
+            Id = clientId,
+            FullName = "Client Name",
+            Email = "client@test.com",
+            Role = UserRole.CLIENT,
+            PasswordHash = "hash"
+        };
+
+        var expert = new User
+        {
+            Id = expertId,
+            FullName = "Expert Name",
+            Email = "expert@test.com",
+            Role = UserRole.EXPERT,
+            PasswordHash = "hash"
+        };
+
+        var expertProfile = new ExpertProfile
+        {
+            Id = Guid.NewGuid(),
+            UserId = expertId,
+            Title = "AI Specialist"
+        };
+
+        dbContext.Users.AddRange(client, expert);
+        dbContext.ExpertProfiles.Add(expertProfile);
+
+        for (int i = 1; i <= 15; i++)
+        {
+            dbContext.Projects.Add(new Project
+            {
+                Id = Guid.NewGuid(),
+                ClientId = clientId,
+                ExpertId = expertId,
+                Title = $"Completed Project {i}",
+                Description = $"Summary {i}",
+                Status = ProjectStatus.COMPLETED
+            });
+        }
+
+        await dbContext.SaveChangesAsync();
+
+        var service = new Aivora.Services.ProfileService.Service(dbContext);
+
+        // Act
+        var result = await service.GetPublicCompletedProjectsAsync(expertId, page: 2, pageSize: 10);
+
+        // Assert
+        result.Projects.Count.Should().Be(5);
+        result.TotalCount.Should().Be(15);
+        result.TotalPages.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task GetPublicCompletedProjectsAsync_ThrowsNotFoundException_WhenExpertNotFound()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var service = new Aivora.Services.ProfileService.Service(dbContext);
+        var randomExpertId = Guid.NewGuid();
+
+        // Act
+        Func<Task> act = async () => await service.GetPublicCompletedProjectsAsync(randomExpertId);
+
+        // Assert
+        await act.Should().ThrowAsync<NotFoundException>();
+    }
 }
+

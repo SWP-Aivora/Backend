@@ -90,4 +90,16 @@ public class ProfileController : ControllerBase
         var result = await _profileService.SearchExpertsAsync(request);
         return Ok(ApiResponseFactory.SuccessResponse(result, "Experts searched successfully", HttpContext.TraceIdentifier));
     }
+
+    [HttpGet("expert/{expertId}/completed-projects")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetExpertCompletedProjects(
+        Guid expertId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10)
+    {
+        var result = await _profileService.GetPublicCompletedProjectsAsync(expertId, page, pageSize);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Expert completed projects retrieved successfully", HttpContext.TraceIdentifier));
+    }
 }
+
