@@ -167,6 +167,22 @@ public class Treasury : ITreasury
             milestone.Status = MilestoneStatus.IN_PROGRESS;
             milestone.DepositPaidAt = DateTimeOffset.UtcNow; // Record time deposit is paid
 
+            var depositMaxOrderIndex = await _dbContext.MilestoneSteps
+                .Where(s => s.MilestoneId == milestoneId)
+                .Select(s => (int?)s.OrderIndex)
+                .MaxAsync() ?? 0;
+
+            _dbContext.MilestoneSteps.Add(new MilestoneStep
+            {
+                MilestoneId = milestoneId,
+                Title = "Funded",
+                Description = "Milestone funded",
+                OrderIndex = depositMaxOrderIndex + 1,
+                Status = MilestoneStepStatus.COMPLETED,
+                CompletedAt = DateTimeOffset.UtcNow,
+                CompletedByUserId = clientId
+            });
+
             if (milestone.Project.Status == ProjectStatus.PENDING_PAYMENT)
             {
                 milestone.Project.Status = ProjectStatus.ACTIVE;
@@ -297,6 +313,22 @@ public class Treasury : ITreasury
             milestone.Status = MilestoneStatus.RELEASED;
             milestone.ApprovedAt = DateTimeOffset.UtcNow;
             milestone.PaidAt = DateTimeOffset.UtcNow;
+
+            var completedMaxOrderIndex = await _dbContext.MilestoneSteps
+                .Where(s => s.MilestoneId == milestoneId)
+                .Select(s => (int?)s.OrderIndex)
+                .MaxAsync() ?? 0;
+
+            _dbContext.MilestoneSteps.Add(new MilestoneStep
+            {
+                MilestoneId = milestoneId,
+                Title = "Completed",
+                Description = "Milestone completed",
+                OrderIndex = completedMaxOrderIndex + 1,
+                Status = MilestoneStepStatus.COMPLETED,
+                CompletedAt = DateTimeOffset.UtcNow,
+                CompletedByUserId = clientId
+            });
 
             await SyncProjectStatusAsync(milestone.ProjectId);
 

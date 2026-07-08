@@ -75,7 +75,19 @@ public class HiringService : IHiringService
                     Amount = pm.Amount,
                     OrderIndex = pm.OrderIndex,
                     Status = MilestoneStatus.CREATED,
-                    Currency = proposal.Currency
+                    Currency = proposal.Currency,
+                    Steps = new List<MilestoneStep>
+                    {
+                        new MilestoneStep
+                        {
+                            Title = "Created",
+                            Description = "Milestone created",
+                            OrderIndex = 0,
+                            Status = MilestoneStepStatus.COMPLETED,
+                            CompletedAt = DateTimeOffset.UtcNow,
+                            CompletedByUserId = proposal.Job.ClientId
+                        }
+                    }
                 }).ToList()
             };
 
