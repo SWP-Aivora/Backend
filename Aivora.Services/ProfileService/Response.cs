@@ -48,4 +48,30 @@ public class Response
         public int PageSize { get; set; }
         public int TotalPages { get; set; }
     }
+
+    public class CompletedProjectSummaryResponse
+    {
+        public Guid ProjectId { get; set; }
+        public string Title { get; set; } = null!;
+        public string? Summary { get; set; }
+        public string? CategoryName { get; set; }
+        public DateTimeOffset? CompletedAt { get; set; }
+        public DateOnly? EndDate { get; set; }
+        public int? Rating { get; set; }
+        public string? ReviewComment { get; set; }
+        public decimal? TotalBudget { get; set; }
+        public string Currency { get; set; } = "AICOIN";
+        public string ClientDisplayName { get; set; } = null!;
+        public string? ClientAvatarUrl { get; set; }
+    }
+
+    public class PaginatedCompletedProjectListResponse
+    {
+        public List<CompletedProjectSummaryResponse> Projects { get; set; } = null!;
+        public int TotalCount { get; set; }
+        public int Page { get; set; }
+        public int PageSize { get; set; }
+        public int TotalPages { get; set; }
+    }
 }
+

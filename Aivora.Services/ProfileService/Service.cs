@@ -1,5 +1,6 @@
 using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
+using Aivora.Repositories.Enums;
 using Aivora.Services.Exceptions;
 using Microsoft.EntityFrameworkCore;
 
@@ -241,6 +242,77 @@ public class Service : IService
             Page = request.Page,
             PageSize = request.PageSize,
             TotalPages = (int)Math.Ceiling((double)totalCount / request.PageSize)
+        };
+    }
+
+    public async Task<Response.PaginatedCompletedProjectListResponse> GetPublicCompletedProjectsAsync(Guid expertId, int page = 1, int pageSize = 10)
+    {
+        var expertProfile = await _dbContext.ExpertProfiles
+            .FirstOrDefaultAsync(p => p.Id == expertId || p.UserId == expertId);
+
+        if (expertProfile == null)
+            throw new NotFoundException("Expert profile not found.");
+
+        var expertUserId = expertProfile.UserId;
+
+        var query = _dbContext.Projects.AsNoTracking()
+            .Where(p => p.ExpertId == expertUserId && p.Status == ProjectStatus.COMPLETED);
+
+        var totalCount = await query.CountAsync();
+
+        var projects = await query
+            .OrderByDescending(p => p.CompletedAt ?? p.CreatedAt)
+            .ThenByDescending(p => p.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        var projectIds = projects.Select(p => p.Id).ToList();
+        var reviews = await _dbContext.Reviews
+            .Where(r => projectIds.Contains(r.ProjectId))
+            .ToListAsync();
+
+        var jobIds = projects.Select(p => p.JobId).Distinct().ToList();
+        var jobs = await _dbContext.JobPosts
+            .Include(j => j.Category)
+            .Where(j => jobIds.Contains(j.Id))
+            .ToListAsync();
+
+        var clientIds = projects.Select(p => p.ClientId).Distinct().ToList();
+        var clients = await _dbContext.Users
+            .Where(u => clientIds.Contains(u.Id))
+            .ToListAsync();
+
+        var projectSummaries = projects.Select(p =>
+        {
+            var review = reviews.FirstOrDefault(r => r.ProjectId == p.Id);
+            var job = jobs.FirstOrDefault(j => j.Id == p.JobId);
+            var client = clients.FirstOrDefault(c => c.Id == p.ClientId);
+
+            return new Response.CompletedProjectSummaryResponse
+            {
+                ProjectId = p.Id,
+                Title = p.Title,
+                Summary = p.Description,
+                CategoryName = job?.Category?.Name,
+                CompletedAt = p.CompletedAt,
+                EndDate = p.EndDate,
+                Rating = review?.Rating,
+                ReviewComment = review?.Comment,
+                TotalBudget = p.TotalBudget,
+                Currency = string.IsNullOrWhiteSpace(p.Currency) ? "AICOIN" : p.Currency,
+                ClientDisplayName = client?.FullName ?? "Client",
+                ClientAvatarUrl = client?.AvatarUrl
+            };
+        }).ToList();
+
+        return new Response.PaginatedCompletedProjectListResponse
+        {
+            Projects = projectSummaries,
+            TotalCount = totalCount,
+            Page = page,
+            PageSize = pageSize,
+            TotalPages = (int)Math.Ceiling((double)totalCount / pageSize)
         };
     }
 }

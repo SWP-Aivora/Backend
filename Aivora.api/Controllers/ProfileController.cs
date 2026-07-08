@@ -4,6 +4,7 @@ using Aivora.Services.ProfileService;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using System.ComponentModel.DataAnnotations;
 
 namespace Aivora.api.Controllers;
 
@@ -77,8 +78,8 @@ public class ProfileController : ControllerBase
     public async Task<IActionResult> SearchExperts(
         [FromQuery] string? keyword = null,
         [FromQuery] Guid? categoryId = null,
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 10)
+        [FromQuery][Range(1, int.MaxValue)] int page = 1,
+        [FromQuery][Range(1, 100)] int pageSize = 10)
     {
         var request = new Aivora.Services.ProfileService.Request.SearchExpertsRequest
         {
@@ -90,4 +91,16 @@ public class ProfileController : ControllerBase
         var result = await _profileService.SearchExpertsAsync(request);
         return Ok(ApiResponseFactory.SuccessResponse(result, "Experts searched successfully", HttpContext.TraceIdentifier));
     }
+
+    [HttpGet("expert/{expertId}/completed-projects")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetExpertCompletedProjects(
+        Guid expertId,
+        [FromQuery][Range(1, int.MaxValue)] int page = 1,
+        [FromQuery][Range(1, 100)] int pageSize = 10)
+    {
+        var result = await _profileService.GetPublicCompletedProjectsAsync(expertId, page, pageSize);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Expert completed projects retrieved successfully", HttpContext.TraceIdentifier));
+    }
 }
+
