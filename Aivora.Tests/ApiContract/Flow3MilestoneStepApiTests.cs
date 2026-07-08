@@ -296,6 +296,11 @@ public class Flow3MilestoneStepApiTests : IClassFixture<ApiContractTestFactory>
         getStepsAfterSuggestRes.StatusCode.Should().Be(HttpStatusCode.OK);
         getStepsAfterSuggestBody?.GetProperty("data").GetArrayLength().Should().Be(0);
 
+        // Non-existent milestone returns 404 NotFound
+        var nonExistentId = Guid.NewGuid();
+        var (notFoundSuggestRes, _) = await expertClient.PostAsync($"/api/v1/milestones/{nonExistentId}/steps/suggest", new { });
+        notFoundSuggestRes.StatusCode.Should().Be(HttpStatusCode.NotFound);
+
         // Client cannot request suggestions
         var (clientSuggestRes, _) = await client.PostAsync($"/api/v1/milestones/{milestoneId}/steps/suggest", new { });
         clientSuggestRes.StatusCode.Should().Be(HttpStatusCode.Forbidden);

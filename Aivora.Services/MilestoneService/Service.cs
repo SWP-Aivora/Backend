@@ -213,12 +213,18 @@ public class Service : IService
 
     public async Task<Response.MilestoneStepSuggestionResponse> SuggestMilestoneStepsAsync(Guid userId, Guid milestoneId, CancellationToken cancellationToken = default)
     {
+        // Eagerly load Project to verify ExpertId authorization and prevent N+1 queries
         var milestone = await _dbContext.Milestones
+            .AsNoTracking()
             .Include(m => m.Project)
             .FirstOrDefaultAsync(m => m.Id == milestoneId, cancellationToken);
 
         if (milestone == null) throw new NotFoundException("Milestone not found.");
-        if (milestone.Project.ExpertId != userId) throw new UnauthorizedException("Only the expert can suggest milestone steps.");
+
+        var project = milestone.Project;
+        if (project == null) throw new NotFoundException("Project not found.");
+
+        if (project.ExpertId != userId) throw new UnauthorizedException("Only the expert can suggest milestone steps.");
 
         var draft = await _stepSuggestionProvider.GenerateSuggestionAsync(
             new AIMilestoneStepAssistantService.Request.SuggestMilestoneStepsRequest
@@ -229,10 +235,14 @@ public class Service : IService
             },
             cancellationToken);
 
+        var steps = draft?.Steps != null
+            ? draft.Steps.Select(s => new Response.SuggestedMilestoneStep { Title = s.Title, Description = s.Description }).ToList()
+            : new List<Response.SuggestedMilestoneStep>();
+
         return new Response.MilestoneStepSuggestionResponse
         {
-            Steps = draft.Steps.Select(s => new Response.SuggestedMilestoneStep { Title = s.Title, Description = s.Description }).ToList(),
-            AIModel = draft.AIModel
+            Steps = steps,
+            AIModel = draft?.AIModel ?? "Unknown"
         };
     }
 
