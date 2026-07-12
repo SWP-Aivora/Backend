@@ -339,7 +339,11 @@ public class Treasury : ITreasury
                 });
             }
 
+            // Data is already loaded with .Include(m => m.Steps) inside GetMilestoneWithProjectAsync
+            CompleteRemainingSteps(milestone.Steps, DateTimeOffset.UtcNow);
+
             await SyncProjectStatusAsync(milestone.ProjectId);
+
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
@@ -540,8 +544,12 @@ public class Treasury : ITreasury
             milestone.Status = MilestoneStatus.RELEASED;
             milestone.ApprovedAt = DateTimeOffset.UtcNow;
 
+            // Data is already loaded with .Include(m => m.Steps) inside GetMilestoneWithProjectAsync
+            CompleteRemainingSteps(milestone.Steps, DateTimeOffset.UtcNow);
+
             await SyncProjectStatusAsync(milestone.ProjectId);
 
+            await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
             _logger.LogInformation("✅ Split {MilestoneId} funds: {ReleaseAmount} released, {RefundAmount} refunded", milestoneId, releaseToExpertAmount, refundToClientAmount);
@@ -554,7 +562,6 @@ public class Treasury : ITreasury
             throw;
         }
     }
-    // Removed FreezeFundsAsync and UnfreezeFundsAsync per new model
 
     public async Task SyncProjectStatusAsync(Guid projectId)
     {
@@ -568,6 +575,11 @@ public class Treasury : ITreasury
             return;
         }
 
+        await SyncProjectStateAsync(project);
+    }
+
+    private async Task SyncProjectStateAsync(Project project)
+    {
         // Terminal milestones are PAID or REFUNDED
         var allSettled = project.Milestones.All(m => m.IsSettled);
 
@@ -577,7 +589,7 @@ public class Treasury : ITreasury
             project.CompletedAt = DateTimeOffset.UtcNow;
 
             // Load job optionally if it exists in the database to prevent inner join failure in tests
-            if (project.JobId != Guid.Empty)
+            if (project.JobId != Guid.Empty && project.Job == null)
             {
                 project.Job = await _dbContext.JobPosts.FirstOrDefaultAsync(j => j.Id == project.JobId);
             }
@@ -588,7 +600,7 @@ public class Treasury : ITreasury
                 project.Job.Status = JobStatus.COMPLETED;
                 project.Job.UpdatedAt = DateTimeOffset.UtcNow;
             }
-            _logger.LogInformation("🏆 Project {ProjectId} marked as COMPLETED because all milestones are settled.", projectId);
+            _logger.LogInformation("🏆 Project {ProjectId} marked as COMPLETED because all milestones are settled.", project.Id);
 
             var affectedUsers = new[] { project.ClientId, project.ExpertId };
             await _realtimeService.SendJobStatusUpdateToUsersAsync(affectedUsers, project.JobId, JobStatus.COMPLETED, project.Job?.Title);
@@ -636,5 +648,17 @@ public class Treasury : ITreasury
     private Task<Wallet> GetWalletForUpdateAsync(Guid userId)
     {
         return _dbContext.GetWalletForUpdateAsync(userId);
+    }
+
+    private void CompleteRemainingSteps(ICollection<MilestoneStep>? steps, DateTimeOffset completionTime)
+    {
+        if (steps == null) return;
+
+        var pendingSteps = steps.Where(s => s.Status == MilestoneStepStatus.PENDING || s.Status == MilestoneStepStatus.IN_PROGRESS || s.Status == MilestoneStepStatus.BLOCKED);
+        foreach (var step in pendingSteps)
+        {
+            step.Status = MilestoneStepStatus.COMPLETED;
+            step.CompletedAt = completionTime;
+        }
     }
 }
