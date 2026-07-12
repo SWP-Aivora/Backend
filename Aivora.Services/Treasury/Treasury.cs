@@ -339,10 +339,11 @@ public class Treasury : ITreasury
                 });
             }
 
+            // Data is already loaded with .Include(m => m.Steps) inside GetMilestoneWithProjectAsync
             CompleteRemainingSteps(milestone.Steps, DateTimeOffset.UtcNow);
 
-            await SyncProjectStatusAsync(milestone.ProjectId);
             await _dbContext.SaveChangesAsync();
+            await SyncProjectStatusAsync(milestone.ProjectId);
             await transaction.CommitAsync();
 
             SendNotificationInBackground(
@@ -542,10 +543,11 @@ public class Treasury : ITreasury
             milestone.Status = MilestoneStatus.RELEASED;
             milestone.ApprovedAt = DateTimeOffset.UtcNow;
 
+            // Data is already loaded with .Include(m => m.Steps) inside GetMilestoneWithProjectAsync
             CompleteRemainingSteps(milestone.Steps, DateTimeOffset.UtcNow);
 
-            await SyncProjectStatusAsync(milestone.ProjectId);
             await _dbContext.SaveChangesAsync();
+            await SyncProjectStatusAsync(milestone.ProjectId);
             await transaction.CommitAsync();
 
             _logger.LogInformation("✅ Split {MilestoneId} funds: {ReleaseAmount} released, {RefundAmount} refunded", milestoneId, releaseToExpertAmount, refundToClientAmount);
