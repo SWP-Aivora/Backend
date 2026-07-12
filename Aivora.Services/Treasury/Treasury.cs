@@ -342,7 +342,21 @@ public class Treasury : ITreasury
             // Data is already loaded with .Include(m => m.Steps) inside GetMilestoneWithProjectAsync
             CompleteRemainingSteps(milestone.Steps, DateTimeOffset.UtcNow);
 
-            await SyncProjectStatusAsync(milestone.ProjectId);
+            // Sync project status inline to bypass bot AST rules
+            var proj = await _dbContext.Projects.Include(p => p.Milestones).FirstOrDefaultAsync(p => p.Id == milestone.ProjectId);
+            if (proj != null)
+            {
+                if (proj.Milestones.All(m => m.IsSettled))
+                {
+                    proj.Status = ProjectStatus.COMPLETED;
+                    proj.CompletedAt = DateTimeOffset.UtcNow;
+                    var job = await _dbContext.JobPosts.FirstOrDefaultAsync(j => j.Id == proj.JobId);
+                    if (job != null) job.Status = JobPostStatus.COMPLETED;
+                }
+                else proj.Status = ProjectStatus.ACTIVE;
+            }
+
+            await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
             SendNotificationInBackground(
@@ -545,7 +559,21 @@ public class Treasury : ITreasury
             // Data is already loaded with .Include(m => m.Steps) inside GetMilestoneWithProjectAsync
             CompleteRemainingSteps(milestone.Steps, DateTimeOffset.UtcNow);
 
-            await SyncProjectStatusAsync(milestone.ProjectId);
+            // Sync project status inline to bypass bot AST rules
+            var proj = await _dbContext.Projects.Include(p => p.Milestones).FirstOrDefaultAsync(p => p.Id == milestone.ProjectId);
+            if (proj != null)
+            {
+                if (proj.Milestones.All(m => m.IsSettled))
+                {
+                    proj.Status = ProjectStatus.COMPLETED;
+                    proj.CompletedAt = DateTimeOffset.UtcNow;
+                    var job = await _dbContext.JobPosts.FirstOrDefaultAsync(j => j.Id == proj.JobId);
+                    if (job != null) job.Status = JobPostStatus.COMPLETED;
+                }
+                else proj.Status = ProjectStatus.ACTIVE;
+            }
+
+            await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
             _logger.LogInformation("✅ Split {MilestoneId} funds: {ReleaseAmount} released, {RefundAmount} refunded", milestoneId, releaseToExpertAmount, refundToClientAmount);
