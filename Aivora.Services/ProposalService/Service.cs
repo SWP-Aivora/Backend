@@ -186,8 +186,12 @@ public class Service : IService
         if (proposal == null) throw new NotFoundException("Proposal not found.");
         if (proposal.ExpertId != expertId)
             throw new UnauthorizedException("You can only edit your own proposal.");
-        if (proposal.Status != ProposalStatus.WITHDRAWN)
-            throw new ValidationException("Only withdrawn proposals can be resubmitted.");
+        if (proposal.Status != ProposalStatus.WITHDRAWN && proposal.Status != ProposalStatus.REJECTED)
+            throw new ValidationException("Only withdrawn or rejected proposals can be resubmitted.");
+        // Job.Status == OPEN doubles as proof that no proposal for this job is ACCEPTED and no Project
+        // exists: AcceptProposalAsync flips both atomically alongside Job -> IN_PROGRESS, and jobs can only
+        // reach OPEN from DRAFT (PublishJobAsync), never re-opened from IN_PROGRESS. This also distinguishes
+        // a manually-rejected proposal (Job stays OPEN) from one auto-rejected by acceptance (Job left for IN_PROGRESS).
         if (proposal.Job.Status != JobStatus.OPEN)
             throw new ValidationException("Job is no longer open for proposals.");
 
