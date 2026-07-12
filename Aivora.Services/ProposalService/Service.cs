@@ -114,8 +114,6 @@ public class Service : IService
     }
     public async Task<Response.ProposalResponse> UpdateProposalAsync(Guid expertId, Guid proposalId, Request.UpdateProposalRequest request)
     {
-        if (request is null) throw new ValidationException("Request body is required.");
-
         var proposal = await _dbContext.Proposals
             .FirstOrDefaultAsync(p => p.Id == proposalId);
 
@@ -126,6 +124,16 @@ public class Service : IService
 
         if (proposal.Status != ProposalStatus.SUBMITTED && proposal.Status != ProposalStatus.SHORTLISTED)
             throw new ValidationException("Proposal can only be edited when it is submitted or shortlisted.");
+
+        await ApplyContentUpdateAsync(proposal, request);
+        await _dbContext.SaveChangesAsync();
+
+        return await GetProposalByIdAsync(proposal.Id);
+    }
+
+    private async Task ApplyContentUpdateAsync(Proposal proposal, Request.UpdateProposalRequest request)
+    {
+        if (request is null) throw new ValidationException("Request body is required.");
 
         if (request.ProposedBudget <= 0)
             throw new ValidationException("ProposedBudget must be greater than 0.");
@@ -142,12 +150,12 @@ public class Service : IService
 
         // Delete old milestones via DbSet, then insert new ones
         var oldMilestones = await _dbContext.ProposalMilestones
-            .Where(m => m.ProposalId == proposalId)
+            .Where(m => m.ProposalId == proposal.Id)
             .ToListAsync();
         _dbContext.ProposalMilestones.RemoveRange(oldMilestones);
         var newMilestones = validatedMilestones.Select(m => new ProposalMilestone
         {
-            ProposalId = proposalId,
+            ProposalId = proposal.Id,
             Title = m.Title,
             Description = m.Description,
             Amount = m.Amount,
@@ -157,12 +165,55 @@ public class Service : IService
         }).ToList();
         await _dbContext.ProposalMilestones.AddRangeAsync(newMilestones);
 
-        await _dbContext.SaveChangesAsync();
-
-        return await GetProposalByIdAsync(proposal.Id);
+        // EF's navigation fixup adds tracked ProposalMilestone entities to proposal.Milestones
+        // as soon as they're queried/added (regardless of the collection's IsLoaded state), but
+        // never removes them again — not on RemoveRange, not on soft-delete, not on Detach. Without
+        // this, the old (now soft-deleted) rows stay in the in-memory list and leak into the response.
+        foreach (var old in oldMilestones)
+        {
+            proposal.Milestones.Remove(old);
+        }
     }
 
 
+
+    public async Task<Response.ProposalResponse> ResubmitProposalAsync(Guid expertId, Guid proposalId, Request.UpdateProposalRequest request)
+    {
+        var proposal = await _dbContext.Proposals
+            .Include(p => p.Job)
+            .FirstOrDefaultAsync(p => p.Id == proposalId);
+
+        if (proposal == null) throw new NotFoundException("Proposal not found.");
+        if (proposal.ExpertId != expertId)
+            throw new UnauthorizedException("You can only edit your own proposal.");
+        if (proposal.Status != ProposalStatus.WITHDRAWN)
+            throw new ValidationException("Only withdrawn proposals can be resubmitted.");
+        if (proposal.Job.Status != JobStatus.OPEN)
+            throw new ValidationException("Job is no longer open for proposals.");
+
+        await ApplyContentUpdateAsync(proposal, request);
+
+        proposal.Status = ProposalStatus.SUBMITTED;
+        proposal.WithdrawnAt = null;
+        await _dbContext.SaveChangesAsync();
+
+        try
+        {
+            await _notificationService.SendNotificationAsync(
+                proposal.Job.ClientId,
+                "Proposal resubmitted",
+                $"An expert has resubmitted their proposal for the job \"{proposal.Job.Title}\".",
+                "PROPOSAL",
+                $"/jobs/{proposal.JobId}/proposals"
+            );
+        }
+        catch
+        {
+            // Notification failure should not block the main business flow
+        }
+
+        return await GetProposalByIdAsync(proposal.Id);
+    }
 
     private static Response.ProposalResponse MapToResponse(Proposal proposal)
     {
