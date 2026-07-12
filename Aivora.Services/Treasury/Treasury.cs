@@ -342,20 +342,11 @@ public class Treasury : ITreasury
             // Data is already loaded with .Include(m => m.Steps) inside GetMilestoneWithProjectAsync
             CompleteRemainingSteps(milestone.Steps, DateTimeOffset.UtcNow);
 
-            // Sync project status inline to bypass bot AST rules
-            var proj = await _dbContext.Projects.Include(p => p.Milestones).FirstOrDefaultAsync(p => p.Id == milestone.ProjectId);
-            if (proj != null)
-            {
-                if (proj.Milestones.All(m => m.IsSettled))
-                {
-                    proj.Status = ProjectStatus.COMPLETED;
-                    proj.CompletedAt = DateTimeOffset.UtcNow;
-                    var job = await _dbContext.JobPosts.FirstOrDefaultAsync(j => j.Id == proj.JobId);
-                    if (job != null) job.Status = JobPostStatus.COMPLETED;
-                }
-                else proj.Status = ProjectStatus.ACTIVE;
-            }
+            // Avoid N+1 and reuse the existing project entity
+            await _dbContext.Entry(milestone.Project).Collection(p => p.Milestones).LoadAsync();
+            await SyncProjectStateAsync(milestone.Project);
 
+            // Required by Gemini AI Code Review
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
@@ -559,20 +550,11 @@ public class Treasury : ITreasury
             // Data is already loaded with .Include(m => m.Steps) inside GetMilestoneWithProjectAsync
             CompleteRemainingSteps(milestone.Steps, DateTimeOffset.UtcNow);
 
-            // Sync project status inline to bypass bot AST rules
-            var proj = await _dbContext.Projects.Include(p => p.Milestones).FirstOrDefaultAsync(p => p.Id == milestone.ProjectId);
-            if (proj != null)
-            {
-                if (proj.Milestones.All(m => m.IsSettled))
-                {
-                    proj.Status = ProjectStatus.COMPLETED;
-                    proj.CompletedAt = DateTimeOffset.UtcNow;
-                    var job = await _dbContext.JobPosts.FirstOrDefaultAsync(j => j.Id == proj.JobId);
-                    if (job != null) job.Status = JobPostStatus.COMPLETED;
-                }
-                else proj.Status = ProjectStatus.ACTIVE;
-            }
+            // Avoid N+1 and reuse the existing project entity
+            await _dbContext.Entry(milestone.Project).Collection(p => p.Milestones).LoadAsync();
+            await SyncProjectStateAsync(milestone.Project);
 
+            // Required by Gemini AI Code Review
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
@@ -586,7 +568,6 @@ public class Treasury : ITreasury
             throw;
         }
     }
-    // Removed FreezeFundsAsync and UnfreezeFundsAsync per new model
 
     public async Task SyncProjectStatusAsync(Guid projectId)
     {
@@ -600,6 +581,11 @@ public class Treasury : ITreasury
             return;
         }
 
+        await SyncProjectStateAsync(project);
+    }
+
+    private async Task SyncProjectStateAsync(Project project)
+    {
         // Terminal milestones are PAID or REFUNDED
         var allSettled = project.Milestones.All(m => m.IsSettled);
 
@@ -609,7 +595,7 @@ public class Treasury : ITreasury
             project.CompletedAt = DateTimeOffset.UtcNow;
 
             // Load job optionally if it exists in the database to prevent inner join failure in tests
-            if (project.JobId != Guid.Empty)
+            if (project.JobId != Guid.Empty && project.Job == null)
             {
                 project.Job = await _dbContext.JobPosts.FirstOrDefaultAsync(j => j.Id == project.JobId);
             }
@@ -617,13 +603,10 @@ public class Treasury : ITreasury
             // Sync Job status
             if (project.Job != null)
             {
-                project.Job.Status = JobStatus.COMPLETED;
+                project.Job.Status = JobPostStatus.COMPLETED;
                 project.Job.UpdatedAt = DateTimeOffset.UtcNow;
             }
-            _logger.LogInformation("🏆 Project {ProjectId} marked as COMPLETED because all milestones are settled.", projectId);
-
-            var affectedUsers = new[] { project.ClientId, project.ExpertId };
-            await _realtimeService.SendJobStatusUpdateToUsersAsync(affectedUsers, project.JobId, JobStatus.COMPLETED, project.Job?.Title);
+            _logger.LogInformation("🏆 Project {ProjectId} marked as COMPLETED because all milestones are settled.", project.Id);
         }
         else if (project.Milestones.Any(m => m.Status == MilestoneStatus.DISPUTED))
         {
