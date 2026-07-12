@@ -339,7 +339,7 @@ public class Treasury : ITreasury
                 });
             }
 
-            CompleteRemainingSteps(milestone, DateTimeOffset.UtcNow);
+            CompleteRemainingSteps(milestone.Steps, DateTimeOffset.UtcNow);
 
             await SyncProjectStatusAsync(milestone.ProjectId);
             await _dbContext.SaveChangesAsync();
@@ -542,7 +542,7 @@ public class Treasury : ITreasury
             milestone.Status = MilestoneStatus.RELEASED;
             milestone.ApprovedAt = DateTimeOffset.UtcNow;
 
-            CompleteRemainingSteps(milestone, DateTimeOffset.UtcNow);
+            CompleteRemainingSteps(milestone.Steps, DateTimeOffset.UtcNow);
 
             await SyncProjectStatusAsync(milestone.ProjectId);
             await _dbContext.SaveChangesAsync();
@@ -642,11 +642,11 @@ public class Treasury : ITreasury
         return _dbContext.GetWalletForUpdateAsync(userId);
     }
 
-    private void CompleteRemainingSteps(Milestone milestone, DateTimeOffset completionTime)
+    private void CompleteRemainingSteps(ICollection<MilestoneStep>? steps, DateTimeOffset completionTime)
     {
-        if (milestone.Steps == null) return;
-
-        var pendingSteps = milestone.Steps.Where(s => s.Status == MilestoneStepStatus.PENDING || s.Status == MilestoneStepStatus.IN_PROGRESS || s.Status == MilestoneStepStatus.BLOCKED);
+        if (steps == null) return;
+        
+        var pendingSteps = steps.Where(s => s.Status == MilestoneStepStatus.PENDING || s.Status == MilestoneStepStatus.IN_PROGRESS || s.Status == MilestoneStepStatus.BLOCKED);
         foreach (var step in pendingSteps)
         {
             step.Status = MilestoneStepStatus.COMPLETED;
