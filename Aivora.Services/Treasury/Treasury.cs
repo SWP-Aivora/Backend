@@ -339,15 +339,7 @@ public class Treasury : ITreasury
                 });
             }
 
-            if (milestone.Steps != null)
-            {
-                var completionTime = DateTimeOffset.UtcNow;
-                foreach (var step in milestone.Steps.Where(s => s.Status == MilestoneStepStatus.PENDING || s.Status == MilestoneStepStatus.IN_PROGRESS || s.Status == MilestoneStepStatus.BLOCKED))
-                {
-                    step.Status = MilestoneStepStatus.COMPLETED;
-                    step.CompletedAt = completionTime;
-                }
-            }
+            CompleteRemainingSteps(milestone, DateTimeOffset.UtcNow);
 
             await SyncProjectStatusAsync(milestone.ProjectId);
             await _dbContext.SaveChangesAsync();
@@ -550,18 +542,10 @@ public class Treasury : ITreasury
             milestone.Status = MilestoneStatus.RELEASED;
             milestone.ApprovedAt = DateTimeOffset.UtcNow;
 
-            if (milestone.Steps != null)
-            {
-                var completionTime = DateTimeOffset.UtcNow;
-                foreach (var step in milestone.Steps.Where(s => s.Status == MilestoneStepStatus.PENDING || s.Status == MilestoneStepStatus.IN_PROGRESS || s.Status == MilestoneStepStatus.BLOCKED))
-                {
-                    step.Status = MilestoneStepStatus.COMPLETED;
-                    step.CompletedAt = completionTime;
-                }
-            }
+            CompleteRemainingSteps(milestone, DateTimeOffset.UtcNow);
 
             await SyncProjectStatusAsync(milestone.ProjectId);
-
+            await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
             _logger.LogInformation("✅ Split {MilestoneId} funds: {ReleaseAmount} released, {RefundAmount} refunded", milestoneId, releaseToExpertAmount, refundToClientAmount);
@@ -656,5 +640,17 @@ public class Treasury : ITreasury
     private Task<Wallet> GetWalletForUpdateAsync(Guid userId)
     {
         return _dbContext.GetWalletForUpdateAsync(userId);
+    }
+
+    private void CompleteRemainingSteps(Milestone milestone, DateTimeOffset completionTime)
+    {
+        if (milestone.Steps == null) return;
+        
+        var pendingSteps = milestone.Steps.Where(s => s.Status == MilestoneStepStatus.PENDING || s.Status == MilestoneStepStatus.IN_PROGRESS || s.Status == MilestoneStepStatus.BLOCKED);
+        foreach (var step in pendingSteps)
+        {
+            step.Status = MilestoneStepStatus.COMPLETED;
+            step.CompletedAt = completionTime;
+        }
     }
 }
