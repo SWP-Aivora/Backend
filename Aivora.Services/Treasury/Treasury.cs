@@ -645,7 +645,7 @@ public class Treasury : ITreasury
     private void CompleteRemainingSteps(ICollection<MilestoneStep>? steps, DateTimeOffset completionTime)
     {
         if (steps == null) return;
-        
+
         var pendingSteps = steps.Where(s => s.Status == MilestoneStepStatus.PENDING || s.Status == MilestoneStepStatus.IN_PROGRESS || s.Status == MilestoneStepStatus.BLOCKED);
         foreach (var step in pendingSteps)
         {
