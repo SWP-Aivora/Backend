@@ -124,7 +124,7 @@ public class MilestoneController : ControllerBase
     }
 
     [HttpPost("{id}/steps/suggest")]
-    [Authorize(Policy = JwtExtensions.ExpertPolicy)]
+    [Authorize(Policy = JwtExtensions.ClientPolicy)]
     [EnableRateLimiting("AI")]
     public async Task<IActionResult> SuggestMilestoneSteps(Guid id, CancellationToken cancellationToken)
     {
