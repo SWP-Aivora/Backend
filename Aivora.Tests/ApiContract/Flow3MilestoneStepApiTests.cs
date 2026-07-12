@@ -292,8 +292,8 @@ public class Flow3MilestoneStepApiTests : IClassFixture<ApiContractTestFactory>
 
         var expertClient = new ApiContractClient(_factory.CreateAuthenticatedClient(UserRole.EXPERT));
 
-        // Expert can request suggestions; nothing is persisted by the call alone
-        var (suggestRes, suggestBody) = await expertClient.PostAsync($"/api/v1/milestones/{milestoneId}/steps/suggest", new { });
+        // Client can request suggestions; nothing is persisted by the call alone
+        var (suggestRes, suggestBody) = await client.PostAsync($"/api/v1/milestones/{milestoneId}/steps/suggest", new { });
         suggestRes.StatusCode.Should().Be(HttpStatusCode.OK);
         bool suggestSuccess = suggestBody?.GetProperty("success").GetBoolean() ?? false;
         var steps = suggestBody?.GetProperty("data").GetProperty("steps");
@@ -310,12 +310,12 @@ public class Flow3MilestoneStepApiTests : IClassFixture<ApiContractTestFactory>
 
         // Non-existent milestone returns 404 NotFound
         var nonExistentId = Guid.NewGuid();
-        var (notFoundSuggestRes, _) = await expertClient.PostAsync($"/api/v1/milestones/{nonExistentId}/steps/suggest", new { });
+        var (notFoundSuggestRes, _) = await client.PostAsync($"/api/v1/milestones/{nonExistentId}/steps/suggest", new { });
         notFoundSuggestRes.StatusCode.Should().Be(HttpStatusCode.NotFound);
 
-        // Client cannot request suggestions
-        var (clientSuggestRes, _) = await client.PostAsync($"/api/v1/milestones/{milestoneId}/steps/suggest", new { });
-        clientSuggestRes.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        // Expert cannot request suggestions
+        var (expertSuggestRes, _) = await expertClient.PostAsync($"/api/v1/milestones/{milestoneId}/steps/suggest", new { });
+        expertSuggestRes.StatusCode.Should().Be(HttpStatusCode.Forbidden);
 
         _factory.Tracker.ExportResults();
     }
