@@ -117,7 +117,30 @@ public class ProposalServiceResubmitTests
 
         Func<Task> act = async () => await service.ResubmitProposalAsync(expert.Id, proposal.Id, ValidRequest());
         await act.Should().ThrowAsync<ValidationException>()
-            .WithMessage("Only withdrawn proposals can be resubmitted.");
+            .WithMessage("Only withdrawn or rejected proposals can be resubmitted.");
+    }
+
+    [Fact]
+    public async Task ResubmitProposalAsync_Accepted_ThrowsValidationException()
+    {
+        var dbContext = GetDbContext();
+        var (expert, job) = SetupExpertAndJob(dbContext);
+        var service = CreateService(dbContext);
+
+        var proposal = new Proposal
+        {
+            ExpertId = expert.Id,
+            JobId = job.Id,
+            CoverLetter = "Cover",
+            ProposedBudget = 500,
+            Status = ProposalStatus.ACCEPTED
+        };
+        dbContext.Proposals.Add(proposal);
+        await dbContext.SaveChangesAsync();
+
+        Func<Task> act = async () => await service.ResubmitProposalAsync(expert.Id, proposal.Id, ValidRequest());
+        await act.Should().ThrowAsync<ValidationException>()
+            .WithMessage("Only withdrawn or rejected proposals can be resubmitted.");
     }
 
     [Fact]
@@ -213,5 +236,70 @@ public class ProposalServiceResubmitTests
             It.IsAny<string>(),
             It.IsAny<string>(),
             It.IsAny<string>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ResubmitProposalAsync_RejectedAndJobOpen_ResubmitsAndNotifiesClient()
+    {
+        var dbContext = GetDbContext();
+        var (expert, job) = SetupExpertAndJob(dbContext);
+        var service = CreateService(dbContext);
+
+        var proposal = new Proposal
+        {
+            ExpertId = expert.Id,
+            Expert = expert,
+            JobId = job.Id,
+            Job = job,
+            CoverLetter = "Old cover letter",
+            ProposedBudget = 500,
+            Status = ProposalStatus.REJECTED,
+            Milestones = new List<ProposalMilestone>
+            {
+                new() { Title = "Old M1", Amount = 250, DueDays = 7, OrderIndex = 0 }
+            }
+        };
+        dbContext.Proposals.Add(proposal);
+        await dbContext.SaveChangesAsync();
+
+        var request = ValidRequest();
+
+        var result = await service.ResubmitProposalAsync(expert.Id, proposal.Id, request);
+
+        result.Id.Should().Be(proposal.Id);
+        result.Status.Should().Be(ProposalStatus.SUBMITTED);
+        result.CoverLetter.Should().Be(request.CoverLetter);
+        result.ProposedBudget.Should().Be(request.ProposedBudget);
+        result.Milestones.Should().HaveCount(1);
+
+        _notificationServiceMock.Verify(n => n.SendNotificationAsync(
+            job.ClientId,
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<string>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ResubmitProposalAsync_RejectedButJobInProgress_ThrowsValidationException()
+    {
+        var dbContext = GetDbContext();
+        var (expert, job) = SetupExpertAndJob(dbContext, JobStatus.IN_PROGRESS);
+        var service = CreateService(dbContext);
+
+        var proposal = new Proposal
+        {
+            ExpertId = expert.Id,
+            JobId = job.Id,
+            CoverLetter = "Cover",
+            ProposedBudget = 500,
+            Status = ProposalStatus.REJECTED
+        };
+        dbContext.Proposals.Add(proposal);
+        await dbContext.SaveChangesAsync();
+
+        Func<Task> act = async () => await service.ResubmitProposalAsync(expert.Id, proposal.Id, ValidRequest());
+        await act.Should().ThrowAsync<ValidationException>()
+            .WithMessage("Job is no longer open for proposals.");
     }
 }
