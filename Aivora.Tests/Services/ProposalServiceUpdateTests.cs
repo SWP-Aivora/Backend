@@ -201,4 +201,105 @@ public class ProposalServiceUpdateTests
         await act.Should().ThrowAsync<ValidationException>()
             .WithMessage("ProposedBudget must be greater than 0.");
     }
+
+    [Fact]
+    public async Task UpdateProposalAsync_WithdrawnProposal_ThrowsValidationException()
+    {
+        var dbContext = GetDbContext();
+        var (expert, job) = SetupExpertAndJob(dbContext);
+        var service = CreateService(dbContext);
+
+        var proposal = new Proposal
+        {
+            ExpertId = expert.Id,
+            JobId = job.Id,
+            CoverLetter = "Cover",
+            ProposedBudget = 500,
+            Status = ProposalStatus.WITHDRAWN
+        };
+        dbContext.Proposals.Add(proposal);
+        await dbContext.SaveChangesAsync();
+
+        var request = new Request.UpdateProposalRequest { CoverLetter = "Updated", ProposedBudget = 1000 };
+
+        Func<Task> act = async () => await service.UpdateProposalAsync(expert.Id, proposal.Id, request);
+        await act.Should().ThrowAsync<ValidationException>()
+            .WithMessage("Proposal can only be edited when it is submitted or shortlisted.");
+    }
+
+    [Fact]
+    public async Task UpdateProposalAsync_ReplacingMilestones_DoesNotLeakSoftDeletedOldMilestone()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var options = new DbContextOptionsBuilder<AivoraDbContext>()
+            .UseInMemoryDatabase(databaseName: dbName)
+            .ConfigureWarnings(x => x.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning))
+            .Options;
+
+        Guid expertId, proposalId;
+        using (var seedContext = new AivoraDbContext(options))
+        {
+            var (expert, job) = SetupExpertAndJob(seedContext);
+            expertId = expert.Id;
+
+            var proposal = new Proposal
+            {
+                ExpertId = expert.Id,
+                JobId = job.Id,
+                CoverLetter = "Old cover letter",
+                ProposedBudget = 500,
+                Status = ProposalStatus.SUBMITTED,
+                Milestones = new List<ProposalMilestone>
+                {
+                    new() { Title = "Old M1", Amount = 250, DueDays = 7, OrderIndex = 0 }
+                }
+            };
+            seedContext.Proposals.Add(proposal);
+            await seedContext.SaveChangesAsync();
+            proposalId = proposal.Id;
+        }
+
+        // Fresh DbContext, mirroring a real request scope where the proposal/milestones
+        // are not already tracked/loaded before the service call runs.
+        using var dbContext = new AivoraDbContext(options);
+        var service = CreateService(dbContext);
+
+        var request = new Request.UpdateProposalRequest
+        {
+            CoverLetter = "New cover letter",
+            ProposedBudget = 900,
+            Milestones = new List<Request.UpdateProposalMilestoneRequest>
+            {
+                new() { Title = "New M1", Amount = 900, DueDays = 12, OrderIndex = 0 }
+            }
+        };
+
+        var result = await service.UpdateProposalAsync(expertId, proposalId, request);
+
+        result.Milestones.Should().HaveCount(1);
+        result.Milestones.Single().Title.Should().Be("New M1");
+    }
+
+    [Fact]
+    public async Task UpdateProposalAsync_NullRequest_ThrowsValidationException()
+    {
+        var dbContext = GetDbContext();
+        var (expert, job) = SetupExpertAndJob(dbContext);
+        var service = CreateService(dbContext);
+
+        var proposal = new Proposal
+        {
+            ExpertId = expert.Id,
+            JobId = job.Id,
+            CoverLetter = "Cover",
+            ProposedBudget = 500,
+            Status = ProposalStatus.SUBMITTED
+        };
+        dbContext.Proposals.Add(proposal);
+        await dbContext.SaveChangesAsync();
+
+        Func<Task> act = async () => await service.UpdateProposalAsync(expert.Id, proposal.Id, null!);
+        await act.Should().ThrowAsync<ValidationException>()
+            .WithMessage("Request body is required.");
+    }
 }

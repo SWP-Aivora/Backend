@@ -94,4 +94,13 @@ public class ProposalController : ControllerBase
         var result = await _proposalService.UpdateProposalAsync(expertId, id, request);
         return Ok(ApiResponseFactory.SuccessResponse(result, "Proposal updated successfully", HttpContext.TraceIdentifier));
     }
+
+    [HttpPut("{id}/resubmit")]
+    [Authorize(Policy = JwtExtensions.ExpertPolicy)]
+    public async Task<IActionResult> ResubmitProposal(Guid id, [FromBody] Aivora.Services.ProposalService.Request.UpdateProposalRequest request)
+    {
+        var expertId = this.GetUserId();
+        var result = await _proposalService.ResubmitProposalAsync(expertId, id, request);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Proposal resubmitted successfully", HttpContext.TraceIdentifier));
+    }
 }

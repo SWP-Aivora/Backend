@@ -9,4 +9,5 @@ public interface IService
     Task<List<Response.ProposalResponse>> GetProposalsByJobIdAsync(Guid userId, Guid jobId);
     Task<List<Response.ProposalResponse>> GetExpertProposalsAsync(Guid expertId);
     Task<Response.ProposalResponse> UpdateProposalAsync(Guid expertId, Guid proposalId, Request.UpdateProposalRequest request);
+    Task<Response.ProposalResponse> ResubmitProposalAsync(Guid expertId, Guid proposalId, Request.UpdateProposalRequest request);
 }
