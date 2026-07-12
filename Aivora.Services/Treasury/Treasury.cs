@@ -342,8 +342,7 @@ public class Treasury : ITreasury
             // Data is already loaded with .Include(m => m.Steps) inside GetMilestoneWithProjectAsync
             CompleteRemainingSteps(milestone.Steps, DateTimeOffset.UtcNow);
 
-            // Avoid N+1 and reuse the existing project entity
-            await SyncProjectStateAsync(milestone.Project);
+            await SyncProjectStatusAsync(milestone.ProjectId);
 
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
@@ -548,8 +547,7 @@ public class Treasury : ITreasury
             // Data is already loaded with .Include(m => m.Steps) inside GetMilestoneWithProjectAsync
             CompleteRemainingSteps(milestone.Steps, DateTimeOffset.UtcNow);
 
-            // Avoid N+1 and reuse the existing project entity
-            await SyncProjectStateAsync(milestone.Project);
+            await SyncProjectStatusAsync(milestone.ProjectId);
 
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
