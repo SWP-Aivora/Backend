@@ -343,10 +343,8 @@ public class Treasury : ITreasury
             CompleteRemainingSteps(milestone.Steps, DateTimeOffset.UtcNow);
 
             // Avoid N+1 and reuse the existing project entity
-            await _dbContext.Entry(milestone.Project).Collection(p => p.Milestones).LoadAsync();
             await SyncProjectStateAsync(milestone.Project);
 
-            // Required by Gemini AI Code Review
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
@@ -551,10 +549,8 @@ public class Treasury : ITreasury
             CompleteRemainingSteps(milestone.Steps, DateTimeOffset.UtcNow);
 
             // Avoid N+1 and reuse the existing project entity
-            await _dbContext.Entry(milestone.Project).Collection(p => p.Milestones).LoadAsync();
             await SyncProjectStateAsync(milestone.Project);
 
-            // Required by Gemini AI Code Review
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
