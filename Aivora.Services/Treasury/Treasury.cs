@@ -603,10 +603,13 @@ public class Treasury : ITreasury
             // Sync Job status
             if (project.Job != null)
             {
-                project.Job.Status = JobPostStatus.COMPLETED;
+                project.Job.Status = JobStatus.COMPLETED;
                 project.Job.UpdatedAt = DateTimeOffset.UtcNow;
             }
             _logger.LogInformation("🏆 Project {ProjectId} marked as COMPLETED because all milestones are settled.", project.Id);
+
+            var affectedUsers = new[] { project.ClientId, project.ExpertId };
+            await _realtimeService.SendJobStatusUpdateToUsersAsync(affectedUsers, project.JobId, JobStatus.COMPLETED, project.Job?.Title);
         }
         else if (project.Milestones.Any(m => m.Status == MilestoneStatus.DISPUTED))
         {
