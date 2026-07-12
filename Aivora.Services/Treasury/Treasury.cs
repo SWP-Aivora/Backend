@@ -339,6 +339,16 @@ public class Treasury : ITreasury
                 });
             }
 
+            if (milestone.Steps != null)
+            {
+                var completionTime = DateTimeOffset.UtcNow;
+                foreach (var step in milestone.Steps.Where(s => s.Status == MilestoneStepStatus.PENDING || s.Status == MilestoneStepStatus.IN_PROGRESS || s.Status == MilestoneStepStatus.BLOCKED))
+                {
+                    step.Status = MilestoneStepStatus.COMPLETED;
+                    step.CompletedAt = completionTime;
+                }
+            }
+
             await SyncProjectStatusAsync(milestone.ProjectId);
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
@@ -539,6 +549,16 @@ public class Treasury : ITreasury
             // 4. Update Milestone
             milestone.Status = MilestoneStatus.RELEASED;
             milestone.ApprovedAt = DateTimeOffset.UtcNow;
+
+            if (milestone.Steps != null)
+            {
+                var completionTime = DateTimeOffset.UtcNow;
+                foreach (var step in milestone.Steps.Where(s => s.Status == MilestoneStepStatus.PENDING || s.Status == MilestoneStepStatus.IN_PROGRESS || s.Status == MilestoneStepStatus.BLOCKED))
+                {
+                    step.Status = MilestoneStepStatus.COMPLETED;
+                    step.CompletedAt = completionTime;
+                }
+            }
 
             await SyncProjectStatusAsync(milestone.ProjectId);
 
