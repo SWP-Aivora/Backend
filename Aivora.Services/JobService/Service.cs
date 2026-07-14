@@ -177,17 +177,6 @@ public class Service : IService
         return await GetJobByIdAsync(job.Id);
     }
 
-    public async Task<bool> DeleteJobAsync(Guid clientId, Guid jobId)
-    {
-        var job = await _dbContext.JobPosts.FirstOrDefaultAsync(j => j.Id == jobId && j.ClientId == clientId);
-        if (job == null) throw new NotFoundException("Job not found or access denied.");
-        if (job.Status != JobStatus.DRAFT) throw new ValidationException("Only draft jobs can be deleted.");
-
-        _dbContext.JobPosts.Remove(job);
-        await _dbContext.SaveChangesAsync();
-        return true;
-    }
-
     public async Task<Response.JobResponse> PublishJobAsync(Guid clientId, Guid jobId)
     {
         var job = await _dbContext.JobPosts.FirstOrDefaultAsync(j => j.Id == jobId && j.ClientId == clientId);
@@ -200,6 +189,8 @@ public class Service : IService
         await _dbContext.SaveChangesAsync();
 
         await _realtimeService.SendJobStatusUpdateAsync(clientId, job.Id, JobStatus.OPEN, job.Title);
+        // Notify users that a new job has been published
+        await _realtimeService.SendNewJobPublishedAsync(job.Id, job.Title);
 
         return await GetJobByIdAsync(job.Id);
     }
@@ -461,6 +452,17 @@ public class Service : IService
         }
 
         return normalized;
+    }
+
+    public async Task<bool> DeleteJobAsync(Guid clientId, Guid jobId)
+    {
+        var job = await _dbContext.JobPosts.FirstOrDefaultAsync(j => j.Id == jobId && j.ClientId == clientId);
+        if (job == null) throw new NotFoundException("Job not found or access denied.");
+        if (job.Status != JobStatus.DRAFT) throw new ValidationException("Only draft jobs can be deleted.");
+
+        _dbContext.JobPosts.Remove(job);
+        await _dbContext.SaveChangesAsync();
+        return true;
     }
 
 }
