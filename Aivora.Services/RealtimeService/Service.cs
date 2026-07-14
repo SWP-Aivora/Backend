@@ -37,4 +37,9 @@ public class Service : IService
         }
         return Task.WhenAll(tasks);
     }
+
+    public async Task SendNewJobPublishedAsync(Guid jobId, string title)
+    {
+        await _hubContext.Clients.All.SendAsync("NewJobPublished", new { JobId = jobId, Title = title });
+    }
 }
