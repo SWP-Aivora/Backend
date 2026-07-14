@@ -200,6 +200,7 @@ public class Service : IService
         await _dbContext.SaveChangesAsync();
 
         await _realtimeService.SendJobStatusUpdateAsync(clientId, job.Id, JobStatus.OPEN, job.Title);
+        // Notify users that a new job has been published
         await _realtimeService.SendNewJobPublishedAsync(job.Id, job.Title);
 
         return await GetJobByIdAsync(job.Id);
