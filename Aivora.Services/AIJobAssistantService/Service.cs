@@ -321,7 +321,7 @@ public class Service : IService
         var normalizedInput = categoryName.Trim();
         var data = await _categoryService.GetCachedCategoryDictionaryAsync(cancellationToken);
         var match = data.FirstOrDefault(x => string.Equals(x.Value?.Trim(), normalizedInput, StringComparison.OrdinalIgnoreCase));
-        
+
         if (match.Key != Guid.Empty)
         {
             return match.Key;
