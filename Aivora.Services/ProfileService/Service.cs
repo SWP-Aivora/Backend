@@ -69,10 +69,11 @@ public class Service : IService
         if (profile == null) throw new NotFoundException("Expert profile not found.");
         if (profile.User == null) throw new NotFoundException("User associated with expert profile not found.");
 
-        return MapToExpertProfileResponse(profile);
+        var counts = await GetCompletedProjectCountsAsync(new[] { profile.UserId });
+        return MapToExpertProfileResponse(profile, counts.GetValueOrDefault(profile.UserId));
     }
 
-    private static Response.ExpertProfileResponse MapToExpertProfileResponse(ExpertProfile profile)
+    private static Response.ExpertProfileResponse MapToExpertProfileResponse(ExpertProfile profile, int completedProjects)
     {
         return new Response.ExpertProfileResponse
         {
@@ -86,7 +87,7 @@ public class Service : IService
             AvailabilityStatus = profile.AvailabilityStatus,
             Rating = profile.Rating,
             TotalReviews = profile.TotalReviews,
-            CompletedProjects = profile.CompletedProjects,
+            CompletedProjects = completedProjects,
             SuccessRate = profile.SuccessRate,
             Skills = profile.ExpertSkills.Select(es => new Response.ExpertSkillResponse
             {
@@ -95,6 +96,18 @@ public class Service : IService
                 ProficiencyLevel = (int)es.Level
             }).ToList()
         };
+    }
+
+    // Real-time completed-project count per expert (Project.ExpertId == ExpertProfile.UserId),
+    // batched to avoid N+1 across list endpoints. ExpertProfile.CompletedProjects itself is left
+    // untouched — RecommendationService still reads it as a dispute-rate denominator.
+    private async Task<Dictionary<Guid, int>> GetCompletedProjectCountsAsync(IReadOnlyCollection<Guid> expertUserIds)
+    {
+        return await _dbContext.Projects.AsNoTracking()
+            .Where(p => expertUserIds.Contains(p.ExpertId) && p.Status == ProjectStatus.COMPLETED)
+            .GroupBy(p => p.ExpertId)
+            .Select(g => new { g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.Key, x => x.Count);
     }
 
     public async Task<Response.ExpertProfileResponse> UpdateExpertProfileAsync(Guid userId, Request.UpdateExpertProfileRequest request)
@@ -131,7 +144,8 @@ public class Service : IService
 
         await _dbContext.SaveChangesAsync();
 
-        return MapToExpertProfileResponse(profile);
+        var updateCounts = await GetCompletedProjectCountsAsync(new[] { profile.UserId });
+        return MapToExpertProfileResponse(profile, updateCounts.GetValueOrDefault(profile.UserId));
     }
 
     public async Task<IdentityService.Response.UserResponse> UpdateUserAsync(Guid userId, Request.UpdateUserRequest request)
@@ -178,7 +192,8 @@ public class Service : IService
         if (profile == null) throw new NotFoundException("Expert profile not found.");
         if (profile.User == null) throw new NotFoundException("User associated with expert profile not found.");
 
-        return MapToExpertProfileResponse(profile);
+        var publicCounts = await GetCompletedProjectCountsAsync(new[] { profile.UserId });
+        return MapToExpertProfileResponse(profile, publicCounts.GetValueOrDefault(profile.UserId));
     }
 
     public async Task<List<Response.ExpertProfileResponse>> GetFeaturedExpertsAsync(int count)
@@ -192,7 +207,8 @@ public class Service : IService
             .Take(count)
             .ToListAsync();
 
-        return profiles.Select(MapToExpertProfileResponse).ToList();
+        var featuredCounts = await GetCompletedProjectCountsAsync(profiles.Select(p => p.UserId).ToList());
+        return profiles.Select(p => MapToExpertProfileResponse(p, featuredCounts.GetValueOrDefault(p.UserId))).ToList();
     }
 
     public async Task<Response.PaginatedExpertListResponse> SearchExpertsAsync(Request.SearchExpertsRequest request)
@@ -233,7 +249,8 @@ public class Service : IService
             .ToListAsync();
 
         // Transform response with standardized skills
-        var expertResponses = experts.Select(MapToExpertProfileResponse).ToList();
+        var searchCounts = await GetCompletedProjectCountsAsync(experts.Select(p => p.UserId).ToList());
+        var expertResponses = experts.Select(p => MapToExpertProfileResponse(p, searchCounts.GetValueOrDefault(p.UserId))).ToList();
 
         return new Response.PaginatedExpertListResponse
         {
