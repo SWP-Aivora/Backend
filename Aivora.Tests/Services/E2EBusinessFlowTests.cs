@@ -285,7 +285,7 @@ public class E2EBusinessFlowTests
             suggestionProviderMock.Object,
             refinementProviderMock.Object,
             serviceDescriptionProviderMock.Object,
-            new Aivora.Services.CategoryService.Service(dbContext, new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions())),
+            new Aivora.Services.CategoryService.Service(dbContext),
             new Microsoft.Extensions.Logging.Abstractions.NullLogger<Aivora.Services.AIJobAssistantService.Service>());
 
         // ----------------------------------------------------
