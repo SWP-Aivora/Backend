@@ -33,4 +33,6 @@ public class AIJobSuggestion : AuditableBaseEntity
     // Navigation Properties
     public virtual User Client { get; set; } = null!;
     public virtual JobPost? Job { get; set; }
+    public Guid? SuggestedCategoryId { get; set; }
+    public virtual Category? SuggestedCategory { get; set; }
 }

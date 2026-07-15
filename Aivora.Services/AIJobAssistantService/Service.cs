@@ -88,13 +88,12 @@ public class Service : IService
         };
 
         ApplyDraft(suggestion, draft, updateRiskWarnings: true);
+        suggestion.SuggestedCategoryId = mappedCategoryId;
         ValidateSuggestionShape(suggestion);
         _dbContext.AIJobSuggestions.Add(suggestion);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        var response = MapToResponse(suggestion);
-        response.CategoryId = mappedCategoryId;
-        return response;
+        return MapToResponse(suggestion);
     }
 
     public async Task<Response.SuggestionResponse> GetSuggestionAsync(Guid clientId, Guid suggestionId, CancellationToken cancellationToken = default)
@@ -149,15 +148,15 @@ public class Service : IService
             mappedCategoryId = await ValidateAndNormalizeCategoryNameAsync(refinement.Suggestion.CategoryName, "refinement", cancellationToken);
 
             ApplyDraft(suggestion, refinement.Suggestion, updateRiskWarnings: true);
+            if (mappedCategoryId != null)
+            {
+                suggestion.SuggestedCategoryId = mappedCategoryId;
+            }
             ValidateSuggestionShape(suggestion);
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
 
         var response = MapToResponse(suggestion);
-        if (mappedCategoryId.HasValue)
-        {
-            response.CategoryId = mappedCategoryId;
-        }
 
         return new Response.RefineSuggestionResponse
         {
@@ -325,7 +324,7 @@ public class Service : IService
             RawInput = s.RawInput,
             SuggestedTitle = s.SuggestedTitle,
             SuggestedDescription = s.SuggestedDescription,
-            CategoryId = null,
+            CategoryId = s.SuggestedCategoryId,
             BusinessDomain = s.SuggestedBusinessDomain,
             ExpectedOutcome = s.SuggestedExpectedOutcome,
             BudgetType = s.SuggestedBudgetType,
