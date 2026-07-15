@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using Aivora.Repositories.Enums;
 using Aivora.Services.Exceptions;
+using Microsoft.Extensions.Logging;
 
 namespace Aivora.Services.AIJobAssistantService.Parsing;
 
