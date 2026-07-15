@@ -14,6 +14,7 @@ public class AIServiceGeneratorTests
     private readonly Mock<IAIJobSuggestionProvider> _suggestionProviderMock = new();
     private readonly Mock<IAIJobRefinementProvider> _refinementProviderMock = new();
     private readonly Mock<IAIServiceDescriptionProvider> _serviceDescriptionProviderMock = new();
+    private readonly Mock<Aivora.Services.CategoryService.IService> _categoryServiceMock = new();
 
     [Theory]
     [InlineData("")]
@@ -129,13 +130,16 @@ public class AIServiceGeneratorTests
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .Options;
 
+        _categoryServiceMock.Setup(c => c.GetCachedCategoryDictionaryAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, string>());
+
         return new Service(
             new AivoraDbContext(options),
             _jobServiceMock.Object,
             _suggestionProviderMock.Object,
             _refinementProviderMock.Object,
             _serviceDescriptionProviderMock.Object,
-            new Aivora.Services.CategoryService.Service(new AivoraDbContext(options), new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions())),
+            _categoryServiceMock.Object,
             new Microsoft.Extensions.Logging.Abstractions.NullLogger<Service>(),
             Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.ExchangeRateOptions()));
     }

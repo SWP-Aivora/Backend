@@ -439,13 +439,17 @@ public class Flow1JobCreationAndRecommendationTests
             .ReturnsAsync(createdJob);
 
         // Create AI service with mocks
+        var mockCategoryService = new Mock<Aivora.Services.CategoryService.IService>();
+        mockCategoryService.Setup(c => c.GetCachedCategoryDictionaryAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, string> { { category.Id, category.Name } });
+
         var aiService = new Aivora.Services.AIJobAssistantService.Service(
             dbContext,
             mockJobService.Object,
             mockSuggestionProvider.Object,
             mockRefinementProvider.Object,
             mockServiceDescriptionProvider.Object,
-            new Aivora.Services.CategoryService.Service(dbContext, new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions())),
+            mockCategoryService.Object,
             new Microsoft.Extensions.Logging.Abstractions.NullLogger<Aivora.Services.AIJobAssistantService.Service>(),
             Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.ExchangeRateOptions()));
 
