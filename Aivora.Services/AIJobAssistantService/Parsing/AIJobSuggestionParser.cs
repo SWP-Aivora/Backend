@@ -4,7 +4,7 @@ namespace Aivora.Services.AIJobAssistantService.Parsing;
 
 public class AIJobSuggestionParser
 {
-    public AIJobSuggestionDraft Parse(string providerText, Request.GenerateSuggestionRequest request)
+    public AIJobSuggestionDraft Parse(string providerText, Request.GenerateSuggestionRequest request, Microsoft.Extensions.Logging.ILogger? logger = null)
     {
         using var document = AIJsonParser.ParseObject(providerText);
         var fallback = new AIJobSuggestionDraft
@@ -26,7 +26,7 @@ public class AIJobSuggestionParser
             AIModel = "Gemini 2.5 Flash"
         };
 
-        var draft = AIJsonParser.ParseSuggestionDraft(document.RootElement, fallback);
+        var draft = AIJsonParser.ParseSuggestionDraft(document.RootElement, fallback, logger);
         draft.AIModel = "Gemini 2.5 Flash";
         return draft;
     }

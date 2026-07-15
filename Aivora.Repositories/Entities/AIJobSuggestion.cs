@@ -29,7 +29,7 @@ public class AIJobSuggestion : AuditableBaseEntity
     public string? AIModel { get; set; }
     public AIJobSuggestionStatus Status { get; set; } = AIJobSuggestionStatus.GENERATED;
     public string? RejectionReason { get; set; }
-    
+
     public Guid? SuggestedCategoryId { get; set; }
 
     // Navigation Properties

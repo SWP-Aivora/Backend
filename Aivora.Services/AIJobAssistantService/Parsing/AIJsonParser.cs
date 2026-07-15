@@ -13,7 +13,7 @@ internal static class AIJsonParser
         return JsonDocument.Parse(json);
     }
 
-    public static AIJobSuggestionDraft ParseSuggestionDraft(JsonElement element, AIJobSuggestionDraft fallback)
+    public static AIJobSuggestionDraft ParseSuggestionDraft(JsonElement element, AIJobSuggestionDraft fallback, Microsoft.Extensions.Logging.ILogger? logger = null)
     {
         var questions = ReadStringList(element, "clarifyingQuestions");
         if (questions.Count == 0)
@@ -36,7 +36,7 @@ internal static class AIJsonParser
         {
             SuggestedTitle = GetString(element, "suggestedTitle") ?? fallback.SuggestedTitle,
             SuggestedDescription = GetString(element, "suggestedDescription") ?? fallback.SuggestedDescription,
-            CategoryId = GetGuid(element, "categoryId") ?? fallback.CategoryId,
+            CategoryId = GetGuid(element, "categoryId", logger) ?? fallback.CategoryId,
             BusinessDomain = GetString(element, "businessDomain") ?? GetString(element, "suggestedBusinessDomain") ?? fallback.BusinessDomain,
             ExpectedOutcome = GetString(element, "expectedOutcome") ?? GetString(element, "suggestedExpectedOutcome") ?? fallback.ExpectedOutcome,
             BudgetType = GetBudgetType(element) ?? fallback.BudgetType,
@@ -71,10 +71,21 @@ internal static class AIJsonParser
         };
     }
 
-    public static Guid? GetGuid(JsonElement element, string name)
+    public static Guid? GetGuid(JsonElement element, string name, Microsoft.Extensions.Logging.ILogger? logger = null)
     {
         var value = GetString(element, name);
-        return Guid.TryParse(value, out var parsed) ? parsed : null;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        if (Guid.TryParse(value, out var parsed))
+        {
+            return parsed;
+        }
+
+        logger?.LogWarning("AI returned an invalid Guid for field '{Field}': {Value}", name, value);
+        return null;
     }
 
     public static decimal? GetDecimal(JsonElement element, string name)
