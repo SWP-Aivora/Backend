@@ -293,16 +293,21 @@ public class Service : IService
         }
     }
 
-    private async Task<string> GetCategoriesContextAsync(CancellationToken cancellationToken)
+    private async Task<Dictionary<Guid, string>> GetCachedCategoriesDataAsync(CancellationToken cancellationToken)
     {
-        return await _cache.GetOrCreateAsync("AICategoriesContext", async entry =>
+        return await _cache.GetOrCreateAsync("AICategoriesData", async entry =>
         {
             entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(15);
-            var categories = await _dbContext.Categories
-                .Select(c => new { c.Id, c.Name })
-                .ToListAsync(cancellationToken);
-            return JsonSerializer.Serialize(categories, _jsonSerializerOptions);
-        }) ?? "[]";
+            return await _dbContext.Categories
+                .ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken);
+        }) ?? new Dictionary<Guid, string>();
+    }
+
+    private async Task<string> GetCategoriesContextAsync(CancellationToken cancellationToken)
+    {
+        var data = await GetCachedCategoriesDataAsync(cancellationToken);
+        var categories = data.Select(kvp => new { Id = kvp.Key, Name = kvp.Value });
+        return JsonSerializer.Serialize(categories, _jsonSerializerOptions);
     }
 
     private static Response.SuggestionResponse MapToResponse(AIJobSuggestion s)
@@ -510,14 +515,9 @@ public class Service : IService
     {
         if (!categoryId.HasValue) return null;
 
-        var validIds = await _cache.GetOrCreateAsync("AICategoryIds", async entry =>
-        {
-            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(15);
-            var ids = await _dbContext.Categories.Select(c => c.Id).ToListAsync(cancellationToken);
-            return new HashSet<Guid>(ids);
-        });
+        var data = await GetCachedCategoriesDataAsync(cancellationToken);
 
-        if (validIds != null && validIds.Contains(categoryId.Value))
+        if (data.ContainsKey(categoryId.Value))
         {
             return categoryId.Value;
         }
