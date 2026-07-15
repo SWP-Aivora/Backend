@@ -16,7 +16,8 @@ public class AIJobSuggestionPromptBuilder
             request.BudgetMin,
             request.BudgetMax,
             request.TimelineDays,
-            request.ExperienceLevel
+            request.ExperienceLevel,
+            AvailableCategories = request.CategoriesContext
         };
 
         return $$"""
@@ -29,6 +30,7 @@ public class AIJobSuggestionPromptBuilder
             {
               "suggestedTitle": "concise job title",
               "suggestedDescription": "official detailed job description",
+              "categoryName": "exact name of the closest matching category",
               "businessDomain": "business vertical",
               "expectedOutcome": "project outcome",
               "budgetType": "FIXED or HOURLY",

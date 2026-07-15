@@ -125,6 +125,7 @@ public static class ServiceCollectionExtensions
     {
         services.AddHttpContextAccessor();
         services.AddJwtServices(configuration);
+        services.AddMemoryCache();
 
         services.AddScoped<IJwtService, Aivora.Services.JwtService.Service>();
         services.AddScoped<Aivora.Services.MediaService.IService, Aivora.Services.MediaService.Service>();

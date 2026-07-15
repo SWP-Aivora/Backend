@@ -6,6 +6,7 @@ using Aivora.Services.AIJobAssistantService.Parsing;
 using Aivora.Services.Exceptions;
 using Aivora.Services.Options;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Aivora.Services.AIJobAssistantService;
@@ -15,7 +16,7 @@ namespace Aivora.Services.AIJobAssistantService;
 /// </summary>
 public class Service : IService
 {
-    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
+    private static readonly JsonSerializerOptions _jsonSerializerOptions = new() { PropertyNameCaseInsensitive = true };
     private static readonly HashSet<string> AllowedTones = new(StringComparer.OrdinalIgnoreCase) { "professional", "friendly", "premium", "technical" };
     private static readonly HashSet<string> AllowedTargetClients = new(StringComparer.OrdinalIgnoreCase) { "startup", "sme", "enterprise", "individual" };
     private static readonly HashSet<string> AllowedLanguages = new(StringComparer.OrdinalIgnoreCase) { "vi", "en" };
@@ -25,6 +26,8 @@ public class Service : IService
     private readonly IAIJobSuggestionProvider _suggestionProvider;
     private readonly IAIJobRefinementProvider _refinementProvider;
     private readonly IAIServiceDescriptionProvider _serviceDescriptionProvider;
+    private readonly CategoryService.IService _categoryService;
+    private readonly Microsoft.Extensions.Logging.ILogger<Service> _logger;
     private readonly IOptions<ExchangeRateOptions> _exchangeRates;
 
     /// <summary>
@@ -42,13 +45,17 @@ public class Service : IService
         IAIJobSuggestionProvider suggestionProvider,
         IAIJobRefinementProvider refinementProvider,
         IAIServiceDescriptionProvider serviceDescriptionProvider,
-        IOptions<ExchangeRateOptions> exchangeRates)
+        CategoryService.IService categoryService,
+        Microsoft.Extensions.Logging.ILogger<Service> logger,
+        Microsoft.Extensions.Options.IOptions<ExchangeRateOptions> exchangeRates)
     {
         _dbContext = dbContext;
         _jobService = jobService;
         _suggestionProvider = suggestionProvider;
         _refinementProvider = refinementProvider;
         _serviceDescriptionProvider = serviceDescriptionProvider;
+        _categoryService = categoryService;
+        _logger = logger;
         _exchangeRates = exchangeRates;
     }
 
@@ -73,7 +80,12 @@ public class Service : IService
         request.Currency = AIJsonParser.NormalizeCurrency(request.Currency);
         ValidateBudgetAndTimeline(request.BudgetMin, request.BudgetMax, request.TimelineDays);
 
+        request.CategoriesContext = await GetCategoriesContextAsync(cancellationToken);
+
         var draft = await _suggestionProvider.GenerateSuggestionAsync(request, cancellationToken);
+
+        var mappedCategoryId = await ValidateAndNormalizeCategoryNameAsync(draft.CategoryName, "generation", cancellationToken);
+
         var suggestion = new AIJobSuggestion
         {
             ClientId = clientId,
@@ -82,6 +94,7 @@ public class Service : IService
         };
 
         ApplyDraft(suggestion, draft, updateRiskWarnings: true, _exchangeRates.Value.ToAicoin);
+        suggestion.SuggestedCategoryId = mappedCategoryId;
         ValidateSuggestionShape(suggestion);
         _dbContext.AIJobSuggestions.Add(suggestion);
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -130,18 +143,30 @@ public class Service : IService
 
         var suggestion = await LoadGeneratedSuggestionAsync(clientId, suggestionId, cancellationToken);
         var current = MapToResponse(suggestion);
-        var refinement = await _refinementProvider.RefineSuggestionAsync(current, request.Message.Trim(), cancellationToken);
+
+        request.CategoriesContext = await GetCategoriesContextAsync(cancellationToken);
+
+        var refinement = await _refinementProvider.RefineSuggestionAsync(current, request, cancellationToken);
+        Guid? mappedCategoryId = null;
 
         if (refinement.ChangedFields.Count > 0)
         {
+            mappedCategoryId = await ValidateAndNormalizeCategoryNameAsync(refinement.Suggestion.CategoryName, "refinement", cancellationToken);
+
             ApplyDraft(suggestion, refinement.Suggestion, updateRiskWarnings: true, _exchangeRates.Value.ToAicoin);
+            if (mappedCategoryId != null)
+            {
+                suggestion.SuggestedCategoryId = mappedCategoryId;
+            }
             ValidateSuggestionShape(suggestion);
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
 
+        var response = MapToResponse(suggestion);
+
         return new Response.RefineSuggestionResponse
         {
-            Suggestion = MapToResponse(suggestion),
+            Suggestion = response,
             AIResponse = refinement.AIResponse,
             ChangedFields = refinement.ChangedFields
         };
@@ -283,6 +308,29 @@ public class Service : IService
         }
     }
 
+    private async Task<string> GetCategoriesContextAsync(CancellationToken cancellationToken)
+    {
+        var data = await _categoryService.GetCachedCategoryDictionaryAsync(cancellationToken);
+        var categories = data.Values.ToList();
+        return JsonSerializer.Serialize(categories, _jsonSerializerOptions);
+    }
+
+    private async Task<Guid?> ValidateAndNormalizeCategoryNameAsync(string? categoryName, string operation, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(categoryName)) return null;
+        var normalizedInput = categoryName.Trim();
+        var data = await _categoryService.GetCachedCategoryDictionaryAsync(cancellationToken);
+        var match = data.FirstOrDefault(x => string.Equals(x.Value?.Trim(), normalizedInput, StringComparison.OrdinalIgnoreCase));
+
+        if (match.Key != Guid.Empty)
+        {
+            return match.Key;
+        }
+
+        _logger.LogWarning("AI returned an invalid CategoryName '{CategoryName}' during {Operation} operation. It could not be mapped to any existing category.", categoryName, operation);
+        return null;
+    }
+
     private static Response.SuggestionResponse MapToResponse(AIJobSuggestion s)
     {
         return new Response.SuggestionResponse
@@ -293,6 +341,7 @@ public class Service : IService
             RawInput = s.RawInput,
             SuggestedTitle = s.SuggestedTitle,
             SuggestedDescription = s.SuggestedDescription,
+            CategoryId = s.SuggestedCategoryId,
             BusinessDomain = s.SuggestedBusinessDomain,
             ExpectedOutcome = s.SuggestedExpectedOutcome,
             BudgetType = s.SuggestedBudgetType,
@@ -406,7 +455,7 @@ public class Service : IService
 
     private static string SerializeList<T>(IEnumerable<T> values)
     {
-        return JsonSerializer.Serialize(values, JsonOptions);
+        return JsonSerializer.Serialize(values, _jsonSerializerOptions);
     }
 
     private static List<T> DeserializeList<T>(string? json)
@@ -418,7 +467,7 @@ public class Service : IService
 
         try
         {
-            return JsonSerializer.Deserialize<List<T>>(json, JsonOptions) ?? new List<T>();
+            return JsonSerializer.Deserialize<List<T>>(json, _jsonSerializerOptions) ?? new List<T>();
         }
         catch (JsonException)
         {
@@ -482,4 +531,5 @@ public class Service : IService
             .Distinct()
             .ToList();
     }
+
 }

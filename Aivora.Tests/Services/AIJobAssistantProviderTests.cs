@@ -146,7 +146,7 @@ public class AIJobAssistantProviderTests
             new MockAIJobRefinementProvider(),
             NullLogger<GeminiAIJobRefinementProvider>.Instance);
 
-        var result = await provider.RefineSuggestionAsync(BuildCurrentSuggestion(), "budget 100 200");
+        var result = await provider.RefineSuggestionAsync(BuildCurrentSuggestion(), new Request.RefineSuggestionRequest { Message = "budget 100 200", CategoriesContext = "" });
 
         result.ChangedFields.Should().Contain("suggestedBudgetMin");
         result.Suggestion.SuggestedBudgetMin.Should().Be(100);

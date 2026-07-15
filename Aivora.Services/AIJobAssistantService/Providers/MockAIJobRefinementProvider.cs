@@ -7,9 +7,9 @@ namespace Aivora.Services.AIJobAssistantService.Providers;
 
 public class MockAIJobRefinementProvider : IAIJobRefinementProvider
 {
-    public Task<AIJobRefinementDraft> RefineSuggestionAsync(Response.SuggestionResponse current, string message, CancellationToken cancellationToken = default)
+    public Task<AIJobRefinementDraft> RefineSuggestionAsync(Response.SuggestionResponse current, Request.RefineSuggestionRequest request, CancellationToken cancellationToken = default)
     {
-        var trimmedMessage = message.Trim();
+        var trimmedMessage = request.Message.Trim();
         var lower = trimmedMessage.ToLowerInvariant();
         var updated = AIJobSuggestionDraft.FromResponse(current);
         var changedFields = new List<string>();

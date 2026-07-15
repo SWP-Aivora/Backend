@@ -2,7 +2,7 @@ namespace Aivora.Services.AIJobAssistantService.Parsing;
 
 public class AIJobRefinementParser
 {
-    public AIJobRefinementDraft Parse(string providerText, Response.SuggestionResponse current)
+    public AIJobRefinementDraft Parse(string providerText, Response.SuggestionResponse current, Microsoft.Extensions.Logging.ILogger? logger = null)
     {
         using var document = AIJsonParser.ParseObject(providerText);
         var root = document.RootElement;
@@ -14,7 +14,7 @@ public class AIJobRefinementParser
         var changedFields = AIJsonParser.ReadStringList(root, "changedFields");
         var draft = changedFields.Count == 0
             ? fallback
-            : AIJsonParser.ParseSuggestionDraft(suggestionElement, fallback);
+            : AIJsonParser.ParseSuggestionDraft(suggestionElement, fallback, logger);
 
         draft.AIModel = current.AIModel ?? fallback.AIModel;
 

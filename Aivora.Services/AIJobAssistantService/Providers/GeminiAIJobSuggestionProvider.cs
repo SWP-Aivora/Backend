@@ -43,7 +43,7 @@ public class GeminiAIJobSuggestionProvider : IAIJobSuggestionProvider
         try
         {
             var providerText = await _client.GenerateAsync(_promptBuilder.Build(request), cancellationToken);
-            return _parser.Parse(providerText, request);
+            return _parser.Parse(providerText, request, _logger);
         }
         catch (OperationCanceledException)
         {

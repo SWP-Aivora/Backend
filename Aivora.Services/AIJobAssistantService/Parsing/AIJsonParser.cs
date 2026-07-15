@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using Aivora.Repositories.Enums;
 using Aivora.Services.Exceptions;
+using Microsoft.Extensions.Logging;
 
 namespace Aivora.Services.AIJobAssistantService.Parsing;
 
@@ -13,7 +14,7 @@ internal static class AIJsonParser
         return JsonDocument.Parse(json);
     }
 
-    public static AIJobSuggestionDraft ParseSuggestionDraft(JsonElement element, AIJobSuggestionDraft fallback)
+    public static AIJobSuggestionDraft ParseSuggestionDraft(JsonElement element, AIJobSuggestionDraft fallback, Microsoft.Extensions.Logging.ILogger? logger = null)
     {
         var questions = ReadStringList(element, "clarifyingQuestions");
         if (questions.Count == 0)
@@ -36,6 +37,7 @@ internal static class AIJsonParser
         {
             SuggestedTitle = GetString(element, "suggestedTitle") ?? fallback.SuggestedTitle,
             SuggestedDescription = GetString(element, "suggestedDescription") ?? fallback.SuggestedDescription,
+            CategoryName = GetString(element, "categoryName") ?? GetString(element, "categoryId") ?? fallback.CategoryName,
             BusinessDomain = GetString(element, "businessDomain") ?? GetString(element, "suggestedBusinessDomain") ?? fallback.BusinessDomain,
             ExpectedOutcome = GetString(element, "expectedOutcome") ?? GetString(element, "suggestedExpectedOutcome") ?? fallback.ExpectedOutcome,
             BudgetType = GetBudgetType(element) ?? fallback.BudgetType,
@@ -69,6 +71,8 @@ internal static class AIJsonParser
             _ => null
         };
     }
+
+
 
     public static decimal? GetDecimal(JsonElement element, string name)
     {

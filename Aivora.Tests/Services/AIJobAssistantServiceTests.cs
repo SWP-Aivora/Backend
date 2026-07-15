@@ -18,6 +18,7 @@ public class AIJobAssistantServiceTests
     private readonly Mock<IAIJobSuggestionProvider> _suggestionProviderMock = new();
     private readonly Mock<IAIJobRefinementProvider> _refinementProviderMock = new();
     private readonly Mock<IAIServiceDescriptionProvider> _serviceDescriptionProviderMock = new();
+    private readonly Mock<Aivora.Services.CategoryService.IService> _categoryServiceMock = new();
 
     private static AivoraDbContext GetDbContext()
     {
@@ -30,12 +31,17 @@ public class AIJobAssistantServiceTests
 
     private Service CreateService(AivoraDbContext dbContext)
     {
+        _categoryServiceMock.Setup(c => c.GetCachedCategoryDictionaryAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, string>());
+
         return new Service(
             dbContext,
             _jobServiceMock.Object,
             _suggestionProviderMock.Object,
             _refinementProviderMock.Object,
             _serviceDescriptionProviderMock.Object,
+            _categoryServiceMock.Object,
+            new Microsoft.Extensions.Logging.Abstractions.NullLogger<Service>(),
             Options.Create(new ExchangeRateOptions()));
     }
 
@@ -150,7 +156,7 @@ public class AIJobAssistantServiceTests
         await dbContext.SaveChangesAsync();
 
         _refinementProviderMock
-            .Setup(x => x.RefineSuggestionAsync(It.IsAny<Response.SuggestionResponse>(), "explain the budget", It.IsAny<CancellationToken>()))
+            .Setup(x => x.RefineSuggestionAsync(It.IsAny<Response.SuggestionResponse>(), It.Is<Request.RefineSuggestionRequest>(r => r.Message == "explain the budget"), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AIJobRefinementDraft
             {
                 Suggestion = AIJobSuggestionDraft.FromResponse(new Response.SuggestionResponse
@@ -196,7 +202,7 @@ public class AIJobAssistantServiceTests
         draft.ClarifyingAnswers = new List<string> { "Use Stripe" };
 
         _refinementProviderMock
-            .Setup(x => x.RefineSuggestionAsync(It.IsAny<Response.SuggestionResponse>(), "update everything", It.IsAny<CancellationToken>()))
+            .Setup(x => x.RefineSuggestionAsync(It.IsAny<Response.SuggestionResponse>(), It.Is<Request.RefineSuggestionRequest>(r => r.Message == "update everything"), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AIJobRefinementDraft
             {
                 Suggestion = draft,
