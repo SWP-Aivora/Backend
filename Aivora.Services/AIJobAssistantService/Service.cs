@@ -14,7 +14,7 @@ namespace Aivora.Services.AIJobAssistantService;
 /// </summary>
 public class Service : IService
 {
-
+    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
     private static readonly HashSet<string> AllowedTones = new(StringComparer.OrdinalIgnoreCase) { "professional", "friendly", "premium", "technical" };
     private static readonly HashSet<string> AllowedTargetClients = new(StringComparer.OrdinalIgnoreCase) { "startup", "sme", "enterprise", "individual" };
     private static readonly HashSet<string> AllowedLanguages = new(StringComparer.OrdinalIgnoreCase) { "vi", "en" };
@@ -288,11 +288,11 @@ public class Service : IService
     {
         return await _cache.GetOrCreateAsync("AICategoriesContext", async entry =>
         {
-            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(24);
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(15);
             var categories = await _dbContext.Categories
                 .Select(c => new { c.Id, c.Name })
                 .ToListAsync(cancellationToken);
-            return JsonSerializer.Serialize(categories, JsonSerializerOptions.Default);
+            return JsonSerializer.Serialize(categories, JsonOptions);
         }) ?? "[]";
     }
 
@@ -420,7 +420,7 @@ public class Service : IService
 
     private static string SerializeList<T>(IEnumerable<T> values)
     {
-        return JsonSerializer.Serialize(values, JsonSerializerOptions.Default);
+        return JsonSerializer.Serialize(values, JsonOptions);
     }
 
     private static List<T> DeserializeList<T>(string? json)
@@ -432,7 +432,7 @@ public class Service : IService
 
         try
         {
-            return JsonSerializer.Deserialize<List<T>>(json, JsonSerializerOptions.Default) ?? new List<T>();
+            return JsonSerializer.Deserialize<List<T>>(json, JsonOptions) ?? new List<T>();
         }
         catch (JsonException)
         {
