@@ -78,7 +78,7 @@ public class Service : IService
         request.CategoriesContext = await GetCategoriesContextAsync(cancellationToken);
 
         var draft = await _suggestionProvider.GenerateSuggestionAsync(request, cancellationToken);
-        
+
         if (draft.CategoryId.HasValue)
         {
             var categoryExists = await _dbContext.Categories.AnyAsync(c => c.Id == draft.CategoryId.Value, cancellationToken);
