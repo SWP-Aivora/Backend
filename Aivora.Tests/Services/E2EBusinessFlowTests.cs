@@ -284,7 +284,8 @@ public class E2EBusinessFlowTests
             jobService,
             suggestionProviderMock.Object,
             refinementProviderMock.Object,
-            serviceDescriptionProviderMock.Object);
+            serviceDescriptionProviderMock.Object,
+            Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.ExchangeRateOptions()));
 
         // ----------------------------------------------------
         // 1. Client generates AI Suggestion

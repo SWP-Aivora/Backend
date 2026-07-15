@@ -1,8 +1,11 @@
 using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
+using Aivora.Services.AIJobAssistantService.Parsing;
 using Aivora.Services.Exceptions;
+using Aivora.Services.Options;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Aivora.Services.AIJobRefinementService;
 
@@ -11,15 +14,18 @@ public class Service : IService
     private readonly AivoraDbContext _dbContext;
     private readonly JobService.IService _jobService;
     private readonly IAIJobRefinementProvider _refinementProvider;
+    private readonly IOptions<ExchangeRateOptions> _exchangeRates;
 
     public Service(
         AivoraDbContext dbContext,
         JobService.IService jobService,
-        IAIJobRefinementProvider refinementProvider)
+        IAIJobRefinementProvider refinementProvider,
+        IOptions<ExchangeRateOptions> exchangeRates)
     {
         _dbContext = dbContext;
         _jobService = jobService;
         _refinementProvider = refinementProvider;
+        _exchangeRates = exchangeRates;
     }
 
     public async Task<Response.JobRefinementResponse> RefineJobAsync(Guid clientId, Guid jobId, Request.RefineJobRequest request, CancellationToken cancellationToken = default)
@@ -46,7 +52,7 @@ public class Service : IService
 
         if (draft.ChangedFields.Count > 0)
         {
-            ApplyDraft(_dbContext, job, draft);
+            ApplyDraft(_dbContext, job, draft, _exchangeRates.Value.ToAicoin);
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
 
@@ -60,8 +66,11 @@ public class Service : IService
         };
     }
 
-    private static void ApplyDraft(AivoraDbContext dbContext, JobPost job, AIJobRefinementDraft draft)
+    private static void ApplyDraft(AivoraDbContext dbContext, JobPost job, AIJobRefinementDraft draft, IReadOnlyDictionary<string, decimal> ratesToAicoin)
     {
+        var (aicoinCurrency, aicoinBudgetMin, aicoinBudgetMax, aicoinMilestones) = CurrencyConverter.ConvertToAicoin(
+            draft.Currency, draft.BudgetMin, draft.BudgetMax, draft.Milestones, ratesToAicoin);
+
         foreach (var field in draft.ChangedFields)
         {
             switch (field)
@@ -89,12 +98,12 @@ public class Service : IService
                     break;
                 case "currency":
                     if (!string.IsNullOrWhiteSpace(draft.Currency))
-                        job.Currency = draft.Currency.Trim().ToUpperInvariant();
+                        job.Currency = aicoinCurrency;
                     break;
                 case "budgetMin":
                 case "budgetMax":
-                    if (draft.BudgetMin.HasValue) job.BudgetMin = draft.BudgetMin.Value;
-                    if (draft.BudgetMax.HasValue) job.BudgetMax = draft.BudgetMax.Value;
+                    if (aicoinBudgetMin.HasValue) job.BudgetMin = aicoinBudgetMin.Value;
+                    if (aicoinBudgetMax.HasValue) job.BudgetMax = aicoinBudgetMax.Value;
                     break;
                 case "timelineDays":
                     if (draft.TimelineDays.HasValue)
@@ -130,14 +139,14 @@ public class Service : IService
                     }
                     break;
                 case "milestones":
-                    if (draft.Milestones.Count > 0)
+                    if (aicoinMilestones.Count > 0)
                     {
                         // Delete old milestones via DbSet, then insert new ones
                         var oldMilestones = dbContext.JobPostMilestones
                             .Where(m => m.JobPostId == job.Id)
                             .ToList();
                         dbContext.JobPostMilestones.RemoveRange(oldMilestones);
-                        var newMilestones = draft.Milestones.Select((m, index) => new JobPostMilestone
+                        var newMilestones = aicoinMilestones.Select((m, index) => new JobPostMilestone
                         {
                             JobPostId = job.Id,
                             Title = m.Title,

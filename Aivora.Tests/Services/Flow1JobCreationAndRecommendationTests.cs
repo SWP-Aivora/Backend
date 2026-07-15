@@ -444,7 +444,8 @@ public class Flow1JobCreationAndRecommendationTests
             mockJobService.Object,
             mockSuggestionProvider.Object,
             mockRefinementProvider.Object,
-            mockServiceDescriptionProvider.Object);
+            mockServiceDescriptionProvider.Object,
+            Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.ExchangeRateOptions()));
 
         // ----------------------------------------------------
         // Act: Generate AI suggestion
