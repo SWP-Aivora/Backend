@@ -59,6 +59,8 @@ public class Service : IService
         _dbContext.Categories.Add(category);
         await _dbContext.SaveChangesAsync();
 
+        _cache.Remove("AICategoriesData");
+
         return new Response.CategoryResponse
         {
             Id = category.Id,
