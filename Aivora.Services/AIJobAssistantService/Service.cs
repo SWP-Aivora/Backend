@@ -79,15 +79,7 @@ public class Service : IService
 
         var draft = await _suggestionProvider.GenerateSuggestionAsync(request, cancellationToken);
 
-        if (draft.CategoryId.HasValue)
-        {
-            var categoryExists = await _dbContext.Categories.AnyAsync(c => c.Id == draft.CategoryId.Value, cancellationToken);
-            if (!categoryExists)
-            {
-                _logger.LogWarning("AI hallucinated or provided an invalid CategoryId: {CategoryId}. Setting to null.", draft.CategoryId.Value);
-                draft.CategoryId = null;
-            }
-        }
+        draft.CategoryId = await ValidateAndNormalizeCategoryIdAsync(draft.CategoryId, "generation", cancellationToken);
 
         var suggestion = new AIJobSuggestion
         {
@@ -152,15 +144,7 @@ public class Service : IService
 
         if (refinement.ChangedFields.Count > 0)
         {
-            if (refinement.Suggestion.CategoryId.HasValue)
-            {
-                var categoryExists = await _dbContext.Categories.AnyAsync(c => c.Id == refinement.Suggestion.CategoryId.Value, cancellationToken);
-                if (!categoryExists)
-                {
-                    _logger.LogWarning("AI hallucinated or provided an invalid CategoryId during refinement: {CategoryId}. Setting to null.", refinement.Suggestion.CategoryId.Value);
-                    refinement.Suggestion.CategoryId = null;
-                }
-            }
+            refinement.Suggestion.CategoryId = await ValidateAndNormalizeCategoryIdAsync(refinement.Suggestion.CategoryId, "refinement", cancellationToken);
 
             ApplyDraft(suggestion, refinement.Suggestion, updateRiskWarnings: true);
             ValidateSuggestionShape(suggestion);
@@ -520,5 +504,25 @@ public class Service : IService
             .Where(id => id != Guid.Empty)
             .Distinct()
             .ToList();
+    }
+
+    private async Task<Guid?> ValidateAndNormalizeCategoryIdAsync(Guid? categoryId, string context, CancellationToken cancellationToken)
+    {
+        if (!categoryId.HasValue) return null;
+
+        var validIds = await _cache.GetOrCreateAsync("AICategoryIds", async entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(15);
+            var ids = await _dbContext.Categories.Select(c => c.Id).ToListAsync(cancellationToken);
+            return new HashSet<Guid>(ids);
+        });
+
+        if (validIds != null && validIds.Contains(categoryId.Value))
+        {
+            return categoryId.Value;
+        }
+
+        _logger.LogWarning("AI hallucinated or provided an invalid CategoryId during {Context}: {CategoryId}. Setting to null.", context, categoryId.Value);
+        return null;
     }
 }
