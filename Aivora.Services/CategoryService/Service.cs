@@ -2,16 +2,19 @@ using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Services.Exceptions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Aivora.Services.CategoryService;
 
 public class Service : IService
 {
     private readonly AivoraDbContext _dbContext;
+    private readonly IMemoryCache _cache;
 
-    public Service(AivoraDbContext dbContext)
+    public Service(AivoraDbContext dbContext, IMemoryCache cache)
     {
         _dbContext = dbContext;
+        _cache = cache;
     }
 
     public async Task<List<Response.CategoryResponse>> GetCategoriesAsync()
@@ -63,5 +66,15 @@ public class Service : IService
             Description = category.Description,
             ParentId = category.ParentId
         };
+    }
+
+    public async Task<Dictionary<Guid, string>> GetCachedCategoryDictionaryAsync(CancellationToken cancellationToken = default)
+    {
+        return await _cache.GetOrCreateAsync("AICategoriesData", async entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(15);
+            return await _dbContext.Categories
+                .ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken);
+        }) ?? new Dictionary<Guid, string>();
     }
 }

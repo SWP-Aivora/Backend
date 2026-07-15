@@ -5,7 +5,6 @@ using Aivora.Repositories.Enums;
 using Aivora.Services.AIJobAssistantService.Parsing;
 using Aivora.Services.Exceptions;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
 namespace Aivora.Services.AIJobAssistantService;
@@ -25,7 +24,7 @@ public class Service : IService
     private readonly IAIJobSuggestionProvider _suggestionProvider;
     private readonly IAIJobRefinementProvider _refinementProvider;
     private readonly IAIServiceDescriptionProvider _serviceDescriptionProvider;
-    private readonly IMemoryCache _cache;
+    private readonly CategoryService.IService _categoryService;
     private readonly Microsoft.Extensions.Logging.ILogger<Service> _logger;
 
     /// <summary>
@@ -42,7 +41,7 @@ public class Service : IService
         IAIJobSuggestionProvider suggestionProvider,
         IAIJobRefinementProvider refinementProvider,
         IAIServiceDescriptionProvider serviceDescriptionProvider,
-        IMemoryCache cache,
+        CategoryService.IService categoryService,
         Microsoft.Extensions.Logging.ILogger<Service> logger)
     {
         _dbContext = dbContext;
@@ -50,7 +49,7 @@ public class Service : IService
         _suggestionProvider = suggestionProvider;
         _refinementProvider = refinementProvider;
         _serviceDescriptionProvider = serviceDescriptionProvider;
-        _cache = cache;
+        _categoryService = categoryService;
         _logger = logger;
     }
 
@@ -293,19 +292,9 @@ public class Service : IService
         }
     }
 
-    private async Task<Dictionary<Guid, string>> GetCachedCategoriesDataAsync(CancellationToken cancellationToken)
-    {
-        return await _cache.GetOrCreateAsync("AICategoriesData", async entry =>
-        {
-            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(15);
-            return await _dbContext.Categories
-                .ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken);
-        }) ?? new Dictionary<Guid, string>();
-    }
-
     private async Task<string> GetCategoriesContextAsync(CancellationToken cancellationToken)
     {
-        var data = await GetCachedCategoriesDataAsync(cancellationToken);
+        var data = await _categoryService.GetCachedCategoryDictionaryAsync(cancellationToken);
         var categories = data.Select(kvp => new { Id = kvp.Key, Name = kvp.Value });
         return JsonSerializer.Serialize(categories, _jsonSerializerOptions);
     }
@@ -515,7 +504,7 @@ public class Service : IService
     {
         if (!categoryId.HasValue) return null;
 
-        var data = await GetCachedCategoriesDataAsync(cancellationToken);
+        var data = await _categoryService.GetCachedCategoryDictionaryAsync(cancellationToken);
 
         if (data.ContainsKey(categoryId.Value))
         {
