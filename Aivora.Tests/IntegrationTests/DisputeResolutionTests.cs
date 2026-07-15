@@ -138,10 +138,11 @@ namespace Aivora.Tests.IntegrationTests
             Assert.NotNull(response);
             Assert.Equal(DisputeStatus.RESOLVED.ToString(), response.Status);
 
-            // Verify milestone is now SUBMITTED (unlocked)
+            // Verify milestone reverted to IN_PROGRESS (no deliverable was ever submitted,
+            // so Approve & Pay must stay locked)
             var updatedMilestone = await dbContext.Milestones.FindAsync(milestone.Id);
             Assert.NotNull(updatedMilestone);
-            Assert.Equal(MilestoneStatus.SUBMITTED, updatedMilestone.Status);
+            Assert.Equal(MilestoneStatus.IN_PROGRESS, updatedMilestone.Status);
 
             // Verify project reverted to ACTIVE
             var updatedProject = await dbContext.Projects.FindAsync(project.Id);

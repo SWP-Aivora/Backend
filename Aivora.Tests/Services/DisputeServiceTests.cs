@@ -58,9 +58,9 @@ public class DisputeServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ResolveDispute_ShouldAutoUnlockMilestone()
+    public async Task ResolveDispute_NoDeliverable_ShouldRevertToInProgress()
     {
-        // Arrange
+        // Arrange - dispute opened before Expert ever submitted a deliverable (SubmittedAt = null)
         var admin = await SeedUserAsync(UserRole.ADMIN, "admin@test.com");
         var client = await SeedUserAsync(UserRole.CLIENT, "client@test.com");
         var expert = await SeedUserAsync(UserRole.EXPERT, "expert@test.com");
@@ -74,7 +74,34 @@ public class DisputeServiceTests : IDisposable
         // Act
         await _disputeService.ResolveDisputeAsync(admin.Id, dispute.Id, request);
 
-        // Assert - milestone should be unlocked to SUBMITTED
+        // Assert - milestone must NOT unlock Approve & Pay when no deliverable was ever submitted
+        var dbMilestone = await _dbContext.Milestones.FindAsync(dispute.MilestoneId);
+        dbMilestone.Should().NotBeNull();
+        dbMilestone!.Status.Should().Be(MilestoneStatus.IN_PROGRESS);
+    }
+
+    [Fact]
+    public async Task ResolveDispute_WithDeliverable_ShouldRestoreSubmitted()
+    {
+        // Arrange - dispute opened after Expert already submitted a deliverable (SubmittedAt set)
+        var admin = await SeedUserAsync(UserRole.ADMIN, "admin@test.com");
+        var client = await SeedUserAsync(UserRole.CLIENT, "client@test.com");
+        var expert = await SeedUserAsync(UserRole.EXPERT, "expert@test.com");
+        var dispute = await SeedDisputeAsync(client.Id, expert.Id, DisputeStatus.OPEN);
+
+        var milestone = await _dbContext.Milestones.FindAsync(dispute.MilestoneId);
+        milestone!.SubmittedAt = DateTimeOffset.UtcNow;
+        await _dbContext.SaveChangesAsync();
+
+        var request = new Aivora.Services.DisputeService.Request.ResolveDisputeRequest
+        {
+            ResolutionNote = "Mediation complete"
+        };
+
+        // Act
+        await _disputeService.ResolveDisputeAsync(admin.Id, dispute.Id, request);
+
+        // Assert - deliverable exists, safe to unlock Approve & Pay
         var dbMilestone = await _dbContext.Milestones.FindAsync(dispute.MilestoneId);
         dbMilestone.Should().NotBeNull();
         dbMilestone!.Status.Should().Be(MilestoneStatus.SUBMITTED);
