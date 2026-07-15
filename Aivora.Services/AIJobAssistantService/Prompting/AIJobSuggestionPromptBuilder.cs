@@ -30,7 +30,7 @@ public class AIJobSuggestionPromptBuilder
             {
               "suggestedTitle": "concise job title",
               "suggestedDescription": "official detailed job description",
-              "categoryId": "guid of the closest matching category",
+              "categoryName": "exact name of the closest matching category",
               "businessDomain": "business vertical",
               "expectedOutcome": "project outcome",
               "budgetType": "FIXED or HOURLY",

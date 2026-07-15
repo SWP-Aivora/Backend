@@ -37,7 +37,7 @@ internal static class AIJsonParser
         {
             SuggestedTitle = GetString(element, "suggestedTitle") ?? fallback.SuggestedTitle,
             SuggestedDescription = GetString(element, "suggestedDescription") ?? fallback.SuggestedDescription,
-            CategoryId = GetGuid(element, "categoryId", logger) ?? fallback.CategoryId,
+            CategoryName = GetString(element, "categoryName") ?? GetString(element, "categoryId") ?? fallback.CategoryName,
             BusinessDomain = GetString(element, "businessDomain") ?? GetString(element, "suggestedBusinessDomain") ?? fallback.BusinessDomain,
             ExpectedOutcome = GetString(element, "expectedOutcome") ?? GetString(element, "suggestedExpectedOutcome") ?? fallback.ExpectedOutcome,
             BudgetType = GetBudgetType(element) ?? fallback.BudgetType,

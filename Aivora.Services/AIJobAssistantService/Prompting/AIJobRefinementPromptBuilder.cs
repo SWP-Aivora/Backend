@@ -21,7 +21,7 @@ public class AIJobRefinementPromptBuilder
               "updatedSuggestion": {
                 "suggestedTitle": "title",
                 "suggestedDescription": "description",
-                "categoryId": "guid of the closest matching category",
+                "categoryName": "exact name of the closest matching category",
                 "businessDomain": "domain",
                 "expectedOutcome": "outcome",
                 "budgetType": "FIXED or HOURLY",

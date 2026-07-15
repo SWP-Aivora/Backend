@@ -78,7 +78,7 @@ public class Service : IService
 
         var draft = await _suggestionProvider.GenerateSuggestionAsync(request, cancellationToken);
 
-        draft.CategoryId = await ValidateAndNormalizeCategoryIdAsync(draft.CategoryId, "generation", cancellationToken);
+        var mappedCategoryId = await ValidateAndNormalizeCategoryNameAsync(draft.CategoryName, "generation", cancellationToken);
 
         var suggestion = new AIJobSuggestion
         {
@@ -92,7 +92,9 @@ public class Service : IService
         _dbContext.AIJobSuggestions.Add(suggestion);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        return MapToResponse(suggestion);
+        var response = MapToResponse(suggestion);
+        response.CategoryId = mappedCategoryId;
+        return response;
     }
 
     public async Task<Response.SuggestionResponse> GetSuggestionAsync(Guid clientId, Guid suggestionId, CancellationToken cancellationToken = default)
@@ -140,19 +142,26 @@ public class Service : IService
         request.CategoriesContext = await GetCategoriesContextAsync(cancellationToken);
 
         var refinement = await _refinementProvider.RefineSuggestionAsync(current, request, cancellationToken);
+        Guid? mappedCategoryId = null;
 
         if (refinement.ChangedFields.Count > 0)
         {
-            refinement.Suggestion.CategoryId = await ValidateAndNormalizeCategoryIdAsync(refinement.Suggestion.CategoryId, "refinement", cancellationToken);
+            mappedCategoryId = await ValidateAndNormalizeCategoryNameAsync(refinement.Suggestion.CategoryName, "refinement", cancellationToken);
 
             ApplyDraft(suggestion, refinement.Suggestion, updateRiskWarnings: true);
             ValidateSuggestionShape(suggestion);
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
 
+        var response = MapToResponse(suggestion);
+        if (mappedCategoryId.HasValue)
+        {
+            response.CategoryId = mappedCategoryId;
+        }
+
         return new Response.RefineSuggestionResponse
         {
-            Suggestion = MapToResponse(suggestion),
+            Suggestion = response,
             AIResponse = refinement.AIResponse,
             ChangedFields = refinement.ChangedFields
         };
@@ -274,7 +283,6 @@ public class Service : IService
         suggestion.SuggestedDescription = draft.SuggestedDescription;
         suggestion.SuggestedBusinessDomain = NormalizeLimited(draft.BusinessDomain, 255);
         suggestion.SuggestedExpectedOutcome = NormalizeLimited(draft.ExpectedOutcome, 1000);
-        suggestion.SuggestedCategoryId = draft.CategoryId;
         suggestion.SuggestedBudgetType = draft.BudgetType;
         suggestion.Currency = AIJsonParser.NormalizeCurrency(draft.Currency);
         suggestion.SuggestedBudgetMin = draft.SuggestedBudgetMin;
@@ -295,8 +303,16 @@ public class Service : IService
     private async Task<string> GetCategoriesContextAsync(CancellationToken cancellationToken)
     {
         var data = await _categoryService.GetCachedCategoryDictionaryAsync(cancellationToken);
-        var categories = data.Select(kvp => new { Id = kvp.Key, Name = kvp.Value });
+        var categories = data.Values.ToList();
         return JsonSerializer.Serialize(categories, _jsonSerializerOptions);
+    }
+
+    private async Task<Guid?> ValidateAndNormalizeCategoryNameAsync(string? categoryName, string operation, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(categoryName)) return null;
+        var data = await _categoryService.GetCachedCategoryDictionaryAsync(cancellationToken);
+        var match = data.FirstOrDefault(x => string.Equals(x.Value, categoryName, StringComparison.OrdinalIgnoreCase));
+        return match.Key != Guid.Empty ? match.Key : null;
     }
 
     private static Response.SuggestionResponse MapToResponse(AIJobSuggestion s)
@@ -309,7 +325,7 @@ public class Service : IService
             RawInput = s.RawInput,
             SuggestedTitle = s.SuggestedTitle,
             SuggestedDescription = s.SuggestedDescription,
-            CategoryId = s.SuggestedCategoryId,
+            CategoryId = null,
             BusinessDomain = s.SuggestedBusinessDomain,
             ExpectedOutcome = s.SuggestedExpectedOutcome,
             BudgetType = s.SuggestedBudgetType,
@@ -500,18 +516,4 @@ public class Service : IService
             .ToList();
     }
 
-    private async Task<Guid?> ValidateAndNormalizeCategoryIdAsync(Guid? categoryId, string context, CancellationToken cancellationToken)
-    {
-        if (!categoryId.HasValue) return null;
-
-        var data = await _categoryService.GetCachedCategoryDictionaryAsync(cancellationToken);
-
-        if (data.ContainsKey(categoryId.Value))
-        {
-            return categoryId.Value;
-        }
-
-        _logger.LogWarning("AI hallucinated or provided an invalid CategoryId during {Context}: {CategoryId}. Setting to null.", context, categoryId.Value);
-        return null;
-    }
 }
