@@ -72,22 +72,7 @@ internal static class AIJsonParser
         };
     }
 
-    public static Guid? GetGuid(JsonElement element, string name, Microsoft.Extensions.Logging.ILogger? logger = null)
-    {
-        var value = GetString(element, name);
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
 
-        if (Guid.TryParse(value, out var parsed))
-        {
-            return parsed;
-        }
-
-        logger?.LogWarning("AI returned an invalid Guid for field '{Field}': {Value}", name, value);
-        return null;
-    }
 
     public static decimal? GetDecimal(JsonElement element, string name)
     {

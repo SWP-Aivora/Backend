@@ -321,7 +321,14 @@ public class Service : IService
         var normalizedInput = categoryName.Trim();
         var data = await _categoryService.GetCachedCategoryDictionaryAsync(cancellationToken);
         var match = data.FirstOrDefault(x => string.Equals(x.Value?.Trim(), normalizedInput, StringComparison.OrdinalIgnoreCase));
-        return match.Key != Guid.Empty ? match.Key : null;
+        
+        if (match.Key != Guid.Empty)
+        {
+            return match.Key;
+        }
+
+        _logger.LogWarning("AI returned an invalid CategoryName '{CategoryName}' during {Operation} operation. It could not be mapped to any existing category.", categoryName, operation);
+        return null;
     }
 
     private static Response.SuggestionResponse MapToResponse(AIJobSuggestion s)
