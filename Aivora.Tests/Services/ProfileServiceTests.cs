@@ -118,6 +118,36 @@ public class ProfileServiceTests
     }
 
     [Fact]
+    public async Task GetPublicExpertProfileAsync_WithCompletedProjects_ReturnsRealTimeCount()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var userId = Guid.NewGuid();
+        var clientId = Guid.NewGuid();
+
+        dbContext.Users.Add(new User { Id = userId, FullName = "Expert Name", Email = "e4@t.com", Role = UserRole.EXPERT, PasswordHash = "h" });
+        dbContext.Users.Add(new User { Id = clientId, FullName = "Client Name", Email = "c4@t.com", Role = UserRole.CLIENT, PasswordHash = "h" });
+        // Stale seeded value deliberately different from the real completed count below,
+        // so this test fails against the pre-fix code (which just returns this field).
+        dbContext.ExpertProfiles.Add(new ExpertProfile { Id = Guid.NewGuid(), UserId = userId, Title = "Expert", CompletedProjects = 15 });
+        dbContext.Projects.AddRange(
+            new Project { Id = Guid.NewGuid(), ClientId = clientId, ExpertId = userId, Title = "P1", Description = "D", Status = ProjectStatus.COMPLETED },
+            new Project { Id = Guid.NewGuid(), ClientId = clientId, ExpertId = userId, Title = "P2", Description = "D", Status = ProjectStatus.COMPLETED },
+            new Project { Id = Guid.NewGuid(), ClientId = clientId, ExpertId = userId, Title = "P3", Description = "D", Status = ProjectStatus.ACTIVE },
+            new Project { Id = Guid.NewGuid(), ClientId = clientId, ExpertId = userId, Title = "P4", Description = "D", Status = ProjectStatus.CANCELLED }
+        );
+        await dbContext.SaveChangesAsync();
+
+        var service = new Aivora.Services.ProfileService.Service(dbContext);
+
+        // Act
+        var result = await service.GetPublicExpertProfileAsync(userId);
+
+        // Assert
+        result.CompletedProjects.Should().Be(2);
+    }
+
+    [Fact]
     public async Task GetClientProfileAsync_ReturnsProfile_WhenExists()
     {
         // Arrange

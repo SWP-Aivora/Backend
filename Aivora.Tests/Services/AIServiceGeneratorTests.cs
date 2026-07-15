@@ -135,8 +135,9 @@ public class AIServiceGeneratorTests
             _suggestionProviderMock.Object,
             _refinementProviderMock.Object,
             _serviceDescriptionProviderMock.Object,
-            new Aivora.Services.CategoryService.Service(new AivoraDbContext(options)),
-            new Microsoft.Extensions.Logging.Abstractions.NullLogger<Service>());
+            new Aivora.Services.CategoryService.Service(new AivoraDbContext(options), new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions())),
+            new Microsoft.Extensions.Logging.Abstractions.NullLogger<Service>(),
+            Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.ExchangeRateOptions()));
     }
 
     private static Request.GenerateServiceDescriptionRequest BuildValidRequest()

@@ -4,8 +4,10 @@ using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.AIJobAssistantService.Parsing;
 using Aivora.Services.Exceptions;
+using Aivora.Services.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Aivora.Services.AIJobAssistantService;
 
@@ -26,6 +28,7 @@ public class Service : IService
     private readonly IAIServiceDescriptionProvider _serviceDescriptionProvider;
     private readonly CategoryService.IService _categoryService;
     private readonly Microsoft.Extensions.Logging.ILogger<Service> _logger;
+    private readonly IOptions<ExchangeRateOptions> _exchangeRates;
 
     /// <summary>
     /// Initializes a new instance of the AI Job Assistant service
@@ -35,6 +38,7 @@ public class Service : IService
     /// <param name="suggestionProvider">AI provider for job suggestions</param>
     /// <param name="refinementProvider">AI provider for job refinements</param>
     /// <param name="serviceDescriptionProvider">AI provider for service descriptions</param>
+    /// <param name="exchangeRates">Configured currency-to-AICOIN exchange rates</param>
     public Service(
         AivoraDbContext dbContext,
         JobService.IService jobService,
@@ -42,7 +46,8 @@ public class Service : IService
         IAIJobRefinementProvider refinementProvider,
         IAIServiceDescriptionProvider serviceDescriptionProvider,
         CategoryService.IService categoryService,
-        Microsoft.Extensions.Logging.ILogger<Service> logger)
+        Microsoft.Extensions.Logging.ILogger<Service> logger,
+        Microsoft.Extensions.Options.IOptions<ExchangeRateOptions> exchangeRates)
     {
         _dbContext = dbContext;
         _jobService = jobService;
@@ -51,6 +56,7 @@ public class Service : IService
         _serviceDescriptionProvider = serviceDescriptionProvider;
         _categoryService = categoryService;
         _logger = logger;
+        _exchangeRates = exchangeRates;
     }
 
     /// <summary>
@@ -87,7 +93,7 @@ public class Service : IService
             Status = AIJobSuggestionStatus.GENERATED
         };
 
-        ApplyDraft(suggestion, draft, updateRiskWarnings: true);
+        ApplyDraft(suggestion, draft, updateRiskWarnings: true, _exchangeRates.Value.ToAicoin);
         suggestion.SuggestedCategoryId = mappedCategoryId;
         ValidateSuggestionShape(suggestion);
         _dbContext.AIJobSuggestions.Add(suggestion);
@@ -147,7 +153,7 @@ public class Service : IService
         {
             mappedCategoryId = await ValidateAndNormalizeCategoryNameAsync(refinement.Suggestion.CategoryName, "refinement", cancellationToken);
 
-            ApplyDraft(suggestion, refinement.Suggestion, updateRiskWarnings: true);
+            ApplyDraft(suggestion, refinement.Suggestion, updateRiskWarnings: true, _exchangeRates.Value.ToAicoin);
             if (mappedCategoryId != null)
             {
                 suggestion.SuggestedCategoryId = mappedCategoryId;
@@ -276,20 +282,23 @@ public class Service : IService
         return suggestion;
     }
 
-    private static void ApplyDraft(AIJobSuggestion suggestion, AIJobSuggestionDraft draft, bool updateRiskWarnings)
+    private static void ApplyDraft(AIJobSuggestion suggestion, AIJobSuggestionDraft draft, bool updateRiskWarnings, IReadOnlyDictionary<string, decimal> ratesToAicoin)
     {
+        var (currency, budgetMin, budgetMax, milestones) = CurrencyConverter.ConvertToAicoin(
+            draft.Currency, draft.SuggestedBudgetMin, draft.SuggestedBudgetMax, draft.SuggestedMilestones, ratesToAicoin);
+
         suggestion.SuggestedTitle = NormalizeRequiredLimited(draft.SuggestedTitle, "New Job from AI", 255);
         suggestion.SuggestedDescription = draft.SuggestedDescription;
         suggestion.SuggestedBusinessDomain = NormalizeLimited(draft.BusinessDomain, 255);
         suggestion.SuggestedExpectedOutcome = NormalizeLimited(draft.ExpectedOutcome, 1000);
         suggestion.SuggestedBudgetType = draft.BudgetType;
-        suggestion.Currency = AIJsonParser.NormalizeCurrency(draft.Currency);
-        suggestion.SuggestedBudgetMin = draft.SuggestedBudgetMin;
-        suggestion.SuggestedBudgetMax = draft.SuggestedBudgetMax;
+        suggestion.Currency = currency;
+        suggestion.SuggestedBudgetMin = budgetMin;
+        suggestion.SuggestedBudgetMax = budgetMax;
         suggestion.SuggestedTimelineDays = draft.SuggestedTimelineDays;
         suggestion.SuggestedExperienceLevel = draft.ExperienceLevel;
         suggestion.SuggestedSkillsJson = SerializeList(draft.SuggestedSkills);
-        suggestion.SuggestedMilestonesJson = SerializeList(NormalizeMilestones(draft.SuggestedMilestones));
+        suggestion.SuggestedMilestonesJson = SerializeList(NormalizeMilestones(milestones));
         suggestion.ClarifyingQuestionsJson = SerializeList(draft.ClarifyingQuestions);
         suggestion.ClarifyingAnswersJson = SerializeList(draft.ClarifyingAnswers);
         suggestion.AIModel = draft.AIModel;

@@ -244,8 +244,10 @@ public class Service : IService
         dispute.ResolvedAt = DateTimeOffset.UtcNow;
         dispute.AdminId = adminId;
 
-        // Unlock milestone
-        milestone.Status = MilestoneStatus.SUBMITTED;
+        // Unlock milestone: only reopen Approve & Pay if a deliverable was actually submitted
+        milestone.Status = milestone.SubmittedAt != null
+            ? MilestoneStatus.SUBMITTED
+            : MilestoneStatus.IN_PROGRESS;
 
         // Recalculate project status
         var hasDisputed = await _dbContext.Milestones.AnyAsync(m => m.ProjectId == project.Id && m.Id != milestone.Id && m.Status == MilestoneStatus.DISPUTED);

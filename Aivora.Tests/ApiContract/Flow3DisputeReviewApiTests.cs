@@ -73,6 +73,19 @@ public class Flow3DisputeReviewApiTests : IClassFixture<ApiContractTestFactory>
         // Fund milestone
         await client.PutEmptyAsync($"/api/v1/milestones/{milestoneId}/fund");
 
+        // Expert submits a deliverable so the milestone has something to dispute the quality of
+        // (dispute resolution only unlocks Approve & Pay when a deliverable was actually submitted)
+        client = new ApiContractClient(_factory.CreateAuthenticatedClient(UserRole.EXPERT));
+        var submitDeliverableReq = new
+        {
+            description = "Initial delivery for milestone review",
+            note = "Please review"
+        };
+        var (submitDelRes, _) = await client.PostAsync($"/api/v1/milestones/{milestoneId}/deliverables", submitDeliverableReq);
+        submitDelRes.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        client = new ApiContractClient(_factory.CreateAuthenticatedClient(UserRole.CLIENT));
+
         // 2. POST /api/v1/disputes
         var openDisReq = new
         {
