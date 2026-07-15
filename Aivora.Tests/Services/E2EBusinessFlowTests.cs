@@ -284,7 +284,8 @@ public class E2EBusinessFlowTests
             jobService,
             suggestionProviderMock.Object,
             refinementProviderMock.Object,
-            serviceDescriptionProviderMock.Object);
+            serviceDescriptionProviderMock.Object,
+            new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()));
 
         // ----------------------------------------------------
         // 1. Client generates AI Suggestion

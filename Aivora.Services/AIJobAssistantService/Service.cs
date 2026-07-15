@@ -5,6 +5,7 @@ using Aivora.Repositories.Enums;
 using Aivora.Services.AIJobAssistantService.Parsing;
 using Aivora.Services.Exceptions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Aivora.Services.AIJobAssistantService;
 
@@ -23,6 +24,7 @@ public class Service : IService
     private readonly IAIJobSuggestionProvider _suggestionProvider;
     private readonly IAIJobRefinementProvider _refinementProvider;
     private readonly IAIServiceDescriptionProvider _serviceDescriptionProvider;
+    private readonly IMemoryCache _cache;
 
     /// <summary>
     /// Initializes a new instance of the AI Job Assistant service
@@ -37,13 +39,15 @@ public class Service : IService
         JobService.IService jobService,
         IAIJobSuggestionProvider suggestionProvider,
         IAIJobRefinementProvider refinementProvider,
-        IAIServiceDescriptionProvider serviceDescriptionProvider)
+        IAIServiceDescriptionProvider serviceDescriptionProvider,
+        IMemoryCache cache)
     {
         _dbContext = dbContext;
         _jobService = jobService;
         _suggestionProvider = suggestionProvider;
         _refinementProvider = refinementProvider;
         _serviceDescriptionProvider = serviceDescriptionProvider;
+        _cache = cache;
     }
 
     /// <summary>
@@ -67,10 +71,7 @@ public class Service : IService
         request.Currency = AIJsonParser.NormalizeCurrency(request.Currency);
         ValidateBudgetAndTimeline(request.BudgetMin, request.BudgetMax, request.TimelineDays);
 
-        var categories = await _dbContext.Categories
-            .Select(c => new { c.Id, c.Name })
-            .ToListAsync(cancellationToken);
-        request.CategoriesContext = JsonSerializer.Serialize(categories, JsonOptions);
+        request.CategoriesContext = await GetCategoriesContextAsync(cancellationToken);
 
         var draft = await _suggestionProvider.GenerateSuggestionAsync(request, cancellationToken);
         var suggestion = new AIJobSuggestion
@@ -130,10 +131,7 @@ public class Service : IService
         var suggestion = await LoadGeneratedSuggestionAsync(clientId, suggestionId, cancellationToken);
         var current = MapToResponse(suggestion);
 
-        var categories = await _dbContext.Categories
-            .Select(c => new { c.Id, c.Name })
-            .ToListAsync(cancellationToken);
-        request.CategoriesContext = JsonSerializer.Serialize(categories, JsonOptions);
+        request.CategoriesContext = await GetCategoriesContextAsync(cancellationToken);
 
         var refinement = await _refinementProvider.RefineSuggestionAsync(current, request, cancellationToken);
 
@@ -284,6 +282,18 @@ public class Service : IService
         {
             suggestion.RiskWarningsJson = SerializeList(draft.RiskWarnings);
         }
+    }
+
+    private async Task<string> GetCategoriesContextAsync(CancellationToken cancellationToken)
+    {
+        return await _cache.GetOrCreateAsync("AICategoriesContext", async entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(24);
+            var categories = await _dbContext.Categories
+                .Select(c => new { c.Id, c.Name })
+                .ToListAsync(cancellationToken);
+            return JsonSerializer.Serialize(categories, JsonOptions);
+        }) ?? "[]";
     }
 
     private static Response.SuggestionResponse MapToResponse(AIJobSuggestion s)

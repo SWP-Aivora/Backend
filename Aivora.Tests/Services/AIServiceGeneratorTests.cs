@@ -134,7 +134,8 @@ public class AIServiceGeneratorTests
             _jobServiceMock.Object,
             _suggestionProviderMock.Object,
             _refinementProviderMock.Object,
-            _serviceDescriptionProviderMock.Object);
+            _serviceDescriptionProviderMock.Object,
+            new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()));
     }
 
     private static Request.GenerateServiceDescriptionRequest BuildValidRequest()

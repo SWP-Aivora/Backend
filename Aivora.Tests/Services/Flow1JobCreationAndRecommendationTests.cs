@@ -444,7 +444,8 @@ public class Flow1JobCreationAndRecommendationTests
             mockJobService.Object,
             mockSuggestionProvider.Object,
             mockRefinementProvider.Object,
-            mockServiceDescriptionProvider.Object);
+            mockServiceDescriptionProvider.Object,
+            new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()));
 
         // ----------------------------------------------------
         // Act: Generate AI suggestion
