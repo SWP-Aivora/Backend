@@ -285,7 +285,8 @@ public class E2EBusinessFlowTests
             suggestionProviderMock.Object,
             refinementProviderMock.Object,
             serviceDescriptionProviderMock.Object,
-            new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()));
+            new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()),
+            new Microsoft.Extensions.Logging.Abstractions.NullLogger<Aivora.Services.AIJobAssistantService.Service>());
 
         // ----------------------------------------------------
         // 1. Client generates AI Suggestion

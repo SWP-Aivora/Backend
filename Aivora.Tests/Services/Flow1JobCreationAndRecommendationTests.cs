@@ -445,7 +445,8 @@ public class Flow1JobCreationAndRecommendationTests
             mockSuggestionProvider.Object,
             mockRefinementProvider.Object,
             mockServiceDescriptionProvider.Object,
-            new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()));
+            new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()),
+            new Microsoft.Extensions.Logging.Abstractions.NullLogger<Aivora.Services.AIJobAssistantService.Service>());
 
         // ----------------------------------------------------
         // Act: Generate AI suggestion

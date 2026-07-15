@@ -6,6 +6,7 @@ using Aivora.Services.AIJobAssistantService.Parsing;
 using Aivora.Services.Exceptions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 
 namespace Aivora.Services.AIJobAssistantService;
 
@@ -25,6 +26,7 @@ public class Service : IService
     private readonly IAIJobRefinementProvider _refinementProvider;
     private readonly IAIServiceDescriptionProvider _serviceDescriptionProvider;
     private readonly IMemoryCache _cache;
+    private readonly Microsoft.Extensions.Logging.ILogger<Service> _logger;
 
     /// <summary>
     /// Initializes a new instance of the AI Job Assistant service
@@ -40,7 +42,8 @@ public class Service : IService
         IAIJobSuggestionProvider suggestionProvider,
         IAIJobRefinementProvider refinementProvider,
         IAIServiceDescriptionProvider serviceDescriptionProvider,
-        IMemoryCache cache)
+        IMemoryCache cache,
+        Microsoft.Extensions.Logging.ILogger<Service> logger)
     {
         _dbContext = dbContext;
         _jobService = jobService;
@@ -48,6 +51,7 @@ public class Service : IService
         _refinementProvider = refinementProvider;
         _serviceDescriptionProvider = serviceDescriptionProvider;
         _cache = cache;
+        _logger = logger;
     }
 
     /// <summary>
@@ -74,6 +78,17 @@ public class Service : IService
         request.CategoriesContext = await GetCategoriesContextAsync(cancellationToken);
 
         var draft = await _suggestionProvider.GenerateSuggestionAsync(request, cancellationToken);
+        
+        if (draft.CategoryId.HasValue)
+        {
+            var categoryExists = await _dbContext.Categories.AnyAsync(c => c.Id == draft.CategoryId.Value, cancellationToken);
+            if (!categoryExists)
+            {
+                _logger.LogWarning("AI hallucinated or provided an invalid CategoryId: {CategoryId}. Setting to null.", draft.CategoryId.Value);
+                draft.CategoryId = null;
+            }
+        }
+
         var suggestion = new AIJobSuggestion
         {
             ClientId = clientId,
@@ -137,6 +152,16 @@ public class Service : IService
 
         if (refinement.ChangedFields.Count > 0)
         {
+            if (refinement.Suggestion.CategoryId.HasValue)
+            {
+                var categoryExists = await _dbContext.Categories.AnyAsync(c => c.Id == refinement.Suggestion.CategoryId.Value, cancellationToken);
+                if (!categoryExists)
+                {
+                    _logger.LogWarning("AI hallucinated or provided an invalid CategoryId during refinement: {CategoryId}. Setting to null.", refinement.Suggestion.CategoryId.Value);
+                    refinement.Suggestion.CategoryId = null;
+                }
+            }
+
             ApplyDraft(suggestion, refinement.Suggestion, updateRiskWarnings: true);
             ValidateSuggestionShape(suggestion);
             await _dbContext.SaveChangesAsync(cancellationToken);

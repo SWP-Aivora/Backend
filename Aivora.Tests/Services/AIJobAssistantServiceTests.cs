@@ -34,7 +34,8 @@ public class AIJobAssistantServiceTests
             _suggestionProviderMock.Object,
             _refinementProviderMock.Object,
             _serviceDescriptionProviderMock.Object,
-            new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()));
+            new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()),
+            new Microsoft.Extensions.Logging.Abstractions.NullLogger<Service>());
     }
 
     [Fact]
