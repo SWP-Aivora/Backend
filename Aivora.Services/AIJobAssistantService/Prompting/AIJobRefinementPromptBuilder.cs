@@ -4,20 +4,24 @@ namespace Aivora.Services.AIJobAssistantService.Prompting;
 
 public class AIJobRefinementPromptBuilder
 {
-    public string Build(Response.SuggestionResponse current, string message)
+    public string Build(Response.SuggestionResponse current, Request.RefineSuggestionRequest request)
     {
         return $$"""
             You are an AI Job Assistant. Refine or explain this current job suggestion:
             {{JsonSerializer.Serialize(current)}}
 
             User message:
-            {{message}}
+            {{request.Message}}
+
+            Available categories:
+            {{request.CategoriesContext}}
 
             Return ONLY one JSON object with these fields:
             {
               "updatedSuggestion": {
                 "suggestedTitle": "title",
                 "suggestedDescription": "description",
+                "categoryId": "guid of the closest matching category",
                 "businessDomain": "domain",
                 "expectedOutcome": "outcome",
                 "budgetType": "FIXED or HOURLY",

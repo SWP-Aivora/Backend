@@ -143,7 +143,7 @@ public class AIJobAssistantServiceTests
         await dbContext.SaveChangesAsync();
 
         _refinementProviderMock
-            .Setup(x => x.RefineSuggestionAsync(It.IsAny<Response.SuggestionResponse>(), "explain the budget", It.IsAny<CancellationToken>()))
+            .Setup(x => x.RefineSuggestionAsync(It.IsAny<Response.SuggestionResponse>(), It.Is<Request.RefineSuggestionRequest>(r => r.Message == "explain the budget"), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AIJobRefinementDraft
             {
                 Suggestion = AIJobSuggestionDraft.FromResponse(new Response.SuggestionResponse
@@ -189,7 +189,7 @@ public class AIJobAssistantServiceTests
         draft.ClarifyingAnswers = new List<string> { "Use Stripe" };
 
         _refinementProviderMock
-            .Setup(x => x.RefineSuggestionAsync(It.IsAny<Response.SuggestionResponse>(), "update everything", It.IsAny<CancellationToken>()))
+            .Setup(x => x.RefineSuggestionAsync(It.IsAny<Response.SuggestionResponse>(), It.Is<Request.RefineSuggestionRequest>(r => r.Message == "update everything"), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AIJobRefinementDraft
             {
                 Suggestion = draft,

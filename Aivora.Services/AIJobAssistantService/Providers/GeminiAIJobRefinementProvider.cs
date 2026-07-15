@@ -32,17 +32,17 @@ public class GeminiAIJobRefinementProvider : IAIJobRefinementProvider
         _logger = logger;
     }
 
-    public async Task<AIJobRefinementDraft> RefineSuggestionAsync(Response.SuggestionResponse current, string message, CancellationToken cancellationToken = default)
+    public async Task<AIJobRefinementDraft> RefineSuggestionAsync(Response.SuggestionResponse current, Request.RefineSuggestionRequest request, CancellationToken cancellationToken = default)
     {
         if (!_client.HasApiKey && _options.EnableFallback)
         {
             _logger.LogWarning("Gemini API key is missing; using mock AI job refinement provider fallback.");
-            return await _fallbackProvider.RefineSuggestionAsync(current, message, cancellationToken);
+            return await _fallbackProvider.RefineSuggestionAsync(current, request, cancellationToken);
         }
 
         try
         {
-            var providerText = await _client.GenerateAsync(_promptBuilder.Build(current, message), cancellationToken);
+            var providerText = await _client.GenerateAsync(_promptBuilder.Build(current, request), cancellationToken);
             return _parser.Parse(providerText, current);
         }
         catch (OperationCanceledException)
@@ -52,7 +52,7 @@ public class GeminiAIJobRefinementProvider : IAIJobRefinementProvider
         catch (Exception ex) when (_options.EnableFallback)
         {
             _logger.LogWarning(ex, "Gemini job refinement provider failed; using mock fallback.");
-            return await _fallbackProvider.RefineSuggestionAsync(current, message, cancellationToken);
+            return await _fallbackProvider.RefineSuggestionAsync(current, request, cancellationToken);
         }
         catch (Exception ex)
         {

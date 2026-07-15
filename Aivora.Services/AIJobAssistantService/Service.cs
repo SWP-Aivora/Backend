@@ -67,6 +67,11 @@ public class Service : IService
         request.Currency = AIJsonParser.NormalizeCurrency(request.Currency);
         ValidateBudgetAndTimeline(request.BudgetMin, request.BudgetMax, request.TimelineDays);
 
+        var categories = await _dbContext.Categories
+            .Select(c => new { c.Id, c.Name })
+            .ToListAsync(cancellationToken);
+        request.CategoriesContext = JsonSerializer.Serialize(categories, JsonOptions);
+
         var draft = await _suggestionProvider.GenerateSuggestionAsync(request, cancellationToken);
         var suggestion = new AIJobSuggestion
         {
@@ -124,7 +129,13 @@ public class Service : IService
 
         var suggestion = await LoadGeneratedSuggestionAsync(clientId, suggestionId, cancellationToken);
         var current = MapToResponse(suggestion);
-        var refinement = await _refinementProvider.RefineSuggestionAsync(current, request.Message.Trim(), cancellationToken);
+
+        var categories = await _dbContext.Categories
+            .Select(c => new { c.Id, c.Name })
+            .ToListAsync(cancellationToken);
+        request.CategoriesContext = JsonSerializer.Serialize(categories, JsonOptions);
+
+        var refinement = await _refinementProvider.RefineSuggestionAsync(current, request, cancellationToken);
 
         if (refinement.ChangedFields.Count > 0)
         {
@@ -257,6 +268,7 @@ public class Service : IService
         suggestion.SuggestedDescription = draft.SuggestedDescription;
         suggestion.SuggestedBusinessDomain = NormalizeLimited(draft.BusinessDomain, 255);
         suggestion.SuggestedExpectedOutcome = NormalizeLimited(draft.ExpectedOutcome, 1000);
+        suggestion.SuggestedCategoryId = draft.CategoryId;
         suggestion.SuggestedBudgetType = draft.BudgetType;
         suggestion.Currency = AIJsonParser.NormalizeCurrency(draft.Currency);
         suggestion.SuggestedBudgetMin = draft.SuggestedBudgetMin;
@@ -284,6 +296,7 @@ public class Service : IService
             RawInput = s.RawInput,
             SuggestedTitle = s.SuggestedTitle,
             SuggestedDescription = s.SuggestedDescription,
+            CategoryId = s.SuggestedCategoryId,
             BusinessDomain = s.SuggestedBusinessDomain,
             ExpectedOutcome = s.SuggestedExpectedOutcome,
             BudgetType = s.SuggestedBudgetType,

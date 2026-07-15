@@ -36,6 +36,7 @@ internal static class AIJsonParser
         {
             SuggestedTitle = GetString(element, "suggestedTitle") ?? fallback.SuggestedTitle,
             SuggestedDescription = GetString(element, "suggestedDescription") ?? fallback.SuggestedDescription,
+            CategoryId = GetGuid(element, "categoryId") ?? fallback.CategoryId,
             BusinessDomain = GetString(element, "businessDomain") ?? GetString(element, "suggestedBusinessDomain") ?? fallback.BusinessDomain,
             ExpectedOutcome = GetString(element, "expectedOutcome") ?? GetString(element, "suggestedExpectedOutcome") ?? fallback.ExpectedOutcome,
             BudgetType = GetBudgetType(element) ?? fallback.BudgetType,
@@ -68,6 +69,12 @@ internal static class AIJsonParser
             JsonValueKind.False => "false",
             _ => null
         };
+    }
+
+    public static Guid? GetGuid(JsonElement element, string name)
+    {
+        var value = GetString(element, name);
+        return Guid.TryParse(value, out var parsed) ? parsed : null;
     }
 
     public static decimal? GetDecimal(JsonElement element, string name)

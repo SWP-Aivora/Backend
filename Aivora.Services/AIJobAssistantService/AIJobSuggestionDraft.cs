@@ -10,6 +10,7 @@ public class AIJobSuggestionDraft
     public string? ExpectedOutcome { get; set; }
     public BudgetType BudgetType { get; set; } = BudgetType.FIXED;
     public string Currency { get; set; } = "AICOIN";
+    public Guid? CategoryId { get; set; }
     public decimal? SuggestedBudgetMin { get; set; }
     public decimal? SuggestedBudgetMax { get; set; }
     public int? SuggestedTimelineDays { get; set; }

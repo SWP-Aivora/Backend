@@ -15,6 +15,7 @@ public class Request
         public decimal? BudgetMax { get; set; }
         public int? TimelineDays { get; set; }
         public SkillLevel? ExperienceLevel { get; set; }
+        public string? CategoriesContext { get; set; }
     }
 
     public class AcceptSuggestionRequest
@@ -48,6 +49,7 @@ public class Request
     public class RefineSuggestionRequest
     {
         public string Message { get; set; } = null!;
+        public string? CategoriesContext { get; set; }
     }
 
     public class GenerateServiceDescriptionRequest
