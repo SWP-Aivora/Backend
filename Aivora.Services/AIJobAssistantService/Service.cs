@@ -318,8 +318,9 @@ public class Service : IService
     private async Task<Guid?> ValidateAndNormalizeCategoryNameAsync(string? categoryName, string operation, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(categoryName)) return null;
+        var normalizedInput = categoryName.Trim();
         var data = await _categoryService.GetCachedCategoryDictionaryAsync(cancellationToken);
-        var match = data.FirstOrDefault(x => string.Equals(x.Value, categoryName, StringComparison.OrdinalIgnoreCase));
+        var match = data.FirstOrDefault(x => string.Equals(x.Value?.Trim(), normalizedInput, StringComparison.OrdinalIgnoreCase));
         return match.Key != Guid.Empty ? match.Key : null;
     }
 

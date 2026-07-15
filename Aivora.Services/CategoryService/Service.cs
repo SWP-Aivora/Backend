@@ -8,6 +8,8 @@ namespace Aivora.Services.CategoryService;
 
 public class Service : IService
 {
+    private const string CacheKey = "AICategoriesData";
+
     private readonly AivoraDbContext _dbContext;
     private readonly IMemoryCache _cache;
 
@@ -58,8 +60,8 @@ public class Service : IService
 
         _dbContext.Categories.Add(category);
         await _dbContext.SaveChangesAsync();
-        
-        _cache.Remove("AICategoriesData");
+
+        _cache.Remove(CacheKey);
 
         return new Response.CategoryResponse
         {
@@ -72,7 +74,7 @@ public class Service : IService
 
     public async Task<Dictionary<Guid, string>> GetCachedCategoryDictionaryAsync(CancellationToken cancellationToken = default)
     {
-        return await _cache.GetOrCreateAsync("AICategoriesData", async entry =>
+        return await _cache.GetOrCreateAsync(CacheKey, async entry =>
         {
             entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(2); // Short cache to avoid stale data across scale-out instances
             return await _dbContext.Categories
