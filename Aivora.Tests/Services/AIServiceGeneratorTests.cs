@@ -134,7 +134,8 @@ public class AIServiceGeneratorTests
             _jobServiceMock.Object,
             _suggestionProviderMock.Object,
             _refinementProviderMock.Object,
-            _serviceDescriptionProviderMock.Object);
+            _serviceDescriptionProviderMock.Object,
+            Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.ExchangeRateOptions()));
     }
 
     private static Request.GenerateServiceDescriptionRequest BuildValidRequest()

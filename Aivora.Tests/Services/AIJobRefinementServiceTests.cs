@@ -3,8 +3,10 @@ using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.AIJobRefinementService;
 using Aivora.Services.Exceptions;
+using Aivora.Services.Options;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
 
@@ -34,7 +36,7 @@ public class AIJobRefinementServiceTests
 
     private Service CreateService(AivoraDbContext dbContext)
     {
-        return new Service(dbContext, _jobServiceMock.Object, _refinementProviderMock.Object);
+        return new Service(dbContext, _jobServiceMock.Object, _refinementProviderMock.Object, Options.Create(new ExchangeRateOptions()));
     }
 
     [Fact]
@@ -81,6 +83,52 @@ public class AIJobRefinementServiceTests
 
         result.ChangedFields.Should().Contain(new[] { "budgetMin", "budgetMax" });
         result.AIResponse.Should().Be("Budget updated.");
+    }
+
+    [Fact]
+    public async Task RefineJobAsync_WithUsdBudget_ConvertsToAicoin()
+    {
+        var dbContext = GetDbContext();
+        var client = SetupClient(dbContext);
+        var service = CreateService(dbContext);
+
+        var job = new JobPost
+        {
+            ClientId = client.Id,
+            Client = client,
+            Title = "Test Job",
+            OriginalDescription = "Original description",
+            CategoryId = Guid.NewGuid(),
+            BudgetType = BudgetType.FIXED,
+            Currency = "AICOIN",
+            BudgetMin = 500,
+            BudgetMax = 1000,
+            Status = JobStatus.DRAFT
+        };
+        dbContext.JobPosts.Add(job);
+        await dbContext.SaveChangesAsync();
+
+        _refinementProviderMock
+            .Setup(x => x.RefineJobAsync(It.IsAny<Aivora.Services.JobService.Response.JobResponse>(), "change budget to 100 usd", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AIJobRefinementDraft
+            {
+                Title = job.Title,
+                BudgetMin = 100,
+                Currency = "USD",
+                AIResponse = "Budget updated.",
+                ChangedFields = new List<string> { "budgetMin", "currency" }
+            });
+
+        _jobServiceMock
+            .Setup(x => x.GetJobByIdAsync(job.Id))
+            .ReturnsAsync(new Aivora.Services.JobService.Response.JobResponse { Id = job.Id, Title = job.Title, Status = JobStatus.DRAFT });
+
+        await service.RefineJobAsync(client.Id, job.Id,
+            new Request.RefineJobRequest { Message = "change budget to 100 usd" });
+
+        var updatedJob = await dbContext.JobPosts.FindAsync(job.Id);
+        updatedJob!.Currency.Should().Be("AICOIN");
+        updatedJob.BudgetMin.Should().Be(100 * 25);
     }
 
     [Fact]

@@ -3,8 +3,10 @@ using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.AIJobAssistantService;
 using Aivora.Services.Exceptions;
+using Aivora.Services.Options;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
 
@@ -33,7 +35,8 @@ public class AIJobAssistantServiceTests
             _jobServiceMock.Object,
             _suggestionProviderMock.Object,
             _refinementProviderMock.Object,
-            _serviceDescriptionProviderMock.Object);
+            _serviceDescriptionProviderMock.Object,
+            Options.Create(new ExchangeRateOptions()));
     }
 
     [Fact]
@@ -55,7 +58,11 @@ public class AIJobAssistantServiceTests
         result.BusinessDomain.Should().Be(draft.BusinessDomain);
         result.ExpectedOutcome.Should().Be(draft.ExpectedOutcome);
         result.BudgetType.Should().Be(draft.BudgetType);
-        result.Currency.Should().Be(draft.Currency);
+        // draft.Currency is "USD" (see BuildDraft) — the service must convert it to AICOIN,
+        // not pass it through, so this asserts the converted value, not draft.Currency.
+        result.Currency.Should().Be("AICOIN");
+        result.SuggestedBudgetMin.Should().Be(draft.SuggestedBudgetMin * 25);
+        result.SuggestedBudgetMax.Should().Be(draft.SuggestedBudgetMax * 25);
         result.ExperienceLevel.Should().Be(draft.ExperienceLevel);
         result.ClarifyingAnswers.Should().HaveCount(draft.ClarifyingQuestions.Count);
         result.AIModel.Should().Be(draft.AIModel);
@@ -63,7 +70,7 @@ public class AIJobAssistantServiceTests
         var saved = await dbContext.AIJobSuggestions.FindAsync(result.Id);
         saved.Should().NotBeNull();
         saved!.SuggestedBudgetType.Should().Be(draft.BudgetType);
-        saved.Currency.Should().Be(draft.Currency);
+        saved.Currency.Should().Be("AICOIN");
         saved.SuggestedBusinessDomain.Should().Be(draft.BusinessDomain);
         saved.SuggestedExpectedOutcome.Should().Be(draft.ExpectedOutcome);
         saved.SuggestedExperienceLevel.Should().Be(draft.ExperienceLevel);
@@ -200,20 +207,21 @@ public class AIJobAssistantServiceTests
         var result = await service.RefineSuggestionAsync(clientId, suggestion.Id, new Request.RefineSuggestionRequest { Message = "update everything" });
 
         result.ChangedFields.Should().NotBeEmpty();
-        result.Suggestion.SuggestedBudgetMin.Should().Be(2000);
+        // draft.Currency is "USD" — the service must convert 2000 USD to AICOIN, not pass it through.
+        result.Suggestion.SuggestedBudgetMin.Should().Be(2000 * 25);
         result.Suggestion.SuggestedTimelineDays.Should().Be(30);
         result.Suggestion.ExperienceLevel.Should().Be(SkillLevel.EXPERT);
         result.Suggestion.SuggestedSkills.Should().Contain("Stripe");
         result.Suggestion.BudgetType.Should().Be(BudgetType.HOURLY);
-        result.Suggestion.Currency.Should().Be("USD");
+        result.Suggestion.Currency.Should().Be("AICOIN");
         result.Suggestion.ClarifyingAnswers.Should().Contain("Use Stripe");
 
         var saved = await dbContext.AIJobSuggestions.FindAsync(suggestion.Id);
-        saved!.SuggestedBudgetMin.Should().Be(2000);
+        saved!.SuggestedBudgetMin.Should().Be(2000 * 25);
         saved.SuggestedTimelineDays.Should().Be(30);
         saved.SuggestedExperienceLevel.Should().Be(SkillLevel.EXPERT);
         saved.SuggestedBudgetType.Should().Be(BudgetType.HOURLY);
-        saved.Currency.Should().Be("USD");
+        saved.Currency.Should().Be("AICOIN");
     }
 
     [Fact]
