@@ -1,3 +1,5 @@
+using Aivora.Services.Exceptions;
+
 namespace Aivora.Services.AIJobAssistantService.Parsing;
 
 public static class CurrencyConverter
@@ -18,9 +20,13 @@ public static class CurrencyConverter
             return (normalized, budgetMin, budgetMax, milestones);
         }
 
-        // Unknown currency (AI response outside AICOIN/USD/VND): default rate 1 (amount unchanged)
-        // rather than throwing — a stray currency label shouldn't fail the whole request.
-        var rate = ratesToAicoin.TryGetValue(normalized, out var r) ? r : 1m;
+        // Unknown currency (outside the configured rate table, e.g. AI hallucinated "EUR" or a typo):
+        // reject rather than silently default to rate 1 — that would misconvert real money
+        // (e.g. 100 EUR would be stored as 100 AICOIN instead of ~2700 AICOIN).
+        if (!ratesToAicoin.TryGetValue(normalized, out var rate))
+        {
+            throw new ValidationException($"Unsupported currency '{normalized}'. No exchange rate is configured for it.");
+        }
 
         var converted = milestones.Select(m => new Response.SuggestedMilestone
         {
