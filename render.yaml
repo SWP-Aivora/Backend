@@ -52,7 +52,7 @@ services:
       - key: FrontendUrl
         value: https://frontend-beige-pi-17.vercel.app
 
-    databases:
+databases:
   - name: aivora-db
     plan: free
     region: singapore
