@@ -51,8 +51,6 @@ services:
         value: 1
       - key: FrontendUrl
         value: https://frontend-beige-pi-17.vercel.app
-      - key: SeedForceReset
-        value: false
 
     databases:
   - name: aivora-db
