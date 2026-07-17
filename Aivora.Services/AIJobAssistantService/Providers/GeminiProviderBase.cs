@@ -27,7 +27,7 @@ public abstract class GeminiProviderBase
     {
         if (!_client.HasApiKey && _options.EnableFallback)
         {
-            _logger.LogWarning($"Gemini API key is missing; using mock AI {logNoun} provider fallback.");
+            _logger.LogWarning("Gemini API key is missing; using mock AI {LogNoun} provider fallback.", logNoun);
             return await mockFallback(cancellationToken);
         }
 
@@ -42,12 +42,12 @@ public abstract class GeminiProviderBase
         }
         catch (Exception ex) when (_options.EnableFallback)
         {
-            _logger.LogWarning(ex, $"Gemini {logNoun} provider failed; using mock fallback.");
+            _logger.LogWarning(ex, "Gemini {LogNoun} provider failed; using mock fallback.", logNoun);
             return await mockFallback(cancellationToken);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, $"Gemini {logNoun} provider failed and fallback is disabled.");
+            _logger.LogError(ex, "Gemini {LogNoun} provider failed and fallback is disabled.", logNoun);
             throw new ValidationException($"AI {errorNoun} provider failed. Please try again later.");
         }
     }
