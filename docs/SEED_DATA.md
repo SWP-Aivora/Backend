@@ -1,5 +1,7 @@
 # Aivora Database Seed Data Documentation
 
+> See also: [`ARCHITECTURE.md`](ARCHITECTURE.md) for the entity model, [`flows/MAINFLOW_v2.md`](flows/MAINFLOW_v2.md) for the business flows this data exercises.
+
 ## Overview
 
 This document describes the seed data for the Aivora platform. The seed data is designed to provide a comprehensive dataset that demonstrates all main business flows and features of the platform.
@@ -11,6 +13,9 @@ This document describes the seed data for the Aivora platform. The seed data is 
 #### Admin Users (2)
 - **admin@aivora.com** - Main admin account (password: `admin123`)
 - **ahihi@aivora.com** - Second admin account (password: `ahihi123`) ⭐ *New*
+
+#### System Account (not for login)
+- **system@aivora.com** - `UserRole.SYSTEM`, seeded with an invalid password hash so it can never be logged into. Used internally as the actor for system-generated records (e.g. `SystemConstants.SystemUserId`).
 
 #### Client Users (2)
 - **client1@example.com** - Tech Corp (password: `client123`)
@@ -109,7 +114,7 @@ This document describes the seed data for the Aivora platform. The seed data is 
 - **Started:** 10 days ago
 
 **Milestones:**
-1. **Design & Planning** ($2,000) - PAID
+1. **Design & Planning** ($2,000) - APPROVED
 2. **Frontend Development** ($2,500) - IN PROGRESS
 3. **Backend Development & Deployment** ($2,500) - CREATED
 
@@ -122,7 +127,7 @@ This document describes the seed data for the Aivora platform. The seed data is 
 - **Started:** 5 days ago, Completed: 1 day ago
 
 **Milestones:**
-1. **Planning & Design** ($3,000) - PAID
+1. **Planning & Design** ($3,000) - APPROVED
 2. **Core Development** ($5,000) - SUBMITTED
 3. **Testing & Deployment** ($4,000) - CREATED
 

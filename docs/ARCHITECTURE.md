@@ -27,55 +27,65 @@ No circular references. `Aivora.Repositories` and `Aivora.Services` have **no up
 
 | Concern | Implementation |
 |---------|---------------|
-| HTTP endpoints | 18 Controllers in `/Controllers/` |
-| Real-time | SignalR Hub in `/Hubs/ChatHub.cs` |
+| HTTP endpoints | 20 Controllers in `/Controllers/` |
 | Exception handling | `/Middlewares/ExceptionMiddleware.cs` |
-| Config extensions | `/Extensions/` — `ClaimsExtensions`, `ControllerExtensions`, `JwtExtensions`, `OpenApiExtensions` |
+| Config extensions | `/Extensions/` — `ClaimsExtensions`, `ControllerExtensions`, `JwtExtensions`, `OpenApiExtensions`, `SeedingServiceExtensions` |
 | DI + Pipeline | `Program.cs` — single file, single responsibility |
+
+**Controllers:** Auth, User, Profile, Category, Skill, Job, Proposal, Project, Milestone, Dispute, Wallet, Payment, Review, Message, Notification, Media, AI, Admin, ExpertVerification, Health.
+
+**SignalR hub:** `ChatHub` lives in `Aivora.Services/Hubs/ChatHub.cs` (namespace `Aivora.api.Hubs`), mapped at `/api/v1/chat` in `Program.cs`.
 
 ### Aivora.Services (Business Logic)
 **SDK:** `Microsoft.NET.Sdk` (class library)
 
-| Namespace | File(s) | Responsibility |
-|-----------|---------|----------------|
-| `AIJobAssistantService` | `AIJobSuggestionPromptBuilder`, `AIJobRefinementPromptBuilder`, `AIServiceDescriptionPromptBuilder` | Build prompts for AI calls |
-| `AIJobAssistantService.Parsing` | `AIJobSuggestionParser`, `AIJobRefinementParser`, `AIServiceDescriptionParser` | Parse AI responses into structured DTOs |
-| `AIJobAssistantService.Providers` | `IAIJobSuggestionProvider`, `GeminiJobSuggestionProvider`, `MockJobSuggestionProvider`, `IAIJobRefinementProvider`, `AIServiceDescriptionProvider` | Strategy pattern for AI providers |
-| `AdminService` | `IAdminService`, `Service` | Admin dashboard operations |
-| `CategoryService` | `ICategoryService`, `Service` | Job categories CRUD |
-| `DeliverableService` | `IDeliverableService`, `Service` | Milestone deliverables |
-| `DisputeService` | `IDisputeService`, `Service` | Dispute creation and resolution |
-| `FinancialLedger` | (files) | Financial audit trail |
-| `HiringService` | `IHiringService`, `Service` | Job hiring workflow |
-| `IdentityService` | `IIdentityService`, `Service` | User identity management |
-| `JobService` | `IJobService`, `Service` | Job CRUD and search |
-| `JwtService` | `IJwtService`, `Service` | JWT token generation |
-| `MediaService` | `IMediaService`, `Service` | Cloudinary file uploads |
-| `MessageService` | `IMessageService`, `Service` | Messaging between users |
-| `MilestoneService` | `IMilestoneService`, `Service` | Milestone lifecycle |
-| `NotificationService` | `INotificationService`, `Service` | User notifications |
-| `ProfileService` | `IProfileService`, `Service` | Expert/client profiles |
-| `ProjectService` | `IProjectService`, `Service` | Project state management |
-| `ProposalService` | `IProposalService`, `Service` | Proposal submission and acceptance |
-| `RecommendationService` | `IRecommendationService`, `Service` | Expert recommendations |
-| `ReviewService` | `IReviewService`, `Service` | Project reviews |
-| `SkillService` | `ISkillService`, `Service` | Skill catalog management |
-| `Treasury` | (files) | Platform treasury operations |
-| `WalletService` | `IWalletService`, `Service` | User wallet and transactions |
-| `Base/` | `ServiceBase` | Common service utilities |
+| Namespace | Responsibility |
+|-----------|----------------|
+| `AIJobAssistantService` (+ `.Parsing`, `.Providers`) | AI job-suggestion prompt building, response parsing, provider strategy (Gemini/Mock) |
+| `AIJobRefinementService` | Refines an already-created `Job` (separate from `AIJobAssistantService`'s suggestion refine — see Known Debt) |
+| `AIMilestoneStepAssistantService` | AI-assisted milestone step suggestions |
+| `AdminService` | Admin dashboard operations |
+| `CategoryService` | Job categories CRUD |
+| `DeliverableService` | Milestone deliverables |
+| `DisputeService` | Dispute creation, evidence, resolution |
+| `ExpertVerificationService` | Expert skill/certificate verification submissions + AI auto-grading + escalation |
+| `HiringService` | Job hiring workflow |
+| `IdentityService` | User identity management |
+| `JobService` | Job CRUD and search |
+| `JwtService` | JWT token generation |
+| `MediaService` | Cloudinary file uploads |
+| `MessageService` | Messaging between users |
+| `MilestoneService` | Milestone lifecycle + milestone steps |
+| `NotificationService` | User notifications |
+| `ProfileService` | Expert/client profiles |
+| `ProjectService` | Project state management |
+| `ProposalService` | Proposal submission and acceptance |
+| `RealtimeService` | Emits `JobStatusUpdated` over `ChatHub` on job create/cancel/proposal-accept/project-complete |
+| `RecommendationService` | Expert recommendations |
+| `ReviewService` | Project reviews |
+| `SkillService` | Skill catalog management |
+| `Treasury` | Platform treasury / commission operations |
+| `WalletService` | User wallet, deposits (VNPay), withdrawals, transfers, transactions |
+| `Base/` | `ServiceBase` common utilities |
+
+> **Deprecated:** `FinancialLedger` no longer exists — money movement is now handled by `Treasury` (see `CONTEXT.md`).
 
 ### Aivora.Repositories (Data Access)
 **SDK:** `Microsoft.NET.Sdk` (class library)
 
 | Folder | Contents |
 |--------|----------|
-| `Abstractions/` | Generic repository interface `IRepository<T>` |
-| `Data/` | `AivoraDbContext`, `AuditableEntityInterceptor` (auto-set timestamps) |
-| `Entities/` | All EF Core entities (`Job`, `Proposal`, `Project`, `Milestone`, `Payment`, `Deliverable`, `Review`, `Skill`, `Category`, `User`, `Conversation`, `Message`, `Notification`, `FinancialLedgerEntry`, `Dispute`, `Wallet`, `Transaction`) |
+| `Abstractions/` | `BaseEntity<TKey>` / `BaseEntity` / `AuditableBaseEntity` — no generic repository interface exists |
+| `Data/AivoraDbContext.cs` | EF Core `DbContext` |
+| `Data/Interceptors/` | `AuditableEntityInterceptor` (auto-set timestamps) |
+| `Data/Configurations/` | Fluent API entity configurations |
+| `Data/Migrations/` | EF Core migrations |
+| `Data/Seeders/` | `AivoraDataSeeder` |
+| `Entities/` | All EF Core entities |
 | `Enums/` | `JobStatus`, `ProposalStatus`, `ProjectStatus`, `MilestoneStatus`, `PaymentStatus`, `DeliverableStatus`, `DisputeStatus`, `UserRole`, etc. |
-| `Configurations/` | Fluent API entity configurations |
-| `Migrations/` | EF Core migrations |
-| `Exceptions/` | Data access exceptions |
+| `Constants/` | Repository-layer constants |
+
+> Data-access exceptions (`NotFoundException`, `ValidationException`, etc.) actually live in `Aivora.Services/Exceptions/` — there is no separate `Aivora.Repositories/Exceptions/`.
 
 ### Aivora.Tests (Tests)
 **Framework:** xUnit + FluentAssertions + Moq + EF Core InMemory
@@ -124,7 +134,7 @@ No circular references. `Aivora.Repositories` and `Aivora.Services` have **no up
 ### JWT Flow
 1. User calls `/api/v1/auth/login` or `/api/v1/auth/register`
 2. `JwtService` generates a Bearer token with claims: `sub` (userId), `email`, `role`, `nameid`
-3. Token sent in `Authorization: Bearer <token>` header
+3. Token sent in `Authorization: Bearer <token>` header (also set as HttpOnly cookies `accessToken`/`refreshToken`)
 4. `[Authorize]` attributes validate token on protected endpoints
 5. Role-based policies restrict access:
    - `ClientPolicy` → `UserRole.Client`
@@ -132,11 +142,13 @@ No circular references. `Aivora.Repositories` and `Aivora.Services` have **no up
    - `AdminPolicy` → `UserRole.Admin`
 
 ### Default seed accounts
+See [`SEED_DATA.md`](SEED_DATA.md) for the full list. Quick reference:
+
 | Email | Role |
 |-------|------|
-| `client@test.com` | CLIENT |
-| `expert@test.com` | EXPERT |
-| `admin@test.com` | ADMIN |
+| `admin@aivora.com` | ADMIN |
+| `client1@example.com` | CLIENT |
+| `expert1@example.com` | EXPERT |
 
 ---
 
@@ -175,6 +187,8 @@ else
     services.AddScoped<IAIJobSuggestionProvider, MockJobSuggestionProvider>();
 ```
 
+Same pattern applies to `IAIJobRefinementProvider`, `IAIServiceDescriptionProvider`, and the milestone-step assistant provider.
+
 ---
 
 ## Database (PostgreSQL via EF Core)
@@ -191,7 +205,8 @@ User (Client/Expert)
   ├── Wallet (1:1) — Each user has a wallet
   ├── Conversations (N:M) — via participant table
   ├── Messages (1:N) — Messages in conversations
-  └── Notifications (1:N) — User notifications
+  ├── Notifications (1:N) — User notifications
+  └── ExpertVerifications (1:N) — Expert only
 
 Job
   ├── Proposals (1:N)
@@ -204,26 +219,39 @@ Project
   └── Deliverables (1:N, via milestones)
 
 Milestone
+  ├── MilestoneSteps (1:N)
   ├── Deliverables (1:N)
   └── Payment (1:1)
 
-Payment — Records financial transactions
-FinancialLedgerEntry — Immutable audit trail
-Dispute — Linked to project or milestone
+Payment — Records escrow/financial transactions
+Dispute — Linked to a milestone; has DisputeEvidences (1:N)
 ```
 
 ### Entity base class pattern
-All entities inherit from `Entity`:
+Defined in `Aivora.Repositories/Abstractions/BaseEntity.cs`:
 ```csharp
-public abstract class Entity
+public abstract class BaseEntity<TKey>
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
-    public DateTime CreatedAt { get; set; }
-    public DateTime? UpdatedAt { get; set; }
+    public TKey Id { get; set; } = default!;
+    public bool IsDeleted { get; set; } // Soft delete
+}
+
+public abstract class BaseEntity : BaseEntity<Guid> { /* Id = Guid.NewGuid() */ }
+
+public abstract class AuditableBaseEntity : BaseEntity, IAuditableEntity
+{
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? UpdatedAt { get; set; }
 }
 ```
 
-`AuditableEntityInterceptor` auto-sets `CreatedAt` on insert and `UpdatedAt` on save.
+Most entities inherit `AuditableBaseEntity` (timestamps + soft delete); a few inherit plain `BaseEntity` only. `AuditableEntityInterceptor` auto-sets `CreatedAt` on insert and `UpdatedAt` on save. Timestamps are `DateTimeOffset`, not `DateTime`.
+
+### Table name reference (selected)
+
+Most tables share their entity's plural name (`Jobs`→`JobPosts`, `Proposals`, `Projects`, `Milestones`, `Payments`, `Wallets`, `Reviews`, `Users`, etc — see `Aivora.Repositories/Data/Configurations/*.ToTable()` for the authoritative list). One frequent gotcha:
+
+- Entity `DisputeEvidence` → table **`DisputeEvidences`** (plural, unlike the entity name).
 
 ---
 
@@ -271,7 +299,7 @@ All endpoints return a consistent envelope:
 
 ## Configuration Architecture
 
-**Source of truth:** `Program.cs` config validation + `appsettings.json` / `appsettings.Development.json`
+**Source of truth:** `Program.cs` config validation + `.env.example` + `appsettings.json` / `appsettings.Development.json`. Full reference: [`ENV.md`](ENV.md).
 
 **Variable naming:** Use `__` as section separator (e.g., `ConnectionStrings__DefaultConnection`). Compatible with all hosting providers.
 
@@ -283,8 +311,8 @@ All endpoints return a consistent envelope:
 |---------|-----|----------|-------|
 | `ConnectionStrings` | `DefaultConnection` | ✅ | PostgreSQL connection string |
 | `JwtSettings` | `Secret` | ✅ | Min 32 characters |
-| `JwtSettings` | `Issuer` | ✅ | Typically "Aivora" |
-| `JwtSettings` | `Audience` | ✅ | Typically "Aivora" |
+| `JwtSettings` | `Issuer` | ✅ | `AivoraApi` |
+| `JwtSettings` | `Audience` | ✅ | `AivoraClient` |
 | `JwtSettings` | `ExpiryInMinutes` | ✅ | Integer |
 | `CloudinaryOptions` | `CloudName` | ✅ | Cloudinary cloud name |
 | `CloudinaryOptions` | `ApiKey` | ✅ | Cloudinary API key |
@@ -294,27 +322,37 @@ All endpoints return a consistent envelope:
 | `AIProvider` | `BaseUrl` | ❌ | Default: generativelanguage.googleapis.com |
 | `AIProvider` | `Model` | ❌ | Default: gemini-2.5-flash |
 | `AIProvider` | `EnableFallback` | ❌ | Default: true |
-| `RateLimit` | `Strict/Wnd/Limit` | ❌ | Auth endpoint limits |
-| `RateLimit` | `AI/Wnd/Limit` | ❌ | AI endpoint limits |
-| `RateLimit` | `General/Wnd/Limit` | ❌ | General endpoint limits |
+| `FrontendUrl` | — | ❌ | Used to build VNPay return redirect |
+| `VNPay` | `TmnCode` / `HashSecret` / `BaseUrl` / `ReturnUrl` / `IpnUrl` | ❌ | VNPay payment gateway integration |
+| `Commission` | `Rate` / `MaxDebtLimit` | ❌ | Platform commission on released payments |
+| `RateLimit` | `Strict/AI/General × PermitLimit/WindowInMinutes` | ❌ | Rate limit policies |
 
 ---
 
 ## SignalR Chat Hub
 
+**Location:** `Aivora.Services/Hubs/ChatHub.cs` (namespace `Aivora.api.Hubs`)
 **Hub path:** `/api/v1/chat`
+**Auth:** JWT via query string `access_token` for WebSocket connections.
 
 **Methods:**
 | Method | Parameters | Description |
 |--------|-----------|-------------|
-| `SendMessage` | `conversationId: Guid, content: string` | Send a message to a conversation |
+| `SendMessage` | `request: { conversationId: Guid, content?: string, attachmentUrl?: string }` | Send a message to a conversation |
+| `JoinConversation` | `conversationId: Guid` | Join a conversation group |
+| `LeaveConversation` | `conversationId: Guid` | Leave a conversation group |
+| `UserTyping` | `conversationId: Guid, isTyping: bool` | Broadcast typing indicator |
+| `MarkAsRead` | `conversationId: Guid` | Mark messages read, broadcast `ReadConfirmation` |
 
 **Events:**
 | Event | Payload | Description |
 |-------|---------|-------------|
 | `ReceiveMessage` | `ConversationMessage` | New message received |
 | `ReadConfirmation` | `{ userId, conversationId, readAt }` | Message read receipt |
-| `Error` | `{ message: string }` | Error notification |
+| `UserTyping` | `{ conversationId, userId, isTyping, timestamp }` | Typing indicator broadcast to other participants |
+| `JobStatusUpdated` | `{ jobId, status, title? }` | Emitted by `RealtimeService` to `Clients.User(userId)` on job publish (open), cancel (cancelled), proposal accepted (in_progress), project completed (completed) |
+| `NewJobPublished` | `{ jobId, title }` | Emitted by `RealtimeService` to `Clients.All` when a job is published |
+| `Error` | `{ message: string }` | **Reserved, not currently emitted.** Errors surface via SignalR's default `HubException` instead — kept here for future use, don't rely on it client-side yet. |
 
 ---
 
@@ -331,7 +369,7 @@ Document filters in `OpenApiExtensions`:
 
 ## Known Architectural Debt
 
-See [IMPROVEMENTS.md](architecture/IMPROVEMENTS.md) for planned improvements:
-
-1. **Recommendation Scoring** — Strategy pattern extraction needed
-2. **Domain Lifecycle Transitions** — Anemic model → Rich domain for Job/Proposal/Project state machines
+1. **Duplicate AI "refine" flows.** `POST /ai/job-assistant/{id}/refine` (edits an `AIJobSuggestion`, via `AIJobAssistantService.IAIJobRefinementProvider`) and `POST /ai/jobs/{jobId}/refine` (edits an already-created `Job`, via `AIJobRefinementService.IAIJobRefinementProvider`) are two near-identical interface/implementation pairs registered separately in DI. Both are used by the frontend and work correctly — not a bug, but worth consolidating.
+2. **`Error` SignalR event is documented but never emitted** by `ChatHub` — errors currently surface through SignalR's default `HubException`. Either implement the emit or drop the event from client-facing docs once confirmed unused.
+3. **Recommendation Scoring** — the weighted scoring formula (`0.35*SkillScore + 0.20*PortfolioScore + ...`) lives inline in `RecommendationService`; a Strategy-pattern extraction would make individual score components independently testable.
+4. **Domain Lifecycle Transitions** — Job/Proposal/Project state machines are anemic (status is a plain enum field validated ad-hoc per service method) rather than enforced by a rich domain model.

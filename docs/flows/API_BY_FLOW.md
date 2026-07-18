@@ -1,10 +1,10 @@
-# AITasker — 4 Main Flows (API Reference)
+# Aivora — 4 Main Flows (API Reference)
 
-> **Mục đích:** Tổng hợp toàn bộ API endpoint đang có trong code, nhóm theo 4 main flows từ `MAINFLOW.md`. Đây là tài liệu tham chiếu khi viết integration test, làm frontend integration, hoặc implement thêm.
+> **Mục đích:** Tổng hợp toàn bộ API endpoint đang có trong code, nhóm theo 4 main flows từ [`MAINFLOW_v2.md`](./MAINFLOW_v2.md). Đây là tài liệu tham chiếu khi viết integration test, làm frontend integration, hoặc implement thêm.
 >
 > **Base path:** `/api/v1`
-> **Auth:** `Authorization: Bearer <accessToken>`
-> **Response wrapper:** `{ success, message, data, traceId }` (xem `API_CONTRACT.md` §1.3)
+> **Auth:** `Authorization: Bearer <accessToken>` (hoặc HttpOnly cookie `accessToken`)
+> **Response wrapper:** `{ success, message, data, traceId }` — xem [`../ARCHITECTURE.md`](../ARCHITECTURE.md) mục "API Response Format".
 
 ---
 
@@ -13,7 +13,7 @@
 > **Mục tiêu:** Client tạo job, System hỗ trợ làm rõ requirement bằng AI, tính toán expert phù hợp.
 > **Actors:** Client (chính), Expert (phụ — xem job).
 > **Status:** `Job: NULL → DRAFT → OPEN`
-> **Tables:** `JobPosts`, `JobSkills`, `AIJobSuggestions`, `RecommendationResults`, `ExpertProfiles`, `ExpertSkills`, `Skills`, `Categories`
+> **Tables:** `JobPosts`, `JobSkills`, `JobPostMilestones`, `AIJobSuggestions`, `RecommendationResults`, `ExpertProfiles`, `ExpertSkills`, `Skills`, `Categories`
 
 ## 1.1. Gọi AI Job Assistant (Generate Suggestion)
 
@@ -125,15 +125,6 @@ GET /api/v1/ai/job-assistant/{suggestionId}
 
 **Status:** `200` (thành công), `404` (không tìm thấy).
 
-**Response `404`:**
-```json
-{
-  "success": false,
-  "message": "AI Suggestion not found.",
-  "errors": { "code": "not_found" }
-}
-```
-
 ---
 
 ## 1.3. Chỉnh sửa gợi ý AI (Partial Update)
@@ -144,38 +135,9 @@ PATCH /api/v1/ai/job-assistant/{suggestionId}
 
 **Auth:** `ClientPolicy`. Chỉ cập nhật các field được gửi lên (partial update).
 
-**Field Reference (`PatchSuggestionRequest`):**
+**Field Reference (`PatchSuggestionRequest`):** `suggestedTitle`, `suggestedDescription`, `businessDomain`, `expectedOutcome`, `budgetType`, `currency`, `suggestedBudgetMin`, `suggestedBudgetMax`, `suggestedTimelineDays`, `experienceLevel`, `suggestedSkills[]`, `suggestedMilestones[]`, `clarifyingAnswers[]` — tất cả optional, null = không đổi.
 
-| Field | Type | Ghi chú |
-|-------|------|---------|
-| `suggestedTitle` | string? | Max 255 |
-| `suggestedDescription` | string? | — |
-| `businessDomain` | string? | Max 255 |
-| `expectedOutcome` | string? | Max 1000 |
-| `budgetType` | string? | `"FIXED"` \| `"HOURLY"` |
-| `currency` | string? | — |
-| `suggestedBudgetMin` | decimal? | — |
-| `suggestedBudgetMax` | decimal? | — |
-| `suggestedTimelineDays` | int? | — |
-| `experienceLevel` | string? | `"BEGINNER"` \| `"INTERMEDIATE"` \| `"ADVANCED"` \| `"EXPERT"` |
-| `suggestedSkills` | List\<string\>? | Array string |
-| `suggestedMilestones` | List\<SuggestedMilestone\>? | Array object |
-| `clarifyingAnswers` | List\<string\>? | Array string |
-
-**Request body (cập nhật budget + skills + title):**
-```json
-{
-  "suggestedTitle": "Custom AI Recommendation Engine for Streaming",
-  "experienceLevel": "EXPERT",
-  "budgetType": "HOURLY",
-  "suggestedBudgetMin": 7000,
-  "suggestedBudgetMax": 12000,
-  "suggestedSkills": ["Python", "TensorFlow", "Recommendation Systems", "Kubernetes"],
-  "suggestedTimelineDays": 60
-}
-```
-
-> **Lưu ý:** Các enum (`experienceLevel`, `budgetType`) chấp nhận giá trị chuỗi (VD: `"EXPERT"`, `"HOURLY"`) nhờ `[JsonConverter(typeof(JsonStringEnumConverter))]`.
+> **Lưu ý:** Enum (`experienceLevel`, `budgetType`) chấp nhận giá trị chuỗi nhờ `[JsonConverter(typeof(JsonStringEnumConverter))]`.
 
 **Status:** `200` (thành công), `400` (suggestion đã xử lý).
 
@@ -187,13 +149,11 @@ PATCH /api/v1/ai/job-assistant/{suggestionId}
 POST /api/v1/ai/job-assistant/{suggestionId}/refine
 ```
 
-**Auth:** `ClientPolicy`. Gửi message để AI cải thiện suggestion.
+**Auth:** `ClientPolicy`. Gửi message để AI cải thiện suggestion (sửa `AIJobSuggestion` — trước khi job được tạo).
 
-**Request body (`RefineSuggestionRequest`):**
+**Request body:**
 ```json
-{
-  "message": "Increase budget to 20000 and add PyTorch to the skills"
-}
+{ "message": "Increase budget to 20000 and add PyTorch to the skills" }
 ```
 
 **Validation:** `message` >= 3 chars.
@@ -202,20 +162,42 @@ POST /api/v1/ai/job-assistant/{suggestionId}/refine
 ```json
 {
   "success": true,
-  "message": "AI suggestion refined",
   "data": {
-    "suggestion": {
-      "suggestedBudgetMin": 20000,
-      "suggestedBudgetMax": 20000,
-      "suggestedSkills": ["Python", "NLP", "TensorFlow", "FastAPI", "PyTorch"]
-    },
+    "suggestion": { "suggestedBudgetMin": 20000, "suggestedBudgetMax": 20000 },
     "aiResponse": "I updated the suggested budget.",
     "changedFields": ["suggestedBudgetMin", "suggestedBudgetMax"]
   }
 }
 ```
 
-> **Mock provider behavior:** `message` chứa "budget" → cập nhật budget.  Chứa "add skill: X" → thêm skill.  Chứa "question N: answer" → trả lời clarifying question.  Chứa "should"/"why"/"explain" → trả lời advisory.
+> **Không nhầm với 1.4b** (`/ai/jobs/{jobId}/refine`) — endpoint đó sửa `Job` đã tạo, không phải suggestion. Xem `../ARCHITECTURE.md` mục Known Debt về 2 pipeline refine song song.
+
+## 1.4b. Refine job đã tạo
+
+```
+POST /api/v1/ai/jobs/{jobId}/refine
+```
+
+**Auth:** `ClientPolicy`. **Rate Limit:** `AI`.
+
+**Request body:**
+```json
+{ "message": "Increase the budget range and add a note about mobile support" }
+```
+
+**Response `200`:**
+```json
+{
+  "success": true,
+  "data": {
+    "job": { "id": "guid", "title": "...", "budgetMin": 6000, "budgetMax": 12000 },
+    "aiResponse": "Updated the budget range as requested.",
+    "changedFields": ["budgetMin", "budgetMax"]
+  }
+}
+```
+
+Dùng `AIJobRefinementService` (khác pipeline với 1.4, xem lưu ý ở trên).
 
 ---
 
@@ -227,12 +209,9 @@ POST /api/v1/ai/job-assistant/{suggestionId}/accept
 
 **Auth:** `ClientPolicy`.
 
-**Request body (`AcceptSuggestionRequest`):**
+**Request body:**
 ```json
-{
-  "categoryId": "681b2016-dc4d-40a8-a727-ec1b26b3e5e2",
-  "selectedSkillIds": []
-}
+{ "categoryId": "681b2016-dc4d-40a8-a727-ec1b26b3e5e2", "selectedSkillIds": [] }
 ```
 
 | Field | Type | Required | Ghi chú |
@@ -240,27 +219,9 @@ POST /api/v1/ai/job-assistant/{suggestionId}/accept
 | `categoryId` | Guid? | **Yes** | Category phải tồn tại |
 | `selectedSkillIds` | List\<Guid\>? | No | Skill IDs từ seed data |
 
-**Side effects:**
-- `AIJobSuggestions.Status = ACCEPTED`.
-- Tạo `JobPosts` (Status = `DRAFT`).
-- Tạo `JobSkills` + `JobPostMilestones`.
+**Side effects:** `AIJobSuggestions.Status = ACCEPTED`. Tạo `JobPosts` (Status = `DRAFT`) + `JobSkills` + `JobPostMilestones`.
 
-**Status:** `201 Created` (thành công), `400` (thiếu categoryId / suggestion đã xử lý), `500` (lỗi DB).
-
-**Response `201`:**
-```json
-{
-  "success": true,
-  "message": "Job draft created from AI suggestion",
-  "data": {
-    "job": {
-      "id": "51bfa2f4-1484-4319-9d75-da2177fbc4e7",
-      "title": "Production NLP Sentiment Analysis Pipeline",
-      "status": "DRAFT"
-    }
-  }
-}
-```
+**Status:** `201 Created`, `400` (thiếu categoryId / suggestion đã xử lý).
 
 ---
 
@@ -272,30 +233,16 @@ POST /api/v1/ai/job-assistant/{suggestionId}/reject
 
 **Auth:** `ClientPolicy`.
 
-**Request body (`RejectSuggestionRequest`):**
+**Request body:**
 ```json
-{
-  "reason": "The budget is too high for our current stage. We will create a simpler job."
-}
+{ "reason": "The budget is too high for our current stage. We will create a simpler job." }
 ```
 
-**Validation:** `reason` >= 3 chars và <= 500 chars.
+**Validation:** `reason` >= 3 và <= 500 chars.
 
-**Side effects:** `AIJobSuggestions.Status = REJECTED`, `AIJobSuggestions.RejectionReason = reason`.
+**Side effects:** `AIJobSuggestions.Status = REJECTED`, `RejectionReason = reason`.
 
-**Status:** `200` (thành công), `400` (reason quá ngắn/dài hoặc suggestion đã xử lý).
-
-**Response `200`:**
-```json
-{
-  "success": true,
-  "message": "AI suggestion rejected",
-  "data": {
-    "status": "REJECTED",
-    "rejectionReason": "The budget is too high for our current stage..."
-  }
-}
-```
+**Status:** `200`, `400`.
 
 ---
 
@@ -305,16 +252,13 @@ POST /api/v1/ai/job-assistant/{suggestionId}/reject
 POST /api/v1/ai/service-generator
 ```
 
-**Auth:** `ExpertPolicy`.  **Rate Limit:** `AI` (20 req/min).
-
-Tạo mô tả dịch vụ + 3 gói (Basic/Standard/Premium) cho Expert dựa trên input.
+**Auth:** `ExpertPolicy`. **Rate Limit:** `AI`. Tạo mô tả dịch vụ + 3 gói (Basic/Standard/Premium) cho Expert.
 
 **Request body (`GenerateServiceDescriptionRequest`):**
-
 ```json
 {
-  "rawInput": "I am a senior AI engineer with 8 years of experience building production ML pipelines and custom LLM solutions for enterprise clients across finance and healthcare.",
-  "skills": ["Python", "Machine Learning", "Deep Learning", "NLP", "TensorFlow", "PyTorch"],
+  "rawInput": "I am a senior AI engineer with 8 years of experience...",
+  "skills": ["Python", "Machine Learning", "Deep Learning"],
   "priceFrom": 1500,
   "deliveryDays": 30,
   "tone": "professional",
@@ -323,107 +267,23 @@ Tạo mô tả dịch vụ + 3 gói (Basic/Standard/Premium) cho Expert dựa tr
 }
 ```
 
-**Field Reference:**
-
 | Field | Type | Required | Validation |
 |-------|------|----------|------------|
 | `rawInput` | string | **Yes** | 20–4000 chars |
 | `skills` | List\<string\> | **Yes** | 1–20 items |
 | `priceFrom` | decimal | **Yes** | 1–100000 |
 | `deliveryDays` | int | **Yes** | 1–365 |
-| `tone` | string | No (default: `"professional"`) | `"professional"` \| `"friendly"` \| `"premium"` \| `"technical"` |
-| `targetClient` | string | No (default: `"startup"`) | `"startup"` \| `"sme"` \| `"enterprise"` \| `"individual"` |
-| `language` | string | No (default: `"vi"`) | `"vi"` \| `"en"` |
+| `tone` | string | No (`"professional"`) | `professional`\|`friendly`\|`premium`\|`technical` |
+| `targetClient` | string | No (`"startup"`) | `startup`\|`sme`\|`enterprise`\|`individual` |
+| `language` | string | No (`"vi"`) | `vi`\|`en` |
 
-**Status:** `201 Created` (thành công), `400` (validation), `403` (Client gọi endpoint này).
+**Status:** `201`, `400`, `403` (Client gọi endpoint này).
 
-**Response `201`:**
-```json
-{
-  "success": true,
-  "message": "Service description generated",
-  "data": {
-    "suggestedTitle": "Professional Service: Build Python Solutions",
-    "suggestedDescription": "I deliver high-quality services for Python, Machine Learning...",
-    "packages": [
-      {
-        "name": "Basic",
-        "title": "Basic Package",
-        "price": 1500,
-        "deliveryDays": 15,
-        "description": "Core setup and first delivery.",
-        "features": ["Basic Python setup", "Setup documentation", "3 days support"]
-      },
-      {
-        "name": "Standard",
-        "title": "Standard Full Solution",
-        "price": 3000,
-        "deliveryDays": 30,
-        "description": "Complete delivery for common production needs.",
-        "features": ["Implementation with skills", "Testing", "API and database integration", "7 days support"]
-      },
-      {
-        "name": "Premium",
-        "title": "Premium Enterprise Solution",
-        "price": 6000,
-        "deliveryDays": 45,
-        "description": "Advanced delivery with scalability and extended support.",
-        "features": ["All Standard features", "Scalable architecture", "30 days warranty", "Handoff call"]
-      }
-    ],
-    "faqs": [
-      {
-        "question": "What do I need to prepare to get started?",
-        "answer": "Please prepare your requirements, examples, preferred stack, and any constraints."
-      },
-      {
-        "question": "Is support included after delivery?",
-        "answer": "Yes, support is included based on the selected package tier."
-      }
-    ]
-  }
-}
-```
-
-> **Gói tiers:** Luôn trả về đúng 3 gói: Basic, Standard, Premium. Giá: Basic = `priceFrom`, Standard = 2x, Premium = 4x.
+> **Gói tiers:** luôn 3 gói. Giá: Basic = `priceFrom`, Standard = 2x, Premium = 4x.
 
 ---
 
-## 1.8. AI Service — Test Results (2026-06-10)
-
-Toan bộ 7 endpoint AI service da đuợc test thực tế với database PostgreSQL thật và Mock AI provider. Kết quả:
-
-| # | Endpoint | Method | Status Code | Kết quả |
-|---|----------|--------|-------------|---------|
-| 1 | `/ai/job-assistant` | POST | 201 | Generate suggestion — trả về title, description, skills, milestones, clarifying questions, risk warnings |
-| 2 | `/ai/job-assistant/{id}` | GET | 200 | Get suggestion — trả về toan bộ data |
-| 3 | `/ai/job-assistant/{id}` | PATCH | 200 | Partial update — chấp nhận string enum (`EXPERT`, `HOURLY`) |
-| 4 | `/ai/job-assistant/{id}/refine` | POST | 200 | AI refinement — trả về `aiResponse` + `changedFields` |
-| 5 | `/ai/job-assistant/{id}/accept` | POST | 201 | Accept → tạo Job + JobPostMilestones trong DB |
-| 6 | `/ai/job-assistant/{id}/reject` | POST | 200 | Reject — cập nhật status + rejectionReason |
-| 7 | `/ai/service-generator` | POST | 201 | Generate service description — 3 tiers (Basic/Standard/Premium) + FAQs |
-
-**Error cases đa verify:**
-
-| Test case | Expected | Actual |
-|-----------|----------|--------|
-| Thiếu auth token | 401 | 401 |
-| `rawInput` < 5 chars | 400 + message | `"RawInput must be at least 5 characters long."` |
-| Suggestion ID khong tồn tại | 404 | `"AI Suggestion not found."` |
-| Suggestion đa xử lý (reject lại) | 400 | `"Suggestion is already processed."` |
-| Client gọi `/ai/service-generator` | 403 | 403 Forbidden |
-| `reason` < 3 chars khi reject | 400 | Validation error |
-| Thiếu `categoryId` khi accept | 400 | `"CategoryId is required..."` |
-
-**Bugs đa fix trong quá trinh test:**
-
-| Bug | Root Cause | Fix |
-|-----|-----------|-----|
-| `JobPostMilestones` table khong tồn tại | Thiếu `IEntityTypeConfiguration<JobPostMilestone>` + migration | Tạo `JobPostMilestoneConfiguration.cs` + migration `AddJobPostMilestonesTable` |
-| PATCH `experienceLevel` / `budgetType` bị reject | `System.Text.Json` khong parse string->enum mặc định | Them `[JsonConverter(typeof(JsonStringEnumConverter))]` vao `SkillLevel` va `BudgetType` enums |
-| AI luon dung Mock provider | Chưa set `AIProvider__ApiKey` env var | Set `AIProvider__Provider=Gemini` + `AIProvider__ApiKey=<key>` để bật real AI |
-
-## 1.7. Tạo job draft thủ công
+## 1.8. Tạo job draft thủ công
 
 ```
 POST /api/v1/jobs
@@ -445,36 +305,27 @@ POST /api/v1/jobs
 }
 ```
 
-**Validation:**
-- `originalDescription` bắt buộc.
-- `title` bắt buộc khi publish (có thể trống khi tạo draft).
-- `budgetMin ≤ BudgetMax` nếu cả hai đều có.
+**Validation:** `originalDescription` bắt buộc. `title` bắt buộc khi publish. `budgetMin ≤ budgetMax` nếu cả hai đều có.
 
-## 1.8. Cập nhật job draft
+## 1.9. Cập nhật job draft
 
 ```
 PUT /api/v1/jobs/{jobId}
 ```
 
-**Auth:** `ClientPolicy`, chủ job. Chỉ cho phép khi Status = `DRAFT`.
+**Auth:** `ClientPolicy`, chủ job. Chỉ khi Status = `DRAFT`.
 
-## 1.9. Publish job
+## 1.10. Publish job
 
 ```
 POST /api/v1/jobs/{jobId}/publish
 ```
 
-**Auth:** `ClientPolicy`, chủ job.
+**Auth:** `ClientPolicy`, chủ job. **Validation:** job phải có `title` + mô tả.
 
-**Validation:** Job phải có `title` và `enhancedDescription` (hoặc `originalDescription`).
+**Status transition:** `DRAFT → OPEN`. **Side effects:** `PublishedAt = UTC now`. Emit `JobStatusUpdated` (status=open) qua SignalR tới chủ job.
 
-**Status transition:** `DRAFT → OPEN`.
-
-**Side effects:**
-- `JobPosts.Status = OPEN`.
-- `JobPosts.PublishedAt = UTC now`.
-
-## 1.10. Xem danh sách job (public)
+## 1.11. Xem danh sách job (public)
 
 ```
 GET /api/v1/jobs?status=OPEN&categoryId=&skillId=&pageIndex=1&pageSize=20
@@ -482,7 +333,7 @@ GET /api/v1/jobs?status=OPEN&categoryId=&skillId=&pageIndex=1&pageSize=20
 
 **Auth:** không bắt buộc.
 
-## 1.11. Xem chi tiết job
+## 1.12. Xem chi tiết job
 
 ```
 GET /api/v1/jobs/{jobId}
@@ -490,17 +341,15 @@ GET /api/v1/jobs/{jobId}
 
 **Auth:** không bắt buộc (public cho OPEN job).
 
-## 1.12. Hủy job
+## 1.13. Hủy job
 
 ```
 POST /api/v1/jobs/{jobId}/cancel
 ```
 
-**Auth:** `ClientPolicy`, chủ job.
+**Auth:** `ClientPolicy`, chủ job. **Status transition:** `DRAFT / OPEN → CANCELLED`. Emit `JobStatusUpdated` (status=cancelled).
 
-**Status transition:** `DRAFT / OPEN → CANCELLED`.
-
-## 1.13. Xóa job
+## 1.14. Xóa job
 
 ```
 DELETE /api/v1/jobs/{jobId}
@@ -508,23 +357,17 @@ DELETE /api/v1/jobs/{jobId}
 
 **Auth:** `ClientPolicy`, chủ job. Chỉ khi Status = `DRAFT`.
 
-## 1.14. Tính toán expert recommendations
+## 1.15. Tính toán expert recommendations
 
 ```
 POST /api/v1/jobs/{jobId}/recommendations/generate
 ```
 
-**Auth:** `ClientPolicy`, chủ job.
+**Auth:** `ClientPolicy`, chủ job. **Preconditions:** `JobPosts.Status = OPEN`.
 
-**Preconditions:** `JobPosts.Status = OPEN`.
+**Side effects:** Tính `TotalScore = 0.35*SkillScore + 0.20*PortfolioScore + 0.15*RatingScore + 0.10*BudgetScore + 0.10*AvailabilityScore + 0.10*CompletionScore`. Lưu vào `RecommendationResults`.
 
-**Side effects:**
-- Load job skills, budget, category, description.
-- Load active experts.
-- Tính `TotalScore = 0.35*SkillScore + 0.20*PortfolioScore + 0.15*RatingScore + 0.10*BudgetScore + 0.10*AvailabilityScore + 0.10*CompletionScore`.
-- Lưu vào `RecommendationResults`.
-
-## 1.15. Xem expert recommendations cho job
+## 1.16. Xem expert recommendations cho job
 
 ```
 GET /api/v1/jobs/{jobId}/recommendations
@@ -532,28 +375,24 @@ GET /api/v1/jobs/{jobId}/recommendations
 
 **Auth:** `ClientPolicy`, chủ job.
 
-**Response:**
+**Response — flat list (KHÔNG bọc trong `{jobId, generatedAt, recommendations}`):**
 ```json
 {
   "success": true,
-  "data": {
-    "jobId": "guid",
-    "generatedAt": "2026-06-10T10:00:00Z",
-    "recommendations": [
-      {
-        "expertId": "guid",
-        "totalScore": 87.50,
-        "explanation": "Matches 5/6 required skills, has RAG chatbot experience, rating 4.8/5, and budget fits the client's range.",
-        "expert": {
-          "fullName": "Trần Văn B",
-          "headline": "AI/ML Engineer",
-          "ratingAvg": 4.8,
-          "completedProjects": 12,
-          "hourlyRate": 45.00
-        }
+  "data": [
+    {
+      "expertId": "guid",
+      "totalScore": 87.50,
+      "explanation": "Matches 5/6 required skills, has RAG chatbot experience, rating 4.8/5, and budget fits the client's range.",
+      "expert": {
+        "fullName": "Trần Văn B",
+        "headline": "AI/ML Engineer",
+        "ratingAvg": 4.8,
+        "completedProjects": 12,
+        "hourlyRate": 45.00
       }
-    ]
-  }
+    }
+  ]
 }
 ```
 
@@ -565,18 +404,19 @@ GET /api/v1/jobs/{jobId}/recommendations
 | 2 | GET | `/ai/job-assistant/{id}` | Client | `AIJobSuggestions` |
 | 3 | PATCH | `/ai/job-assistant/{id}` | Client | `AIJobSuggestions` |
 | 4 | POST | `/ai/job-assistant/{id}/refine` | Client | `AIJobSuggestions` |
-| 5 | POST | `/ai/job-assistant/{id}/accept` | Client | `AIJobSuggestions`, `JobPosts`, `JobSkills` |
-| 6 | POST | `/ai/job-assistant/{id}/reject` | Client | `AIJobSuggestions` |
-| 7 | POST | `/ai/service-generator` | Expert | `AIJobSuggestions` |
-| 8 | POST | `/jobs` | Client | `JobPosts`, `JobSkills`, `JobPostMilestones` |
-| 9 | GET | `/jobs` | — | `JobPosts` |
-| 10 | GET | `/jobs/{id}` | — | `JobPosts`, `JobSkills` |
-| 11 | PUT | `/jobs/{id}` | Client | `JobPosts` |
-| 12 | DELETE | `/jobs/{id}` | Client | `JobPosts` |
-| 13 | POST | `/jobs/{id}/publish` | Client | `JobPosts` |
-| 14 | POST | `/jobs/{id}/cancel` | Client | `JobPosts` |
-| 15 | POST | `/jobs/{id}/recommendations/generate` | Client | `RecommendationResults` |
-| 16 | GET | `/jobs/{id}/recommendations` | Client | `RecommendationResults` |
+| 5 | POST | `/ai/jobs/{jobId}/refine` | Client | `JobPosts` |
+| 6 | POST | `/ai/job-assistant/{id}/accept` | Client | `AIJobSuggestions`, `JobPosts`, `JobSkills`, `JobPostMilestones` |
+| 7 | POST | `/ai/job-assistant/{id}/reject` | Client | `AIJobSuggestions` |
+| 8 | POST | `/ai/service-generator` | Expert | — |
+| 9 | POST | `/jobs` | Client | `JobPosts`, `JobSkills`, `JobPostMilestones` |
+| 10 | GET | `/jobs` | — | `JobPosts` |
+| 11 | GET | `/jobs/{id}` | — | `JobPosts`, `JobSkills` |
+| 12 | PUT | `/jobs/{id}` | Client | `JobPosts` |
+| 13 | DELETE | `/jobs/{id}` | Client | `JobPosts` |
+| 14 | POST | `/jobs/{id}/publish` | Client | `JobPosts` |
+| 15 | POST | `/jobs/{id}/cancel` | Client | `JobPosts` |
+| 16 | POST | `/jobs/{id}/recommendations/generate` | Client | `RecommendationResults` |
+| 17 | GET | `/jobs/{id}/recommendations` | Client | `RecommendationResults` |
 
 ---
 
@@ -584,7 +424,7 @@ GET /api/v1/jobs/{jobId}/recommendations
 
 > **Mục tiêu:** Expert nộp proposal, Client chọn 1 expert, System tạo project.
 > **Actors:** Expert, Client.
-> **Status:** `Proposal: NULL → SUBMITTED → ACCEPTED / REJECTED`, `Job: OPEN → IN_PROGRESS`, `Project: NULL → PENDING_PAYMENT`
+> **Status:** `Proposal: NULL → SUBMITTED → ACCEPTED / REJECTED / WITHDRAWN`, `Job: OPEN → IN_PROGRESS`, `Project: NULL → PENDING_PAYMENT`
 > **Tables:** `JobPosts`, `Proposals`, `ProposalMilestones`, `Projects`, `Milestones`, `Conversations`, `Messages`
 
 ## 2.1. Nộp proposal
@@ -602,38 +442,15 @@ POST /api/v1/jobs/{jobId}/proposals
   "proposedBudget": 1200.00,
   "proposedTimelineDays": 18,
   "milestones": [
-    {
-      "title": "Phân tích yêu cầu & prototype",
-      "description": "Thu thập yêu cầu, thiết kế luồng hội thoại, xây dựng prototype",
-      "amount": 500.00,
-      "dueDays": 7,
-      "acceptanceCriteria": "Prototype chạy được với 10 intent cơ bản"
-    },
-    {
-      "title": "Tích hợp website & testing",
-      "description": "Tích hợp chatbot vào website, viết test case",
-      "amount": 700.00,
-      "dueDays": 18,
-      "acceptanceCriteria": "Chatbot hoạt động trên website, pass 90% test cases"
-    }
+    { "title": "Phân tích yêu cầu & prototype", "description": "...", "amount": 500.00, "dueDays": 7, "acceptanceCriteria": "Prototype chạy được với 10 intent cơ bản" },
+    { "title": "Tích hợp website & testing", "description": "...", "amount": 700.00, "dueDays": 18, "acceptanceCriteria": "Chatbot hoạt động trên website, pass 90% test cases" }
   ]
 }
 ```
 
-**Validation:**
-- 1 proposal / expert / job.
-- `JobPosts.Status = OPEN`.
-- `proposedBudget ≥ 0`.
+**Validation:** 1 proposal / expert / job. `JobPosts.Status = OPEN`. `proposedBudget ≥ 0`.
 
 **Status transition:** `Proposals: none → SUBMITTED`.
-
-**Response 201:**
-```json
-{
-  "success": true,
-  "data": { "proposalId": "guid", "status": "SUBMITTED", "submittedAt": "2026-06-10T10:00:00Z" }
-}
-```
 
 ## 2.2. Xem danh sách proposal của một job
 
@@ -665,19 +482,16 @@ GET /api/v1/proposals/me
 PUT /api/v1/proposals/{proposalId}/withdraw
 ```
 
-**Auth:** `ExpertPolicy`, chủ proposal.
+**Auth:** `ExpertPolicy`, chủ proposal. **Status transition:** `SUBMITTED / SHORTLISTED → WITHDRAWN`.
 
-**Status transition:** `SUBMITTED / SHORTLISTED → WITHDRAWN`.
-
-## 2.6. Shortlist proposal
+## 2.6. Shortlist / Unshortlist proposal
 
 ```
 PUT /api/v1/proposals/{proposalId}/shortlist
+PUT /api/v1/proposals/{proposalId}/unshortlist
 ```
 
-**Auth:** `ClientPolicy`, chủ job.
-
-**Status transition:** `SUBMITTED → SHORTLISTED`.
+**Auth:** `ClientPolicy`, chủ job. **Status transition:** `SUBMITTED ↔ SHORTLISTED`.
 
 ## 2.7. Reject proposal
 
@@ -685,11 +499,17 @@ PUT /api/v1/proposals/{proposalId}/shortlist
 PUT /api/v1/proposals/{proposalId}/reject
 ```
 
-**Auth:** `ClientPolicy`, chủ job.
+**Auth:** `ClientPolicy`, chủ job. **Status transition:** `SUBMITTED / SHORTLISTED → REJECTED`.
 
-**Status transition:** `SUBMITTED / SHORTLISTED → REJECTED`.
+## 2.8. Resubmit proposal
 
-## 2.8. Accept proposal (atomic — bắt buộc transaction)
+```
+PUT /api/v1/proposals/{proposalId}
+```
+
+**Auth:** `ExpertPolicy`, chủ proposal. Cập nhật + resubmit proposal (VD sau khi bị reject).
+
+## 2.9. Accept proposal (atomic — bắt buộc transaction)
 
 ```
 PUT /api/v1/proposals/{proposalId}/accept
@@ -697,9 +517,7 @@ PUT /api/v1/proposals/{proposalId}/accept
 
 **Auth:** `ClientPolicy`, chủ job.
 
-**Preconditions:**
-- `JobPosts.Status = OPEN`.
-- Proposal Status = `SUBMITTED` hoặc `SHORTLISTED`.
+**Preconditions:** `JobPosts.Status = OPEN`. Proposal Status = `SUBMITTED` hoặc `SHORTLISTED`.
 
 **Transaction:**
 1. Validate job / proposal / client / expert.
@@ -708,22 +526,9 @@ PUT /api/v1/proposals/{proposalId}/accept
 4. `JobPosts.Status = IN_PROGRESS`.
 5. Tạo `Projects` (Status = `PENDING_PAYMENT`).
 6. Tạo `Milestones` từ `ProposalMilestones` (Status = `CREATED`).
-7. Commit.
+7. Commit. Emit `JobStatusUpdated` (status=in_progress) tới Client qua SignalR.
 
-**Rollback:** Nếu bất kỳ bước nào fail → rollback toàn bộ, không tạo project, không đổi status proposal.
-
-**Response 200:**
-```json
-{
-  "success": true,
-  "data": {
-    "projectId": "guid",
-    "status": "PENDING_PAYMENT",
-    "jobId": "guid",
-    "acceptedProposalId": "guid"
-  }
-}
-```
+**Rollback:** nếu bất kỳ bước nào fail → rollback toàn bộ.
 
 ## Flow 2 — API Summary
 
@@ -733,10 +538,12 @@ PUT /api/v1/proposals/{proposalId}/accept
 | 2 | GET | `/jobs/{id}/proposals` | Client | `Proposals` |
 | 3 | GET | `/proposals/{id}` | Client/Expert | `Proposals`, `ProposalMilestones` |
 | 4 | GET | `/proposals/me` | Expert | `Proposals` |
-| 5 | PUT | `/proposals/{id}/withdraw` | Expert | `Proposals` |
-| 6 | PUT | `/proposals/{id}/shortlist` | Client | `Proposals` |
-| 7 | PUT | `/proposals/{id}/reject` | Client | `Proposals` |
-| 8 | PUT | `/proposals/{id}/accept` | Client | `Proposals`, `JobPosts`, `Projects`, `Milestones` |
+| 5 | PUT | `/proposals/{id}` (resubmit) | Expert | `Proposals` |
+| 6 | PUT | `/proposals/{id}/withdraw` | Expert | `Proposals` |
+| 7 | PUT | `/proposals/{id}/shortlist` | Client | `Proposals` |
+| 8 | PUT | `/proposals/{id}/unshortlist` | Client | `Proposals` |
+| 9 | PUT | `/proposals/{id}/reject` | Client | `Proposals` |
+| 10 | PUT | `/proposals/{id}/accept` | Client | `Proposals`, `JobPosts`, `Projects`, `Milestones` |
 
 ---
 
@@ -746,9 +553,9 @@ PUT /api/v1/proposals/{proposalId}/accept
 > **Actors:** Client, Expert.
 > **Status:**
 > - `Project: CREATED → PENDING_PAYMENT → ACTIVE → IN_REVIEW → COMPLETED` (hoặc `DISPUTED`)
-> - `Milestone: CREATED → FUNDED → SUBMITTED → APPROVED → RELEASED` (revision: `SUBMITTED → REVISION_REQUESTED → SUBMITTED`, dispute: `SUBMITTED → DISPUTED`)
+> - `Milestone: CREATED → FUNDED → IN_PROGRESS → SUBMITTED → APPROVED → RELEASED` (revision: `SUBMITTED → REVISION_REQUESTED → SUBMITTED`, dispute: `SUBMITTED → DISPUTED`)
 > - `Payment: NULL → PENDING → HELD → RELEASED` (dispute: `HELD → FROZEN`)
-> **Tables:** `Projects`, `Milestones`, `Payments`, `Wallets`, `WalletTransactions`, `Deliverables`, `Disputes`, `DisputeEvidence`
+> **Tables:** `Projects`, `Milestones`, `MilestoneSteps`, `Payments`, `Wallets`, `WalletTransactions`, `Deliverables`, `Disputes`, `DisputeEvidences`
 
 ## 3.1. Xem danh sách projects
 
@@ -765,31 +572,6 @@ GET /api/v1/projects/{projectId}
 ```
 
 **Auth:** tham gia project.
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "projectId": "guid",
-    "status": "PENDING_PAYMENT",
-    "jobId": "guid",
-    "clientId": "guid",
-    "expertId": "guid",
-    "milestones": [
-      {
-        "milestoneId": "guid",
-        "title": "Phân tích yêu cầu & prototype",
-        "description": "...",
-        "amount": 500.00,
-        "status": "CREATED",
-        "orderIndex": 1,
-        "acceptanceCriteria": "Prototype chạy được với 10 intent cơ bản"
-      }
-    ]
-  }
-}
-```
 
 ## 3.3. Hủy project
 
@@ -809,14 +591,7 @@ POST /api/v1/projects/{projectId}/milestones
 
 **Request body:**
 ```json
-{
-  "title": "Milestone mới",
-  "description": "Mô tả",
-  "amount": 300.00,
-  "dueDate": "2026-07-01T00:00:00Z",
-  "acceptanceCriteria": "Tiêu chí chấp nhận",
-  "orderIndex": 2
-}
+{ "title": "Milestone mới", "description": "Mô tả", "amount": 300.00, "dueDate": "2026-07-01T00:00:00Z", "acceptanceCriteria": "Tiêu chí chấp nhận", "orderIndex": 2 }
 ```
 
 **Validation:** `amount ≥ 0`.
@@ -827,7 +602,7 @@ POST /api/v1/projects/{projectId}/milestones
 GET /api/v1/milestones/{milestoneId}
 ```
 
-**Auth:** tham gia project.
+**Auth:** tham gia project. **Response bao gồm** `steps[]` nếu milestone có milestone steps.
 
 ## 3.6. Cập nhật milestone
 
@@ -835,65 +610,91 @@ GET /api/v1/milestones/{milestoneId}
 PUT /api/v1/milestones/{milestoneId}
 ```
 
-**Auth:** `ClientPolicy`, chủ project. Chỉ khi Status = `CREATED`.
+**Auth:** `ClientPolicy`, chủ project. Body: `{ title?, description?, acceptanceCriteria?, amount?, dueDate? }`.
 
-## 3.7. Nạp tiền qua VNPay
+## 3.7. Milestone Steps
 
-```
-POST /api/v1/wallet/deposit
-```
-
-**Auth:** `ClientPolicy`.
-
-**Request body:**
-```json
-{ "amount": 5000.00 }
-```
-
-**Response 200:**
-```json
-{
-  "success": true,
-  "data": { "paymentUrl": "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html?...", "txnRef": "guid" }
-}
-```
-
-**Side effects:**
-- Tạo `WalletTransactions` (Type = `DEPOSIT`, Direction = `CREDIT`, Status = `PENDING`).
-- Client redirect sang VNPay để thanh toán.
-- Sau khi thanh toán thành công, VNPay gọi IPN callback.
-
-## 3.7b. VNPay IPN Callback
+Granular task tracking bên trong 1 milestone.
 
 ```
-GET /api/v1/wallet/vnpay-ipn
+GET  /api/v1/milestones/{milestoneId}/steps
 ```
+**Auth:** tham gia project. Response: `MilestoneStepResponse[]` — `{ id, milestoneId, title, description?, orderIndex, status, dueDate?, completedAt?, completedByUserId?, blockedReason? }`.
 
-**Auth:** không (callback từ VNPay).
+```
+POST /api/v1/milestones/{milestoneId}/steps
+```
+**Auth:** `ExpertPolicy`. Body: `{ title, description?, dueDate?, orderIndex }`.
 
-**Query params:** VNPay gửi đầy đủ tham số (vnp_TxnRef, vnp_Amount, vnp_ResponseCode, vnp_SecureHash, ...).
+```
+POST /api/v1/milestones/{milestoneId}/steps/suggest
+```
+**Auth:** `ExpertPolicy`. **Rate Limit:** `AI`. AI đề xuất danh sách step. Response: `{ steps: [{ title, description? }], aiModel }`.
 
-**Xử lý:**
-- Verify `vnp_SecureHash`.
-- Nếu `vnp_ResponseCode == "00"`: `Wallet.AvailableBalance += amount`.
-- Cập nhật `WalletTransactions` (Status = `COMPLETED`).
-- Duplicate `vnp_TxnRef` → trả success nhưng không cộng tiền.
+```
+PUT  /api/v1/milestones/{milestoneId}/steps/reorder
+```
+**Auth:** `ExpertPolicy`. Body: `List<Guid>` (stepIds theo thứ tự mới).
 
-## 3.8. Xem số dư ví
+```
+PUT    ~/api/v1/steps/{stepId}
+DELETE ~/api/v1/steps/{stepId}
+```
+**Auth:** `ExpertPolicy`. PUT body: `{ title?, description?, dueDate?, orderIndex? }` (partial update).
+
+```
+PUT ~/api/v1/steps/{stepId}/status
+```
+**Auth:** `ClientOrExpertPolicy`. Body: `{ status: "PENDING"|"IN_PROGRESS"|"COMPLETED"|"SKIPPED"|"BLOCKED", reason? }`.
+
+> Lưu ý route: các step endpoint không lồng theo `milestones/{id}/steps/{stepId}` mà đứng riêng ở `~/api/v1/steps/{id}` (trừ list/create/suggest/reorder vẫn ở dưới `milestones/{id}/steps`).
+
+## 3.8. Ví (Wallet)
 
 ```
 GET /api/v1/wallet/me
 ```
+**Auth:** bắt buộc. Response: `{ availableBalance, heldBalance, totalEarned, currency, updatedAt }`.
 
-**Auth:** bắt buộc.
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": { "availableBalance": 5000.00, "heldBalance": 0.00, "totalEarned": 0.00 }
-}
 ```
+GET /api/v1/wallet/transactions?pageIndex=1&pageSize=20&searchTerm=
+```
+**Auth:** bắt buộc. Response: trang `TransactionResponse[]` — `{ id, walletId, paymentId?, type, direction, amount, balanceBefore, balanceAfter, description?, createdAt }`.
+
+```
+POST /api/v1/wallet/deposit-demo
+```
+**Auth:** `ClientPolicy`. Body: `{ amount, description? }`. Cộng thẳng tiền vào ví (`Type = DEMO_DEPOSIT`) — chỉ dùng cho dev/test, không qua cổng thanh toán thật.
+
+```
+POST /api/v1/wallet/deposit
+```
+**Auth:** `ClientPolicy`. Body: `{ amount, paymentMethod?: "credit_card"|"bank_transfer"|"crypto", paymentToken?, description? }`. Nạp tiền qua phương thức chung (khác với luồng VNPay ở dưới).
+
+```
+POST /api/v1/wallet/vnpay/deposit
+```
+**Auth:** `ClientPolicy`. Body: `{ amount }`. Response: `{ paymentUrl, txnRef }` — Client redirect sang VNPay.
+
+```
+GET /api/v1/wallet/vnpay-ipn
+```
+**Auth:** `AllowAnonymous` (callback server-to-server từ VNPay). Query: đầy đủ tham số VNPay (`vnp_TxnRef`, `vnp_Amount`, `vnp_ResponseCode`, `vnp_SecureHash`,...). Verify hash → nếu `vnp_ResponseCode == "00"` thì cộng `Wallet.AvailableBalance`. Response **không bọc `ApiResponse`**: `{ RspCode: "00"|"99", Message }`. Duplicate `vnp_TxnRef` → trả success nhưng không cộng tiền lần 2.
+
+```
+GET /api/v1/wallet/vnpay-return
+```
+**Auth:** `AllowAnonymous`. Callback trình duyệt redirect user về sau khi thanh toán — server redirect tiếp sang `{FrontendUrl}/payment-result?...`.
+
+```
+POST /api/v1/wallet/withdraw
+```
+**Auth:** `WithdrawPolicy`. Body: `{ amount, description?, paymentMethod?: "bank"|"paypal"|"crypto" }`.
+
+```
+POST /api/v1/wallet/transfer/{expertId}
+```
+**Auth:** `ClientPolicy`. Chuyển tiền trực tiếp Client → Expert, ngoài luồng escrow. Body: `{ amount, description? }`.
 
 ## 3.9. Fund milestone (atomic — bắt buộc transaction)
 
@@ -903,37 +704,18 @@ PUT /api/v1/milestones/{milestoneId}/fund
 
 **Auth:** `ClientPolicy`, chủ project.
 
-**Preconditions:**
-- `Milestone.Status = CREATED`.
-- `Project.Status = PENDING_PAYMENT` hoặc `ACTIVE`.
-- `Wallet.AvailableBalance ≥ Milestone.Amount`.
+**Preconditions:** `Milestone.Status = CREATED`. `Project.Status ∈ { PENDING_PAYMENT, ACTIVE }`. `Wallet.AvailableBalance ≥ Milestone.Amount`.
 
 **Transaction:**
 1. Kiểm tra số dư.
-2. `Wallet.AvailableBalance -= Amount`.
-3. `Wallet.HeldBalance += Amount`.
-4. Tạo `Payments` (Status = `HELD`, `HeldAt = UTC now`).
-5. Tạo `WalletTransactions` (Type = `ESCROW_HOLD`, Direction = `DEBIT`, UserId = ClientId).
-6. `Milestone.Status = FUNDED`.
-7. Nếu `Project.Status = PENDING_PAYMENT` → `ACTIVE`.
-8. Commit.
+2. `Wallet.AvailableBalance -= Amount`, `Wallet.HeldBalance += Amount`.
+3. Tạo `Payments` (Status = `HELD`).
+4. Tạo `WalletTransactions` (Type = `ESCROW_HOLD`, Direction = `DEBIT`).
+5. `Milestone.Status = FUNDED`.
+6. Nếu `Project.Status = PENDING_PAYMENT` → `ACTIVE`.
+7. Commit.
 
-**Response 200:**
-```json
-{
-  "success": true,
-  "data": {
-    "paymentId": "guid",
-    "milestoneId": "guid",
-    "amount": 500.00,
-    "status": "HELD",
-    "projectId": "guid",
-    "projectStatus": "ACTIVE"
-  }
-}
-```
-
-**Lỗi:** 400 nếu số dư không đủ. 409 nếu milestone đã funded.
+**Lỗi:** `400` nếu số dư không đủ. `409` nếu milestone đã funded.
 
 ## 3.10. Xem lịch sử payment
 
@@ -953,38 +735,14 @@ POST /api/v1/milestones/{milestoneId}/deliverables
 
 **Request body:**
 ```json
-{
-  "description": "Đã hoàn thành prototype chatbot với 15 intent",
-  "fileUrl": "https://res.cloudinary.com/.../prototype.zip",
-  "demoUrl": "https://chatbot-demo.example.com",
-  "sourceCodeUrl": "https://github.com/expert/chatbot-prototype",
-  "note": "Vui lòng test trên Chrome"
-}
+{ "description": "Đã hoàn thành prototype chatbot với 15 intent", "fileUrl": "https://res.cloudinary.com/.../prototype.zip", "demoUrl": "https://chatbot-demo.example.com", "sourceCodeUrl": "https://github.com/expert/chatbot-prototype", "note": "Vui lòng test trên Chrome" }
 ```
 
-**Preconditions:**
-- `Milestone.Status ∈ { FUNDED, IN_PROGRESS, REVISION_REQUESTED }`.
-- `Project.Status = ACTIVE`.
-- `Payment.Status = HELD`.
+**Preconditions:** `Milestone.Status ∈ { FUNDED, IN_PROGRESS, REVISION_REQUESTED }`. `Project.Status = ACTIVE`. `Payment.Status = HELD`.
 
-**Validation:** Phải có ít nhất 1 trong: `description`, `fileUrl`, `demoUrl`, `sourceCodeUrl`, `note`.
+**Validation:** phải có ít nhất 1 trong `description`, `fileUrl`, `demoUrl`, `sourceCodeUrl`, `note`.
 
-**Status transitions:**
-- `Milestone: FUNDED / IN_PROGRESS / REVISION_REQUESTED → SUBMITTED`.
-- `Deliverable: none → SUBMITTED`.
-- `Project: ACTIVE → IN_REVIEW`.
-
-**Side effects:**
-- `RevisionNumber` = 1 (lần đầu) hoặc `max(RevisionNumber) + 1` (resubmit).
-- `Milestone.SubmittedAt = UTC now`.
-
-**Response 201:**
-```json
-{
-  "success": true,
-  "data": { "deliverableId": "guid", "revisionNumber": 1, "status": "SUBMITTED", "submittedAt": "2026-06-10T10:00:00Z" }
-}
-```
+**Status transitions:** `Milestone → SUBMITTED`. `Deliverable → SUBMITTED`. `Project: ACTIVE → IN_REVIEW`.
 
 ## 3.12. Xem danh sách deliverable của milestone
 
@@ -1002,39 +760,19 @@ PUT /api/v1/milestones/{milestoneId}/approve
 
 **Auth:** `ClientPolicy`, chủ project.
 
-**Preconditions:**
-- `Milestone.Status = SUBMITTED`.
-- `Payment.Status = HELD`.
+**Preconditions:** `Milestone.Status = SUBMITTED`. `Payment.Status = HELD`.
 
 **Transaction:**
-1. Latest `Deliverable.Status = APPROVED`, `ReviewedAt = UTC now`.
-2. `Milestone.Status = APPROVED`, `ApprovedAt = UTC now`.
-3. `Payment.Status = RELEASED`, `ReleasedAt = UTC now`.
-4. `Client.Wallet.HeldBalance -= Amount`.
-5. `Expert.Wallet.AvailableBalance += Amount`.
-6. `Expert.Wallet.TotalEarned += Amount`.
-7. Tạo `WalletTransactions`:
-   - Client: Type = `PAYMENT_RELEASE`, Direction = `DEBIT`.
-   - Expert: Type = `PAYMENT_RELEASE`, Direction = `CREDIT`.
-8. `Milestone.Status = RELEASED`, `PaidAt = UTC now`.
-9. Nếu tất cả milestones đều `RELEASED` → `Project.Status = COMPLETED`, `JobPosts.Status = COMPLETED`.
-10. Ngược lại → `Project.Status = ACTIVE`.
-11. Commit.
+1. Latest `Deliverable.Status = APPROVED`.
+2. `Milestone.Status = APPROVED`.
+3. `Payment.Status = RELEASED`.
+4. `Client.Wallet.HeldBalance -= Amount`. `Expert.Wallet.AvailableBalance += Amount`, `TotalEarned += Amount`.
+5. Tạo `WalletTransactions` (Client: `PAYMENT_RELEASE`/`DEBIT`; Expert: `PAYMENT_RELEASE`/`CREDIT`).
+6. `Milestone.Status = RELEASED`.
+7. Nếu tất cả milestones `RELEASED` → `Project.Status = COMPLETED`, `JobPosts.Status = COMPLETED` (emit `JobStatusUpdated`). Ngược lại → `Project.Status = ACTIVE`.
+8. Commit.
 
-**Response 200:**
-```json
-{
-  "success": true,
-  "data": {
-    "milestoneId": "guid",
-    "status": "RELEASED",
-    "paymentId": "guid",
-    "releasedAmount": 500.00,
-    "projectId": "guid",
-    "projectStatus": "ACTIVE"
-  }
-}
-```
+**Đây là điểm release payment duy nhất — không có endpoint "release payment" riêng.**
 
 ## 3.14. Request revision
 
@@ -1042,18 +780,9 @@ PUT /api/v1/milestones/{milestoneId}/approve
 PUT /api/v1/milestones/{milestoneId}/request-revision
 ```
 
-**Auth:** `ClientPolicy`, chủ project.
+**Auth:** `ClientPolicy`, chủ project. Body: `{ reason }` (string).
 
-**Request body:**
-```json
-{ "reason": "Cần thêm intent cho câu hỏi về chính sách đổi trả" }
-```
-
-**Status transitions:**
-- `Deliverable: SUBMITTED → REVISION_REQUESTED`.
-- `Milestone: SUBMITTED → REVISION_REQUESTED`.
-- `Project: IN_REVIEW → ACTIVE`.
-- `Payment: HELD` (không đổi).
+**Status transitions:** `Deliverable/Milestone: SUBMITTED → REVISION_REQUESTED`. `Project: IN_REVIEW → ACTIVE`. `Payment: HELD` (không đổi).
 
 ## 3.15. Open dispute (atomic — bắt buộc transaction)
 
@@ -1061,30 +790,14 @@ PUT /api/v1/milestones/{milestoneId}/request-revision
 POST /api/v1/milestones/{milestoneId}/dispute
 ```
 
-**Auth:** `ClientPolicy`, chủ project.
-
-**Request body:**
-```json
-{
-  "reason": "Deliverable không đạt acceptance criteria",
-  "description": "Chatbot không trả lời được câu hỏi về chính sách đổi trả"
-}
-```
+**Auth:** bắt buộc (Client hoặc Expert của project). Body: `{ reason }` (string).
 
 **Transaction:**
 1. Tạo `Disputes` (Status = `OPEN`).
 2. `Milestone.Status = DISPUTED`.
-3. `Payment.Status = FROZEN`, `FrozenAt = UTC now`.
+3. `Payment.Status = FROZEN`.
 4. `Project.Status = DISPUTED`.
 5. Commit.
-
-**Response 201:**
-```json
-{
-  "success": true,
-  "data": { "disputeId": "guid", "status": "OPEN", "milestoneId": "guid", "projectId": "guid" }
-}
-```
 
 ## Flow 3 — API Summary
 
@@ -1096,27 +809,40 @@ POST /api/v1/milestones/{milestoneId}/dispute
 | 4 | POST | `/projects/{id}/milestones` | Client | `Milestones` |
 | 5 | GET | `/milestones/{id}` | Participant | `Milestones` |
 | 6 | PUT | `/milestones/{id}` | Client | `Milestones` |
-| 7 | PUT | `/milestones/{id}/fund` | Client | `Wallets`, `Payments`, `WalletTransactions`, `Milestones`, `Projects` |
-| 8 | PUT | `/milestones/{id}/approve` | Client | `Deliverables`, `Milestones`, `Payments`, `Wallets`, `WalletTransactions`, `Projects`, `JobPosts` |
-| 9 | PUT | `/milestones/{id}/request-revision` | Client | `Deliverables`, `Milestones`, `Projects` |
-| 10 | POST | `/milestones/{id}/dispute` | Client | `Disputes`, `Milestones`, `Payments`, `Projects` |
-| 11 | GET | `/milestones/{id}/deliverables` | Participant | `Deliverables` |
-| 12 | POST | `/milestones/{id}/deliverables` | Expert | `Deliverables`, `Milestones`, `Projects` |
-| 13 | POST | `/wallet/deposit` | Client | `Wallets`, `WalletTransactions` |
-| 14 | GET | `/wallet/vnpay-ipn` | — | `Wallets`, `WalletTransactions` |
-| 15 | GET | `/wallet/me` | Any | `Wallets` |
-| 16 | GET | `/payments/history` | Any | `Payments` |
+| 7 | GET | `/milestones/{id}/steps` | Participant | `MilestoneSteps` |
+| 8 | POST | `/milestones/{id}/steps` | Expert | `MilestoneSteps` |
+| 9 | POST | `/milestones/{id}/steps/suggest` | Expert | — |
+| 10 | PUT | `/milestones/{id}/steps/reorder` | Expert | `MilestoneSteps` |
+| 11 | PUT | `~/steps/{id}` | Expert | `MilestoneSteps` |
+| 12 | DELETE | `~/steps/{id}` | Expert | `MilestoneSteps` |
+| 13 | PUT | `~/steps/{id}/status` | Client/Expert | `MilestoneSteps` |
+| 14 | GET | `/wallet/me` | Any | `Wallets` |
+| 15 | GET | `/wallet/transactions` | Any | `WalletTransactions` |
+| 16 | POST | `/wallet/deposit-demo` | Client | `Wallets`, `WalletTransactions` |
+| 17 | POST | `/wallet/deposit` | Client | `Wallets`, `WalletTransactions` |
+| 18 | POST | `/wallet/vnpay/deposit` | Client | — |
+| 19 | GET | `/wallet/vnpay-ipn` | — | `Wallets`, `WalletTransactions` |
+| 20 | GET | `/wallet/vnpay-return` | — | — |
+| 21 | POST | `/wallet/withdraw` | Any (`WithdrawPolicy`) | `Wallets`, `WalletTransactions` |
+| 22 | POST | `/wallet/transfer/{expertId}` | Client | `Wallets`, `WalletTransactions` |
+| 23 | PUT | `/milestones/{id}/fund` | Client | `Wallets`, `Payments`, `WalletTransactions`, `Milestones`, `Projects` |
+| 24 | PUT | `/milestones/{id}/approve` | Client | `Deliverables`, `Milestones`, `Payments`, `Wallets`, `WalletTransactions`, `Projects`, `JobPosts` |
+| 25 | PUT | `/milestones/{id}/request-revision` | Client | `Deliverables`, `Milestones`, `Projects` |
+| 26 | POST | `/milestones/{id}/dispute` | Participant | `Disputes`, `Milestones`, `Payments`, `Projects` |
+| 27 | GET | `/milestones/{id}/deliverables` | Participant | `Deliverables` |
+| 28 | POST | `/milestones/{id}/deliverables` | Expert | `Deliverables`, `Milestones`, `Projects` |
+| 29 | GET | `/payments/history` | Any | `Payments` |
 
 ---
 
 # FLOW 4: Completion, Payment, and Review
 
-> **Mục tiêu:** System release payment, complete project, handle dispute (nếu có), cho phép review.
-> **Actors:** Client, Expert, System. Admin chỉ tham gia khi có dispute.
+> **Mục tiêu:** System release payment (đã cover ở Flow 3), complete project, xử lý dispute (nếu có), cho phép review.
+> **Actors:** Client, Expert, System. Admin chỉ tham gia khi có dispute (vai trò **quan sát**, không phán quyết — nền tảng không tự đứng ra giải quyết dispute, Client/Expert tự thương lượng qua milestone) hoặc duyệt hồ sơ expert.
 > **Status:** `Project: COMPLETED`, `Job: COMPLETED`, `Payment: RELEASED`, `Reviews: created`
-> **Tables:** `Projects`, `JobPosts`, `Milestones`, `Payments`, `Wallets`, `WalletTransactions`, `Reviews`, `Disputes`, `DisputeEvidence`
+> **Tables:** `Projects`, `JobPosts`, `Milestones`, `Payments`, `Wallets`, `WalletTransactions`, `Reviews`, `Disputes`, `DisputeEvidences`
 
-> **Lưu ý:** Các API release payment, approve deliverable, request revision, open dispute đã liệt kê ở Flow 3. Flow 4 tập trung vào **dispute resolution** và **review**.
+> **Lưu ý:** Release payment, approve deliverable, request revision, open dispute đã liệt kê ở Flow 3. Flow 4 tập trung vào **dispute handling** và **review**.
 
 ## 4.1. Mở dispute trực tiếp
 
@@ -1124,7 +850,7 @@ POST /api/v1/milestones/{milestoneId}/dispute
 POST /api/v1/disputes
 ```
 
-**Auth:** `ClientPolicy` hoặc `ExpertPolicy`. Cho phép mở dispute mà không cần qua milestone endpoint.
+**Auth:** `ClientPolicy` hoặc `ExpertPolicy`. Mở dispute mà không cần qua milestone endpoint.
 
 ## 4.2. Xem danh sách disputes của user
 
@@ -1140,7 +866,7 @@ GET /api/v1/disputes
 GET /api/v1/disputes/{disputeId}
 ```
 
-**Auth:** tham gia dispute.
+**Auth:** tham gia dispute. Response bao gồm `evidences[]` lồng sẵn.
 
 ## 4.4. Thêm evidence
 
@@ -1150,13 +876,15 @@ POST /api/v1/disputes/{disputeId}/evidence
 
 **Auth:** tham gia dispute (Client/Expert/Admin).
 
-**Request body:**
+**Request body (`AddEvidenceRequest`):**
 ```json
-{
-  "description": "Screenshot của deliverable",
-  "fileUrl": "https://res.cloudinary.com/.../evidence.png"
-}
+{ "content": "Screenshot của deliverable", "fileUrl": "https://res.cloudinary.com/.../evidence.png" }
 ```
+
+| Field | Type | Required |
+|-------|------|----------|
+| `content` | string | **Yes** |
+| `fileUrl` | string? | No |
 
 ## 4.5. Close dispute (người mở dispute tự close)
 
@@ -1164,24 +892,7 @@ POST /api/v1/disputes/{disputeId}/evidence
 PUT /api/v1/disputes/{disputeId}/close
 ```
 
-**Auth:** bắt buộc. Chỉ người mở dispute (`OpenedBy`) mới được close.
-
-**Response 200:**
-```json
-{
-  "success": true,
-  "data": { "id": "guid", "status": "CLOSED", "...": "..." }
-}
-```
-
-**Side effects:**
-- `Disputes.Status = CLOSED`.
-
-**Validation:**
-- Chỉ `OpenedBy` mới close được.
-- Dispute đã `RESOLVED` hoặc `CLOSED` thì không close lại được.
-
----
+**Auth:** bắt buộc. Chỉ `OpenedBy` mới được close. **Side effects:** `Disputes.Status = CLOSED`. **Validation:** dispute đã `RESOLVED`/`CLOSED` thì không close lại được.
 
 ## 4.6. Admin yêu cầu bổ sung bằng chứng
 
@@ -1189,31 +900,9 @@ PUT /api/v1/disputes/{disputeId}/close
 PUT /api/v1/disputes/{disputeId}/request-evidence
 ```
 
-**Auth:** `AdminPolicy`.
+**Auth:** `AdminPolicy`. Body: `{ note }`.
 
-**Request body:**
-```json
-{
-  "note": "Vui lòng cung cấp thêm ảnh chụp màn hình giao dịch"
-}
-```
-
-**Response 200:**
-```json
-{
-  "success": true,
-  "data": { "id": "guid", "status": "UNDER_REVIEW", "...": "..." }
-}
-```
-
-**Side effects:**
-- Nếu `Disputes.Status == OPEN` → `UNDER_REVIEW`.
-- Tạo `Notification` gửi cho người mở dispute (`OpenedBy`) với `Type = DISPUTE`.
-
-**Validation:**
-- Dispute đã `RESOLVED` hoặc `CLOSED` thì không request được.
-
----
+**Side effects:** nếu `Status == OPEN` → `UNDER_REVIEW`. Tạo `Notification` (Type = `DISPUTE`) cho `OpenedBy`.
 
 ## 4.7. Xóa dispute evidence
 
@@ -1221,23 +910,9 @@ PUT /api/v1/disputes/{disputeId}/request-evidence
 DELETE /api/v1/disputes/{disputeId}/evidence/{evidenceId}
 ```
 
-**Auth:** bắt buộc. Chỉ người mở dispute (`OpenedBy`) hoặc người upload evidence (`SubmittedBy`) mới được xóa.
+**Auth:** `OpenedBy` hoặc `SubmittedBy` của evidence đó. **Validation:** dispute đã `RESOLVED`/`CLOSED` thì không xóa được.
 
-**Response 200:**
-```json
-{
-  "success": true,
-  "message": "Evidence deleted successfully"
-}
-```
-
-**Validation:**
-- Evidence phải thuộc dispute.
-- Dispute đã `RESOLVED` hoặc `CLOSED` thì không xóa được.
-
----
-
-## 4.8. Resolve dispute (atomic — bắt buộc transaction)
+## 4.8. Resolve dispute
 
 ```
 PUT /api/v1/disputes/{disputeId}/resolve
@@ -1245,47 +920,28 @@ PUT /api/v1/disputes/{disputeId}/resolve
 
 **Auth:** `AdminPolicy`.
 
-**Request body:**
+> ⚠️ **Admin ở đây chỉ quan sát và ghi nhận, không phán quyết.** Nền tảng không đứng ra giải quyết dispute — `resolutionNote` là ghi chú của Admin sau khi xem evidence, không phải quyết định thắng/thua. Sau khi resolve, Client và Expert **tự** giải quyết tiếp với nhau qua hành động milestone bình thường (Client approve để release tiền, hoặc request-revision).
+
+**Request body — CHỈ có 1 field:**
 ```json
-{
-  "resolutionType": "RELEASE_TO_EXPERT",
-  "resolutionNote": "Expert đã đạt 80% acceptance criteria, release toàn bộ payment.",
-  "splitPercentage": null
-}
+{ "resolutionNote": "Đã xem xét evidence từ cả hai bên." }
 ```
 
-**`resolutionType` ∈ { `RELEASE_TO_EXPERT`, `REFUND_TO_CLIENT`, `SPLIT_PAYMENT`, `REQUEST_REVISION` }.**
+| Field | Type | Required |
+|-------|------|----------|
+| `resolutionNote` | string | **Yes** |
 
-**Resolution A — `RELEASE_TO_EXPERT`:**
-- `Payment: FROZEN → RELEASED`.
-- `Expert.Wallet.AvailableBalance += Amount`.
-- `Expert.Wallet.TotalEarned += Amount`.
-- `Client.Wallet.HeldBalance -= Amount`.
-- `Milestone: DISPUTED → RELEASED`.
+> Bản thiết kế cũ có `resolutionType` (`RELEASE_TO_EXPERT`/`REFUND_TO_CLIENT`/`SPLIT_PAYMENT`/`REQUEST_REVISION`) + `splitPercentage` để Admin tự quyết và tự động cập nhật `Payments`/`Wallets` — **toàn bộ đã bị gỡ ở issue #94**. Enum `DisputeResolutionType` không còn tồn tại trong code. Nền tảng chủ động rút khỏi vai trò trọng tài tài chính.
 
-**Resolution B — `REFUND_TO_CLIENT`:**
-- `Payment: FROZEN → REFUNDED`.
-- `Client.Wallet.HeldBalance -= Amount`.
-- `Client.Wallet.AvailableBalance += Amount`.
-- `Milestone: DISPUTED → REFUNDED`.
+**Side effects:**
+- `Disputes.Status = RESOLVED`, ghi `ResolutionNote`, `AdminId`, `ResolvedAt`.
+- `Milestone` được **unlock**: → `SUBMITTED` nếu deliverable đã từng nộp (`SubmittedAt` có giá trị), ngược lại → `IN_PROGRESS`.
+- `Project.Status → ACTIVE` nếu không còn milestone nào khác trong project đang `DISPUTED`.
+- **`Payments` và `Wallets` không đổi** — Admin resolve không chuyển tiền, chỉ mở khóa để Client/Expert tự xử lý tiếp.
 
-**Resolution C — `SPLIT_PAYMENT`:**
-- `Payment: FROZEN → PARTIALLY_RELEASED`.
-- `splitPercentage` bắt buộc (phần trăm release cho expert, ví dụ 60 = expert 60%, client 40%).
+**Sau khi resolve:** milestone đã unlock nên Client có thể approve (release tiền cho Expert) hoặc request-revision như bình thường — đây là bước Client/Expert tự thương lượng, không có shortcut Admin nào can thiệp tài chính.
 
-**Resolution D — `REQUEST_REVISION`:**
-- `Payment: FROZEN → HELD`.
-- `Milestone: DISPUTED → REVISION_REQUESTED`.
-- `Project: DISPUTED → ACTIVE`.
-
-**Chung:**
-- `Disputes.Status = RESOLVED`.
-- `Disputes.ResolutionType`, `ResolutionNote`, `AdminId`, `ResolvedAt`.
-
-**Validation:**
-- Chỉ Admin mới resolve.
-- `ResolutionNote` bắt buộc.
-- Payment FROZEN không thể release/refund 2 lần.
+**Validation:** chỉ Admin mới resolve được. `resolutionNote` bắt buộc. Dispute đã `RESOLVED` thì không resolve lại được (dispute `CLOSED` vẫn resolve được — code chỉ chặn `RESOLVED`).
 
 ## 4.9. Tạo review
 
@@ -1297,37 +953,14 @@ POST /api/v1/reviews
 
 **Request body:**
 ```json
-{
-  "projectId": "guid",
-  "revieweeId": "guid",
-  "rating": 5,
-  "comment": "Expert làm việc rất chuyên nghiệp, deliverable đúng hạn.",
-  "communicationRating": 5,
-  "qualityRating": 5,
-  "deadlineRating": 5
-}
+{ "projectId": "guid", "revieweeId": "guid", "rating": 5, "comment": "Expert làm việc rất chuyên nghiệp, deliverable đúng hạn.", "communicationRating": 5, "qualityRating": 5, "deadlineRating": 5, "requirementClarityRating": 5 }
 ```
 
-**Preconditions:**
-- `Project.Status = COMPLETED`.
-- Reviewer tham gia project.
-- Chưa review cặp (reviewer, reviewee, project) này.
+**Preconditions:** `Project.Status = COMPLETED`. Reviewer tham gia project. Chưa review cặp (reviewer, reviewee, project) này.
 
-**Validation:**
-- `rating` ∈ [1, 5].
-- `revieweeId ≠ reviewerId`.
+**Validation:** `rating ∈ [1,5]`. `revieweeId ≠ reviewerId`.
 
-**Side effects:**
-- Tạo `Reviews`.
-- Cập nhật `ExpertProfiles.RatingAvg` và `CompletedProjects` (nếu reviewee là expert).
-
-**Response 201:**
-```json
-{
-  "success": true,
-  "data": { "reviewId": "guid", "rating": 5, "createdAt": "2026-06-10T10:00:00Z" }
-}
-```
+**Side effects:** tạo `Reviews`. Cập nhật `ExpertProfiles.RatingAvg` + `CompletedProjects` (nếu reviewee là expert).
 
 ## 4.10. Xem reviews của user
 
@@ -1343,20 +976,89 @@ GET /api/v1/users/{userId}/reviews?pageIndex=1&pageSize=20
 |---|--------|----------|------|--------|
 | 1 | POST | `/disputes` | Client/Expert | `Disputes` |
 | 2 | GET | `/disputes` | Client/Expert | `Disputes` |
-| 3 | GET | `/disputes/{id}` | Participant | `Disputes`, `DisputeEvidence` |
-| 4 | POST | `/disputes/{id}/evidence` | Participant | `DisputeEvidence` |
+| 3 | GET | `/disputes/{id}` | Participant | `Disputes`, `DisputeEvidences` |
+| 4 | POST | `/disputes/{id}/evidence` | Participant | `DisputeEvidences` |
 | 5 | PUT | `/disputes/{id}/close` | Opener | `Disputes` |
 | 6 | PUT | `/disputes/{id}/request-evidence` | Admin | `Disputes`, `Notifications` |
-| 7 | DELETE | `/disputes/{did}/evidence/{eid}` | Opener/Submitter | `DisputeEvidence` |
-| 8 | PUT | `/disputes/{id}/resolve` | Admin | `Disputes`, `Payments`, `Wallets`, `WalletTransactions`, `Milestones`, `Projects` |
+| 7 | DELETE | `/disputes/{did}/evidence/{eid}` | Opener/Submitter | `DisputeEvidences` |
+| 8 | PUT | `/disputes/{id}/resolve` | Admin | `Disputes`, `Milestones` (unlock), `Projects` (unlock) — no `Payments`/`Wallets` change |
 | 9 | POST | `/reviews` | Participant | `Reviews`, `ExpertProfiles` |
 | 10 | GET | `/users/{id}/reviews` | — | `Reviews` |
 
 ---
 
-# Supporting APIs (Cross-flow)
+# Expert Verification (Cross-flow, gates Expert credibility)
 
-> Các API không thuộc trực tiếp 4 main flows nhưng cần thiết để hệ thống hoạt động.
+> Expert nộp bằng chứng kỹ năng/chứng chỉ, System (AI) tự chấm, Expert có thể escalate lên Admin nếu không đồng ý kết quả.
+
+## V.1. Nộp bằng chứng xác minh
+
+```
+POST /api/v1/expert/verifications
+```
+
+**Auth:** `ExpertPolicy`. **Rate Limit:** `AI`. Multipart form: `{ expertSkillId: Guid, file: IFormFile }`.
+
+**Status:** `201`. Response: `{ id, expertSkillId, skillName?, expertId, evidenceFileUrl, status, aiConfidenceScore?, aiReasoning?, adminId?, adminDecisionReason?, reviewedAt?, createdAt, canEscalate }`.
+
+## V.2. Xem danh sách verification của Expert
+
+```
+GET /api/v1/expert/verifications?expertSkillId=&pageIndex=1&pageSize=20
+```
+
+**Auth:** `ExpertPolicy`.
+
+## V.3. Escalate lên Admin
+
+```
+POST /api/v1/expert/verifications/{id}/escalate
+```
+
+**Auth:** `ExpertPolicy`. Chuyển `Status → ESCALATED` khi Expert không đồng ý kết quả AI chấm.
+
+**Status enum (`ExpertVerificationStatus`):** `APPROVED`, `REJECTED`, `NEEDS_REVIEW`, `ESCALATED`.
+
+---
+
+# Admin (Cross-flow)
+
+## Dashboard & User Management
+
+| # | Method | Endpoint | Auth | Ghi chú |
+|---|--------|----------|------|---------|
+| 1 | GET | `/admin/stats` | Admin | `{ totalUsers, totalClients, totalExperts, totalJobs, activeProjects, openDisputes, totalEscrowAmount }` |
+| 2 | GET | `/admin/expert-reviews` | Admin | Danh sách review có phân trang + search |
+| 3 | GET | `/admin/users` | Admin | Danh sách user có phân trang + search |
+| 4 | PUT | `/admin/users/{id}/suspend` | Admin | Body: `{ reason }` |
+| 5 | PUT | `/admin/users/{id}/unsuspend` | Admin | — |
+
+## Duyệt cập nhật hồ sơ Expert (profile updates)
+
+```
+GET  /api/v1/admin/expert-profile-updates?status=PENDING&pageIndex=1&pageSize=20
+GET  /api/v1/admin/expert-profile-updates/{id}
+PUT  /api/v1/admin/expert-profile-updates/{id}/review
+```
+
+**Auth:** `AdminPolicy`. `PUT .../review` body: `{ isApproved: bool, rejectionReason?: string }`.
+
+Response (`ExpertProfileUpdateResponse`) cho thấy cả giá trị đề xuất và giá trị hiện tại để Admin so sánh: `title/bio/hourlyRate/experienceYears` (đề xuất) vs `currentTitle/currentBio/currentHourlyRate/currentExperienceYears` (hiện tại). Status enum (`ProfileUpdateStatus`): `PENDING`, `APPROVED`, `REJECTED`.
+
+## Duyệt Expert Verification
+
+```
+GET /api/v1/admin/expert-verifications?status=&expertId=&pageIndex=1&pageSize=20
+PUT /api/v1/admin/expert-verifications/{id}/review
+```
+
+**Auth:** `AdminPolicy`. `PUT .../review` body: `{ isApproved: bool, rejectionReason?: string }`.
+
+> Đây là 2 resource **khác nhau** dễ nhầm: "expert-profile-updates" (đổi bio/title/rate) và "expert-verifications" (bằng chứng kỹ năng/chứng chỉ, đi kèm `POST /expert/verifications` ở trên).
+
+---
+
+# Supporting APIs (Cross-flow)
 
 ## Auth & Profile
 
@@ -1365,12 +1067,17 @@ GET /api/v1/users/{userId}/reviews?pageIndex=1&pageSize=20
 | 1 | POST | `/auth/register` | — | `Users`, `Wallets`, `ClientProfiles`/`ExpertProfiles` |
 | 2 | POST | `/auth/login` | — | `Users` |
 | 3 | POST | `/auth/refresh-token` | — | — |
-| 4 | GET | `/auth/me` | Any | `Users` |
-| 5 | PUT | `/profiles/client` | Client | `ClientProfiles` |
-| 6 | PUT | `/profiles/expert` | Expert | `ExpertProfiles` |
-| 7 | GET | `/profiles/expert/{expertId}` | — | `ExpertProfiles` |
-| 8 | GET | `/profiles/experts/featured` | — | `ExpertProfiles` |
-| 9 | PUT | `/users/me` | Any | `Users` |
+| 4 | POST | `/auth/logout` | Any | — |
+| 5 | GET | `/auth/me` | Any | `Users` |
+| 6 | PUT | `/users/me` | Any | `Users` |
+| 7 | GET | `/profiles/client` | Client | `ClientProfiles` |
+| 8 | PUT | `/profiles/client` | Client | `ClientProfiles` |
+| 9 | GET | `/profiles/expert` | Expert | `ExpertProfiles` |
+| 10 | PUT | `/profiles/expert` | Expert | `ExpertProfiles` |
+| 11 | GET | `/profiles/expert/{expertId}` | — | `ExpertProfiles` |
+| 12 | GET | `/profiles/experts/featured` | — | `ExpertProfiles` |
+| 13 | GET | `/profiles/experts/search` | — | `ExpertProfiles` |
+| 14 | GET | `/profiles/expert/{id}/completed-projects` | — | `Projects` |
 
 ## Skills & Categories
 
@@ -1378,51 +1085,44 @@ GET /api/v1/users/{userId}/reviews?pageIndex=1&pageSize=20
 |---|--------|----------|------|--------|
 | 1 | GET | `/categories` | — | `Categories` |
 | 2 | GET | `/categories/{id}` | — | `Categories` |
-| 3 | POST | `/categories` | Admin | `Categories` |
-| 4 | GET | `/skills` | — | `Skills` |
-| 5 | GET | `/skills/{id}` | — | `Skills` |
-| 6 | POST | `/skills` | Admin | `Skills` |
-| 7 | POST | `/skills/expert/me` | Expert | `ExpertSkills` |
-| 8 | DELETE | `/skills/expert/me/{skillId}` | Expert | `ExpertSkills` |
+| 3 | GET | `/skills` | — | `Skills` |
+| 4 | GET | `/skills/{id}` | — | `Skills` |
+| 5 | POST | `/skills/expert/me` | Expert | `ExpertSkills` |
+| 6 | DELETE | `/skills/expert/me/{skillId}` | Expert | `ExpertSkills` |
 
-## Messaging
+## Messaging & Realtime
 
 | # | Method | Endpoint | Auth | Tables |
 |---|--------|----------|------|--------|
 | 1 | POST | `/conversations/init` | Any | `Conversations` |
-| 2 | GET | `/conversations` | Any | `Conversations` |
-| 3 | GET | `/conversations/{id}/messages` | Participant | `Messages` |
-| 4 | POST | `/conversations/{id}/read` | Participant | `Messages` |
+| 2 | GET | `/conversations/{id}/messages` | Participant | `Messages` |
+| 3 | POST | `/conversations/{id}/read` | Participant | `Messages` |
+| 4 | POST/GET | `/conversations/admin` | Admin | `Conversations` |
 
-**SignalR Hub:** `/api/v1/chat`
-- `SendMessage(conversationId, content)` → `ReceiveMessage`, `ReadConfirmation`, `Error`
+**SignalR Hub:** `/api/v1/chat` (implemented in `Aivora.Services/Hubs/ChatHub.cs`)
+- **Client → Server:** `SendMessage({conversationId, content?, attachmentUrl?})`, `JoinConversation(conversationId)`, `LeaveConversation(conversationId)`, `UserTyping(conversationId, isTyping)`, `MarkAsRead(conversationId)`.
+- **Server → Client:** `ReceiveMessage`, `ReadConfirmation`, `JobStatusUpdated` (emitted by `RealtimeService` on job publish/cancel/proposal-accept/project-complete), `NewJobPublished` (broadcast to all clients when a job is published). `Error` is reserved, not currently emitted.
 
 ## Media & Notifications
 
 | # | Method | Endpoint | Auth | Tables |
 |---|--------|----------|------|--------|
-| 1 | POST | `/media/upload-image` | Any | Cloudinary |
-| 2 | POST | `/media/upload-file` | Any | Cloudinary |
-| 3 | DELETE | `/media/{publicId}` | Any | Cloudinary |
-| 4 | GET | `/notifications` | Any | `Notifications` |
-| 5 | GET | `/notifications/unread-count` | Any | `Notifications` |
-| 6 | PUT | `/notifications/{id}/read` | Any | `Notifications` |
-| 7 | PUT | `/notifications/read-all` | Any | `Notifications` |
+| 1 | POST | `/media/upload-image?folder=` | Any | Cloudinary |
+| 2 | POST | `/media/upload-file?folder=` | Any | Cloudinary |
+| 3 | GET | `/media` | Any | Cloudinary — list media của user hiện tại: `{url, publicId, format, bytes, createdAt}[]` |
+| 4 | DELETE | `/media/{**publicId}` | Any | Cloudinary — user thường chỉ xóa được media của chính mình; Admin xóa được bất kỳ media nào. `publicId` là catch-all path param (có thể chứa `/`, không được encode) |
+| 5 | GET | `/notifications` | Any | `Notifications` |
+| 6 | GET | `/notifications/unread-count` | Any | `Notifications` |
+| 7 | PUT | `/notifications/{id}/read` | Any | `Notifications` |
+| 8 | PUT | `/notifications/read-all` | Any | `Notifications` |
 
-## Admin
+## Health
 
-| # | Method | Endpoint | Auth | Tables |
-|---|--------|----------|------|--------|
-| 1 | GET | `/admin/stats` | Admin | Aggregate |
-| 2 | GET | `/admin/users` | Admin | `Users` |
-| 3 | PUT | `/admin/users/{id}/suspend` | Admin | `Users` |
-| 4 | PUT | `/admin/users/{id}/unsuspend` | Admin | `Users` |
+```
+GET /health
+```
 
-## Service Publishing (Optional MVP)
-
-| # | Method | Endpoint | Auth | Tables |
-|---|--------|----------|------|--------|
-| 1 | POST | `/ai/service-generator` | Expert | — |
+**Auth:** none. Ẩn khỏi OpenAPI docs (`IgnoreApi = true`). Response: `{ status: "healthy", timestamp, version }`. Dùng làm healthcheck target cho hosting (xem `render.yaml` → `healthCheckPath`).
 
 ---
 
@@ -1452,15 +1152,15 @@ DISPUTED → ACTIVE / IN_REVIEW / COMPLETED / CANCELLED
 
 ## Milestone
 ```
-CREATED → FUNDED → SUBMITTED → APPROVED → RELEASED
+CREATED → FUNDED → IN_PROGRESS → SUBMITTED → APPROVED → RELEASED
 SUBMITTED → REVISION_REQUESTED → SUBMITTED
-SUBMITTED → DISPUTED → RELEASED / REFUNDED / REVISION_REQUESTED
+SUBMITTED → DISPUTED → RELEASED / REFUNDED / REVISION_REQUESTED (follow-up action, not automatic)
 ```
 
 ## Payment
 ```
 PENDING → HELD → RELEASED
-HELD → FROZEN → RELEASED / REFUNDED / PARTIALLY_RELEASED
+HELD → FROZEN → RELEASED / REFUNDED / PARTIALLY_RELEASED (via a follow-up milestone action, never as a side effect of dispute resolve)
 ```
 
 ## Deliverable
@@ -1478,6 +1178,17 @@ OPEN → RESOLVED
 OPEN → CLOSED
 ```
 
+## Expert Verification
+```
+NEEDS_REVIEW → APPROVED / REJECTED
+NEEDS_REVIEW → ESCALATED → APPROVED / REJECTED (by Admin)
+```
+
+## Expert Profile Update
+```
+PENDING → APPROVED / REJECTED
+```
+
 ---
 
 # Atomic Transactions
@@ -1490,7 +1201,7 @@ OPEN → CLOSED
 | `PUT /milestones/{id}/fund` | Flow 3 | Update wallet + create payment + update milestone + update project |
 | `PUT /milestones/{id}/approve` | Flow 3 | Approve deliverable + release payment + update wallets + update milestone + update project + update job |
 | `POST /milestones/{id}/dispute` | Flow 3 | Create dispute + update milestone + freeze payment + update project |
-| `PUT /disputes/{id}/resolve` | Flow 4 | Update dispute + update payment + update wallets + update milestone + update project |
+| `PUT /disputes/{id}/resolve` | Flow 4 | Resolve dispute + unlock milestone + unlock project — single `SaveChangesAsync()`, no explicit `BeginTransaction`. Simpler than the others: never touches `Payments`/`Wallets`. |
 
 ---
 
@@ -1501,6 +1212,8 @@ OPEN → CLOSED
 | `ClientPolicy` | CLIENT |
 | `ExpertPolicy` | EXPERT |
 | `AdminPolicy` | ADMIN |
+| `ClientOrExpertPolicy` | CLIENT or EXPERT |
+| `WithdrawPolicy` | any authenticated user allowed to withdraw |
 | `Any` | bất kỳ authenticated user |
 | `Participant` | user tham gia entity (project, conversation, dispute) |
 | `—` | public, không cần auth |
@@ -1511,32 +1224,40 @@ OPEN → CLOSED
 
 | Test Case | Expected Result |
 |---|---|
-| Release payment before deliverable approval | Should fail |
+| Release payment before deliverable approval | Should fail — no standalone endpoint exists |
 | Review before project completed | Should not be allowed |
 | Rating = 0 or 6 | Should fail |
 | ReviewerId = RevieweeId | Should fail |
 | Duplicate review for same project/reviewer/reviewee | Should fail |
 | Client requests revision | Payment should stay `HELD` |
 | Client opens dispute | Payment should become `FROZEN`, project should become `DISPUTED` |
+| Non-admin resolves dispute | Should fail |
+| Resolve dispute with `resolutionType`/`splitPercentage` fields | Ignored — field no longer exists, only `resolutionNote` is read |
 | Non-owner Client accepts proposal | Should fail |
 | Expert submits proposal to non-OPEN job | Should fail |
 | Client funds milestone with insufficient balance | Should fail |
 | Expert submits deliverable to project they do not own | Should fail |
+| Non-owner deletes another user's media | Should fail with `401` and a clear message |
 
 ---
 
 # Seed Accounts (Demo)
 
+Full dataset: [`../SEED_DATA.md`](../SEED_DATA.md).
+
 | Email | Role | Mục đích |
 |-------|------|----------|
-| `client@test.com` | CLIENT | Demo Flow 1, 2, 3 |
-| `expert@test.com` | EXPERT | Demo Flow 2, 3 |
-| `admin@test.com` | ADMIN | Demo Flow 4, Admin |
+| `admin@aivora.com` | ADMIN | Demo Flow 4, Admin dashboard |
+| `client1@example.com` | CLIENT | Demo Flow 1, 2, 3 (Tech Corp) |
+| `client2@example.com` | CLIENT | Demo Flow 1, 2, 3 (StartupXYZ) |
+| `expert1@example.com` | EXPERT | Demo Flow 2, 3 (Full-stack) |
+| `expert3@example.com` | EXPERT | Demo Flow 2, 3, 4 (Mobile — project completed + reviewed) |
 
 ---
 
 # References
 
-- [`MAINFLOW.md`](./MAINFLOW.md) — business flow source of truth (4 main flows).
-- [`API_CONTRACT.md`](./API_CONTRACT.md) — global response wrappers, auth format, pagination.
-- [`CLAUDE.md`](./CLAUDE.md) — tech stack, env vars, gotchas.
+- [`MAINFLOW_v2.md`](./MAINFLOW_v2.md) — business flow source of truth (4 main flows).
+- [`../ARCHITECTURE.md`](../ARCHITECTURE.md) — response wrapper, auth format, pagination, known debt.
+- [`../../AGENTS.md`](../../AGENTS.md) — tech stack, quick start, env vars.
+- [`../../CLAUDE.md`](../../CLAUDE.md) — architecture patterns, gotchas.

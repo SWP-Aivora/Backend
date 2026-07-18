@@ -1,7 +1,8 @@
-# AITasker — Main Flow
+# Aivora — Main Flow
 
-> Purpose: This document is the canonical **main business flow** for AITasker.  
+> Purpose: This document is the canonical **main business flow** for Aivora.
 > It is written for AI coding agents, backend developers, frontend developers, testers, and report writers.
+> **v2** — supersedes `MAINFLOW_v1.md` (removed). Rewritten to match current code: dispute resolution no longer auto-moves money (issue #94), project renamed AITasker → Aivora, table names corrected.
 
 ---
 
@@ -23,13 +24,13 @@ AI is NOT a separate actor.
 AI is an internal System capability used to support requirement clarification and expert matching.
 ```
 
-AITasker should be analyzed as a marketplace + project delivery system, not as an “AI actor” system.
+Aivora should be analyzed as a marketplace + project delivery system, not as an "AI actor" system.
 
 ---
 
 ## 1. Final Main Flow List
 
-AITasker has exactly **4 main business flows**:
+Aivora has exactly **4 main business flows**:
 
 | No. | Main Flow | Main Actors | Purpose |
 |---:|---|---|---|
@@ -38,8 +39,8 @@ AITasker has exactly **4 main business flows**:
 | 3 | **Milestone, Escrow & Deliverable** | Client, Expert, System | Client and Expert confirm milestones, Client funds escrow, Expert submits deliverable, Client reviews result |
 | 4 | **Completion, Payment, and Review** | Client, Expert, System, Admin | System releases payment, completes project, handles dispute if needed, and allows both sides to review |
 
-Do not split these into 10–15 separate main flows.  
-Do not use the old 6-flow version as the main version.
+Do not split these into 10–15 separate main flows.
+Do not use an old 6-flow version as the main version.
 
 ---
 
@@ -52,13 +53,13 @@ Do not use the old 6-flow version as the main version.
 
 3. Client and Expert confirm milestones. Client funds each milestone using escrow. Expert completes the work and submits deliverables. Client reviews the deliverable and either approves, requests revision, or opens a dispute.
 
-4. If a dispute occurs, Admin reviews evidence and resolves payment. After all milestones are completed, the project is marked as completed and both Client and Expert can review each other.
+4. If a dispute occurs, Admin only observes and documents — the platform does not decide the outcome. Admin marks the dispute resolved for the record, which unlocks the milestone; Client and Expert then settle it themselves through the normal milestone approve/revision flow. After all milestones are completed, the project is marked as completed and both Client and Expert can review each other.
 ```
 
 One-line description:
 
 ```text
-AITasker has four main business flows: job creation and expert matching, proposal and project creation, milestone-based delivery with escrow, and dispute resolution with project completion and review.
+Aivora has four main business flows: job creation and expert matching, proposal and project creation, milestone-based delivery with escrow, and dispute review with project completion and peer review.
 ```
 
 ---
@@ -79,7 +80,7 @@ AITasker has four main business flows: job creation and expert matching, proposa
 
 ## Goal
 
-Client creates a job post for hiring an AI expert.  
+Client creates a job post for hiring an AI expert.
 The System helps clarify the requirement, suggest skills/budget/timeline/milestones, and recommend suitable experts.
 
 ## Preconditions
@@ -124,6 +125,7 @@ The System helps clarify the requirement, suggest skills/budget/timeline/milesto
 8. Client publishes the job.
 
 9. System saves the job with status OPEN.
+   System emits JobStatusUpdated (status=open) to the Client over SignalR.
 
 10. System calculates suitable experts based on:
     - Skill match
@@ -156,6 +158,7 @@ Job: NULL → DRAFT / OPEN
 |---|---|
 | `JobPosts` | Stores client job post |
 | `JobSkills` | Stores required skills for the job |
+| `JobPostMilestones` | Stores milestone plan attached to the job (manual create or AI-accept) |
 | `AIJobSuggestions` | Stores AI-assisted suggestion output |
 | `RecommendationResults` | Stores matching score and explanation |
 | `ExpertProfiles` | Provides expert profile data |
@@ -184,7 +187,7 @@ Create Job
 + Expert Recommendation
 ```
 
-This is the entry point of the system.  
+This is the entry point of the system.
 Without an OPEN job, proposal, project, milestone, escrow, deliverable, payment, and review flows cannot happen.
 
 ---
@@ -201,7 +204,7 @@ Without an OPEN job, proposal, project, milestone, escrow, deliverable, payment,
 
 ## Goal
 
-Expert submits a proposal for an OPEN job.  
+Expert submits a proposal for an OPEN job.
 Client compares proposals, accepts one expert, and the System creates a project.
 
 ## Preconditions
@@ -280,6 +283,7 @@ Client compares proposals, accepts one expert, and the System creates a project.
 18. System updates remaining proposals to REJECTED.
 
 19. System updates Job status to IN_PROGRESS.
+    System emits JobStatusUpdated (status=in_progress) to the Client over SignalR.
 
 20. System creates Project from:
     - Job
@@ -296,16 +300,10 @@ Client compares proposals, accepts one expert, and the System creates a project.
 ## Status Transition
 
 ```text
-Proposal: NULL → SUBMITTED → ACCEPTED / REJECTED
+Proposal: NULL → SUBMITTED → ACCEPTED / REJECTED / WITHDRAWN
 
 Job: OPEN → IN_PROGRESS
 
-Project: NULL → CREATED
-```
-
-Recommended implementation status:
-
-```text
 Project: NULL → PENDING_PAYMENT
 ```
 
@@ -317,7 +315,7 @@ Project: NULL → PENDING_PAYMENT
 | `Proposals` | Stores expert proposal |
 | `ProposalMilestones` | Stores milestone plan proposed by expert |
 | `Projects` | Created after proposal acceptance |
-| `Milestones` | May be generated from proposal milestones |
+| `Milestones` | Generated from proposal milestones when accepted |
 | `Conversations` | Optional conversation between Client and Expert |
 | `Messages` | Optional message history |
 
@@ -329,10 +327,10 @@ Accepting a proposal must be atomic.
 Accept proposal transaction:
 1. Validate job/proposal/client/expert.
 2. Set selected proposal = ACCEPTED.
-3. Set sibling proposals = REJECTED.
+3. Set sibling proposals (SUBMITTED/SHORTLISTED) = REJECTED.
 4. Set job = IN_PROGRESS.
-5. Create project.
-6. Create initial milestone plan if applicable.
+5. Create project (status = PENDING_PAYMENT).
+6. Create milestones from proposal milestones (status = CREATED).
 7. Commit transaction.
 ```
 
@@ -360,8 +358,8 @@ Submit Proposal
 
 This is the transition from **marketplace phase** to **project execution phase**.
 
-Before this flow, AITasker is only a place to post jobs and find experts.  
-After this flow, AITasker starts managing real project delivery.
+Before this flow, Aivora is only a place to post jobs and find experts.
+After this flow, Aivora starts managing real project delivery.
 
 ---
 
@@ -377,9 +375,9 @@ After this flow, AITasker starts managing real project delivery.
 
 ## Goal
 
-Client and Expert confirm project milestones.  
-Client funds a milestone using escrow.  
-Expert completes the work and submits deliverable.  
+Client and Expert confirm project milestones.
+Client funds a milestone using escrow.
+Expert completes the work and submits deliverable, optionally tracked through granular **milestone steps**.
 Client reviews the deliverable.
 
 ## Preconditions
@@ -388,7 +386,7 @@ Client reviews the deliverable.
 1. Project exists.
 2. Project is linked to one accepted proposal.
 3. Project has Client and Expert.
-4. Client has wallet with sufficient balance (deposited via VNPay Sandbox).
+4. Client has wallet with sufficient balance (deposited via VNPay, or credited via demo deposit in dev/test).
 5. Expert has wallet.
 6. Milestone plan exists or can be created from proposal/job suggestion.
 ```
@@ -412,7 +410,7 @@ Client reviews the deliverable.
    - Amount
    - Due date
    - Acceptance criteria
-   - Deliverable type
+   - Optional list of milestone steps (Expert can ask AI to suggest steps, add/reorder/update them)
 
 5. Client confirms milestone plan.
 
@@ -420,7 +418,9 @@ Client reviews the deliverable.
 
 7. Project moves to PENDING_PAYMENT.
 
-8. Client selects the first milestone to fund.
+8. Client selects the first milestone to fund. Client tops up their wallet first if needed
+   (VNPay redirect flow: POST /wallet/vnpay/deposit → pay on VNPay → IPN callback credits wallet;
+   or a demo credit via POST /wallet/deposit-demo in dev/test).
 
 9. Client clicks Fund Milestone.
 
@@ -435,7 +435,8 @@ Client reviews the deliverable.
 
 12. Expert receives notification that milestone is funded.
 
-13. Expert starts working.
+13. Expert starts working, optionally tracking granular progress via milestone steps
+    (PENDING → IN_PROGRESS → COMPLETED / SKIPPED / BLOCKED per step).
 
 14. When finished, Expert submits deliverable:
     - Description
@@ -449,7 +450,7 @@ Client reviews the deliverable.
 
 16. Milestone status becomes SUBMITTED.
 
-17. Project status may become IN_REVIEW.
+17. Project status becomes IN_REVIEW.
 
 18. Client receives notification that deliverable is ready for review.
 
@@ -478,9 +479,10 @@ Client reviews the deliverable.
 
 7. Expert earning increases.
 
-8. If there are remaining milestones, Client continues funding the next milestone.
+8. If there are remaining milestones, Client continues funding the next milestone
+   (Project status returns to ACTIVE).
 
-9. If all milestones are RELEASED, Project becomes COMPLETED.
+9. If all milestones are RELEASED, Project becomes COMPLETED and Job becomes COMPLETED.
 ```
 
 ## Case B: Request Revision
@@ -496,25 +498,27 @@ Client reviews the deliverable.
 
 5. Milestone status becomes REVISION_REQUESTED.
 
-6. Payment remains HELD.
+6. Project status returns to ACTIVE.
 
-7. Expert fixes the deliverable.
+7. Payment remains HELD.
 
-8. Expert submits again.
+8. Expert fixes the deliverable.
 
-9. Milestone returns to SUBMITTED.
+9. Expert submits again.
 
-10. Client reviews again.
+10. Milestone returns to SUBMITTED.
+
+11. Client reviews again.
 ```
 
 ## Case C: Open Dispute
 
 ```text
-1. Client or Expert selects Open Dispute.
+1. Client or Expert selects Open Dispute (from the milestone, or directly via POST /disputes).
 
 2. User enters dispute reason and evidence if available.
 
-3. System creates dispute.
+3. System creates dispute (status = OPEN).
 
 4. Milestone status becomes DISPUTED.
 
@@ -522,7 +526,7 @@ Client reviews the deliverable.
 
 6. Project status becomes DISPUTED.
 
-7. Admin receives notification to resolve the dispute.
+7. Admin receives notification to review the dispute.
 ```
 
 ## Status Transition
@@ -532,21 +536,23 @@ Project:
 CREATED → PENDING_PAYMENT → ACTIVE → IN_REVIEW → COMPLETED
 or
 ACTIVE / IN_REVIEW → DISPUTED
+DISPUTED → ACTIVE / IN_REVIEW / COMPLETED / CANCELLED
 
 Milestone:
-CREATED → FUNDED → SUBMITTED → APPROVED → RELEASED
+CREATED → FUNDED → IN_PROGRESS → SUBMITTED → APPROVED → RELEASED
 
 Milestone revision path:
 SUBMITTED → REVISION_REQUESTED → SUBMITTED
 
 Milestone dispute path:
 SUBMITTED → DISPUTED
+DISPUTED → RELEASED / REFUNDED / REVISION_REQUESTED (via a follow-up milestone action, not automatic)
 
 Payment:
 NULL → PENDING → HELD → RELEASED
 
 Payment dispute path:
-HELD → FROZEN
+HELD → FROZEN → (stays FROZEN until resolved through a normal milestone action; dispute resolution itself does not move money)
 ```
 
 ## Main Tables
@@ -555,12 +561,13 @@ HELD → FROZEN
 |---|---|
 | `Projects` | Stores project lifecycle |
 | `Milestones` | Stores project milestone status |
+| `MilestoneSteps` | Stores granular per-milestone task tracking |
 | `Payments` | Stores escrow/payment state |
 | `Wallets` | Stores user wallet balance |
 | `WalletTransactions` | Stores wallet movement logs |
 | `Deliverables` | Stores expert submission |
 | `Disputes` | Created only if dispute is opened |
-| `DisputeEvidence` | Stores dispute evidence if available |
+| `DisputeEvidences` | Stores dispute evidence if available |
 
 ## Business Meaning
 
@@ -576,7 +583,7 @@ Confirm Milestones
 + Approve / Revision / Dispute
 ```
 
-This flow proves that AITasker is not only a job board.  
+This flow proves that Aivora is not only a job board.
 It manages project delivery, milestone validation, and payment safety.
 
 ---
@@ -589,14 +596,14 @@ It manages project delivery, milestone validation, and payment safety.
 
 ## Actor phụ
 
-**Admin**  
-Admin participates only when a dispute occurs.
+**Admin**
+Admin participates only when a dispute occurs — and only as an **observer**, not a decision-maker. The platform does not adjudicate disputes; Client and Expert settle them directly.
 
 ## Goal
 
 When work is completed and approved, the System releases payment, marks milestone/project as completed, and allows both sides to review each other.
 
-If a dispute occurs, Admin reviews evidence and resolves payment before the project can continue or close.
+If a dispute occurs, Admin reviews the evidence and writes a resolution note for the record, then unlocks the milestone/project so Client and Expert can continue on their own. **The platform does not decide who is right or move any money** — Client (fund the milestone further, approve it) and Expert (resubmit, negotiate) resolve the disagreement themselves through the normal milestone actions once unlocked.
 
 ---
 
@@ -679,7 +686,7 @@ Expected database result:
 
 ### Step 4.4 — System releases payment
 
-After deliverable approval, System releases escrow payment to Expert.
+Approving a deliverable and releasing its payment happen in the **same atomic transaction** (`PUT /milestones/{id}/approve`) — there is no separate release-payment endpoint.
 
 Expected database result:
 
@@ -690,7 +697,7 @@ Expected database result:
 | `Milestones` | `Status` | `RELEASED` |
 | `Milestones` | `PaidAt` | Not null |
 | `WalletTransactions` | `Type` | `PAYMENT_RELEASE` |
-| `WalletTransactions` | `Direction` | `CREDIT` for Expert |
+| `WalletTransactions` | `Direction` | `CREDIT` for Expert, `DEBIT` for Client |
 
 Example wallet result:
 
@@ -722,6 +729,8 @@ Expected database result:
 | `Projects` | `Status` | `COMPLETED` |
 | `Projects` | `CompletedAt` | Not null |
 | `JobPosts` | `Status` | `COMPLETED` |
+
+System emits `JobStatusUpdated` (status=completed) to the Client over SignalR.
 
 ### Step 4.6 — Client reviews Expert
 
@@ -767,12 +776,14 @@ Expected database result:
 
 ---
 
-## 4B. Dispute Path: Dispute → Admin Resolution → Payment Decision
+## 4B. Dispute Path: Dispute → Admin Observes → Client/Expert Settle Directly
+
+> **Rewritten for current code.** The earlier version of this document described an automatic resolution enum (`RELEASE_TO_EXPERT` / `REFUND_TO_CLIENT` / `SPLIT_PAYMENT` / `REQUEST_REVISION`) that moved money as part of resolving the dispute. **That behavior was removed in issue #94.** `PUT /disputes/{id}/resolve` today only accepts a `ResolutionNote`, moves the dispute to `RESOLVED`, and **unlocks** the milestone (→ `SUBMITTED` if a deliverable was already submitted, else `IN_PROGRESS`) and the project (→ `ACTIVE` if no other milestone on the project is still `DISPUTED`) — but it never touches `Payments` or `Wallets`. Any money movement after a dispute still has to go through the normal milestone flow (approve / request-revision) as a separate step, now that the milestone is unlocked.
 
 ### Trigger
 
 ```text
-Client or Expert opens a dispute from a submitted milestone/deliverable.
+Client or Expert opens a dispute from a submitted milestone/deliverable, or directly via POST /disputes.
 ```
 
 ### Preconditions
@@ -794,43 +805,52 @@ Client or Expert opens a dispute from a submitted milestone/deliverable.
    - Description
    - Evidence if available
 
-3. System creates Dispute.
+3. System creates Dispute (status = OPEN).
 
 4. System updates:
    - Milestone status = DISPUTED
    - Payment status = FROZEN
    - Project status = DISPUTED
 
-5. Admin opens dispute detail.
+5. Admin opens dispute detail — as an **observer**, not a judge.
 
-6. Admin reviews:
+6. Admin reviews (for the record, not to decide an outcome):
    - Job description
    - Proposal
    - Milestone acceptance criteria
    - Deliverable
    - Message history if available
    - Payment status
-   - Evidence from both sides
+   - Evidence from both sides (can request more evidence — dispute moves to UNDER_REVIEW)
 
-7. Admin chooses resolution:
-   A. RELEASE_TO_EXPERT
-   B. REFUND_TO_CLIENT
-   C. SPLIT_PAYMENT
-   D. REQUEST_REVISION
+7. Admin writes a ResolutionNote documenting what was observed, and resolves the dispute record:
+   PUT /disputes/{id}/resolve { "resolutionNote": "..." }
+   This does not declare a winner or move money — it just closes the dispute record and unlocks the milestone.
 
-8. System updates dispute, payment, milestone, and project status based on Admin decision.
+8. System sets Disputes.Status = RESOLVED, records ResolutionNote + AdminId + ResolvedAt.
+   System also unlocks Milestone (→ SUBMITTED if a deliverable was already submitted, else → IN_PROGRESS)
+   and, if no other milestone on the project is still DISPUTED, unlocks Project (→ ACTIVE).
+   Payment/Wallet status are NOT changed by this step — no money moves automatically.
 
-9. Client and Expert receive result notification.
+9. Client and Expert now settle the disagreement themselves through the normal milestone
+   lifecycle — the platform does not do this for them. In practice this means Client approves
+   the milestone (releases payment) once satisfied, or Expert resubmits after Client requests
+   revision. Both of those actions are `ClientPolicy`-only; Admin has no endpoint to force either
+   outcome.
+
+10. Alternatively, the dispute opener can close it themselves via PUT /disputes/{id}/close
+    at any point before an admin resolution, if the disagreement is settled directly between
+    the parties without needing Admin involvement at all.
 ```
 
-### Resolution Outcomes
+### Dispute Status Values
 
-| Admin Decision | Payment Result | Milestone Result | Project Result |
-|---|---|---|---|
-| `RELEASE_TO_EXPERT` | `RELEASED` | `RELEASED` | Continue or `COMPLETED` if all milestones released |
-| `REFUND_TO_CLIENT` | `REFUNDED` | `REFUNDED` | Continue, cancel, or close depending on business rule |
-| `SPLIT_PAYMENT` | `PARTIALLY_RELEASED` | Resolved according to split rule | Continue or close |
-| `REQUEST_REVISION` | Remains `HELD` | `REVISION_REQUESTED` | Back to active/review cycle |
+| Status | Meaning |
+|---|---|
+| `OPEN` | Just created, awaiting admin review |
+| `UNDER_REVIEW` | Admin has requested more evidence |
+| `RESOLVED` | Admin wrote a resolution note (observation, not a verdict); dispute record closed, milestone unlocked for Client/Expert to settle directly |
+| `CLOSED` | Opener closed the dispute themselves (no admin decision needed) |
 
 ---
 
@@ -856,7 +876,7 @@ Happy path final state:
 ```text
 1. Expert can submit deliverable.
 2. Client can approve deliverable.
-3. Payment is released only after approval.
+3. Payment is released only after approval, in the same transaction as the approval.
 4. Milestone changes to RELEASED after payment release.
 5. Project changes to COMPLETED after all milestones are released.
 6. Client can review Expert.
@@ -866,7 +886,7 @@ Happy path final state:
 10. Same reviewer cannot review the same reviewee twice for the same project.
 11. If Client requests revision, payment must remain HELD.
 12. If Client/Expert opens dispute, payment must become FROZEN and project must become DISPUTED.
-13. Admin can resolve dispute with release, refund, split payment, or revision request.
+13. Admin resolving a dispute only records a ResolutionNote — it does not itself release, refund, or split payment.
 ```
 
 ---
@@ -875,13 +895,15 @@ Happy path final state:
 
 | Test Case | Expected Result |
 |---|---|
-| Release payment before deliverable approval | Should fail |
+| Release payment before deliverable approval | Should fail — no standalone release endpoint exists |
 | Review before project completed | Should not be allowed |
 | Rating = 0 or 6 | Should fail |
 | ReviewerId = RevieweeId | Should fail |
 | Duplicate review for same project/reviewer/reviewee | Should fail |
 | Client requests revision | Payment should stay `HELD` |
 | Client opens dispute | Payment should become `FROZEN`, project should become `DISPUTED` |
+| Non-admin resolves dispute | Should fail — `AdminPolicy` required |
+| Resolve dispute expecting auto payment release | Should NOT happen — only `ResolutionNote` is recorded |
 | Non-owner Client accepts proposal | Should fail |
 | Expert submits proposal to non-OPEN job | Should fail |
 | Client funds milestone with insufficient balance | Should fail |
@@ -913,15 +935,16 @@ Use this scenario for presentation and testing:
 10. Client accepts proposal.
 11. System creates project.
 12. Client confirms milestone.
-13. Client funds milestone.
-14. Payment is held in escrow.
-15. Expert submits deliverable.
-16. Client approves deliverable.
-17. System releases payment.
-18. Milestone becomes RELEASED.
-19. Project becomes COMPLETED.
-20. Client reviews Expert.
-21. Expert reviews Client.
+13. Client tops up wallet (VNPay or demo deposit) if needed.
+14. Client funds milestone.
+15. Payment is held in escrow.
+16. Expert submits deliverable.
+17. Client approves deliverable.
+18. System releases payment (same transaction as approval).
+19. Milestone becomes RELEASED.
+20. Project becomes COMPLETED.
+21. Client reviews Expert.
+22. Expert reviews Client.
 ```
 
 Optional dispute demo:
@@ -930,8 +953,8 @@ Optional dispute demo:
 Expert submits deliverable
 → Client opens dispute
 → Payment becomes FROZEN
-→ Admin reviews evidence
-→ Admin resolves dispute
+→ Admin reviews evidence, writes resolution note
+→ Dispute becomes RESOLVED (payment still FROZEN — needs a follow-up milestone action to move)
 ```
 
 ---
@@ -947,7 +970,7 @@ DRAFT → OPEN → IN_PROGRESS → COMPLETED
 Optional:
 
 ```text
-OPEN → CANCELLED / CLOSED
+DRAFT / OPEN → CANCELLED / CLOSED
 ```
 
 ## Proposal Status
@@ -975,7 +998,7 @@ DISPUTED → ACTIVE / IN_REVIEW / COMPLETED / CANCELLED
 ## Milestone Status
 
 ```text
-CREATED → FUNDED → SUBMITTED → APPROVED → RELEASED
+CREATED → FUNDED → IN_PROGRESS → SUBMITTED → APPROVED → RELEASED
 ```
 
 Revision path:
@@ -988,7 +1011,7 @@ Dispute path:
 
 ```text
 SUBMITTED → DISPUTED
-DISPUTED → RELEASED / REFUNDED / REVISION_REQUESTED
+DISPUTED → RELEASED / REFUNDED / REVISION_REQUESTED (follow-up action, not automatic)
 ```
 
 ## Payment Status
@@ -1000,7 +1023,7 @@ PENDING → HELD → RELEASED
 Dispute/refund path:
 
 ```text
-HELD → FROZEN → RELEASED / REFUNDED / PARTIALLY_RELEASED
+HELD → FROZEN → RELEASED / REFUNDED / PARTIALLY_RELEASED (via follow-up milestone action)
 ```
 
 ## Deliverable Status
@@ -1009,6 +1032,15 @@ HELD → FROZEN → RELEASED / REFUNDED / PARTIALLY_RELEASED
 SUBMITTED → APPROVED
 SUBMITTED → REVISION_REQUESTED → SUBMITTED
 SUBMITTED → REJECTED
+```
+
+## Dispute Status
+
+```text
+OPEN → UNDER_REVIEW → RESOLVED
+OPEN → UNDER_REVIEW → CLOSED
+OPEN → RESOLVED
+OPEN → CLOSED
 ```
 
 ## Review Status
@@ -1025,15 +1057,18 @@ Review is created only after project completion.
 |---|---|
 | User and roles | `Users`, `ClientProfiles`, `ExpertProfiles` |
 | Skills and categories | `Categories`, `Skills`, `ExpertSkills`, `JobSkills` |
-| Job creation | `JobPosts`, `JobSkills`, `AIJobSuggestions` |
+| Job creation | `JobPosts`, `JobSkills`, `JobPostMilestones`, `AIJobSuggestions` |
 | Expert matching | `RecommendationResults`, `ExpertProfiles`, `ExpertSkills` |
+| Expert verification | `ExpertVerifications` |
 | Proposal | `Proposals`, `ProposalMilestones` |
 | Project creation | `Projects`, `Milestones` |
+| Milestone tracking | `Milestones`, `MilestoneSteps` |
 | Escrow/payment | `Wallets`, `Payments`, `WalletTransactions` |
 | Deliverable | `Deliverables`, `Milestones` |
 | Messaging | `Conversations`, `Messages` |
-| Dispute | `Disputes`, `DisputeEvidence` |
+| Dispute | `Disputes`, `DisputeEvidences` |
 | Review | `Reviews` |
+| Notifications | `Notifications` |
 
 ---
 
@@ -1042,12 +1077,13 @@ Review is created only after project completion.
 ## Flow 1 — Create Job & Match Expert
 
 ```text
-POST /jobs
 POST /ai/job-assistant
+POST /jobs
 PUT /jobs/{id}
 POST /jobs/{id}/publish
-GET /api/v1/jobs/{id}/recommendations
-GET /experts/{id}
+POST /jobs/{id}/recommendations/generate
+GET /jobs/{id}/recommendations
+GET /profiles/expert/{id}
 ```
 
 ## Flow 2 — Proposal & Project Creation
@@ -1068,29 +1104,33 @@ GET /projects/{id}
 ```text
 GET /projects/{id}
 POST /projects/{id}/milestones
+POST /wallet/vnpay/deposit
 PUT /milestones/{id}/fund
 POST /milestones/{id}/deliverables
 GET /milestones/{id}/deliverables
-PUT /api/v1/milestones/{id}/approve
-PUT /api/v1/milestones/{id}/request-revision
+PUT /milestones/{id}/approve
+PUT /milestones/{id}/request-revision
 POST /milestones/{id}/dispute
 ```
 
 ## Flow 4 — Completion, Payment, and Review
 
 ```text
-POST /api/v1/reviews
-GET /api/v1/disputes
-GET /api/v1/disputes/{id}
-PUT /api/v1/disputes/{id}/resolve
+POST /reviews
+GET /disputes
+GET /disputes/{id}
+PUT /disputes/{id}/resolve
+PUT /disputes/{id}/close
 ```
 
 Note:
 
 ```text
-Payment release should normally be triggered by deliverable approval,
-not manually called by Client.
+Payment release is normally triggered as part of PUT /milestones/{id}/approve — there is no separate manual release endpoint.
+Resolving a dispute (PUT /disputes/{id}/resolve) only records an admin note — it never moves payment by itself.
 ```
+
+Full request/response shapes for every endpoint above: see [`API_BY_FLOW.md`](./API_BY_FLOW.md).
 
 ---
 
@@ -1133,6 +1173,7 @@ Milestones → CREATED
 Payment cannot be RELEASED before deliverable is approved.
 Payment must stay HELD during revision.
 Payment must become FROZEN during dispute.
+Resolving a dispute does not by itself release/refund payment — that's a separate follow-up action.
 ```
 
 ## Rule 4: Project completion depends on milestones
@@ -1162,13 +1203,12 @@ Same reviewer cannot review same reviewee twice in the same project.
 These features can exist, but they are not part of the 4 final main flows:
 
 ```text
-1. Service Publishing
-2. AI Service Generator
-3. Advanced Analytics
-4. Withdraw real money
-5. Real-time chat
-6. Complex notification system
-7. KYC / identity verification
+1. Service Publishing (AI Service Generator for Experts)
+2. Advanced Analytics
+3. Direct wallet transfer (Client → Expert, outside escrow)
+4. Real-time chat
+5. Complex notification system
+6. Expert skill/certificate verification (KYC-adjacent)
 ```
 
 They can be treated as secondary flows or future work.

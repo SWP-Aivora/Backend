@@ -1,6 +1,7 @@
 # CLAUDE.md — Aivora Backend
 
 > Project-level context for Claude Code. Loaded automatically in every session.
+> Tech stack, quick start, và env vars đã có ở [`AGENTS.md`](./AGENTS.md) — không lặp lại ở đây. File này chỉ chứa kiến trúc chi tiết và gotchas đặc thù mà Claude Code cần biết.
 
 ---
 
@@ -17,38 +18,7 @@
 
 **Base URL:** `/api/v1`
 **Auth:** JWT Bearer token
-**Response wrapper:** `{ success: bool, message: string, data: T?, errors?: object }`
-
----
-
-## 🏗️Tech Stack
-
-| Layer              | Technology                                            |
-| ------------------ | ----------------------------------------------------- |
-| **Framework**      | .NET 10 (ASP.NET Core)                                |
-| **Language**       | C# 13 with NRT (nullable reference types)             |
-| **Database**       | PostgreSQL via EF Core 10                             |
-| **Auth**           | JWT Bearer (System.IdentityModel.Tokens.Jwt 8.x)      |
-| **AI**             | Google Gemini 2.5 Flash (with Mock provider fallback) |
-| **File Storage**   | Cloudinary                                            |
-| **Real-time**      | SignalR (ChatHub)                                     |
-| **API Docs**       | Scalar (OpenAPI)                                      |
-| **Test Framework** | xUnit + FluentAssertions + Moq + EF Core InMemory     |
-
----
-
-## 📐 Solution Structure
-
-```
-Aivora.sln
-├── Aivora.api/              ← Entry point (Controllers, Middleware, Extensions, Hubs)
-├── Aivora.Services/         ← Business logic layer (scoped services)
-├── Aivora.Repositories/     ← Data access layer (EF Core, entities, configs)
-├── Aivora.Tests/            ← Unit & integration tests
-└── docs/                    ← Architecture, flows, environment reference
-```
-
-**Dependency flow:** `Aivora.api` → `Aivora.Services` → `Aivora.Repositories`
+**Response wrapper:** `{ success: bool, message: string, data: T?, errors?: object, traceId: string }`
 
 ---
 
@@ -73,10 +43,10 @@ ExceptionMiddleware → Scalar/OpenAPI UI → HTTPS Redirect → CORS → RateLi
 ### Rate Limiting (Fixed Window)
 
 | Policy    | Target         | Limit   | Window |
-| --------- | -------------- | ------- | ------ |
-| `Strict`  | Auth endpoints | 10 req  | 1 min  |
-| `AI`      | AI endpoints   | 20 req  | 1 min  |
-| `General` | All others     | 100 req | 1 min  |
+| --------- | --------------- | ------- | ------ |
+| `Strict`  | Auth endpoints  | 10 req  | 1 min  |
+| `AI`      | AI endpoints    | 20 req  | 1 min  |
+| `General` | All others      | 100 req | 1 min  |
 
 ### Service Registration Convention
 
@@ -96,103 +66,21 @@ Uses Strategy pattern for AI providers:
 - Resolution: If `AIProvider:Provider=Gemini` + `ApiKey` set → use Gemini; otherwise → Mock
 - Prompt building via `AIJobSuggestionPromptBuilder` / `AIJobRefinementPromptBuilder` / `AIServiceDescriptionPromptBuilder`
 - Parsing via `AIJobSuggestionParser` / `AIJobRefinementParser` / `AIServiceDescriptionParser`
-
----
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- .NET 10 SDK
-- PostgreSQL (local or cloud)
-- Cloudinary account
-- Gemini API key (optional, falls back to Mock)
-
-### Run locally
-
-```bash
-# Restore NuGet packages
-dotnet restore
-
-# Build the solution
-dotnet build
-
-# Set up environment variables
-cp .env.example .env
-# Edit .env with your values
-
-# Initialize user secrets (optional, for local development)
-cd Aivora.api
-dotnet user-secrets init
-# Set required secrets (see docs/ENV.md)
-
-# Run the application
-cd Aivora.api
-dotnet run
-```
-
-### Docker Development
-
-```bash
-# Start with docker-compose
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
-
-# Stop services
-docker-compose down
-```
-
-### Environment Setup
-
-1. Copy the example environment file:
-
-   ```bash
-   cp .env.example .env
-   ```
-
-2. Edit `.env` with your actual values:
-   - PostgreSQL connection
-   - JWT settings (generate a secure secret)
-   - Cloudinary credentials
-   - Gemini API key (optional)
-
-3. The app will crash at startup if any required variables are missing or contain placeholders.
-
-### Package Management
-
-- This solution uses standard NuGet package management
-- Packages are defined in each project's `.csproj` file
-- No additional package managers are required
-
-### Run tests
-
-```bash
-dotnet test
-```
-
-### Apply migrations
-
-```bash
-cd Aivora.Repositories
-dotnet ef migrations add MigrationName --startup-project ../Aivora.api
-dotnet ef database update --startup-project ../Aivora.api
-```
+- **Lưu ý:** `AIJobAssistantService` (refine `AIJobSuggestion`) và `AIJobRefinementService` (refine `Job` đã tạo) là 2 pipeline riêng biệt, gần giống nhau — xem `docs/ARCHITECTURE.md` mục Known Debt.
 
 ---
 
 ## 📁 Important Files
 
 | File                                                                  | Purpose                                                       |
-| --------------------------------------------------------------------- | ------------------------------------------------------------- |
+| ---------------------------------------------------------------------- | --------------------------------------------------------------- |
 | `Aivora.api/Program.cs`                                               | Service registration, middleware pipeline, database migration |
 | `docs/ENV.md`                                                         | All environment variables                                     |
-| `docs/architecture/IMPROVEMENTS.md`                                   | Known architectural debt & planned improvements               |
-| `docs/flows/MAINFLOW.md`                                              | 4 main business flows (source of truth)                       |
-| `docs/flows/API_BY_FLOW.md`                                           | Complete API endpoint reference                               |
+| `docs/ARCHITECTURE.md`                                                | Layer overview, service inventory, known architectural debt   |
+| `docs/flows/MAINFLOW_v2.md`                                           | 4 main business flows (source of truth)                       |
+| `docs/flows/API_BY_FLOW.md`                                           | Complete API endpoint reference                                |
 | `Aivora.Repositories/Data/Configurations/`                            | EF Core entity configurations                                 |
-| `Aivora.Repositories/Data/Interceptors/AuditableEntityInterceptor.cs` | Auto-set CreatedAt/UpdatedAt                                  |
+| `Aivora.Repositories/Data/Interceptors/AuditableEntityInterceptor.cs` | Auto-set CreatedAt/UpdatedAt                                   |
 
 ---
 
@@ -203,16 +91,17 @@ dotnet ef database update --startup-project ../Aivora.api
 3. **Accept proposal is atomic:** Accepting a proposal creates project + milestones + rejects siblings in a single DB transaction. Cannot be rolled back manually.
 4. **Payment release is automatic:** Payment is released internally when deliverable is approved — no separate "release payment" endpoint.
 5. **Review constraint:** Both users can only review after project is `COMPLETED`. Rating must be 1-5. Self-review is forbidden. One review per user-pair per project.
-6. **Placeholder detection:** App crashes at startup if config values contain `__SET`, `CHANGE_ME`, or `PLACEHOLDER`.
-7. **Mock AI fallback:** When `AIProvider__ApiKey` is not set, all AI endpoints return Mock responses. This is intentional for development/testing.
-8. **SignalR hub:** Chat uses `/api/v1/chat` hub (not REST). Methods: `SendMessage(conversationId, content)`. Events: `ReceiveMessage`, `ReadConfirmation`, `Error`.
-9. **Database seeding with duplicate keys:** Robust duplicate key handling implemented - all `SaveChangesAsync()` calls are wrapped in `SaveChangesWithDuplicateHandling()` which catches Postgres error 23505 and continues gracefully with warnings. Seeding will never crash due to duplicate constraints.
+6. **Mock AI fallback:** When `AIProvider__ApiKey` is not set, all AI endpoints return Mock responses. This is intentional for development/testing.
+7. **SignalR hub:** Chat uses `/api/v1/chat` hub (not REST), implemented in `Aivora.Services/Hubs/ChatHub.cs`. Methods: `SendMessage`, `JoinConversation`, `LeaveConversation`, `UserTyping`, `MarkAsRead`. Events: `ReceiveMessage`, `ReadConfirmation`, `JobStatusUpdated`, `NewJobPublished`. `Error` is reserved but not currently emitted.
+8. **Database seeding with duplicate keys:** Robust duplicate key handling implemented - all `SaveChangesAsync()` calls are wrapped in `SaveChangesWithDuplicateHandling()` which catches Postgres error 23505 and continues gracefully with warnings. Seeding will never crash due to duplicate constraints.
+9. **Dispute resolution does not auto-move money:** `PUT /disputes/{id}/resolve` sets `Disputes.Status = RESOLVED`, records `ResolutionNote`, and **unlocks** the milestone (→ `SUBMITTED` if a deliverable was already submitted, else `IN_PROGRESS`) and project (→ `ACTIVE` if no other milestone in the project is still `DISPUTED`) — but it never touches `Payments` or `Wallets` (that flow was removed in issue #94). Money still only moves through the normal milestone approve/refund path.
 
 ---
 
 ## 📚 References
 
-- [Environment Variables](docs/ENV.md)
-- [Architecture Improvements](docs/architecture/IMPROVEMENTS.md)
-- [4 Main Business Flows](docs/flows/MAINFLOW.md)
+- [Tech stack, Quick Start, Env Vars](AGENTS.md)
+- [Environment Variables (full)](docs/ENV.md)
+- [Architecture & Known Debt](docs/ARCHITECTURE.md)
+- [4 Main Business Flows](docs/flows/MAINFLOW_v2.md)
 - [Complete API Reference](docs/flows/API_BY_FLOW.md)
