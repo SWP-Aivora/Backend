@@ -18,10 +18,11 @@ Aivora.sln
 
 #### 1. [Aivora.api](./Aivora.api)
 Main API Gateway. Xử lý authentication, routing, và real-time communication qua SignalR.
-- **Controllers**: Xử lý HTTP requests.
-- **Hubs**: SignalR hubs cho real-time chat (`ChatHub`).
+- **Controllers**: Xử lý HTTP requests (20 controllers).
 - **Middlewares**: Custom exception handling và security.
 - **Extensions**: JWT và Claims helper methods.
+
+> `ChatHub` (SignalR) thực tế nằm ở `Aivora.Services/Hubs/`, không phải `Aivora.api`.
 
 #### 2. [Aivora.Repositories](./Aivora.Repositories)
 Tầng truy xuất dữ liệu. Quản lý database entities và persistence sử dụng EF Core.
@@ -68,21 +69,21 @@ Sửa các giá trị trong `.env`:
 
 ```env
 # Database (connection string PostgreSQL)
-CONNECTION_STRING=Host=localhost;Port=5432;Database=aivora;Username=postgres;Password=your_password
+ConnectionStrings__DefaultConnection=Host=localhost;Port=5432;Database=aivora;Username=postgres;Password=your_password
 
 # JWT
-JWT_SECRET=your_secret_at_least_32_chars
-JWT_ISSUER=AivoraApi
-JWT_AUDIENCE=AivoraClient
-JWT_EXPIRY_IN_MINUTES=1440
+JwtSettings__Secret=your_secret_at_least_32_chars
+JwtSettings__Issuer=AivoraApi
+JwtSettings__Audience=AivoraClient
+JwtSettings__ExpiryInMinutes=1440
 
 # Cloudinary
-CLOUDINARY_CLOUD_NAME=your_cloud_name
-CLOUDINARY_API_KEY=your_api_key
-CLOUDINARY_API_SECRET=your_api_secret
+CloudinaryOptions__CloudName=your_cloud_name
+CloudinaryOptions__ApiKey=your_api_key
+CloudinaryOptions__ApiSecret=your_api_secret
 ```
 
-> ⚠️ **Tất cả config đều đọc từ env vars.** Nếu thiếu bất kỳ biến nào, app sẽ fail-fast với thông báo rõ ràng.
+> ⚠️ **Tất cả config đều đọc từ env vars, dùng `__` làm dấu phân cách section.** Nếu thiếu bất kỳ biến bắt buộc nào, app sẽ fail-fast với thông báo rõ ràng. Danh sách đầy đủ (gồm VNPay, Commission, Rate Limit): xem [`docs/ENV.md`](./docs/ENV.md).
 
 ### 2. Chạy với Docker Compose
 
@@ -118,15 +119,20 @@ dotnet run --project Aivora.api
 | `Jobs` | Đăng tin, publish, cancel, tìm kiếm job | Mixed |
 | `Proposals` | Nhận/Gửi/Accept proposal | Role-based |
 | `Projects` | Danh sách & chi tiết project | Participant |
-| `Milestones` | Fund milestone (escrow), nộp deliverable, approve | Role-based |
-| `Deliverables` | Nộp bàn giao milestone | Expert |
-| `Wallet` | Xem số dư ví AICoin | Authenticated |
+| `Milestones` | Fund milestone (escrow), nộp/duyệt deliverable, quản lý milestone steps | Role-based |
+| `Disputes` | Mở/xem/giải quyết tranh chấp | Participant / Admin |
+| `Wallet` | Số dư ví AICoin, nạp tiền qua VNPay, rút, chuyển ví | Authenticated |
 | `Payments` | Lịch sử giao dịch | Authenticated |
-| `Disputes** | Mở/xem/giải quyết tranh chấp | Participant / Admin |
 | `Reviews` | Đánh giá sau project | Role-based |
 | `Messages` | Chat real-time qua SignalR | Authenticated |
-| `Media** | Upload file qua Cloudinary | Authenticated |
-| **AI** (AIController) | Trợ lý AI cho job | Role-based |
+| `Notifications` | Thông báo trong app | Authenticated |
+| `Media` | Upload/list/xoá file qua Cloudinary | Authenticated |
+| `AI` | Trợ lý AI cho job (suggestion, refine) và service generator | Role-based |
+| `ExpertVerification` | Nộp/xem bằng chứng xác minh kỹ năng, escalate | Expert / Admin |
+| `Admin` | Thống kê, quản lý user, duyệt hồ sơ/verification expert | Admin |
+| `Health` | Health check cho hosting (Render) | Public |
+
+> Bàn giao milestone (deliverable) là sub-route của `Milestones`, không có controller riêng.
 
 
 
@@ -134,8 +140,9 @@ dotnet run --project Aivora.api
 
 - **Endpoint:** `/api/v1/chat`
 - **Auth:** JWT qua query param `access_token`
-- **Client → Server:** `SendMessage(conversationId, content)`
-- **Server → Client:** `ReceiveMessage()`, `ReadConfirmation()`, `Error()`
+- **Client → Server:** `SendMessage(request: {conversationId, content?, attachmentUrl?})`, `JoinConversation(conversationId)`, `LeaveConversation(conversationId)`, `UserTyping(conversationId, isTyping)`, `MarkAsRead(conversationId)`
+- **Server → Client:** `ReceiveMessage`, `ReadConfirmation`, `UserTyping`, `JobStatusUpdated`, `NewJobPublished`
+- `Error` được đặt trước là reserved, hub hiện chưa emit — xem `docs/ARCHITECTURE.md` mục Known Debt.
 
 ---
 
@@ -171,7 +178,7 @@ Flow đăng nhập:
 {
   "success": false,
   "message": "Error summary",
-  ​"errors": ["Detail 1", "Detail 2"],
+  "errors": ["Detail 1", "Detail 2"],
   "traceId": "uuid"
 }
 ```
@@ -191,9 +198,10 @@ Flow đăng nhập:
 
 ## Tài liệu chi tiết
 
-- **[Business Flow](./docs/flows/MAINFLOW.md)** — Chi tiết 4 luồng nghiệp vụ chính.
+- **[Danh mục tài liệu](./docs/README.md)** — Mục lục toàn bộ `docs/`.
+- **[Business Flow](./docs/flows/MAINFLOW_v2.md)** — Chi tiết 4 luồng nghiệp vụ chính.
 - **[API Reference](./docs/flows/API_BY_FLOW.md)** — Danh sách API theo từng luồng nghiệp vụ.
-- **[Kiến trúc hệ thống](#kiến-trúc)** — Tổng quan về cấu trúc code.
+- **[Kiến trúc hệ thống](./docs/ARCHITECTURE.md)** — Chi tiết layer, service inventory, middleware, config.
 
 ---
 
@@ -211,9 +219,3 @@ dotnet ef database update --project Aivora.Repositories --startup-project Aivora
 ```bash
 dotnet test
 ```
-
----
-
-## Customization rule notes
-
-- That's it for this task. You can regenerate different READMEs in the future that look different from this one.

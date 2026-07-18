@@ -39,9 +39,9 @@ See [Environment Variables](ENV.md) for the full reference. Minimum secrets for 
 ```bash
 dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Port=5432;Database=aivora;Username=postgres;Password=yourpassword"
 dotnet user-secrets set "JwtSettings:Secret" "your-super-secret-key-at-least-32-characters-long!"
-dotnet user-secrets set "JwtSettings:Issuer" "Aivora"
-dotnet user-secrets set "JwtSettings:Audience" "Aivora"
-dotnet user-secrets set "JwtSettings:ExpiryInMinutes" "60"
+dotnet user-secrets set "JwtSettings:Issuer" "AivoraApi"
+dotnet user-secrets set "JwtSettings:Audience" "AivoraClient"
+dotnet user-secrets set "JwtSettings:ExpiryInMinutes" "1440"
 dotnet user-secrets set "CloudinaryOptions:CloudName" "your-cloud-name"
 dotnet user-secrets set "CloudinaryOptions:ApiKey" "your-api-key"
 dotnet user-secrets set "CloudinaryOptions:ApiSecret" "your-api-secret"
@@ -182,10 +182,10 @@ Every business service follows the interface + implementation pattern:
 - Entity configurations in `Aivora.Repositories/Data/Configurations/`
 - Interceptors in `Aivora.Repositories/Data/Interceptors/`
 - Use Fluent API, not data annotations.
-- All entities inherit from `Entity` base class with `Guid Id`, `DateTime CreatedAt`, `DateTime? UpdatedAt`.
+- All entities inherit from `BaseEntity` / `AuditableBaseEntity` (`Aivora.Repositories/Abstractions/BaseEntity.cs`) — `Guid Id`, `bool IsDeleted`, and (for auditable entities) `DateTimeOffset CreatedAt`, `DateTimeOffset? UpdatedAt`.
 
 ### Error handling
-- Use custom exception types in `Aivora.Services.Exceptions/` and `Aivora.Repositories.Exceptions/`.
+- Use custom exception types in `Aivora.Services/Exceptions/`.
 - Global exception handling via `ExceptionMiddleware` — don't wrap everything in try/catch.
 - Never swallow exceptions silently.
 
@@ -197,7 +197,6 @@ Every business service follows the interface + implementation pattern:
 Aivora.api/              ← Entry point
 ├── Controllers/          ← HTTP endpoints (thin layer)
 ├── Extensions/           ← Extension methods for Program.cs
-├── Hubs/                 ← SignalR hubs (ChatHub)
 ├── Middlewares/          ← Custom middleware (ExceptionMiddleware)
 └── Program.cs            ← DI + middleware pipeline
 
@@ -206,15 +205,19 @@ Aivora.Services/         ← Business logic
 │   ├── IService.cs       ← Interface
 │   └── Service.cs        ← Implementation
 ├── AIJobAssistantService/ ← AI-specific (Prompting, Parsing, Providers)
+├── Hubs/                 ← SignalR hubs (ChatHub)
 └── Exceptions/           ← Custom exceptions
 
 Aivora.Repositories/     ← Data access
-├── Abstractions/         ← Repository interfaces
-├── Configurations/       ← EF Core entity configurations
-├── Data/                 ← DbContext, interceptors
+├── Abstractions/         ← BaseEntity base classes (no repository interface)
+├── Data/
+│   ├── Configurations/   ← EF Core entity configurations
+│   ├── Interceptors/     ← AuditableEntityInterceptor
+│   ├── Migrations/       ← EF Core migrations
+│   └── Seeders/          ← AivoraDataSeeder
 ├── Entities/             ← Entity models
 ├── Enums/                ← Domain enums
-└── Migrations/           ← EF Core migrations
+└── Constants/            ← Repository-layer constants
 
 Aivora.Tests/            ← Tests
 └── Services/             ← Service-layer tests

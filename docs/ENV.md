@@ -1,6 +1,6 @@
 # Environment Variables Reference
 
-> **Source of truth:** `Aivora.api/appsettings.Development.json` + `Program.cs` required config validation.
+> **Source of truth:** `.env.example`, `Aivora.api/appsettings.Development.json`, `Program.cs` config validation.
 > **Variable naming:** Use `__` as section separator (e.g., `ConnectionStrings__DefaultConnection`). Compatible with all hosting providers (Render, Railway, local Docker, etc.)
 
 ---
@@ -11,18 +11,20 @@ These variables **must** be set or the application will crash at startup with `I
 
 | Variable | Config Key | Example | Description |
 |----------|-----------|---------|-------------|
-| `ConnectionStrings__DefaultConnection` | `ConnectionStrings:DefaultConnection` | `Host=localhost;Port=5432;Database=aivora;Username=postgres;Password=secret;` | PostgreSQL connection string |
-| `JwtSettings__Secret` | `JwtSettings:Secret` | `your-super-secret-key-min-32-chars!` | JWT signing secret (min 32 chars) |
-| `JwtSettings__Issuer` | `JwtSettings:Issuer` | `Aivora` | JWT issuer claim |
-| `JwtSettings__Audience` | `JwtSettings:Audience` | `Aivora` | JWT audience claim |
-| `JwtSettings__ExpiryInMinutes` | `JwtSettings:ExpiryInMinutes` | `60` | JWT expiry in minutes (integer) |
-| `CloudinaryOptions__CloudName` | `CloudinaryOptions:CloudName` | `dxxxxx` | Cloudinary cloud name |
-| `CloudinaryOptions__ApiKey` | `CloudinaryOptions:ApiKey` | `123456789` | Cloudinary API key |
-| `CloudinaryOptions__ApiSecret` | `CloudinaryOptions:ApiSecret` | `abc123secret` | Cloudinary API secret |
+| `ConnectionStrings__DefaultConnection` | `ConnectionStrings:DefaultConnection` | `Host=localhost;Port=5432;Database=aivora;Username=postgres;Password=your_password` | PostgreSQL connection string |
+| `JwtSettings__Secret` | `JwtSettings:Secret` | `Your_Super_Secret_Key_At_Least_32_Chars_Long` | JWT signing secret (min 32 chars) |
+| `JwtSettings__Issuer` | `JwtSettings:Issuer` | `AivoraApi` | JWT issuer claim |
+| `JwtSettings__Audience` | `JwtSettings:Audience` | `AivoraClient` | JWT audience claim |
+| `JwtSettings__ExpiryInMinutes` | `JwtSettings:ExpiryInMinutes` | `1440` | JWT expiry in minutes (integer) |
+| `CloudinaryOptions__CloudName` | `CloudinaryOptions:CloudName` | `your_cloud_name` | Cloudinary cloud name |
+| `CloudinaryOptions__ApiKey` | `CloudinaryOptions:ApiKey` | `your_api_key` | Cloudinary API key |
+| `CloudinaryOptions__ApiSecret` | `CloudinaryOptions:ApiSecret` | `your_api_secret` | Cloudinary API secret |
 
 ---
 
 ## Optional Variables
+
+### AI Provider
 
 | Variable | Config Key | Default | Description |
 |----------|-----------|---------|-------------|
@@ -31,6 +33,26 @@ These variables **must** be set or the application will crash at startup with `I
 | `AIProvider__BaseUrl` | `AIProvider:BaseUrl` | `https://generativelanguage.googleapis.com` | Gemini API base URL |
 | `AIProvider__Model` | `AIProvider:Model` | `gemini-2.5-flash` | Gemini model name |
 | `AIProvider__EnableFallback` | `AIProvider:EnableFallback` | `true` | Enable fallback to Mock when Gemini fails |
+
+### Payment (VNPay + Commission)
+
+| Variable | Config Key | Example | Description |
+|----------|-----------|---------|-------------|
+| `FrontendUrl` | `FrontendUrl` | `http://localhost:5173` | Used to build the VNPay return redirect URL back to the FE |
+| `VNPay__TmnCode` | `VNPay:TmnCode` | `BIVWVEYB` | VNPay merchant terminal code |
+| `VNPay__HashSecret` | `VNPay:HashSecret` | `B4IEDEG7MNWFS3OGH87GEFX1KVHBII6O` | VNPay secure hash secret |
+| `VNPay__BaseUrl` | `VNPay:BaseUrl` | `https://sandbox.vnpayment.vn/paymentv2/vpcpay.html` | VNPay payment gateway URL |
+| `VNPay__ReturnUrl` | `VNPay:ReturnUrl` | `https://localhost:5000/api/v1/wallet/vnpay-return` | Callback URL VNPay redirects the user to after payment |
+| `VNPay__IpnUrl` | `VNPay:IpnUrl` | `https://localhost:5000/api/v1/wallet/vnpay-ipn` | Server-to-server IPN callback URL |
+| `Commission__Rate` | `Commission:Rate` | `0.10` | Platform commission rate (10%) taken on released payments |
+| `Commission__MaxDebtLimit` | `Commission:MaxDebtLimit` | `1000` | Max negative balance allowed before blocking further spend |
+
+> Sandbox VNPay credentials in `.env.example` are test-only keys, safe to commit for local development.
+
+### Rate Limiting
+
+| Variable | Config Key | Default | Description |
+|----------|-----------|---------|-------------|
 | `RateLimit__Strict__PermitLimit` | `RateLimit:Strict:PermitLimit` | `10` | Strict policy: max requests per window |
 | `RateLimit__Strict__WindowInMinutes` | `RateLimit:Strict:WindowInMinutes` | `1` | Strict policy: window size in minutes |
 | `RateLimit__AI__PermitLimit` | `RateLimit:AI:PermitLimit` | `20` | AI policy: max requests per window |
@@ -54,20 +76,20 @@ Make sure to replace all placeholder values in `appsettings.Development.json` wi
 
 ## Local Development Setup
 
-1. Copy `appsettings.Development.json` values to environment variables or user secrets:
+1. Copy `.env.example` to `.env` and fill in real values, **or** use `dotnet user-secrets`:
    ```bash
    dotnet user-secrets init
    dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Port=5432;Database=aivora;Username=postgres;Password=yourpassword"
    dotnet user-secrets set "JwtSettings:Secret" "your-super-secret-key-at-least-32-characters-long!"
-   dotnet user-secrets set "JwtSettings:Issuer" "Aivora"
-   dotnet user-secrets set "JwtSettings:Audience" "Aivora"
-   dotnet user-secrets set "JwtSettings:ExpiryInMinutes" "60"
+   dotnet user-secrets set "JwtSettings:Issuer" "AivoraApi"
+   dotnet user-secrets set "JwtSettings:Audience" "AivoraClient"
+   dotnet user-secrets set "JwtSettings:ExpiryInMinutes" "1440"
    dotnet user-secrets set "CloudinaryOptions:CloudName" "your-cloud-name"
    dotnet user-secrets set "CloudinaryOptions:ApiKey" "your-api-key"
    dotnet user-secrets set "CloudinaryOptions:ApiSecret" "your-api-secret"
    ```
 
-2. For Render/cloud deployment, set environment variables in the dashboard using the `__` separator format.
+2. For Render/cloud deployment, set environment variables in the dashboard using the `__` separator format. See `render.yaml` for the current Render service definition — note it does not yet set the VNPay/Commission vars above; add them manually on the dashboard if payment features are needed in that environment.
 
 ---
 
