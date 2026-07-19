@@ -2,6 +2,7 @@ using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.Exceptions;
+using Aivora.Services.Extensions;
 using Aivora.Services.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -22,7 +23,7 @@ public class Service : IService
     public async Task<List<Response.RecommendationResponse>> GenerateRecommendationsAsync(Guid clientId, Guid jobId)
     {
         var job = await _dbContext.JobPosts
-            .Include(j => j.JobSkills).ThenInclude(js => js.Skill)
+            .IncludeSkills()
             .FirstOrDefaultAsync(j => j.Id == jobId && j.ClientId == clientId);
 
         if (job == null) throw new NotFoundException("Job not found or access denied.");
