@@ -53,7 +53,7 @@ public class Service : IService
                 OpenedBy = userId,
                 AgainstUserId = againstUserId,
                 Reason = request.Reason,
-                Description = request.Description,
+                Description = string.IsNullOrWhiteSpace(request.Description) ? "Dispute opened." : request.Description,
                 Status = DisputeStatus.OPEN
             };
 

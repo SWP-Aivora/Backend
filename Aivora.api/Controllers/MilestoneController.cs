@@ -78,8 +78,7 @@ public class MilestoneController : ControllerBase
         var request = new Aivora.Services.DisputeService.Request.OpenDisputeRequest
         {
             MilestoneId = id,
-            Reason = reason,
-            Description = "Dispute opened via milestone shortcut."
+            Reason = reason
         };
         var result = await _disputeService.OpenDisputeAsync(userId, request);
         return Ok(ApiResponseFactory.SuccessResponse(result, "Dispute opened successfully", HttpContext.TraceIdentifier));
