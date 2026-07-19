@@ -178,5 +178,94 @@ public class MilestoneServiceTests
         await Assert.ThrowsAsync<ValidationException>(() =>
             service.UpdateMilestoneAsync(clientId, milestoneId, request));
     }
+
+    [Fact]
+    public async Task CreateMilestoneAsync_TitleTooLong_ThrowsValidationException()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+
+        var project = new Project { Id = projectId, ClientId = clientId, ExpertId = Guid.NewGuid(), Title = "Test Project", Status = ProjectStatus.ACTIVE };
+        dbContext.Projects.Add(project);
+        await dbContext.SaveChangesAsync();
+
+        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
+        var request = new Request.CreateMilestoneRequest { Title = new string('a', 256), Amount = 100 };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.CreateMilestoneAsync(clientId, projectId, request));
+        ex.Message.Should().Be("Title must not exceed 255 characters.");
+    }
+
+    [Fact]
+    public async Task UpdateMilestoneAsync_TitleTooLong_ThrowsValidationException()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var milestoneId = Guid.NewGuid();
+
+        var project = new Project { Id = projectId, ClientId = clientId, ExpertId = expertId, Title = "Test Project", Status = ProjectStatus.ACTIVE };
+        var milestone = new Milestone { Id = milestoneId, ProjectId = projectId, Amount = 300, Status = MilestoneStatus.CREATED, Title = "Milestone 1" };
+
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestone);
+        await dbContext.SaveChangesAsync();
+
+        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
+        var request = new Request.UpdateMilestoneRequest { Title = new string('a', 256) };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.UpdateMilestoneAsync(clientId, milestoneId, request));
+        ex.Message.Should().Be("Title must not exceed 255 characters.");
+    }
+
+    [Fact]
+    public async Task CreateMilestoneAsync_DescriptionTooLong_ThrowsValidationException()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+
+        var project = new Project { Id = projectId, ClientId = clientId, ExpertId = Guid.NewGuid(), Title = "Test Project", Status = ProjectStatus.ACTIVE };
+        dbContext.Projects.Add(project);
+        await dbContext.SaveChangesAsync();
+
+        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
+        var request = new Request.CreateMilestoneRequest { Title = "Valid title", Description = new string('a', 1001), Amount = 100 };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.CreateMilestoneAsync(clientId, projectId, request));
+        ex.Message.Should().Be("Description must not exceed 1000 characters.");
+    }
+
+    [Fact]
+    public async Task CreateMilestoneAsync_AcceptanceCriteriaTooLong_ThrowsValidationException()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+
+        var project = new Project { Id = projectId, ClientId = clientId, ExpertId = Guid.NewGuid(), Title = "Test Project", Status = ProjectStatus.ACTIVE };
+        dbContext.Projects.Add(project);
+        await dbContext.SaveChangesAsync();
+
+        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
+        var request = new Request.CreateMilestoneRequest { Title = "Valid title", AcceptanceCriteria = new string('a', 2001), Amount = 100 };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.CreateMilestoneAsync(clientId, projectId, request));
+        ex.Message.Should().Be("AcceptanceCriteria must not exceed 2000 characters.");
+    }
 }
 

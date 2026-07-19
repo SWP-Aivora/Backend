@@ -992,4 +992,114 @@ public class MilestoneStepServiceTests
             service.UpdateStepStatusAsync(expertId, stepId, new Request.UpdateStepStatusRequest { Status = MilestoneStepStatus.IN_PROGRESS }));
         statusEx.Message.Should().Be("Cannot modify or delete default system milestone steps.");
     }
+
+    [Fact]
+    public async Task AddMilestoneStepAsync_TitleTooLong_ThrowsValidationException()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var milestoneId = Guid.NewGuid();
+
+        var project = new Project { Id = projectId, ClientId = clientId, ExpertId = expertId, Title = "Test Project", Status = ProjectStatus.ACTIVE };
+        var milestone = new Milestone { Id = milestoneId, ProjectId = projectId, Title = "Milestone 1", Amount = 100 };
+
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestone);
+        await dbContext.SaveChangesAsync();
+
+        var service = GetService(dbContext);
+        var request = new Request.CreateMilestoneStepRequest { Title = new string('a', 256), OrderIndex = 1 };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.AddMilestoneStepAsync(expertId, milestoneId, request));
+        ex.Message.Should().Be("Title must not exceed 255 characters.");
+    }
+
+    [Fact]
+    public async Task AddMilestoneStepAsync_DescriptionTooLong_ThrowsValidationException()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var milestoneId = Guid.NewGuid();
+
+        var project = new Project { Id = projectId, ClientId = clientId, ExpertId = expertId, Title = "Test Project", Status = ProjectStatus.ACTIVE };
+        var milestone = new Milestone { Id = milestoneId, ProjectId = projectId, Title = "Milestone 1", Amount = 100 };
+
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestone);
+        await dbContext.SaveChangesAsync();
+
+        var service = GetService(dbContext);
+        var request = new Request.CreateMilestoneStepRequest { Title = "Valid title", Description = new string('a', 1001), OrderIndex = 1 };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.AddMilestoneStepAsync(expertId, milestoneId, request));
+        ex.Message.Should().Be("Description must not exceed 1000 characters.");
+    }
+
+    [Fact]
+    public async Task UpdateMilestoneStepAsync_TitleTooLong_ThrowsValidationException()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var milestoneId = Guid.NewGuid();
+        var stepId = Guid.NewGuid();
+
+        var project = new Project { Id = projectId, ClientId = clientId, ExpertId = expertId, Title = "Test Project", Status = ProjectStatus.ACTIVE };
+        var milestone = new Milestone { Id = milestoneId, ProjectId = projectId, Title = "Milestone 1", Amount = 100 };
+        var step = new MilestoneStep { Id = stepId, MilestoneId = milestoneId, Title = "Step", OrderIndex = 1, Status = MilestoneStepStatus.PENDING };
+
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestone);
+        dbContext.MilestoneSteps.Add(step);
+        await dbContext.SaveChangesAsync();
+
+        var service = GetService(dbContext);
+        var request = new Request.UpdateMilestoneStepRequest { Title = new string('a', 256) };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.UpdateMilestoneStepAsync(expertId, stepId, request));
+        ex.Message.Should().Be("Title must not exceed 255 characters.");
+    }
+
+    [Fact]
+    public async Task UpdateStepStatusAsync_BlockReasonTooLong_ThrowsValidationException()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var milestoneId = Guid.NewGuid();
+        var stepId = Guid.NewGuid();
+
+        var project = new Project { Id = projectId, ClientId = clientId, ExpertId = expertId, Title = "Test Project", Status = ProjectStatus.ACTIVE };
+        var milestone = new Milestone { Id = milestoneId, ProjectId = projectId, Title = "Milestone 1", Amount = 100 };
+        var step = new MilestoneStep { Id = stepId, MilestoneId = milestoneId, Title = "Step", OrderIndex = 1, Status = MilestoneStepStatus.IN_PROGRESS };
+
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestone);
+        dbContext.MilestoneSteps.Add(step);
+        await dbContext.SaveChangesAsync();
+
+        var service = GetService(dbContext);
+        var request = new Request.UpdateStepStatusRequest { Status = MilestoneStepStatus.BLOCKED, Reason = new string('a', 1001) };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.UpdateStepStatusAsync(expertId, stepId, request));
+        ex.Message.Should().Be("Reason must not exceed 1000 characters.");
+    }
 }

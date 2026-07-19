@@ -54,6 +54,10 @@ public class Service : IService
         if (project.Status == ProjectStatus.COMPLETED || project.Status == ProjectStatus.CANCELLED)
             throw new ValidationException("Cannot add milestones to a completed or cancelled project.");
 
+        ValidateLength(request.Title, 255, "Title");
+        ValidateLength(request.Description, 1000, "Description");
+        ValidateLength(request.AcceptanceCriteria, 2000, "AcceptanceCriteria");
+
         var milestone = new Milestone
         {
             ProjectId = projectId,
@@ -106,6 +110,10 @@ public class Service : IService
                 throw new ValidationException("Only DueDate can be updated on active milestones.");
             }
         }
+
+        ValidateLength(request.Title, 255, "Title");
+        ValidateLength(request.Description, 1000, "Description");
+        ValidateLength(request.AcceptanceCriteria, 2000, "AcceptanceCriteria");
 
         if (request.Title != null) milestone.Title = request.Title;
         if (request.Description != null) milestone.Description = request.Description;
@@ -264,6 +272,12 @@ public class Service : IService
         };
     }
 
+    private static void ValidateLength(string? value, int maxLength, string fieldName)
+    {
+        if (value != null && value.Length > maxLength)
+            throw new ValidationException($"{fieldName} must not exceed {maxLength} characters.");
+    }
+
     private static bool IsSystemDefaultStep(string? title)
     {
         if (string.IsNullOrWhiteSpace(title)) return false;
@@ -297,6 +311,9 @@ public class Service : IService
             milestone.Status == MilestoneStatus.COMPLETED ||
             milestone.Status == MilestoneStatus.REFUNDED)
             throw new ValidationException("Cannot add steps to a finalized milestone.");
+
+        ValidateLength(request.Title, 255, "Title");
+        ValidateLength(request.Description, 1000, "Description");
 
         var step = new MilestoneStep
         {
@@ -352,6 +369,9 @@ public class Service : IService
             step.Milestone.Status == MilestoneStatus.COMPLETED ||
             step.Milestone.Status == MilestoneStatus.REFUNDED)
             throw new ValidationException("Cannot modify steps for a finalized milestone.");
+
+        ValidateLength(request.Title, 255, "Title");
+        if (request.IsDescriptionSet) ValidateLength(request.Description, 1000, "Description");
 
         if (request.Title != null) step.Title = request.Title;
         if (request.IsDescriptionSet) step.Description = request.Description;
@@ -470,6 +490,8 @@ public class Service : IService
 
                 if (string.IsNullOrWhiteSpace(request.Reason))
                     throw new ValidationException("A reason is required to block a step.");
+
+                ValidateLength(request.Reason, 1000, "Reason");
 
                 step.BlockedReason = request.Reason;
             }
