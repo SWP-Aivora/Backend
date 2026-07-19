@@ -29,7 +29,7 @@ public class Service : IService
 
         if (milestone == null) throw new NotFoundException("Milestone not found.");
         if (milestone.Project.ClientId != userId && milestone.Project.ExpertId != userId)
-            throw new UnauthorizedException("You are not authorized to open a dispute for this project.");
+            throw new ForbiddenException("You are not authorized to open a dispute for this project.");
 
         var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestone.Id && (p.Status == PaymentStatus.RELEASED || p.Status == PaymentStatus.HELD));
         if (payment == null) throw new ValidationException("Only funded milestones with released payments can be disputed.");
@@ -107,7 +107,7 @@ public class Service : IService
         var user = await _dbContext.Users.FindAsync(userId);
         if (user == null) throw new UnauthorizedException("User not found.");
         if (user.Role != UserRole.ADMIN && dispute.OpenedBy != userId && dispute.AgainstUserId != userId)
-            throw new UnauthorizedException("You are not authorized to view this dispute.");
+            throw new ForbiddenException("You are not authorized to view this dispute.");
 
         var againstUser = await _dbContext.Users.FindAsync(dispute.AgainstUserId);
         var evidence = await _dbContext.DisputeEvidences
@@ -201,7 +201,7 @@ public class Service : IService
         var user = await _dbContext.Users.FindAsync(userId);
         if (user == null) throw new UnauthorizedException("User not found.");
         if (user.Role != UserRole.ADMIN && dispute.OpenedBy != userId && dispute.AgainstUserId != userId)
-            throw new UnauthorizedException("You are not authorized to add evidence to this dispute.");
+            throw new ForbiddenException("You are not authorized to add evidence to this dispute.");
 
         var evidence = new DisputeEvidence
         {
@@ -292,7 +292,7 @@ public class Service : IService
             .FirstOrDefaultAsync(d => d.Id == disputeId);
 
         if (dispute == null) throw new NotFoundException("Dispute not found.");
-        if (dispute.OpenedBy != userId) throw new UnauthorizedException("Only the user who opened the dispute can close it.");
+        if (dispute.OpenedBy != userId) throw new ForbiddenException("Only the user who opened the dispute can close it.");
         if (dispute.Status == DisputeStatus.RESOLVED) throw new ValidationException("Dispute is already resolved.");
         if (dispute.Status == DisputeStatus.CLOSED) throw new ValidationException("Dispute is already closed.");
 
@@ -383,7 +383,7 @@ public class Service : IService
         var user = await _dbContext.Users.FindAsync(userId);
         if (user == null) throw new UnauthorizedException("User not found.");
         if (user.Role != UserRole.ADMIN && evidence.SubmittedBy != userId)
-            throw new UnauthorizedException("You are not authorized to delete this evidence.");
+            throw new ForbiddenException("You are not authorized to delete this evidence.");
 
         _dbContext.DisputeEvidences.Remove(evidence);
         await _dbContext.SaveChangesAsync();

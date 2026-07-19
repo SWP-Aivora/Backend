@@ -294,7 +294,7 @@ public class DisputeServiceTests : IDisposable
 
         // Act & Assert - expert (not the opener) tries to close
         var act = () => _disputeService.CloseDisputeAsync(expert.Id, dispute.Id);
-        var ex = await act.Should().ThrowAsync<UnauthorizedException>();
+        var ex = await act.Should().ThrowAsync<ForbiddenException>();
         ex.Which.Message.ToLower().Should().Contain("only the user who opened the dispute can close it");
     }
 

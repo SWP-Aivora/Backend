@@ -375,7 +375,7 @@ public class MessageServiceTests
         Func<Task> act = async () => await service.EnsureConversationParticipantAsync(adminId, UserRole.ADMIN, conversationId);
 
         // Assert
-        await act.Should().ThrowAsync<UnauthorizedException>();
+        await act.Should().ThrowAsync<ForbiddenException>();
     }
 
     [Fact]
@@ -416,7 +416,7 @@ public class MessageServiceTests
         Func<Task> act = async () => await service.MarkAsReadAsync(adminId, conversationId);
 
         // Assert
-        await act.Should().ThrowAsync<UnauthorizedException>();
+        await act.Should().ThrowAsync<ForbiddenException>();
     }
 
     [Fact]

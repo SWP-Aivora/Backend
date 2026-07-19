@@ -160,9 +160,9 @@ public class Flow3MilestoneStepApiTests : IClassFixture<ApiContractTestFactory>
             requestMatchesDoc: true, responseMatchesDoc: startSuccess
         );
 
-        // Client cannot update status (domain-level rejection, not a policy-level one -> 401)
+        // Client cannot update status (domain-level rejection, not a policy-level one -> 403)
         var (clientSkipRes, _) = await client.PutAsync($"/api/v1/steps/{step2Id}/status", new { status = "SKIPPED" });
-        clientSkipRes.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        clientSkipRes.StatusCode.Should().Be(HttpStatusCode.Forbidden);
 
         // Expert can skip
         var (skipRes, _) = await expertClient.PutAsync($"/api/v1/steps/{step2Id}/status", new { status = "SKIPPED" });
@@ -244,10 +244,10 @@ public class Flow3MilestoneStepApiTests : IClassFixture<ApiContractTestFactory>
             $"/api/v1/steps/{stepId}/status", new { status = "BLOCKED" });
         blockNoReasonRes.StatusCode.Should().Be(HttpStatusCode.BadRequest);
 
-        // Client cannot block (domain-level rejection -> 401)
+        // Client cannot block (domain-level rejection -> 403)
         var (clientBlockRes, _) = await client.PutAsync(
             $"/api/v1/steps/{stepId}/status", new { status = "BLOCKED", reason = "client trying to block" });
-        clientBlockRes.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        clientBlockRes.StatusCode.Should().Be(HttpStatusCode.Forbidden);
 
         // Expert blocks with a reason
         var (blockRes, blockBody) = await expertClient.PutAsync(
@@ -260,10 +260,10 @@ public class Flow3MilestoneStepApiTests : IClassFixture<ApiContractTestFactory>
             requestMatchesDoc: true, responseMatchesDoc: blockSuccess
         );
 
-        // Expert cannot unblock (domain-level rejection -> 401)
+        // Expert cannot unblock (domain-level rejection -> 403)
         var (expertUnblockRes, _) = await expertClient.PutAsync(
             $"/api/v1/steps/{stepId}/status", new { status = "IN_PROGRESS" });
-        expertUnblockRes.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        expertUnblockRes.StatusCode.Should().Be(HttpStatusCode.Forbidden);
 
         // Client unblocks
         var (unblockRes, unblockBody) = await client.PutAsync(

@@ -28,7 +28,7 @@ public class HiringService : IHiringService
             .FirstOrDefaultAsync(p => p.Id == proposalId);
 
         if (proposal == null) throw new NotFoundException("Proposal not found.");
-        if (proposal.Job.ClientId != clientId) throw new UnauthorizedException("Only the job owner can accept proposals.");
+        if (proposal.Job.ClientId != clientId) throw new ForbiddenException("Only the job owner can accept proposals.");
         if (proposal.Job.Status != JobStatus.OPEN) throw new ValidationException("Job is no longer open.");
         if (proposal.Status != ProposalStatus.SUBMITTED && proposal.Status != ProposalStatus.SHORTLISTED)
             throw new ValidationException("Proposal is not in a valid state to be accepted.");
@@ -199,7 +199,7 @@ public class HiringService : IHiringService
         var proposal = await _dbContext.Proposals.FindAsync(proposalId);
 
         if (proposal == null) throw new NotFoundException("Proposal not found.");
-        if (proposal.ExpertId != expertId) throw new UnauthorizedException("You can only withdraw your own proposal.");
+        if (proposal.ExpertId != expertId) throw new ForbiddenException("You can only withdraw your own proposal.");
 
         if (proposal.Status == ProposalStatus.ACCEPTED || proposal.Status == ProposalStatus.REJECTED)
             throw new ValidationException("Terminal proposals cannot be withdrawn.");
@@ -219,7 +219,7 @@ public class HiringService : IHiringService
             .FirstOrDefaultAsync(p => p.Id == proposalId);
 
         if (proposal == null) throw new NotFoundException("Proposal not found.");
-        if (proposal.Job.ClientId != clientId) throw new UnauthorizedException("Access denied.");
+        if (proposal.Job.ClientId != clientId) throw new ForbiddenException("Access denied.");
 
         return proposal;
     }

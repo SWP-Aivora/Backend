@@ -28,7 +28,7 @@ public class Service : IService
             .FirstOrDefaultAsync(m => m.Id == milestoneId);
 
         if (milestone == null) throw new NotFoundException("Milestone not found.");
-        if (milestone.Project.ExpertId != expertId) throw new UnauthorizedException("Only the project expert can submit deliverables.");
+        if (milestone.Project.ExpertId != expertId) throw new ForbiddenException("Only the project expert can submit deliverables.");
 
         if (milestone.Status != MilestoneStatus.FUNDED &&
             milestone.Status != MilestoneStatus.IN_PROGRESS &&
@@ -108,7 +108,7 @@ public class Service : IService
 
         if (milestone == null) throw new NotFoundException("Milestone not found.");
         if (milestone.Project.ClientId != userId && milestone.Project.ExpertId != userId)
-            throw new UnauthorizedException("Access denied.");
+            throw new ForbiddenException("Access denied.");
 
         var deliverables = await _dbContext.Deliverables
             .Where(d => d.MilestoneId == milestoneId)

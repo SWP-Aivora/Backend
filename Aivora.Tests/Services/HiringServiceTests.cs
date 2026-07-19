@@ -143,7 +143,7 @@ public class HiringServiceTests
         var service = new Aivora.Services.HiringService.HiringService(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService());
 
         // Act & Assert
-        await Assert.ThrowsAsync<UnauthorizedException>(() =>
+        await Assert.ThrowsAsync<ForbiddenException>(() =>
             service.UnshortlistProposalAsync(anotherClientId, proposal.Id));
     }
 

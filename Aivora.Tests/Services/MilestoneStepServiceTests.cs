@@ -317,7 +317,7 @@ public class MilestoneStepServiceTests
     }
 
     [Fact]
-    public async Task AddMilestoneStepAsync_ByClient_ThrowsUnauthorizedException()
+    public async Task AddMilestoneStepAsync_ByClient_ThrowsForbiddenException()
     {
         // Arrange
         var dbContext = GetDbContext();
@@ -337,13 +337,13 @@ public class MilestoneStepServiceTests
         var request = new Request.CreateMilestoneStepRequest { Title = "Unauthorized Step", OrderIndex = 1 };
 
         // Act & Assert
-        var ex = await Assert.ThrowsAsync<UnauthorizedException>(() =>
+        var ex = await Assert.ThrowsAsync<ForbiddenException>(() =>
             service.AddMilestoneStepAsync(clientId, milestoneId, request));
         ex.Message.Should().Be("Only the expert can manage milestone steps.");
     }
 
     [Fact]
-    public async Task UpdateMilestoneStepAsync_ByClient_ThrowsUnauthorizedException()
+    public async Task UpdateMilestoneStepAsync_ByClient_ThrowsForbiddenException()
     {
         var dbContext = GetDbContext();
         var clientId = Guid.NewGuid();
@@ -364,13 +364,13 @@ public class MilestoneStepServiceTests
         var service = GetService(dbContext);
         var request = new Request.UpdateMilestoneStepRequest { Title = "Updated" };
 
-        var ex = await Assert.ThrowsAsync<UnauthorizedException>(() =>
+        var ex = await Assert.ThrowsAsync<ForbiddenException>(() =>
             service.UpdateMilestoneStepAsync(clientId, stepId, request));
         ex.Message.Should().Be("Only the expert can manage milestone steps.");
     }
 
     [Fact]
-    public async Task DeleteMilestoneStepAsync_ByClient_ThrowsUnauthorizedException()
+    public async Task DeleteMilestoneStepAsync_ByClient_ThrowsForbiddenException()
     {
         var dbContext = GetDbContext();
         var clientId = Guid.NewGuid();
@@ -390,7 +390,7 @@ public class MilestoneStepServiceTests
 
         var service = GetService(dbContext);
 
-        var ex = await Assert.ThrowsAsync<UnauthorizedException>(() =>
+        var ex = await Assert.ThrowsAsync<ForbiddenException>(() =>
             service.DeleteMilestoneStepAsync(clientId, stepId));
         ex.Message.Should().Be("Only the expert can manage milestone steps.");
     }
@@ -424,7 +424,7 @@ public class MilestoneStepServiceTests
     }
 
     [Fact]
-    public async Task UpdateStepStatusAsync_ClientSkip_ThrowsUnauthorizedException()
+    public async Task UpdateStepStatusAsync_ClientSkip_ThrowsForbiddenException()
     {
         // Arrange
         var dbContext = GetDbContext();
@@ -447,7 +447,7 @@ public class MilestoneStepServiceTests
         var request = new Request.UpdateStepStatusRequest { Status = MilestoneStepStatus.SKIPPED };
 
         // Act & Assert
-        var ex = await Assert.ThrowsAsync<UnauthorizedException>(() =>
+        var ex = await Assert.ThrowsAsync<ForbiddenException>(() =>
             service.UpdateStepStatusAsync(clientId, stepId, request));
         ex.Message.Should().Be("Only the expert can manage milestone steps.");
     }
@@ -554,7 +554,7 @@ public class MilestoneStepServiceTests
     }
 
     [Fact]
-    public async Task UpdateStepStatusAsync_ClientBlock_ThrowsUnauthorizedException()
+    public async Task UpdateStepStatusAsync_ClientBlock_ThrowsForbiddenException()
     {
         // Arrange
         var dbContext = GetDbContext();
@@ -577,7 +577,7 @@ public class MilestoneStepServiceTests
         var request = new Request.UpdateStepStatusRequest { Status = MilestoneStepStatus.BLOCKED, Reason = "reason" };
 
         // Act & Assert
-        var ex = await Assert.ThrowsAsync<UnauthorizedException>(() =>
+        var ex = await Assert.ThrowsAsync<ForbiddenException>(() =>
             service.UpdateStepStatusAsync(clientId, stepId, request));
         ex.Message.Should().Be("Only the expert can manage milestone steps.");
     }
@@ -646,7 +646,7 @@ public class MilestoneStepServiceTests
     }
 
     [Fact]
-    public async Task UpdateStepStatusAsync_ExpertUnblock_ThrowsUnauthorizedException()
+    public async Task UpdateStepStatusAsync_ExpertUnblock_ThrowsForbiddenException()
     {
         // Arrange
         var dbContext = GetDbContext();
@@ -669,7 +669,7 @@ public class MilestoneStepServiceTests
         var request = new Request.UpdateStepStatusRequest { Status = MilestoneStepStatus.IN_PROGRESS };
 
         // Act & Assert
-        var ex = await Assert.ThrowsAsync<UnauthorizedException>(() =>
+        var ex = await Assert.ThrowsAsync<ForbiddenException>(() =>
             service.UpdateStepStatusAsync(expertId, stepId, request));
         ex.Message.Should().Be("Only the client can unblock a step.");
     }
@@ -715,7 +715,7 @@ public class MilestoneStepServiceTests
     }
 
     [Fact]
-    public async Task ReorderMilestoneStepsAsync_ByNonExpert_ThrowsUnauthorizedException()
+    public async Task ReorderMilestoneStepsAsync_ByNonExpert_ThrowsForbiddenException()
     {
         // Arrange
         var dbContext = GetDbContext();
@@ -734,7 +734,7 @@ public class MilestoneStepServiceTests
         var service = GetService(dbContext);
 
         // Act & Assert
-        var ex = await Assert.ThrowsAsync<UnauthorizedException>(() =>
+        var ex = await Assert.ThrowsAsync<ForbiddenException>(() =>
             service.ReorderMilestoneStepsAsync(clientId, milestoneId, new List<Guid>()));
         ex.Message.Should().Be("Only the expert can manage milestone steps.");
     }

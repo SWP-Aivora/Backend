@@ -45,7 +45,7 @@ public class Service : IService
             return MapToResponse(project);
         }
 
-        throw new UnauthorizedException("Access denied to this project.");
+        throw new ForbiddenException("Access denied to this project.");
     }
 
     public async Task<Aivora.Services.Base.Response.PageResult<Response.ProjectResponse>> GetProjectsAsync(Guid userId, UserRole role, Aivora.Services.Base.Request.PageRequest pageRequest, ProjectStatus? status = null)

@@ -96,7 +96,7 @@ public class ProposalServiceUpdateTests
     }
 
     [Fact]
-    public async Task UpdateProposalAsync_NotOwner_ThrowsUnauthorizedException()
+    public async Task UpdateProposalAsync_NotOwner_ThrowsForbiddenException()
     {
         var dbContext = GetDbContext();
         var (expert, job) = SetupExpertAndJob(dbContext);
@@ -116,7 +116,7 @@ public class ProposalServiceUpdateTests
         var request = new Request.UpdateProposalRequest { CoverLetter = "Hacked", ProposedBudget = 1 };
 
         Func<Task> act = async () => await service.UpdateProposalAsync(Guid.NewGuid(), proposal.Id, request);
-        await act.Should().ThrowAsync<UnauthorizedException>();
+        await act.Should().ThrowAsync<ForbiddenException>();
     }
 
     [Fact]

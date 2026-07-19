@@ -41,7 +41,7 @@ public class Service : IService
         if (milestone.Project == null) throw new NotFoundException("Project not found.");
 
         if (milestone.Project.ClientId != userId && milestone.Project.ExpertId != userId)
-            throw new UnauthorizedException("Access denied.");
+            throw new ForbiddenException("Access denied.");
 
         return MapToResponse(milestone);
     }
@@ -50,7 +50,7 @@ public class Service : IService
     {
         var project = await _dbContext.Projects.FindAsync(projectId);
         if (project == null) throw new NotFoundException("Project not found.");
-        if (project.ClientId != userId) throw new UnauthorizedException("Only the client can add milestones.");
+        if (project.ClientId != userId) throw new ForbiddenException("Only the client can add milestones.");
         if (project.Status == ProjectStatus.COMPLETED || project.Status == ProjectStatus.CANCELLED)
             throw new ValidationException("Cannot add milestones to a completed or cancelled project.");
 
@@ -113,7 +113,7 @@ public class Service : IService
             .FirstOrDefaultAsync(m => m.Id == milestoneId);
 
         if (milestone == null) throw new NotFoundException("Milestone not found.");
-        if (milestone.Project.ClientId != userId) throw new UnauthorizedException("Only the client can update milestones.");
+        if (milestone.Project.ClientId != userId) throw new ForbiddenException("Only the client can update milestones.");
 
         if (milestone.Status != MilestoneStatus.CREATED)
         {
@@ -187,7 +187,7 @@ public class Service : IService
             .FirstOrDefaultAsync(m => m.Id == milestoneId);
 
         if (milestone == null) throw new NotFoundException("Milestone not found.");
-        if (milestone.Project.ClientId != userId) throw new UnauthorizedException("Only the client can request revisions.");
+        if (milestone.Project.ClientId != userId) throw new ForbiddenException("Only the client can request revisions.");
         if (milestone.Status != MilestoneStatus.SUBMITTED)
             throw new ValidationException("Milestone must be SUBMITTED to request revision.");
 
@@ -231,7 +231,7 @@ public class Service : IService
         if (milestone.Project == null) throw new NotFoundException("Project not found.");
 
         if (milestone.Project.ClientId != userId && milestone.Project.ExpertId != userId)
-            throw new UnauthorizedException("Access denied.");
+            throw new ForbiddenException("Access denied.");
 
         return await _dbContext.MilestoneSteps
             .AsNoTracking()
@@ -266,7 +266,7 @@ public class Service : IService
         var project = milestone.Project;
         if (project == null) throw new NotFoundException("Project not found.");
 
-        if (project.ExpertId != userId) throw new UnauthorizedException("Only the expert can manage milestone steps.");
+        if (project.ExpertId != userId) throw new ForbiddenException("Only the expert can manage milestone steps.");
 
         var draft = await _stepSuggestionProvider.GenerateSuggestionAsync(
             new AIMilestoneStepAssistantService.Request.SuggestMilestoneStepsRequest
@@ -317,7 +317,7 @@ public class Service : IService
         var project = milestone.Project;
         if (project == null) throw new NotFoundException("Project not found.");
 
-        if (project.ExpertId != userId) throw new UnauthorizedException("Only the expert can manage milestone steps.");
+        if (project.ExpertId != userId) throw new ForbiddenException("Only the expert can manage milestone steps.");
 
         if (project.Status == ProjectStatus.COMPLETED || project.Status == ProjectStatus.CANCELLED)
             throw new ValidationException("Cannot add steps to a completed or cancelled project.");
@@ -369,7 +369,7 @@ public class Service : IService
         var project = step.Milestone.Project;
 
         if (project.ExpertId != userId)
-            throw new UnauthorizedException("Only the expert can manage milestone steps.");
+            throw new ForbiddenException("Only the expert can manage milestone steps.");
 
         if (IsSystemDefaultStep(step.Title))
             throw new ValidationException("Cannot modify or delete default system milestone steps.");
@@ -424,7 +424,7 @@ public class Service : IService
         var project = step.Milestone.Project;
 
         if (project.ExpertId != userId)
-            throw new UnauthorizedException("Only the expert can manage milestone steps.");
+            throw new ForbiddenException("Only the expert can manage milestone steps.");
 
         if (IsSystemDefaultStep(step.Title))
             throw new ValidationException("Cannot modify or delete default system milestone steps.");
@@ -461,11 +461,11 @@ public class Service : IService
         if (isUnblockAction)
         {
             if (project.ClientId != userId)
-                throw new UnauthorizedException("Only the client can unblock a step.");
+                throw new ForbiddenException("Only the client can unblock a step.");
         }
         else if (project.ExpertId != userId)
         {
-            throw new UnauthorizedException("Only the expert can manage milestone steps.");
+            throw new ForbiddenException("Only the expert can manage milestone steps.");
         }
 
         if (IsSystemDefaultStep(step.Title))
@@ -587,7 +587,7 @@ public class Service : IService
         if (milestone.Project == null) throw new NotFoundException("Project not found.");
 
         if (milestone.Project.ExpertId != userId)
-            throw new UnauthorizedException("Only the expert can manage milestone steps.");
+            throw new ForbiddenException("Only the expert can manage milestone steps.");
 
         if (stepIds == null || stepIds.Count == 0)
             throw new ValidationException("Step IDs list cannot be empty.");

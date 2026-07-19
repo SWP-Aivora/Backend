@@ -133,7 +133,7 @@ public class ServiceTests : IDisposable
         var otherClientId = Guid.NewGuid();
 
         // Act & Assert
-        await Assert.ThrowsAsync<UnauthorizedException>(
+        await Assert.ThrowsAsync<ForbiddenException>(
             () => _service.GetProjectByIdAsync(otherClientId, projectId, UserRole.CLIENT)
         );
     }
@@ -150,7 +150,7 @@ public class ServiceTests : IDisposable
         var differentExpertId = Guid.NewGuid();
 
         // Act & Assert
-        await Assert.ThrowsAsync<UnauthorizedException>(
+        await Assert.ThrowsAsync<ForbiddenException>(
             () => _service.GetProjectByIdAsync(differentExpertId, projectId, UserRole.EXPERT)
         );
     }

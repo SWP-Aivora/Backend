@@ -39,7 +39,7 @@ public class FakeMediaService : IService
     public Task DeleteMediaAsync(string publicId, Guid requesterId, bool isAdmin)
     {
         if (!isAdmin && _owners.TryGetValue(publicId, out var ownerId) && ownerId != requesterId)
-            throw new UnauthorizedException("You do not have permission to delete this media.");
+            throw new ForbiddenException("You do not have permission to delete this media.");
 
         return Task.CompletedTask;
     }

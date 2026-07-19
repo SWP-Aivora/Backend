@@ -38,6 +38,7 @@ public class ExceptionMiddleware
         {
             ValidationException => HttpStatusCode.BadRequest,
             UnauthorizedException => HttpStatusCode.Unauthorized,
+            ForbiddenException => HttpStatusCode.Forbidden,
             NotFoundException => HttpStatusCode.NotFound,
             ServiceUnavailableException => HttpStatusCode.ServiceUnavailable,
             _ => HttpStatusCode.InternalServerError
@@ -49,6 +50,7 @@ public class ExceptionMiddleware
         {
             HttpStatusCode.BadRequest => "validation_error",
             HttpStatusCode.Unauthorized => "unauthorized",
+            HttpStatusCode.Forbidden => "forbidden",
             HttpStatusCode.NotFound => "not_found",
             HttpStatusCode.ServiceUnavailable => "service_unavailable",
             _ => "internal_server_error"

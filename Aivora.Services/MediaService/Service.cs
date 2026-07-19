@@ -137,7 +137,7 @@ public class Service : IService
             var resource = await GetResourceAnyTypeAsync(publicId);
             if (resource == null) throw new NotFoundException("Media not found.");
             if (!resource.Tags.Contains(UserTag(requesterId)))
-                throw new UnauthorizedException("You do not have permission to delete this media.");
+                throw new ForbiddenException("You do not have permission to delete this media.");
         }
 
         var deletionParams = new DeletionParams(publicId);
