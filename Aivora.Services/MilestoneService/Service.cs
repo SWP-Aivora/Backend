@@ -58,6 +58,22 @@ public class Service : IService
         ValidateLength(request.Description, 1000, "Description");
         ValidateLength(request.AcceptanceCriteria, 2000, "AcceptanceCriteria");
 
+        if (string.IsNullOrWhiteSpace(request.Title))
+            throw new ValidationException("Title is required.");
+
+        if (request.Amount <= 0)
+            throw new ValidationException("Amount must be greater than 0.");
+
+        if (project.TotalBudget.HasValue)
+        {
+            var existingAmount = await _dbContext.Milestones
+                .Where(m => m.ProjectId == projectId)
+                .SumAsync(m => m.Amount);
+
+            if (existingAmount + request.Amount > project.TotalBudget.Value)
+                throw new ValidationException("Total milestone amount exceeds the project's total budget.");
+        }
+
         var milestone = new Milestone
         {
             ProjectId = projectId,
