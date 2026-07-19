@@ -15,12 +15,12 @@ public class Service : IService
         _dbContext = dbContext;
     }
 
-    public async Task<Response.ConversationResponse> GetOrCreateConversationAsync(Guid clientId, Guid expertId, Guid? jobId = null, Guid? projectId = null)
+    public async Task<Response.ConversationResponse> GetOrCreateConversationAsync(Guid clientId, Guid expertId, Guid? jobId = null, Guid? projectId = null, Guid? serviceRequestId = null)
     {
         var conversation = await _dbContext.Conversations
             .Include(c => c.Client)
             .Include(c => c.Expert)
-            .FirstOrDefaultAsync(c => c.ClientId == clientId && c.ExpertId == expertId && c.JobId == jobId && c.ProjectId == projectId);
+            .FirstOrDefaultAsync(c => c.ClientId == clientId && c.ExpertId == expertId && c.JobId == jobId && c.ProjectId == projectId && c.ServiceRequestId == serviceRequestId);
 
         if (conversation == null)
         {
@@ -29,7 +29,8 @@ public class Service : IService
                 ClientId = clientId,
                 ExpertId = expertId,
                 JobId = jobId,
-                ProjectId = projectId
+                ProjectId = projectId,
+                ServiceRequestId = serviceRequestId
             };
             _dbContext.Conversations.Add(conversation);
             await _dbContext.SaveChangesAsync();
@@ -57,6 +58,7 @@ public class Service : IService
                 Id = c.Id,
                 JobId = c.JobId,
                 ProjectId = c.ProjectId,
+                ServiceRequestId = c.ServiceRequestId,
                 ClientId = c.ClientId,
                 ClientName = c.Client.FullName ?? "Unknown",
                 ClientAvatar = c.Client.AvatarUrl,
@@ -271,6 +273,7 @@ public class Service : IService
                 Id = c.Id,
                 JobId = c.JobId,
                 ProjectId = c.ProjectId,
+                ServiceRequestId = c.ServiceRequestId,
                 ClientId = c.ClientId,
                 ClientName = c.Client.FullName ?? "Unknown",
                 ClientAvatar = c.Client.AvatarUrl,
@@ -341,6 +344,7 @@ public class Service : IService
             Id = c.Id,
             JobId = c.JobId,
             ProjectId = c.ProjectId,
+            ServiceRequestId = c.ServiceRequestId,
             ClientId = c.ClientId,
             ClientName = c.Client?.FullName ?? "Unknown",
             ClientAvatar = c.Client?.AvatarUrl,

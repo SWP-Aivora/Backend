@@ -10,11 +10,13 @@ public class Service : IService
 {
     private readonly AivoraDbContext _dbContext;
     private readonly NotificationService.IService _notificationService;
+    private readonly MessageService.IService _messageService;
 
-    public Service(AivoraDbContext dbContext, NotificationService.IService notificationService)
+    public Service(AivoraDbContext dbContext, NotificationService.IService notificationService, MessageService.IService messageService)
     {
         _dbContext = dbContext;
         _notificationService = notificationService;
+        _messageService = messageService;
     }
 
     public async Task<Response.ServiceRequestResponse> CreateRequestAsync(Guid clientId, Guid serviceId, Request.CreateServiceRequestRequest request)
@@ -107,6 +109,82 @@ public class Service : IService
         var requests = await query.OrderByDescending(r => r.CreatedAt).ToListAsync();
 
         return requests.Select(MapToResponse).ToList();
+    }
+
+    public async Task<Response.ServiceRequestResponse> AcceptRequestAsync(Guid expertId, Guid serviceRequestId)
+    {
+        var request = await LoadOwnedPendingRequestAsync(expertId, serviceRequestId, "accepted");
+
+        using var transaction = await _dbContext.Database.BeginTransactionAsync();
+        try
+        {
+            request.Status = ServiceRequestStatus.ACCEPTED;
+            await _dbContext.SaveChangesAsync();
+
+            await _messageService.GetOrCreateConversationAsync(request.ClientId, expertId, serviceRequestId: request.Id);
+
+            await transaction.CommitAsync();
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
+
+        try
+        {
+            await _notificationService.SendNotificationAsync(
+                request.ClientId,
+                "Service request accepted",
+                $"Your request for \"{request.Service.Title}\" was accepted.",
+                "SERVICE_REQUEST",
+                $"/services/{request.ServiceId}/requests"
+            );
+        }
+        catch
+        {
+            // Notification failure should not block the main business flow
+        }
+
+        return await GetRequestByIdAsync(request.Id);
+    }
+
+    public async Task<Response.ServiceRequestResponse> DeclineRequestAsync(Guid expertId, Guid serviceRequestId)
+    {
+        var request = await LoadOwnedPendingRequestAsync(expertId, serviceRequestId, "declined");
+
+        request.Status = ServiceRequestStatus.DECLINED;
+        await _dbContext.SaveChangesAsync();
+
+        try
+        {
+            await _notificationService.SendNotificationAsync(
+                request.ClientId,
+                "Service request declined",
+                $"Your request for \"{request.Service.Title}\" was declined.",
+                "SERVICE_REQUEST",
+                $"/services/{request.ServiceId}/requests"
+            );
+        }
+        catch
+        {
+            // Notification failure should not block the main business flow
+        }
+
+        return await GetRequestByIdAsync(request.Id);
+    }
+
+    private async Task<ServiceRequest> LoadOwnedPendingRequestAsync(Guid expertId, Guid serviceRequestId, string action)
+    {
+        var request = await _dbContext.ServiceRequests
+            .Include(r => r.Service)
+            .FirstOrDefaultAsync(r => r.Id == serviceRequestId);
+
+        if (request == null) throw new NotFoundException("Service request not found.");
+        if (request.Service.ExpertId != expertId) throw new ForbiddenException("Only the service owner can respond to this request.");
+        if (request.Status != ServiceRequestStatus.PENDING) throw new ValidationException($"Only pending requests can be {action}.");
+
+        return request;
     }
 
     private async Task<Response.ServiceRequestResponse> GetRequestByIdAsync(Guid id)

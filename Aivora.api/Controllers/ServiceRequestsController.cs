@@ -47,4 +47,22 @@ public class ServiceRequestsController : ControllerBase
         var result = await _serviceRequestService.GetMyRequestsForExpertAsync(expertId, status);
         return Ok(ApiResponseFactory.SuccessResponse(result, "My service requests retrieved successfully", HttpContext.TraceIdentifier));
     }
+
+    [HttpPost("service-requests/{id}/accept")]
+    [Authorize(Policy = JwtExtensions.ExpertPolicy)]
+    public async Task<IActionResult> AcceptServiceRequest(Guid id)
+    {
+        var expertId = this.GetUserId();
+        var result = await _serviceRequestService.AcceptRequestAsync(expertId, id);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Service request accepted", HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("service-requests/{id}/decline")]
+    [Authorize(Policy = JwtExtensions.ExpertPolicy)]
+    public async Task<IActionResult> DeclineServiceRequest(Guid id)
+    {
+        var expertId = this.GetUserId();
+        var result = await _serviceRequestService.DeclineRequestAsync(expertId, id);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Service request declined", HttpContext.TraceIdentifier));
+    }
 }

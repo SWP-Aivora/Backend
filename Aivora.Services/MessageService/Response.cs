@@ -10,6 +10,7 @@ public class Response
         public Guid Id { get; set; }
         public Guid? JobId { get; set; }
         public Guid? ProjectId { get; set; }
+        public Guid? ServiceRequestId { get; set; }
         public Guid ClientId { get; set; }
         public string ClientName { get; set; } = null!;
         public string? ClientAvatar { get; set; }

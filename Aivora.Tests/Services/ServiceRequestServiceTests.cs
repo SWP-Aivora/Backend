@@ -52,7 +52,7 @@ public class ServiceRequestServiceTests
         var expertId = SeedUser(dbContext);
         var clientId = SeedUser(dbContext);
         var (service, package) = SeedPublishedService(dbContext, expertId);
-        var serviceRequestService = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
+        var serviceRequestService = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.MessageService.IService>());
 
         var result = await serviceRequestService.CreateRequestAsync(clientId, service.Id, new Request.CreateServiceRequestRequest
         {
@@ -70,7 +70,7 @@ public class ServiceRequestServiceTests
     {
         var dbContext = GetDbContext();
         var clientId = SeedUser(dbContext);
-        var serviceRequestService = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
+        var serviceRequestService = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.MessageService.IService>());
 
         var act = () => serviceRequestService.CreateRequestAsync(clientId, Guid.NewGuid(), new Request.CreateServiceRequestRequest { PackageId = Guid.NewGuid() });
 
@@ -85,7 +85,7 @@ public class ServiceRequestServiceTests
         var clientId = SeedUser(dbContext);
         var (service, _) = SeedPublishedService(dbContext, expertId);
         var (_, foreignPackage) = SeedPublishedService(dbContext, expertId);
-        var serviceRequestService = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
+        var serviceRequestService = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.MessageService.IService>());
 
         var act = () => serviceRequestService.CreateRequestAsync(clientId, service.Id, new Request.CreateServiceRequestRequest { PackageId = foreignPackage.Id });
 
@@ -101,7 +101,7 @@ public class ServiceRequestServiceTests
         var (service, package) = SeedPublishedService(dbContext, expertId);
         service.Status = ServiceStatus.DRAFT;
         await dbContext.SaveChangesAsync();
-        var serviceRequestService = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
+        var serviceRequestService = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.MessageService.IService>());
 
         var act = () => serviceRequestService.CreateRequestAsync(clientId, service.Id, new Request.CreateServiceRequestRequest { PackageId = package.Id });
 
@@ -114,7 +114,7 @@ public class ServiceRequestServiceTests
         var dbContext = GetDbContext();
         var expertId = SeedUser(dbContext);
         var (service, package) = SeedPublishedService(dbContext, expertId);
-        var serviceRequestService = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
+        var serviceRequestService = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.MessageService.IService>());
 
         var act = () => serviceRequestService.CreateRequestAsync(expertId, service.Id, new Request.CreateServiceRequestRequest { PackageId = package.Id });
 
@@ -128,7 +128,7 @@ public class ServiceRequestServiceTests
         var expertId = SeedUser(dbContext);
         var clientId = SeedUser(dbContext);
         var (service, package) = SeedPublishedService(dbContext, expertId);
-        var serviceRequestService = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
+        var serviceRequestService = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.MessageService.IService>());
         await serviceRequestService.CreateRequestAsync(clientId, service.Id, new Request.CreateServiceRequestRequest { PackageId = package.Id });
 
         var act = () => serviceRequestService.CreateRequestAsync(clientId, service.Id, new Request.CreateServiceRequestRequest { PackageId = package.Id });
@@ -143,7 +143,7 @@ public class ServiceRequestServiceTests
         var expertId = SeedUser(dbContext);
         var otherExpertId = SeedUser(dbContext);
         var (service, _) = SeedPublishedService(dbContext, expertId);
-        var serviceRequestService = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
+        var serviceRequestService = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.MessageService.IService>());
 
         var act = () => serviceRequestService.GetRequestsByServiceAsync(otherExpertId, service.Id);
 
@@ -157,7 +157,7 @@ public class ServiceRequestServiceTests
         var expertId = SeedUser(dbContext);
         var clientId = SeedUser(dbContext);
         var (service, package) = SeedPublishedService(dbContext, expertId);
-        var serviceRequestService = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
+        var serviceRequestService = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.MessageService.IService>());
         await serviceRequestService.CreateRequestAsync(clientId, service.Id, new Request.CreateServiceRequestRequest { PackageId = package.Id });
 
         var pending = await serviceRequestService.GetMyRequestsForExpertAsync(expertId, ServiceRequestStatus.PENDING);
@@ -165,5 +165,120 @@ public class ServiceRequestServiceTests
 
         pending.Should().HaveCount(1);
         accepted.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task AcceptRequestAsync_ByOwnerExpert_SetsAcceptedAndCreatesConversation()
+    {
+        var dbContext = GetDbContext();
+        var expertId = SeedUser(dbContext);
+        var clientId = SeedUser(dbContext);
+        var (service, package) = SeedPublishedService(dbContext, expertId);
+        var messageService = new Aivora.Services.MessageService.Service(dbContext);
+        var serviceRequestService = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), messageService);
+        var created = await serviceRequestService.CreateRequestAsync(clientId, service.Id, new Request.CreateServiceRequestRequest { PackageId = package.Id });
+
+        var result = await serviceRequestService.AcceptRequestAsync(expertId, created.Id);
+
+        result.Status.Should().Be(ServiceRequestStatus.ACCEPTED);
+        var conversation = await dbContext.Conversations.FirstOrDefaultAsync(c => c.ServiceRequestId == created.Id);
+        conversation.Should().NotBeNull();
+        conversation!.ClientId.Should().Be(clientId);
+        conversation.ExpertId.Should().Be(expertId);
+    }
+
+    [Fact]
+    public async Task AcceptRequestAsync_ByNonOwnerExpert_ThrowsForbidden()
+    {
+        var dbContext = GetDbContext();
+        var expertId = SeedUser(dbContext);
+        var otherExpertId = SeedUser(dbContext);
+        var clientId = SeedUser(dbContext);
+        var (service, package) = SeedPublishedService(dbContext, expertId);
+        var serviceRequestService = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.MessageService.IService>());
+        var created = await serviceRequestService.CreateRequestAsync(clientId, service.Id, new Request.CreateServiceRequestRequest { PackageId = package.Id });
+
+        var act = () => serviceRequestService.AcceptRequestAsync(otherExpertId, created.Id);
+
+        await act.Should().ThrowAsync<ForbiddenException>();
+    }
+
+    [Fact]
+    public async Task AcceptRequestAsync_WhenNotPending_ThrowsValidationException()
+    {
+        var dbContext = GetDbContext();
+        var expertId = SeedUser(dbContext);
+        var clientId = SeedUser(dbContext);
+        var (service, package) = SeedPublishedService(dbContext, expertId);
+        var serviceRequestService = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.MessageService.IService>());
+        var created = await serviceRequestService.CreateRequestAsync(clientId, service.Id, new Request.CreateServiceRequestRequest { PackageId = package.Id });
+        await serviceRequestService.DeclineRequestAsync(expertId, created.Id);
+
+        var act = () => serviceRequestService.AcceptRequestAsync(expertId, created.Id);
+
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    [Fact]
+    public async Task DeclineRequestAsync_ByOwnerExpert_SetsDeclined()
+    {
+        var dbContext = GetDbContext();
+        var expertId = SeedUser(dbContext);
+        var clientId = SeedUser(dbContext);
+        var (service, package) = SeedPublishedService(dbContext, expertId);
+        var serviceRequestService = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.MessageService.IService>());
+        var created = await serviceRequestService.CreateRequestAsync(clientId, service.Id, new Request.CreateServiceRequestRequest { PackageId = package.Id });
+
+        var result = await serviceRequestService.DeclineRequestAsync(expertId, created.Id);
+
+        result.Status.Should().Be(ServiceRequestStatus.DECLINED);
+    }
+
+    [Fact]
+    public async Task DeclineRequestAsync_ByNonOwnerExpert_ThrowsForbidden()
+    {
+        var dbContext = GetDbContext();
+        var expertId = SeedUser(dbContext);
+        var otherExpertId = SeedUser(dbContext);
+        var clientId = SeedUser(dbContext);
+        var (service, package) = SeedPublishedService(dbContext, expertId);
+        var serviceRequestService = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.MessageService.IService>());
+        var created = await serviceRequestService.CreateRequestAsync(clientId, service.Id, new Request.CreateServiceRequestRequest { PackageId = package.Id });
+
+        var act = () => serviceRequestService.DeclineRequestAsync(otherExpertId, created.Id);
+
+        await act.Should().ThrowAsync<ForbiddenException>();
+    }
+
+    [Fact]
+    public async Task AcceptRequestAsync_WithExistingJobConversationForSamePair_CreatesSeparateConversation()
+    {
+        var dbContext = GetDbContext();
+        var expertId = SeedUser(dbContext);
+        var clientId = SeedUser(dbContext);
+        var (service, package) = SeedPublishedService(dbContext, expertId);
+        var messageService = new Aivora.Services.MessageService.Service(dbContext);
+        await messageService.GetOrCreateConversationAsync(clientId, expertId, jobId: Guid.NewGuid());
+        var serviceRequestService = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), messageService);
+        var created = await serviceRequestService.CreateRequestAsync(clientId, service.Id, new Request.CreateServiceRequestRequest { PackageId = package.Id });
+
+        await serviceRequestService.AcceptRequestAsync(expertId, created.Id);
+
+        var conversations = await dbContext.Conversations.Where(c => c.ClientId == clientId && c.ExpertId == expertId).ToListAsync();
+        conversations.Should().HaveCount(2);
+        conversations.Should().Contain(c => c.ServiceRequestId == created.Id);
+        conversations.Should().Contain(c => c.JobId != null && c.ServiceRequestId == null);
+    }
+
+    [Fact]
+    public async Task AcceptRequestAsync_WithNonExistentRequest_ThrowsNotFound()
+    {
+        var dbContext = GetDbContext();
+        var expertId = SeedUser(dbContext);
+        var serviceRequestService = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.MessageService.IService>());
+
+        var act = () => serviceRequestService.AcceptRequestAsync(expertId, Guid.NewGuid());
+
+        await act.Should().ThrowAsync<NotFoundException>();
     }
 }

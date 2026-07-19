@@ -4,7 +4,7 @@ namespace Aivora.Services.MessageService;
 
 public interface IService
 {
-    Task<Response.ConversationResponse> GetOrCreateConversationAsync(Guid clientId, Guid expertId, Guid? jobId = null, Guid? projectId = null);
+    Task<Response.ConversationResponse> GetOrCreateConversationAsync(Guid clientId, Guid expertId, Guid? jobId = null, Guid? projectId = null, Guid? serviceRequestId = null);
     Task<Base.Response.PageResult<Response.ConversationResponse>> GetUserConversationsAsync(Guid userId, Base.Request.PageRequest pageRequest);
     Task<Base.Response.PageResult<Response.MessageResponse>> GetConversationMessagesAsync(Guid userId, UserRole userRole, Guid conversationId, Base.Request.PageRequest pageRequest);
     Task EnsureConversationParticipantAsync(Guid userId, UserRole userRole, Guid conversationId);

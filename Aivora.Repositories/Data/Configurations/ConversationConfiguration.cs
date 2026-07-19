@@ -22,6 +22,11 @@ public class ConversationConfiguration : IEntityTypeConfiguration<Conversation>
             .HasForeignKey(x => x.JobId)
             .OnDelete(DeleteBehavior.SetNull);
 
+        builder.HasOne(x => x.ServiceRequest)
+            .WithMany()
+            .HasForeignKey(x => x.ServiceRequestId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         builder.HasOne(x => x.Client)
             .WithMany()
             .HasForeignKey(x => x.ClientId)
