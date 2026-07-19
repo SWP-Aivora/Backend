@@ -45,7 +45,7 @@ public class ServiceCatalogServiceTests
     };
 
     [Fact]
-    public async Task CreateServiceAsync_CreatesDraftWithPackagesAndFaqs()
+    public async Task CreateServiceAsync_WithValidRequest_CreatesDraftWithPackagesAndFaqs()
     {
         var dbContext = GetDbContext();
         var service = new Service(dbContext);
@@ -59,7 +59,7 @@ public class ServiceCatalogServiceTests
     }
 
     [Fact]
-    public async Task CreateServiceAsync_RequiresAtLeastOnePackage()
+    public async Task CreateServiceAsync_WithNoPackages_ThrowsValidationException()
     {
         var dbContext = GetDbContext();
         var service = new Service(dbContext);
@@ -72,7 +72,7 @@ public class ServiceCatalogServiceTests
     }
 
     [Fact]
-    public async Task PublishServiceAsync_SetsStatusPublished()
+    public async Task PublishServiceAsync_WithValidDraft_SetsStatusPublished()
     {
         var dbContext = GetDbContext();
         var service = new Service(dbContext);
@@ -86,7 +86,7 @@ public class ServiceCatalogServiceTests
     }
 
     [Fact]
-    public async Task GetServiceByIdAsync_HidesDraftFromNonOwner()
+    public async Task GetServiceByIdAsync_WithDraftAndNonOwnerViewer_ThrowsNotFound()
     {
         var dbContext = GetDbContext();
         var service = new Service(dbContext);
@@ -99,7 +99,7 @@ public class ServiceCatalogServiceTests
     }
 
     [Fact]
-    public async Task GetServiceByIdAsync_AllowsOwnerToViewDraft()
+    public async Task GetServiceByIdAsync_WithDraftAndOwnerViewer_ReturnsService()
     {
         var dbContext = GetDbContext();
         var service = new Service(dbContext);
@@ -112,7 +112,7 @@ public class ServiceCatalogServiceTests
     }
 
     [Fact]
-    public async Task GetServiceByIdAsync_AllowsAnyoneToViewPublished()
+    public async Task GetServiceByIdAsync_WithPublishedService_ReturnsServiceForAnyViewer()
     {
         var dbContext = GetDbContext();
         var service = new Service(dbContext);
@@ -126,7 +126,7 @@ public class ServiceCatalogServiceTests
     }
 
     [Fact]
-    public async Task GetMyServicesAsync_ReturnsOnlyOwnServices()
+    public async Task GetMyServicesAsync_WithMultipleExperts_ReturnsOnlyOwnServices()
     {
         var dbContext = GetDbContext();
         var service = new Service(dbContext);
@@ -142,7 +142,7 @@ public class ServiceCatalogServiceTests
     }
 
     [Fact]
-    public async Task UpdateServiceAsync_ReplacesPackagesWhenProvided()
+    public async Task UpdateServiceAsync_WithNewPackages_ReplacesExistingPackages()
     {
         var dbContext = GetDbContext();
         var service = new Service(dbContext);
@@ -162,7 +162,7 @@ public class ServiceCatalogServiceTests
     }
 
     [Fact]
-    public async Task UpdateServiceAsync_ThrowsWhenNotOwner()
+    public async Task UpdateServiceAsync_WithNonOwnerExpert_ThrowsNotFound()
     {
         var dbContext = GetDbContext();
         var service = new Service(dbContext);
@@ -172,5 +172,39 @@ public class ServiceCatalogServiceTests
         var act = () => service.UpdateServiceAsync(Guid.NewGuid(), created.Id, new Request.UpdateServiceRequest { Title = "Hacked" });
 
         await act.Should().ThrowAsync<NotFoundException>();
+    }
+
+    [Fact]
+    public async Task UpdateServiceAsync_WithEmptyPackagesOnPublishedService_ThrowsValidationException()
+    {
+        var dbContext = GetDbContext();
+        var service = new Service(dbContext);
+        var expertId = SeedExpert(dbContext);
+        var created = await service.CreateServiceAsync(expertId, ValidCreateRequest());
+        await service.PublishServiceAsync(expertId, created.Id);
+
+        var act = () => service.UpdateServiceAsync(expertId, created.Id, new Request.UpdateServiceRequest
+        {
+            Packages = new List<Request.PackageRequest>()
+        });
+
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    [Fact]
+    public async Task UpdateServiceAsync_WithEmptyFaqsOnPublishedService_ThrowsValidationException()
+    {
+        var dbContext = GetDbContext();
+        var service = new Service(dbContext);
+        var expertId = SeedExpert(dbContext);
+        var created = await service.CreateServiceAsync(expertId, ValidCreateRequest());
+        await service.PublishServiceAsync(expertId, created.Id);
+
+        var act = () => service.UpdateServiceAsync(expertId, created.Id, new Request.UpdateServiceRequest
+        {
+            Faqs = new List<Request.FaqRequest>()
+        });
+
+        await act.Should().ThrowAsync<ValidationException>();
     }
 }

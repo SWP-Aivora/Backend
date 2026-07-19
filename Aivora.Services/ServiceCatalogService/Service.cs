@@ -77,6 +77,7 @@ public class Service : IService
         if (request.Packages != null)
         {
             var normalizedPackages = NormalizePackages(request.Packages);
+            if (normalizedPackages.Count == 0) throw new ValidationException("At least one package is required.");
             var oldPackages = await _dbContext.ServicePackages.Where(p => p.ServiceId == serviceId).ToListAsync();
             _dbContext.ServicePackages.RemoveRange(oldPackages);
             var newPackages = normalizedPackages.Select(p => new ServicePackage
@@ -96,6 +97,7 @@ public class Service : IService
         if (request.Faqs != null)
         {
             var normalizedFaqs = NormalizeFaqs(request.Faqs);
+            if (normalizedFaqs.Count == 0) throw new ValidationException("At least one FAQ is required.");
             var oldFaqs = await _dbContext.ServiceFaqs.Where(f => f.ServiceId == serviceId).ToListAsync();
             _dbContext.ServiceFaqs.RemoveRange(oldFaqs);
             var newFaqs = normalizedFaqs.Select(f => new ServiceFaq
