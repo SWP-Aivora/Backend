@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
-using Aivora.Repositories.Enums;
 using Aivora.Services.AIJobAssistantService.Parsing;
 
 namespace Aivora.Services.AIJobAssistantService.Providers;
