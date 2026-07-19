@@ -14,7 +14,8 @@ public class AIServiceDescriptionParser
             SuggestedTitle = AIJsonParser.GetString(root, "suggestedTitle") ?? BuildFallbackTitle(request),
             SuggestedDescription = AIJsonParser.GetString(root, "suggestedDescription") ?? BuildFallbackDescription(request),
             Packages = ParsePackages(root, request),
-            Faqs = ParseFaqs(root)
+            Faqs = ParseFaqs(root),
+            Provider = "gemini"
         };
     }
 

@@ -54,7 +54,8 @@ public class MockAIServiceDescriptionProvider : IAIServiceDescriptionProvider
                     Answer = "Yes, support is included based on the selected package tier."
                 }
             },
-            AIModel = "Aivora-Mock"
+            AIModel = "Aivora-Mock",
+            Provider = "mock"
         };
 
         return Task.FromResult(draft);

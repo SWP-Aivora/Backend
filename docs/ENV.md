@@ -28,11 +28,13 @@ These variables **must** be set or the application will crash at startup with `I
 
 | Variable | Config Key | Default | Description |
 |----------|-----------|---------|-------------|
-| `AIProvider__Provider` | `AIProvider:Provider` | `Mock` | AI provider: `Mock` or `Gemini` |
-| `AIProvider__ApiKey` | `AIProvider:ApiKey` | *(empty)* | Gemini API key. When empty, falls back to Mock provider |
+| `AIProvider__Provider` | `AIProvider:Provider` | `Gemini` | AI provider: `Mock` or `Gemini`. Selection also requires a non-empty `ApiKey` — without one, requests fall back to Mock regardless of this setting |
+| `AIProvider__ApiKey` | `AIProvider:ApiKey` | *(empty)* | Gemini API key. **Required in production/staging** — without it, all AI endpoints silently serve Mock responses. When empty, falls back to Mock provider |
 | `AIProvider__BaseUrl` | `AIProvider:BaseUrl` | `https://generativelanguage.googleapis.com` | Gemini API base URL |
 | `AIProvider__Model` | `AIProvider:Model` | `gemini-2.5-flash` | Gemini model name |
 | `AIProvider__EnableFallback` | `AIProvider:EnableFallback` | `true` | Enable fallback to Mock when Gemini fails |
+
+`POST /ai/service-generator` responses include a `provider` field (`"gemini"` or `"mock"`) so callers can detect when a request silently served Mock output.
 
 ### Payment (VNPay + Commission)
 

@@ -109,7 +109,8 @@ public class AIServiceGeneratorTests
             Faqs = new List<Response.ServiceFaqResponse>
             {
                 new() { Question = "Start?", Answer = "Send requirements." }
-            }
+            },
+            Provider = "gemini"
         };
 
         _serviceDescriptionProviderMock
@@ -121,7 +122,39 @@ public class AIServiceGeneratorTests
         result.SuggestedTitle.Should().Be(draft.SuggestedTitle);
         result.Packages.Select(x => x.Name).Should().Equal("Basic", "Standard", "Premium");
         result.Faqs.Should().ContainSingle();
+        result.Provider.Should().Be("gemini");
         _serviceDescriptionProviderMock.Verify(x => x.GenerateServiceDescriptionAsync(request, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GenerateServiceDescriptionAsync_WithMockProviderDraft_ReturnsMockProvider()
+    {
+        var service = CreateService();
+        var request = BuildValidRequest();
+        var draft = new AIServiceDescriptionDraft
+        {
+            SuggestedTitle = "AI automation service",
+            SuggestedDescription = "I build AI automation systems.",
+            Packages = new List<Response.ServicePackageResponse>
+            {
+                new() { Name = "Basic", Description = "Basic", Price = 100, DeliveryDays = 3, Features = new List<string> { "Setup" } },
+                new() { Name = "Standard", Description = "Standard", Price = 200, DeliveryDays = 7, Features = new List<string> { "Build" } },
+                new() { Name = "Premium", Description = "Premium", Price = 400, DeliveryDays = 14, Features = new List<string> { "Scale" } }
+            },
+            Faqs = new List<Response.ServiceFaqResponse>
+            {
+                new() { Question = "Start?", Answer = "Send requirements." }
+            },
+            Provider = "mock"
+        };
+
+        _serviceDescriptionProviderMock
+            .Setup(x => x.GenerateServiceDescriptionAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(draft);
+
+        var result = await service.GenerateServiceDescriptionAsync(Guid.NewGuid(), request);
+
+        result.Provider.Should().Be("mock");
     }
 
     private Service CreateService()
