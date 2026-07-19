@@ -39,6 +39,8 @@ public class Treasury : ITreasury
     }
 
     private const string MilestoneMustBeCreatedError = "Milestone must be CREATED to pay deposit.";
+    private const string MilestoneMustBeSubmittedError = "Milestone must be in SUBMITTED status to release remaining funds.";
+    private const string MilestoneConcurrentlyModifiedError = "Milestone was already modified by a concurrent operation. Please retry.";
 
     public async Task<TreasuryResult> PayDepositAsync(Guid clientId, Guid milestoneId)
     {
@@ -183,7 +185,7 @@ public class Treasury : ITreasury
         if (milestone.Status == MilestoneStatus.DISPUTED)
             throw new ValidationException("Cannot release remaining funds while the milestone is disputed.");
         if (milestone.Status != MilestoneStatus.SUBMITTED)
-            throw new ValidationException("Milestone must be in SUBMITTED status to release remaining funds.");
+            throw new ValidationException(MilestoneMustBeSubmittedError);
 
         var hasActiveDispute = await _dbContext.Disputes
             .AnyAsync(d => d.MilestoneId == milestoneId &&
@@ -204,6 +206,14 @@ public class Treasury : ITreasury
             var expertAmount = remainingAmount - commissionAmount;
 
             if (clientWallet.AvailableBalance < remainingAmount) throw new ValidationException("Insufficient balance for remaining payment.");
+
+            // Claim the milestone before moving any money (same pattern as PayDepositAsync):
+            // a concurrent release already committed first shows up here as
+            // DbUpdateConcurrencyException, before any wallet debit/credit is staged.
+            milestone.Status = MilestoneStatus.RELEASED;
+            milestone.ApprovedAt = DateTimeOffset.UtcNow;
+            milestone.PaidAt = DateTimeOffset.UtcNow;
+            await _dbContext.SaveChangesAsync();
 
             var clientBalanceBefore = clientWallet.AvailableBalance;
             var expertBalanceBefore = expertWallet.AvailableBalance;
@@ -276,10 +286,7 @@ public class Treasury : ITreasury
                 });
             }
 
-            // 4. Update Milestone & Project
-            milestone.Status = MilestoneStatus.RELEASED;
-            milestone.ApprovedAt = DateTimeOffset.UtcNow;
-            milestone.PaidAt = DateTimeOffset.UtcNow;
+            // Milestone.Status was already claimed as RELEASED above, before any money moved.
 
             var hasCompletedStep = milestone.Steps?.Any(s => s.Title == "Completed") == true ||
                 await _dbContext.MilestoneSteps.AnyAsync(s => s.MilestoneId == milestoneId && s.Title == "Completed");
@@ -318,6 +325,15 @@ public class Treasury : ITreasury
             _logger.LogInformation("✅ Remaining 70% funds released for Milestone {MilestoneId}", milestoneId);
             return new TreasuryResult(milestone, clientWallet, expertWallet, [payment]);
         }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Same TOCTOU shape as PayDepositAsync: a concurrent operation already changed
+            // this milestone's Status and committed first. Fail with the same validation
+            // error a sequential double-click on approve would get, not a raw 500.
+            await transaction.RollbackAsync();
+            _logger.LogWarning("⚠️ Lost the release race for milestone {MilestoneId}: already modified by a concurrent request", milestoneId);
+            throw new ValidationException(MilestoneMustBeSubmittedError);
+        }
         catch (Exception ex)
         {
             await transaction.RollbackAsync();
@@ -328,8 +344,9 @@ public class Treasury : ITreasury
     public async Task<TreasuryResult> RefundMilestoneAsync(Guid adminId, Guid milestoneId, string reason)
     {
         var milestone = await GetMilestoneWithProjectAsync(milestoneId);
-        var payments = await _dbContext.Payments.Where(p => p.MilestoneId == milestoneId && p.Status == PaymentStatus.RELEASED).ToListAsync();
+        if (milestone.Status == MilestoneStatus.REFUNDED) throw new ValidationException(MilestoneConcurrentlyModifiedError);
 
+        var payments = await _dbContext.Payments.Where(p => p.MilestoneId == milestoneId && p.Status == PaymentStatus.RELEASED).ToListAsync();
         if (!payments.Any()) throw new NotFoundException("Payment not found for refund.");
 
         var amount = payments.Sum(p => p.Amount);
@@ -342,6 +359,12 @@ public class Treasury : ITreasury
             var wallets = await GetWalletsForUpdateAsync(payerId, payeeId);
             var payerWallet = wallets.First(w => w.UserId == payerId);
             var payeeWallet = wallets.First(w => w.UserId == payeeId);
+
+            // Claim the milestone before moving any money (same pattern as PayDepositAsync):
+            // a concurrent refund/split/release already committed first shows up here as
+            // DbUpdateConcurrencyException, before any wallet debit/credit is staged.
+            milestone.Status = MilestoneStatus.REFUNDED;
+            await _dbContext.SaveChangesAsync();
 
             foreach (var payment in payments)
             {
@@ -397,15 +420,19 @@ public class Treasury : ITreasury
                 });
             }
 
-            // 4. Update Milestone
-            milestone.Status = MilestoneStatus.REFUNDED;
-
+            // Milestone.Status was already claimed as REFUNDED above, before any money moved.
             await SyncProjectStatusAsync(milestone.ProjectId);
 
             await transaction.CommitAsync();
 
             _logger.LogInformation("✅ Refunded {Amount} for Milestone {MilestoneId}", amount, milestoneId);
             return new TreasuryResult(milestone, ClientWallet: payerWallet, ExpertWallet: payeeWallet, payments);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            await transaction.RollbackAsync();
+            _logger.LogWarning("⚠️ Lost the refund race for milestone {MilestoneId}: already modified by a concurrent request", milestoneId);
+            throw new ValidationException(MilestoneConcurrentlyModifiedError);
         }
         catch (Exception ex)
         {
@@ -417,8 +444,9 @@ public class Treasury : ITreasury
     public async Task<TreasuryResult> SplitMilestoneFundsAsync(Guid milestoneId, decimal releaseToExpertAmount, decimal refundToClientAmount, string reason)
     {
         var milestone = await GetMilestoneWithProjectAsync(milestoneId);
-        var payments = await _dbContext.Payments.Where(p => p.MilestoneId == milestoneId && p.Status == PaymentStatus.RELEASED).ToListAsync();
+        if (milestone.Status == MilestoneStatus.RELEASED) throw new ValidationException(MilestoneConcurrentlyModifiedError);
 
+        var payments = await _dbContext.Payments.Where(p => p.MilestoneId == milestoneId && p.Status == PaymentStatus.RELEASED).ToListAsync();
         if (!payments.Any()) throw new NotFoundException("Payment not found for split.");
 
         var totalAmount = payments.Sum(p => p.Amount);
@@ -433,6 +461,13 @@ public class Treasury : ITreasury
             var wallets = await GetWalletsForUpdateAsync(payerId, payeeId);
             var payerWallet = wallets.First(w => w.UserId == payerId);
             var payeeWallet = wallets.First(w => w.UserId == payeeId);
+
+            // Claim the milestone before moving any money (same pattern as PayDepositAsync):
+            // a concurrent refund/split/release already committed first shows up here as
+            // DbUpdateConcurrencyException, before any wallet debit/credit is staged.
+            milestone.Status = MilestoneStatus.RELEASED;
+            milestone.ApprovedAt = DateTimeOffset.UtcNow;
+            await _dbContext.SaveChangesAsync();
 
             // In 30/70 direct deposit, the expert already holds the full payment amount.
             // We claw back the refundToClientAmount from the expert.
@@ -501,9 +536,7 @@ public class Treasury : ITreasury
             {
                 payment.Status = PaymentStatus.RELEASED;
             }
-            // 4. Update Milestone
-            milestone.Status = MilestoneStatus.RELEASED;
-            milestone.ApprovedAt = DateTimeOffset.UtcNow;
+            // Milestone.Status was already claimed as RELEASED above, before any money moved.
 
             // Data is already loaded with .Include(m => m.Steps) inside GetMilestoneWithProjectAsync
             CompleteRemainingSteps(milestone.Steps, DateTimeOffset.UtcNow);
@@ -515,6 +548,12 @@ public class Treasury : ITreasury
 
             _logger.LogInformation("✅ Split {MilestoneId} funds: {ReleaseAmount} released, {RefundAmount} refunded", milestoneId, releaseToExpertAmount, refundToClientAmount);
             return new TreasuryResult(milestone, ClientWallet: payerWallet, ExpertWallet: payeeWallet, payments);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            await transaction.RollbackAsync();
+            _logger.LogWarning("⚠️ Lost the split race for milestone {MilestoneId}: already modified by a concurrent request", milestoneId);
+            throw new ValidationException(MilestoneConcurrentlyModifiedError);
         }
         catch (Exception ex)
         {
