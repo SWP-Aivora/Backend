@@ -25,6 +25,7 @@ public class AivoraDbContext : DbContext
     public DbSet<JobSkill> JobSkills => Set<JobSkill>();
     public DbSet<JobPostMilestone> JobPostMilestones => Set<JobPostMilestone>();
     public DbSet<AIJobSuggestion> AIJobSuggestions => Set<AIJobSuggestion>();
+    public DbSet<JobInvite> JobInvites => Set<JobInvite>();
 
     // Proposals & Projects
     public DbSet<Proposal> Proposals => Set<Proposal>();

@@ -52,6 +52,19 @@ public class HiringService : IHiringService
                 p.UpdatedAt = DateTimeOffset.UtcNow;
             }
 
+            // 2b. Expire pending JobInvites for this Job — the job is closing, so any
+            // still-pending invite can no longer be accepted (ProposalService blocks
+            // proposals on a non-OPEN job).
+            var pendingInvites = await _dbContext.JobInvites
+                .Where(i => i.JobId == proposal.JobId && i.Status == JobInviteStatus.PENDING)
+                .ToListAsync();
+
+            foreach (var invite in pendingInvites)
+            {
+                invite.Status = JobInviteStatus.EXPIRED;
+                invite.UpdatedAt = DateTimeOffset.UtcNow;
+            }
+
             // 3. Update Job
             proposal.Job.Status = JobStatus.IN_PROGRESS;
             proposal.Job.UpdatedAt = DateTimeOffset.UtcNow;

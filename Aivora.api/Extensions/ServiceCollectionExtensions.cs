@@ -139,6 +139,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Aivora.Services.ServiceCatalogService.IService, Aivora.Services.ServiceCatalogService.Service>();
         services.AddScoped<Aivora.Services.ServiceRequestService.IService, Aivora.Services.ServiceRequestService.Service>();
         services.AddScoped<Aivora.Services.ServiceOfferService.IService, Aivora.Services.ServiceOfferService.Service>();
+        services.AddScoped<Aivora.Services.JobInviteService.IService, Aivora.Services.JobInviteService.Service>();
         services.AddScoped<Aivora.Services.AIJobAssistantService.Prompting.AIJobSuggestionPromptBuilder>();
         services.AddScoped<Aivora.Services.AIJobAssistantService.Prompting.AIJobRefinementPromptBuilder>();
         services.AddScoped<Aivora.Services.AIJobAssistantService.Prompting.AIServiceDescriptionPromptBuilder>();
