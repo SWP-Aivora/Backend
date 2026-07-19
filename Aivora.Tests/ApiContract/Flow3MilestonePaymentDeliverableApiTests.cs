@@ -50,7 +50,7 @@ public class Flow3MilestonePaymentDeliverableApiTests : IClassFixture<ApiContrac
             proposedTimelineDays = 10,
             milestones = new List<object>
             {
-                new { title = "Flow 3 M1", description = "Deliverable 1", amount = 1200, dueDays = 5, orderIndex = 1, acceptanceCriteria = "Criteria 1" }
+                new { title = "Flow 3 M1", description = "Deliverable 1", amount = 700, dueDays = 5, orderIndex = 1, acceptanceCriteria = "Criteria 1" }
             }
         };
         var (_, propBody) = await client.PostAsync($"/api/v1/jobs/{jobId}/proposals", createProposalReq);

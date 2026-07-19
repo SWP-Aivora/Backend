@@ -28,7 +28,7 @@ public class Service : IService
             throw new ValidationException("Reviews can only be given for completed projects.");
 
         if (project.ClientId != reviewerId && project.ExpertId != reviewerId)
-            throw new UnauthorizedException("You are not authorized to review this project.");
+            throw new ForbiddenException("You are not authorized to review this project.");
 
         if (request.RevieweeId != project.ClientId && request.RevieweeId != project.ExpertId)
             throw new ValidationException("Reviewee must be a party in the project.");

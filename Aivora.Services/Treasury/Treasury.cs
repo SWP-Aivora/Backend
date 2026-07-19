@@ -96,7 +96,7 @@ public class Treasury : ITreasury
     {
         var milestone = await GetMilestoneWithProjectAsync(milestoneId);
 
-        if (milestone.Project.ClientId != clientId) throw new UnauthorizedException("Access denied.");
+        if (milestone.Project.ClientId != clientId) throw new ForbiddenException("Access denied.");
         if (milestone.Status != MilestoneStatus.CREATED) throw new ValidationException("Milestone must be CREATED to pay deposit.");
 
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
@@ -218,7 +218,7 @@ public class Treasury : ITreasury
     {
         var milestone = await GetMilestoneWithProjectAsync(milestoneId);
 
-        if (milestone.Project.ClientId != clientId) throw new UnauthorizedException("Only the client can approve and release funds.");
+        if (milestone.Project.ClientId != clientId) throw new ForbiddenException("Only the client can approve and release funds.");
         if (milestone.Status == MilestoneStatus.DISPUTED)
             throw new ValidationException("Cannot release remaining funds while the milestone is disputed.");
         if (milestone.Status != MilestoneStatus.SUBMITTED)

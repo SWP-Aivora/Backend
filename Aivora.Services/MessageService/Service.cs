@@ -133,7 +133,7 @@ public class Service : IService
             return;
         }
 
-        throw new UnauthorizedException("You are not a participant in this conversation.");
+        throw new ForbiddenException("You are not a participant in this conversation.");
     }
 
     private async Task EnsureAdminCanViewConversationAsync(Conversation conversation)
@@ -158,7 +158,7 @@ public class Service : IService
 
         if (!hasJobOrProject || !hasUserAssociation)
         {
-            throw new UnauthorizedException("Admin is not authorized to view this conversation.");
+            throw new ForbiddenException("Admin is not authorized to view this conversation.");
         }
     }
 
@@ -183,7 +183,7 @@ public class Service : IService
         {
             if (conversation.ClientId != senderId && conversation.ExpertId != senderId)
             {
-                throw new UnauthorizedException("You are not a participant in this conversation.");
+                throw new ForbiddenException("You are not a participant in this conversation.");
             }
 
             senderName = conversation.ClientId == senderId
@@ -224,7 +224,7 @@ public class Service : IService
 
         if (conversation.ClientId != userId && conversation.ExpertId != userId)
         {
-            throw new UnauthorizedException("You are not a participant in this conversation.");
+            throw new ForbiddenException("You are not a participant in this conversation.");
         }
 
         var messages = await _dbContext.Messages

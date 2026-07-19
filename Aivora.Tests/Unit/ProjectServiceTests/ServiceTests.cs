@@ -122,7 +122,7 @@ public class ServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetProjectByIdAsync_ClientUser_OtherProject_ShouldThrowUnauthorized()
+    public async Task GetProjectByIdAsync_ClientUser_OtherProject_ShouldThrowForbidden()
     {
         // Arrange
         var ownerClientId = Guid.NewGuid();
@@ -133,13 +133,13 @@ public class ServiceTests : IDisposable
         var otherClientId = Guid.NewGuid();
 
         // Act & Assert
-        await Assert.ThrowsAsync<UnauthorizedException>(
+        await Assert.ThrowsAsync<ForbiddenException>(
             () => _service.GetProjectByIdAsync(otherClientId, projectId, UserRole.CLIENT)
         );
     }
 
     [Fact]
-    public async Task GetProjectByIdAsync_ExpertUser_UnassignedProject_ShouldThrowUnauthorized()
+    public async Task GetProjectByIdAsync_ExpertUser_UnassignedProject_ShouldThrowForbidden()
     {
         // Arrange
         var clientId = Guid.NewGuid();
@@ -150,7 +150,7 @@ public class ServiceTests : IDisposable
         var differentExpertId = Guid.NewGuid();
 
         // Act & Assert
-        await Assert.ThrowsAsync<UnauthorizedException>(
+        await Assert.ThrowsAsync<ForbiddenException>(
             () => _service.GetProjectByIdAsync(differentExpertId, projectId, UserRole.EXPERT)
         );
     }

@@ -88,7 +88,7 @@ public class Service : IService
     {
         var job = await _dbContext.JobPosts.FindAsync(jobId);
         if (job == null) throw new NotFoundException("Job not found.");
-        if (job.ClientId != userId) throw new UnauthorizedException("Only the job owner can view proposals.");
+        if (job.ClientId != userId) throw new ForbiddenException("Only the job owner can view proposals.");
 
         var proposals = await _dbContext.Proposals
             .Include(p => p.Job).ThenInclude(j => j.Client)
@@ -120,7 +120,7 @@ public class Service : IService
         if (proposal == null) throw new NotFoundException("Proposal not found.");
 
         if (proposal.ExpertId != expertId)
-            throw new UnauthorizedException("You can only edit your own proposal.");
+            throw new ForbiddenException("You can only edit your own proposal.");
 
         if (proposal.Status != ProposalStatus.SUBMITTED && proposal.Status != ProposalStatus.SHORTLISTED)
             throw new ValidationException("Proposal can only be edited when it is submitted or shortlisted.");
@@ -185,7 +185,7 @@ public class Service : IService
 
         if (proposal == null) throw new NotFoundException("Proposal not found.");
         if (proposal.ExpertId != expertId)
-            throw new UnauthorizedException("You can only edit your own proposal.");
+            throw new ForbiddenException("You can only edit your own proposal.");
         if (proposal.Status != ProposalStatus.WITHDRAWN && proposal.Status != ProposalStatus.REJECTED)
             throw new ValidationException("Only withdrawn or rejected proposals can be resubmitted.");
         // Job.Status == OPEN doubles as proof that no proposal for this job is ACCEPTED and no Project

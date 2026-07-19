@@ -468,7 +468,7 @@ public class SupportingApiTests : IClassFixture<ApiContractTestFactory>
         // 25c. DELETE /api/v1/media/{publicId} as a non-owner, non-admin user (should be rejected)
         var nonOwnerClient = new ApiContractClient(_factory.CreateAuthenticatedClient(UserRole.EXPERT));
         var (forbiddenDelRes, _) = await nonOwnerClient.DeleteAsync($"/api/v1/media/{imgPublicId}");
-        forbiddenDelRes.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        forbiddenDelRes.StatusCode.Should().Be(HttpStatusCode.Forbidden);
 
         // 26. DELETE /api/v1/media/{publicId}
         client = new ApiContractClient(_factory.CreateAuthenticatedClient(UserRole.ADMIN));

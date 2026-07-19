@@ -76,7 +76,7 @@ public class ProposalServiceResubmitTests
     }
 
     [Fact]
-    public async Task ResubmitProposalAsync_NotOwner_ThrowsUnauthorizedException()
+    public async Task ResubmitProposalAsync_NotOwner_ThrowsForbiddenException()
     {
         var dbContext = GetDbContext();
         var (expert, job) = SetupExpertAndJob(dbContext);
@@ -94,7 +94,7 @@ public class ProposalServiceResubmitTests
         await dbContext.SaveChangesAsync();
 
         Func<Task> act = async () => await service.ResubmitProposalAsync(Guid.NewGuid(), proposal.Id, ValidRequest());
-        await act.Should().ThrowAsync<UnauthorizedException>();
+        await act.Should().ThrowAsync<ForbiddenException>();
     }
 
     [Fact]

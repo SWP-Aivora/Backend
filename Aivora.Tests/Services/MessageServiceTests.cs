@@ -351,7 +351,7 @@ public class MessageServiceTests
     }
 
     [Fact]
-    public async Task EnsureConversationParticipantAsync_AdminWithNoContext_ThrowsUnauthorized()
+    public async Task EnsureConversationParticipantAsync_AdminWithNoContext_ThrowsForbidden()
     {
         // Arrange
         var dbContext = GetDbContext();
@@ -375,11 +375,11 @@ public class MessageServiceTests
         Func<Task> act = async () => await service.EnsureConversationParticipantAsync(adminId, UserRole.ADMIN, conversationId);
 
         // Assert
-        await act.Should().ThrowAsync<UnauthorizedException>();
+        await act.Should().ThrowAsync<ForbiddenException>();
     }
 
     [Fact]
-    public async Task MarkAsReadAsync_AdminNotParticipant_ThrowsUnauthorized()
+    public async Task MarkAsReadAsync_AdminNotParticipant_ThrowsForbidden()
     {
         // Arrange
         var dbContext = GetDbContext();
@@ -416,7 +416,7 @@ public class MessageServiceTests
         Func<Task> act = async () => await service.MarkAsReadAsync(adminId, conversationId);
 
         // Assert
-        await act.Should().ThrowAsync<UnauthorizedException>();
+        await act.Should().ThrowAsync<ForbiddenException>();
     }
 
     [Fact]

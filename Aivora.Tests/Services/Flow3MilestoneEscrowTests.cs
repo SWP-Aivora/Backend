@@ -286,7 +286,7 @@ public class Flow3MilestoneEscrowTests
     /// Given: User is not the project client
     /// When: User attempts to fund milestone
     /// Then:
-    ///   - Throws UnauthorizedException
+    ///   - Throws ForbiddenException
     ///   - No state changes
     /// </summary>
     [Fact]
@@ -388,7 +388,7 @@ public class Flow3MilestoneEscrowTests
         // ----------------------------------------------------
         Func<Task> act = async () => await milestoneService.FundMilestoneAsync(outsiderId, milestoneId);
 
-        await act.Should().ThrowAsync<UnauthorizedException>()
+        await act.Should().ThrowAsync<ForbiddenException>()
             .WithMessage("Access denied.");
 
         // Exception thrown means access was denied as expected
