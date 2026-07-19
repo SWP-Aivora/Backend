@@ -206,6 +206,16 @@ public class Service : IService
         job.Status = JobStatus.CANCELLED;
         // Optionally store reason in a separate field or log
 
+        var pendingInvites = await _dbContext.JobInvites
+            .Where(i => i.JobId == job.Id && i.Status == JobInviteStatus.PENDING)
+            .ToListAsync();
+
+        foreach (var invite in pendingInvites)
+        {
+            invite.Status = JobInviteStatus.EXPIRED;
+            invite.UpdatedAt = DateTimeOffset.UtcNow;
+        }
+
         await _dbContext.SaveChangesAsync();
 
         await _realtimeService.SendJobStatusUpdateAsync(clientId, job.Id, JobStatus.CANCELLED, job.Title);

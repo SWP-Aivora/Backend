@@ -329,6 +329,9 @@ public class Service : IService
         if (milestone.IsFinalized)
             throw new ValidationException("Cannot add steps to a finalized milestone.");
 
+        if (milestone.Status == MilestoneStatus.DISPUTED || project.Status == ProjectStatus.DISPUTED)
+            throw new ValidationException("Cannot add steps while there is an active dispute.");
+
         ValidateLength(request.Title, 255, "Title");
         ValidateLength(request.Description, 1000, "Description");
 
@@ -384,6 +387,9 @@ public class Service : IService
         if (step.Milestone.IsFinalized)
             throw new ValidationException("Cannot modify steps for a finalized milestone.");
 
+        if (step.Milestone.Status == MilestoneStatus.DISPUTED || project.Status == ProjectStatus.DISPUTED)
+            throw new ValidationException("Cannot modify steps while there is an active dispute.");
+
         ValidateLength(request.Title, 255, "Title");
         if (request.IsDescriptionSet) ValidateLength(request.Description, 1000, "Description");
 
@@ -433,6 +439,9 @@ public class Service : IService
         if (step.Milestone.IsFinalized)
             throw new ValidationException("Cannot modify steps for a finalized milestone.");
 
+        if (step.Milestone.Status == MilestoneStatus.DISPUTED || project.Status == ProjectStatus.DISPUTED)
+            throw new ValidationException("Cannot modify steps while there is an active dispute.");
+
         _dbContext.MilestoneSteps.Remove(step);
         await _dbContext.SaveChangesAsync();
     }
@@ -471,6 +480,9 @@ public class Service : IService
 
         if (step.Milestone.IsFinalized)
             throw new ValidationException("Cannot modify steps for a finalized milestone.");
+
+        if (step.Milestone.Status == MilestoneStatus.DISPUTED || project.Status == ProjectStatus.DISPUTED)
+            throw new ValidationException("Cannot modify steps while there is an active dispute.");
 
         if (request.Status != step.Status)
         {
@@ -589,6 +601,9 @@ public class Service : IService
 
         if (milestone.IsFinalized)
             throw new ValidationException("Cannot modify steps for a finalized milestone.");
+
+        if (milestone.Status == MilestoneStatus.DISPUTED || milestone.Project.Status == ProjectStatus.DISPUTED)
+            throw new ValidationException("Cannot modify steps while there is an active dispute.");
 
         var steps = await _dbContext.MilestoneSteps
             .Where(s => s.MilestoneId == milestoneId)
