@@ -59,6 +59,58 @@ public class DeliverableServiceTests
     }
 
     [Fact]
+    public async Task SubmitDeliverableAsync_WhenMilestoneDisputed_ThrowsValidationException()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var milestoneId = Guid.NewGuid();
+
+        var project = new Project { Id = projectId, ClientId = clientId, ExpertId = expertId, Title = "Test Project", Status = ProjectStatus.DISPUTED };
+        var milestone = new Milestone { Id = milestoneId, ProjectId = projectId, Title = "Milestone 1", Amount = 100, Status = MilestoneStatus.DISPUTED };
+
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestone);
+        await dbContext.SaveChangesAsync();
+
+        var service = GetService(dbContext);
+        var request = new Request.SubmitDeliverableRequest { Description = "Done", FileUrl = "https://example.com/file.pdf" };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.SubmitDeliverableAsync(expertId, milestoneId, request));
+        ex.Message.Should().Be("Cannot submit a deliverable while there is an active dispute.");
+    }
+
+    [Fact]
+    public async Task SubmitDeliverableAsync_WhenProjectDisputed_ThrowsValidationException()
+    {
+        // Arrange: milestone itself is FUNDED (normally submittable), but a sibling milestone made the project DISPUTED
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var milestoneId = Guid.NewGuid();
+
+        var project = new Project { Id = projectId, ClientId = clientId, ExpertId = expertId, Title = "Test Project", Status = ProjectStatus.DISPUTED };
+        var milestone = new Milestone { Id = milestoneId, ProjectId = projectId, Title = "Milestone 1", Amount = 100, Status = MilestoneStatus.FUNDED };
+
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestone);
+        await dbContext.SaveChangesAsync();
+
+        var service = GetService(dbContext);
+        var request = new Request.SubmitDeliverableRequest { Description = "Done", FileUrl = "https://example.com/file.pdf" };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.SubmitDeliverableAsync(expertId, milestoneId, request));
+        ex.Message.Should().Be("Cannot submit a deliverable while there is an active dispute.");
+    }
+
+    [Fact]
     public async Task GetDeliverablesByMilestoneAsync_ByOutsider_ThrowsForbiddenException()
     {
         // Arrange

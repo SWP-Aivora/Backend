@@ -29,6 +29,8 @@ public class Service : IService
 
         if (milestone == null) throw new NotFoundException("Milestone not found.");
         if (milestone.Project.ExpertId != expertId) throw new ForbiddenException("Only the project expert can submit deliverables.");
+        if (milestone.Status == MilestoneStatus.DISPUTED || milestone.Project.Status == ProjectStatus.DISPUTED)
+            throw new ValidationException("Cannot submit a deliverable while there is an active dispute.");
 
         if (milestone.Status != MilestoneStatus.FUNDED &&
             milestone.Status != MilestoneStatus.IN_PROGRESS &&

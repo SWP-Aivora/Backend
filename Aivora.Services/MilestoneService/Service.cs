@@ -53,6 +53,8 @@ public class Service : IService
         if (project.ClientId != userId) throw new ForbiddenException("Only the client can add milestones.");
         if (project.IsClosed)
             throw new ValidationException("Cannot add milestones to a completed or cancelled project.");
+        if (project.Status == ProjectStatus.DISPUTED)
+            throw new ValidationException("Cannot create a milestone while there is an active dispute.");
 
         ValidateLength(request.Title, 255, "Title");
         ValidateLength(request.Description, 1000, "Description");
@@ -114,6 +116,8 @@ public class Service : IService
 
         if (milestone == null) throw new NotFoundException("Milestone not found.");
         if (milestone.Project.ClientId != userId) throw new ForbiddenException("Only the client can update milestones.");
+        if (milestone.Status == MilestoneStatus.DISPUTED || milestone.Project.Status == ProjectStatus.DISPUTED)
+            throw new ValidationException("Cannot update a milestone while there is an active dispute.");
 
         if (milestone.Status != MilestoneStatus.CREATED)
         {
