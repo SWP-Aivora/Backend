@@ -34,6 +34,11 @@ public class AivoraDbContext : DbContext
     public DbSet<MilestoneStep> MilestoneSteps => Set<MilestoneStep>();
     public DbSet<Deliverable> Deliverables => Set<Deliverable>();
 
+    // Services (marketplace gigs)
+    public DbSet<ServiceListing> Services => Set<ServiceListing>();
+    public DbSet<ServicePackage> ServicePackages => Set<ServicePackage>();
+    public DbSet<ServiceFaq> ServiceFaqs => Set<ServiceFaq>();
+
     // Finance
     public DbSet<Wallet> Wallets => Set<Wallet>();
     public DbSet<Payment> Payments => Set<Payment>();
