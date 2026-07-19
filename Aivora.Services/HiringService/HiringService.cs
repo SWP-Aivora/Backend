@@ -57,39 +57,17 @@ public class HiringService : IHiringService
             proposal.Job.UpdatedAt = DateTimeOffset.UtcNow;
 
             // 4. Create Project
-            var project = new Project
-            {
-                JobId = proposal.JobId,
-                AcceptedProposalId = proposal.Id,
-                ClientId = proposal.Job.ClientId,
-                ExpertId = proposal.ExpertId,
-                Title = proposal.Job.Title,
-                Description = proposal.Job.FinalDescription ?? proposal.Job.OriginalDescription,
-                TotalBudget = proposal.ProposedBudget,
-                Currency = proposal.Currency,
-                Status = ProjectStatus.PENDING_PAYMENT,
-                Milestones = proposal.Milestones.Select(pm => new Milestone
-                {
-                    Title = pm.Title,
-                    Description = pm.Description,
-                    Amount = pm.Amount,
-                    OrderIndex = pm.OrderIndex,
-                    Status = MilestoneStatus.CREATED,
-                    Currency = proposal.Currency,
-                    Steps = new List<MilestoneStep>
-                    {
-                        new MilestoneStep
-                        {
-                            Title = "Created",
-                            Description = "Milestone created",
-                            OrderIndex = 0,
-                            Status = MilestoneStepStatus.COMPLETED,
-                            CompletedAt = DateTimeOffset.UtcNow,
-                            CompletedByUserId = proposal.Job.ClientId
-                        }
-                    }
-                }).ToList()
-            };
+            var project = ProjectFactory.CreateProjectWithMilestones(
+                clientId: proposal.Job.ClientId,
+                expertId: proposal.ExpertId,
+                title: proposal.Job.Title,
+                description: proposal.Job.FinalDescription ?? proposal.Job.OriginalDescription,
+                budget: proposal.ProposedBudget,
+                currency: proposal.Currency,
+                jobId: proposal.JobId,
+                acceptedProposalId: proposal.Id,
+                serviceRequestId: null,
+                milestones: proposal.Milestones.Select(pm => (pm.Title, pm.Description, pm.Amount, pm.OrderIndex)));
 
             _dbContext.Projects.Add(project);
             await _dbContext.SaveChangesAsync();

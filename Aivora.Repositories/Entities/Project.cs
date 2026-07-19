@@ -5,8 +5,9 @@ namespace Aivora.Repositories.Entities;
 
 public class Project : AuditableBaseEntity
 {
-    public Guid JobId { get; set; }
-    public Guid AcceptedProposalId { get; set; }
+    public Guid? JobId { get; set; }
+    public Guid? AcceptedProposalId { get; set; }
+    public Guid? ServiceRequestId { get; set; }
     public Guid ClientId { get; set; }
     public Guid ExpertId { get; set; }
     public string Title { get; set; } = null!;
@@ -22,8 +23,9 @@ public class Project : AuditableBaseEntity
     public bool IsClosed => Status is ProjectStatus.COMPLETED or ProjectStatus.CANCELLED;
 
     // Navigation Properties
-    public virtual JobPost Job { get; set; } = null!;
-    public virtual Proposal AcceptedProposal { get; set; } = null!;
+    public virtual JobPost? Job { get; set; }
+    public virtual Proposal? AcceptedProposal { get; set; }
+    public virtual ServiceRequest? ServiceRequest { get; set; }
     public virtual User Client { get; set; } = null!;
     public virtual User Expert { get; set; } = null!;
     public virtual ICollection<Milestone> Milestones { get; set; } = new List<Milestone>();

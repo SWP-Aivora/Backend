@@ -59,6 +59,37 @@ public class TreasuryRealtimeTests
     }
 
     [Fact]
+    public async Task SyncProjectStatusAsync_WhenAllSettled_AndProjectHasNoJobId_CompletesWithoutRealtimeCall()
+    {
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+
+        var project = new Project { ClientId = clientId, ExpertId = expertId, Status = ProjectStatus.ACTIVE, Title = "Service Project", ServiceRequestId = Guid.NewGuid() };
+        var milestone = new Milestone { Project = project, Title = "M1", Amount = 100, Status = MilestoneStatus.RELEASED };
+
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestone);
+        await dbContext.SaveChangesAsync();
+
+        var mockRealtime = new Mock<Aivora.Services.RealtimeService.IService>();
+        var commissionOptions = Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.CommissionOptions { Rate = 0.10m });
+        var treasury = new Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), mockRealtime.Object);
+
+        await treasury.SyncProjectStatusAsync(project.Id);
+
+        var updated = await dbContext.Projects.FindAsync(project.Id);
+        updated!.Status.Should().Be(ProjectStatus.COMPLETED);
+
+        mockRealtime.Verify(r => r.SendJobStatusUpdateToUsersAsync(
+            It.IsAny<IEnumerable<Guid>>(),
+            It.IsAny<Guid>(),
+            It.IsAny<JobStatus>(),
+            It.IsAny<string?>()
+        ), Times.Never);
+    }
+
+    [Fact]
     public async Task PayDepositAsync_Should_Transfer_30Percent_Directly()
     {
         var dbContext = GetDbContext();

@@ -39,6 +39,8 @@ public class AivoraDbContext : DbContext
     public DbSet<ServicePackage> ServicePackages => Set<ServicePackage>();
     public DbSet<ServiceFaq> ServiceFaqs => Set<ServiceFaq>();
     public DbSet<ServiceRequest> ServiceRequests => Set<ServiceRequest>();
+    public DbSet<ServiceOffer> ServiceOffers => Set<ServiceOffer>();
+    public DbSet<ServiceOfferMilestone> ServiceOfferMilestones => Set<ServiceOfferMilestone>();
 
     // Finance
     public DbSet<Wallet> Wallets => Set<Wallet>();
