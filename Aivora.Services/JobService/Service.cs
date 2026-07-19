@@ -2,6 +2,7 @@ using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.Exceptions;
+using Aivora.Services.Extensions;
 using Microsoft.EntityFrameworkCore;
 
 namespace Aivora.Services.JobService;
@@ -22,7 +23,7 @@ public class Service : IService
         var job = await _dbContext.JobPosts
             .Include(j => j.Client)
             .Include(j => j.Category)
-            .Include(j => j.JobSkills).ThenInclude(js => js.Skill)
+            .IncludeSkills()
             .Include(j => j.Milestones)
             .FirstOrDefaultAsync(j => j.Id == id);
 
@@ -217,7 +218,7 @@ public class Service : IService
         var query = _dbContext.JobPosts
             .Include(j => j.Client)
             .Include(j => j.Category)
-            .Include(j => j.JobSkills).ThenInclude(js => js.Skill)
+            .IncludeSkills()
             .Where(j => j.Status == JobStatus.OPEN && j.Visibility == JobVisibility.PUBLIC);
 
         if (categoryId.HasValue)
@@ -252,7 +253,7 @@ public class Service : IService
         var query = _dbContext.JobPosts
             .Include(j => j.Client)
             .Include(j => j.Category)
-            .Include(j => j.JobSkills).ThenInclude(js => js.Skill)
+            .IncludeSkills()
             .Include(j => j.Milestones)
             .Where(j => j.ClientId == clientId);
 

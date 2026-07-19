@@ -19,6 +19,8 @@ public class Project : AuditableBaseEntity
     public DateTimeOffset? CompletedAt { get; set; }
     public DateTimeOffset? CancelledAt { get; set; }
 
+    public bool IsClosed => Status is ProjectStatus.COMPLETED or ProjectStatus.CANCELLED;
+
     // Navigation Properties
     public virtual JobPost Job { get; set; } = null!;
     public virtual Proposal AcceptedProposal { get; set; } = null!;

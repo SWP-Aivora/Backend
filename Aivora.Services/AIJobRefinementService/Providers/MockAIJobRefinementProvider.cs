@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
-using Aivora.Repositories.Enums;
 using Aivora.Services.AIJobAssistantService;
+using Aivora.Services.AIJobAssistantService.Providers;
 
 namespace Aivora.Services.AIJobRefinementService.Providers;
 
@@ -143,48 +143,32 @@ public class MockAIJobRefinementProvider : IAIJobRefinementProvider
         };
     }
 
-    private static bool IsAdvisory(string lower)
-    {
-        var markers = new[] { "why", "what is", "what are", "should", "recommend", "explain", "compare", "advice", "tu van", "giai thich", "co nen" };
-        return markers.Any(lower.Contains);
-    }
+    private static bool IsAdvisory(string lower) => MockRefineHelpers.IsAdvisory(lower);
 
     private static bool TryApplyBudget(string lower, AIJobRefinementDraft updated, List<string> changedFields)
     {
-        if (!lower.Contains("budget") && !lower.Contains("ngan sach"))
-            return false;
+        var budget = MockRefineHelpers.TryParseBudget(lower);
+        if (budget is null) return false;
 
-        var numbers = Regex.Matches(lower, @"\d+(?:\.\d+)?")
-            .Select(m => decimal.Parse(m.Value, CultureInfo.InvariantCulture))
-            .ToList();
-        if (numbers.Count == 0) return false;
-
-        updated.BudgetMin = numbers[0];
-        updated.BudgetMax = numbers.Count > 1 ? numbers[1] : numbers[0];
+        updated.BudgetMin = budget.Value.Min;
+        updated.BudgetMax = budget.Value.Max;
         changedFields.AddRange(new[] { "budgetMin", "budgetMax" });
         return true;
     }
 
     private static bool TryApplyTimeline(string lower, AIJobRefinementDraft updated, List<string> changedFields)
     {
-        if (!lower.Contains("day") && !lower.Contains("timeline") && !lower.Contains("ngay"))
-            return false;
+        var days = MockRefineHelpers.TryParseTimelineDays(lower);
+        if (days is null) return false;
 
-        var match = Regex.Match(lower, @"\d+");
-        if (!match.Success) return false;
-
-        updated.TimelineDays = int.Parse(match.Value, CultureInfo.InvariantCulture);
+        updated.TimelineDays = days;
         changedFields.Add("timelineDays");
         return true;
     }
 
     private static bool TryApplyExperience(string lower, AIJobRefinementDraft updated, List<string> changedFields)
     {
-        SkillLevel? level = null;
-        if (lower.Contains("beginner") || lower.Contains("entry") || lower.Contains("junior")) level = SkillLevel.BEGINNER;
-        if (lower.Contains("intermediate") || lower.Contains("middle")) level = SkillLevel.INTERMEDIATE;
-        if (lower.Contains("advanced") || lower.Contains("senior")) level = SkillLevel.ADVANCED;
-        if (lower.Contains("expert")) level = SkillLevel.EXPERT;
+        var level = MockRefineHelpers.TryParseExperienceLevel(lower);
         if (level is null) return false;
 
         updated.ExperienceLevel = level;
@@ -194,27 +178,17 @@ public class MockAIJobRefinementProvider : IAIJobRefinementProvider
 
     private static bool TryApplyBudgetType(string lower, AIJobRefinementDraft updated, List<string> changedFields)
     {
-        if (lower.Contains("hourly") || lower.Contains("theo gio"))
-        {
-            updated.BudgetType = BudgetType.HOURLY;
-            changedFields.Add("budgetType");
-            return true;
-        }
-        if (lower.Contains("fixed") || lower.Contains("tron goi"))
-        {
-            updated.BudgetType = BudgetType.FIXED;
-            changedFields.Add("budgetType");
-            return true;
-        }
-        return false;
+        var budgetType = MockRefineHelpers.TryParseBudgetType(lower);
+        if (budgetType is null) return false;
+
+        updated.BudgetType = budgetType;
+        changedFields.Add("budgetType");
+        return true;
     }
 
     private static bool TryApplyCurrency(string lower, AIJobRefinementDraft updated, List<string> changedFields)
     {
-        string? currency = null;
-        if (lower.Contains("vnd")) currency = "VND";
-        if (lower.Contains("usd")) currency = "USD";
-        if (lower.Contains("aicoin")) currency = "AICOIN";
+        var currency = MockRefineHelpers.TryParseCurrency(lower);
         if (currency is null) return false;
 
         updated.Currency = currency;
@@ -224,11 +198,8 @@ public class MockAIJobRefinementProvider : IAIJobRefinementProvider
 
     private static bool TryApplySkill(string message, AIJobRefinementDraft updated, List<string> changedFields)
     {
-        var match = Regex.Match(message, @"(?:add skill|them ky nang)\s*[:=\-]?\s*(.+)", RegexOptions.IgnoreCase);
-        if (!match.Success) return false;
-
-        var skill = match.Groups[1].Value.Trim();
-        if (string.IsNullOrWhiteSpace(skill)) return false;
+        var skill = MockRefineHelpers.TryParseSkill(message);
+        if (skill is null) return false;
 
         if (!updated.Skills.Any(s => string.Equals(s, skill, StringComparison.OrdinalIgnoreCase)))
             updated.Skills.Add(skill);

@@ -3,6 +3,7 @@ using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.AIJobAssistantService.Parsing;
 using Aivora.Services.Exceptions;
+using Aivora.Services.Extensions;
 using Aivora.Services.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -39,7 +40,7 @@ public class Service : IService
         var job = await _dbContext.JobPosts
             .Include(j => j.Client)
             .Include(j => j.Category)
-            .Include(j => j.JobSkills).ThenInclude(js => js.Skill)
+            .IncludeSkills()
             .Include(j => j.Milestones)
             .FirstOrDefaultAsync(j => j.Id == jobId && j.ClientId == clientId, cancellationToken);
 

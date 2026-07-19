@@ -36,6 +36,12 @@ build_log.txt
 # AI assistant config
 AGENTS.md
 
+# Claude Code local config/state (không commit thêm nữa; file cũ đã track giữ nguyên)
+.claude/
+CLAUDE.md
+.code-review-marker
+.gitignore-ask-marker
+
 # Local documentation
 docs/architecture/
 

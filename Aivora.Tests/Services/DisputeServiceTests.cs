@@ -526,5 +526,9 @@ public class DisputeServiceTests : IDisposable
 
         public Task<int> GetUnreadCountAsync(Guid userId)
             => throw new NotImplementedException();
+
+        public void SendInBackground(Guid userId, string title, string message, string? type, string? linkUrl)
+        {
+        }
     }
 }
