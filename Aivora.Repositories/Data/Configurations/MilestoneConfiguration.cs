@@ -15,7 +15,7 @@ public class MilestoneConfiguration : IEntityTypeConfiguration<Milestone>
         builder.Property(x => x.Description).HasMaxLength(1000);
         builder.Property(x => x.AcceptanceCriteria).HasMaxLength(2000);
         builder.Property(x => x.Currency).IsRequired().HasMaxLength(10);
-        builder.Property(x => x.Status).HasConversion<string>().IsRequired();
+        builder.Property(x => x.Status).HasConversion<string>().IsRequired().IsConcurrencyToken();
 
         // Relationships
         builder.HasMany(x => x.Deliverables)

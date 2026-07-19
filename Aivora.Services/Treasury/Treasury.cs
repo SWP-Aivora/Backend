@@ -38,12 +38,14 @@ public class Treasury : ITreasury
         _realtimeService = realtimeService;
     }
 
+    private const string MilestoneMustBeCreatedError = "Milestone must be CREATED to pay deposit.";
+
     public async Task<TreasuryResult> PayDepositAsync(Guid clientId, Guid milestoneId)
     {
         var milestone = await GetMilestoneWithProjectAsync(milestoneId);
 
         if (milestone.Project.ClientId != clientId) throw new ForbiddenException("Access denied.");
-        if (milestone.Status != MilestoneStatus.CREATED) throw new ValidationException("Milestone must be CREATED to pay deposit.");
+        if (milestone.Status != MilestoneStatus.CREATED) throw new ValidationException(MilestoneMustBeCreatedError);
 
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
@@ -55,6 +57,13 @@ public class Treasury : ITreasury
             var depositAmount = milestone.Amount * 0.3m; // 30%
 
             if (clientWallet.AvailableBalance < depositAmount) throw new ValidationException("Insufficient balance for deposit.");
+
+            // Claim the milestone before moving any money. Status is a concurrency token, so if a
+            // concurrent PayDepositAsync call already flipped CREATED -> IN_PROGRESS and committed,
+            // this throws DbUpdateConcurrencyException here — before any wallet debit or Payment is staged.
+            milestone.Status = MilestoneStatus.IN_PROGRESS;
+            milestone.DepositPaidAt = DateTimeOffset.UtcNow;
+            await _dbContext.SaveChangesAsync();
 
             var clientBalanceBefore = clientWallet.AvailableBalance;
             var expertBalanceBefore = expertWallet.AvailableBalance;
@@ -109,10 +118,7 @@ public class Treasury : ITreasury
                 PaymentId = payment.Id
             });
 
-            // 4. Update Milestone & Project status
-            milestone.Status = MilestoneStatus.IN_PROGRESS;
-            milestone.DepositPaidAt = DateTimeOffset.UtcNow; // Record time deposit is paid
-
+            // 4. Milestone Step + Project status (Milestone.Status/DepositPaidAt already claimed above)
             var hasFundedStep = milestone.Steps?.Any(s => s.Title == "Funded") == true ||
                 await _dbContext.MilestoneSteps.AnyAsync(s => s.MilestoneId == milestoneId && s.Title == "Funded");
 
@@ -152,6 +158,15 @@ public class Treasury : ITreasury
             );
             _logger.LogInformation("✅ Milestone {MilestoneId} 30% deposit paid by Client {ClientId}", milestoneId, clientId);
             return new TreasuryResult(milestone, clientWallet, expertWallet, [payment]);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Milestone.Status is a concurrency token: a concurrent PayDepositAsync call already
+            // flipped CREATED -> IN_PROGRESS and committed first. Lose gracefully with the same
+            // error the caller would get from a normal sequential double-fund attempt.
+            await transaction.RollbackAsync();
+            _logger.LogWarning("⚠️ Lost the fund race for milestone {MilestoneId}: already claimed by a concurrent request", milestoneId);
+            throw new ValidationException(MilestoneMustBeCreatedError);
         }
         catch (Exception ex)
         {

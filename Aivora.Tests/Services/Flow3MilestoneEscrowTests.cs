@@ -22,8 +22,13 @@ public class Flow3MilestoneEscrowTests
 {
     private AivoraDbContext GetDbContext()
     {
+        return GetDbContext(Guid.NewGuid().ToString());
+    }
+
+    private AivoraDbContext GetDbContext(string databaseName)
+    {
         var options = new DbContextOptionsBuilder<AivoraDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(databaseName)
             .ConfigureWarnings(x => x.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning))
             .Options;
         return new AivoraDbContext(options);
@@ -393,5 +398,103 @@ public class Flow3MilestoneEscrowTests
 
         // Exception thrown means access was denied as expected
         Console.WriteLine("✅ Test passed: Non-client correctly prevented from funding");
+    }
+
+    /// <summary>
+    /// Test: Concurrent double-fund race (BUG-1, issue #154)
+    ///
+    /// Given: Milestone is CREATED and client has enough balance for exactly one deposit
+    /// When: N requests call FundMilestoneAsync for the same milestone at the same time
+    ///       (separate DbContext per request, like separate HTTP requests would get)
+    /// Then:
+    ///   - Exactly one request succeeds; the rest fail with the normal
+    ///     "Milestone must be CREATED to pay deposit." validation error
+    ///   - Exactly one Payment/WalletTransaction pair is persisted
+    ///   - Client is only debited once
+    /// </summary>
+    [Theory]
+    [InlineData(2)]
+    [InlineData(5)]
+    public async Task FundMilestoneAsync_WithConcurrentRequests_OnlyOneSucceeds(int concurrentRequests)
+    {
+        // ----------------------------------------------------
+        // Arrange: seed a CREATED milestone shared by every request
+        // ----------------------------------------------------
+        var dbName = Guid.NewGuid().ToString();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var milestoneId = Guid.NewGuid();
+
+        using (var seedContext = GetDbContext(dbName))
+        {
+            seedContext.Users.AddRange(
+                new User { Id = clientId, Email = $"race-client-{dbName}@aivora.com", PasswordHash = "hash", FullName = "Client", Role = UserRole.CLIENT, Status = UserStatus.ACTIVE },
+                new User { Id = expertId, Email = $"race-expert-{dbName}@aivora.com", PasswordHash = "hash", FullName = "Expert", Role = UserRole.EXPERT, Status = UserStatus.ACTIVE });
+            seedContext.Wallets.AddRange(
+                new Wallet { UserId = clientId, AvailableBalance = 2000, HeldBalance = 0, Currency = "AICOIN" },
+                new Wallet { UserId = expertId, AvailableBalance = 0, HeldBalance = 0, Currency = "AICOIN" });
+            seedContext.Projects.Add(new Project
+            {
+                Id = projectId,
+                JobId = Guid.NewGuid(),
+                AcceptedProposalId = Guid.NewGuid(),
+                ClientId = clientId,
+                ExpertId = expertId,
+                Title = "Race Project",
+                Description = "Race condition test project",
+                Status = ProjectStatus.PENDING_PAYMENT,
+                Currency = "AICOIN"
+            });
+            seedContext.Milestones.Add(new Milestone
+            {
+                Id = milestoneId,
+                ProjectId = projectId,
+                Amount = 900,
+                Status = MilestoneStatus.CREATED,
+                Title = "Race Milestone",
+                Currency = "AICOIN"
+            });
+            await seedContext.SaveChangesAsync();
+        }
+
+        Task<Response.FundResultResponse> RunFund()
+        {
+            var dbContext = GetDbContext(dbName);
+            var commissionOptions = Options.Create(new CommissionOptions { Rate = 0.10m });
+            var treasury = new Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService());
+            var milestoneService = new Service(dbContext, treasury, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
+            return milestoneService.FundMilestoneAsync(clientId, milestoneId);
+        }
+
+        // ----------------------------------------------------
+        // Act: fire every request truly in parallel (separate threads, separate DbContexts)
+        // ----------------------------------------------------
+        var tasks = Enumerable.Range(0, concurrentRequests).Select(_ => Task.Run(RunFund)).ToArray();
+        try { await Task.WhenAll(tasks); } catch { /* inspected per-task below */ }
+
+        // ----------------------------------------------------
+        // Assert: exactly one winner, everyone else gets the normal validation error
+        // ----------------------------------------------------
+        var succeeded = tasks.Where(t => t.IsCompletedSuccessfully).ToList();
+        var failed = tasks.Where(t => t.IsFaulted).ToList();
+
+        succeeded.Should().HaveCount(1, "double-click / retry-on-timeout must not fund the milestone twice");
+        failed.Should().HaveCount(concurrentRequests - 1);
+        failed.Should().OnlyContain(t => t.Exception!.InnerException is ValidationException);
+        failed.Select(t => ((ValidationException)t.Exception!.InnerException!).Message)
+            .Should().OnlyContain(m => m == "Milestone must be CREATED to pay deposit.");
+
+        using var verifyContext = GetDbContext(dbName);
+        var payments = await verifyContext.Payments.Where(p => p.MilestoneId == milestoneId).ToListAsync();
+        payments.Should().HaveCount(1);
+
+        var clientDebits = await verifyContext.WalletTransactions
+            .Where(t => t.UserId == clientId && t.Type == WalletTransactionType.PAYMENT_RELEASE)
+            .ToListAsync();
+        clientDebits.Should().HaveCount(1);
+
+        var clientWallet = await verifyContext.Wallets.FirstAsync(w => w.UserId == clientId);
+        clientWallet.AvailableBalance.Should().Be(1730); // 2000 - 270 (30% of 900), debited exactly once
     }
 }
