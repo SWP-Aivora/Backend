@@ -51,7 +51,7 @@ public class Service : IService
         var project = await _dbContext.Projects.FindAsync(projectId);
         if (project == null) throw new NotFoundException("Project not found.");
         if (project.ClientId != userId) throw new ForbiddenException("Only the client can add milestones.");
-        if (project.Status == ProjectStatus.COMPLETED || project.Status == ProjectStatus.CANCELLED)
+        if (project.IsClosed)
             throw new ValidationException("Cannot add milestones to a completed or cancelled project.");
 
         ValidateLength(request.Title, 255, "Title");
@@ -319,13 +319,10 @@ public class Service : IService
 
         if (project.ExpertId != userId) throw new ForbiddenException("Only the expert can manage milestone steps.");
 
-        if (project.Status == ProjectStatus.COMPLETED || project.Status == ProjectStatus.CANCELLED)
+        if (project.IsClosed)
             throw new ValidationException("Cannot add steps to a completed or cancelled project.");
 
-        if (milestone.Status == MilestoneStatus.APPROVED ||
-            milestone.Status == MilestoneStatus.RELEASED ||
-            milestone.Status == MilestoneStatus.COMPLETED ||
-            milestone.Status == MilestoneStatus.REFUNDED)
+        if (milestone.IsFinalized)
             throw new ValidationException("Cannot add steps to a finalized milestone.");
 
         ValidateLength(request.Title, 255, "Title");
@@ -377,13 +374,10 @@ public class Service : IService
         if (request.Title != null && IsSystemDefaultStep(request.Title))
             throw new ValidationException("Cannot rename custom step to a reserved system title.");
 
-        if (project.Status == ProjectStatus.COMPLETED || project.Status == ProjectStatus.CANCELLED)
+        if (project.IsClosed)
             throw new ValidationException("Cannot modify steps in a completed or cancelled project.");
 
-        if (step.Milestone.Status == MilestoneStatus.APPROVED ||
-            step.Milestone.Status == MilestoneStatus.RELEASED ||
-            step.Milestone.Status == MilestoneStatus.COMPLETED ||
-            step.Milestone.Status == MilestoneStatus.REFUNDED)
+        if (step.Milestone.IsFinalized)
             throw new ValidationException("Cannot modify steps for a finalized milestone.");
 
         ValidateLength(request.Title, 255, "Title");
@@ -429,13 +423,10 @@ public class Service : IService
         if (IsSystemDefaultStep(step.Title))
             throw new ValidationException("Cannot modify or delete default system milestone steps.");
 
-        if (project.Status == ProjectStatus.COMPLETED || project.Status == ProjectStatus.CANCELLED)
+        if (project.IsClosed)
             throw new ValidationException("Cannot modify steps in a completed or cancelled project.");
 
-        if (step.Milestone.Status == MilestoneStatus.APPROVED ||
-            step.Milestone.Status == MilestoneStatus.RELEASED ||
-            step.Milestone.Status == MilestoneStatus.COMPLETED ||
-            step.Milestone.Status == MilestoneStatus.REFUNDED)
+        if (step.Milestone.IsFinalized)
             throw new ValidationException("Cannot modify steps for a finalized milestone.");
 
         _dbContext.MilestoneSteps.Remove(step);
@@ -471,13 +462,10 @@ public class Service : IService
         if (IsSystemDefaultStep(step.Title))
             throw new ValidationException("Cannot modify or delete default system milestone steps.");
 
-        if (project.Status == ProjectStatus.COMPLETED || project.Status == ProjectStatus.CANCELLED)
+        if (project.IsClosed)
             throw new ValidationException("Cannot modify steps in a completed or cancelled project.");
 
-        if (step.Milestone.Status == MilestoneStatus.APPROVED ||
-            step.Milestone.Status == MilestoneStatus.RELEASED ||
-            step.Milestone.Status == MilestoneStatus.COMPLETED ||
-            step.Milestone.Status == MilestoneStatus.REFUNDED)
+        if (step.Milestone.IsFinalized)
             throw new ValidationException("Cannot modify steps for a finalized milestone.");
 
         if (request.Status != step.Status)
@@ -592,13 +580,10 @@ public class Service : IService
         if (stepIds == null || stepIds.Count == 0)
             throw new ValidationException("Step IDs list cannot be empty.");
 
-        if (milestone.Project.Status == ProjectStatus.COMPLETED || milestone.Project.Status == ProjectStatus.CANCELLED)
+        if (milestone.Project.IsClosed)
             throw new ValidationException("Cannot modify steps in a completed or cancelled project.");
 
-        if (milestone.Status == MilestoneStatus.APPROVED ||
-            milestone.Status == MilestoneStatus.RELEASED ||
-            milestone.Status == MilestoneStatus.COMPLETED ||
-            milestone.Status == MilestoneStatus.REFUNDED)
+        if (milestone.IsFinalized)
             throw new ValidationException("Cannot modify steps for a finalized milestone.");
 
         var steps = await _dbContext.MilestoneSteps

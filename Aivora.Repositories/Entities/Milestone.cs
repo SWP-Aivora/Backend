@@ -23,6 +23,9 @@ public class Milestone : AuditableBaseEntity
 
     public bool IsSettled => Status == MilestoneStatus.RELEASED || Status == MilestoneStatus.REFUNDED;
 
+    // Khác IsSettled (tiền đã tất toán): IsFinalized = không còn cho sửa steps nữa.
+    public bool IsFinalized => Status is MilestoneStatus.APPROVED or MilestoneStatus.RELEASED or MilestoneStatus.COMPLETED or MilestoneStatus.REFUNDED;
+
     // Navigation Properties
     public virtual Project Project { get; set; } = null!;
     public virtual ICollection<Deliverable> Deliverables { get; set; } = new List<Deliverable>();
