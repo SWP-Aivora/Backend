@@ -122,7 +122,7 @@ public class ServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetProjectByIdAsync_ClientUser_OtherProject_ShouldThrowUnauthorized()
+    public async Task GetProjectByIdAsync_ClientUser_OtherProject_ShouldThrowForbidden()
     {
         // Arrange
         var ownerClientId = Guid.NewGuid();
@@ -139,7 +139,7 @@ public class ServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetProjectByIdAsync_ExpertUser_UnassignedProject_ShouldThrowUnauthorized()
+    public async Task GetProjectByIdAsync_ExpertUser_UnassignedProject_ShouldThrowForbidden()
     {
         // Arrange
         var clientId = Guid.NewGuid();

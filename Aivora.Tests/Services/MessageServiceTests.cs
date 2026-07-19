@@ -351,7 +351,7 @@ public class MessageServiceTests
     }
 
     [Fact]
-    public async Task EnsureConversationParticipantAsync_AdminWithNoContext_ThrowsUnauthorized()
+    public async Task EnsureConversationParticipantAsync_AdminWithNoContext_ThrowsForbidden()
     {
         // Arrange
         var dbContext = GetDbContext();
@@ -379,7 +379,7 @@ public class MessageServiceTests
     }
 
     [Fact]
-    public async Task MarkAsReadAsync_AdminNotParticipant_ThrowsUnauthorized()
+    public async Task MarkAsReadAsync_AdminNotParticipant_ThrowsForbidden()
     {
         // Arrange
         var dbContext = GetDbContext();

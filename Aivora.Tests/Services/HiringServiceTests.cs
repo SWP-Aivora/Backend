@@ -127,7 +127,7 @@ public class HiringServiceTests
     }
 
     [Fact]
-    public async Task UnshortlistProposalAsync_ThrowsWhenUnauthorized()
+    public async Task UnshortlistProposalAsync_ThrowsWhenForbidden()
     {
         // Arrange
         var dbContext = GetDbContext();

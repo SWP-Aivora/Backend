@@ -285,7 +285,7 @@ public class DisputeServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task CloseDispute_ByNonOpener_ShouldThrowUnauthorized()
+    public async Task CloseDispute_ByNonOpener_ShouldThrowForbidden()
     {
         // Arrange
         var client = await SeedUserAsync(UserRole.CLIENT, "client@test.com");
