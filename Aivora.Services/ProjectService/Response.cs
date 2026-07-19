@@ -7,8 +7,9 @@ public class Response
     public class ProjectResponse
     {
         public Guid Id { get; set; }
-        public Guid JobId { get; set; }
-        public Guid AcceptedProposalId { get; set; }
+        public Guid? JobId { get; set; }
+        public Guid? AcceptedProposalId { get; set; }
+        public Guid? ServiceRequestId { get; set; }
         public Guid ClientId { get; set; }
         public string ClientName { get; set; } = null!;
         public Guid ExpertId { get; set; }

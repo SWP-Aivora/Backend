@@ -25,6 +25,7 @@ public class AivoraDbContext : DbContext
     public DbSet<JobSkill> JobSkills => Set<JobSkill>();
     public DbSet<JobPostMilestone> JobPostMilestones => Set<JobPostMilestone>();
     public DbSet<AIJobSuggestion> AIJobSuggestions => Set<AIJobSuggestion>();
+    public DbSet<JobInvite> JobInvites => Set<JobInvite>();
 
     // Proposals & Projects
     public DbSet<Proposal> Proposals => Set<Proposal>();
@@ -33,6 +34,14 @@ public class AivoraDbContext : DbContext
     public DbSet<Milestone> Milestones => Set<Milestone>();
     public DbSet<MilestoneStep> MilestoneSteps => Set<MilestoneStep>();
     public DbSet<Deliverable> Deliverables => Set<Deliverable>();
+
+    // Services (marketplace gigs)
+    public DbSet<ServiceListing> Services => Set<ServiceListing>();
+    public DbSet<ServicePackage> ServicePackages => Set<ServicePackage>();
+    public DbSet<ServiceFaq> ServiceFaqs => Set<ServiceFaq>();
+    public DbSet<ServiceRequest> ServiceRequests => Set<ServiceRequest>();
+    public DbSet<ServiceOffer> ServiceOffers => Set<ServiceOffer>();
+    public DbSet<ServiceOfferMilestone> ServiceOfferMilestones => Set<ServiceOfferMilestone>();
 
     // Finance
     public DbSet<Wallet> Wallets => Set<Wallet>();

@@ -73,6 +73,7 @@ public class AIJobAssistantProviderTests
 
         draft.Packages.Should().HaveCount(3);
         draft.Packages.Select(x => x.Name).Should().Equal("Basic", "Standard", "Premium");
+        draft.Provider.Should().Be("gemini");
     }
 
     [Fact]
@@ -150,6 +151,16 @@ public class AIJobAssistantProviderTests
 
         result.ChangedFields.Should().Contain("suggestedBudgetMin");
         result.Suggestion.SuggestedBudgetMin.Should().Be(100);
+    }
+
+    [Fact]
+    public async Task MockServiceDescriptionProvider_ReturnsMockProvider()
+    {
+        var provider = new MockAIServiceDescriptionProvider();
+
+        var draft = await provider.GenerateServiceDescriptionAsync(BuildServiceRequest());
+
+        draft.Provider.Should().Be("mock");
     }
 
     [Fact]

@@ -589,9 +589,9 @@ public class Treasury : ITreasury
             project.CompletedAt = DateTimeOffset.UtcNow;
 
             // Load job optionally if it exists in the database to prevent inner join failure in tests
-            if (project.JobId != Guid.Empty && project.Job == null)
+            if (project.JobId.HasValue && project.Job == null)
             {
-                project.Job = await _dbContext.JobPosts.FirstOrDefaultAsync(j => j.Id == project.JobId);
+                project.Job = await _dbContext.JobPosts.FirstOrDefaultAsync(j => j.Id == project.JobId.Value);
             }
 
             // Sync Job status
@@ -602,8 +602,12 @@ public class Treasury : ITreasury
             }
             _logger.LogInformation("🏆 Project {ProjectId} marked as COMPLETED because all milestones are settled.", project.Id);
 
-            var affectedUsers = new[] { project.ClientId, project.ExpertId };
-            await _realtimeService.SendJobStatusUpdateToUsersAsync(affectedUsers, project.JobId, JobStatus.COMPLETED, project.Job?.Title);
+            // Projects created from a Service offer have no JobId, so there is no Job realtime update to send.
+            if (project.JobId.HasValue)
+            {
+                var affectedUsers = new[] { project.ClientId, project.ExpertId };
+                await _realtimeService.SendJobStatusUpdateToUsersAsync(affectedUsers, project.JobId.Value, JobStatus.COMPLETED, project.Job?.Title);
+            }
         }
         else if (project.Milestones.Any(m => m.Status == MilestoneStatus.DISPUTED))
         {

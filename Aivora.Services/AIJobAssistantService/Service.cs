@@ -259,7 +259,8 @@ public class Service : IService
             SuggestedTitle = draft.SuggestedTitle,
             SuggestedDescription = draft.SuggestedDescription,
             Packages = packages,
-            Faqs = draft.Faqs
+            Faqs = draft.Faqs,
+            Provider = draft.Provider
         };
     }
 

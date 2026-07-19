@@ -619,8 +619,7 @@ public class AivoraDataSeeder : IAivoraDataSeeder
 
         if (jobPost1 == null || jobPost2 == null) return;
 
-        // Seed Proposals first — Project.AcceptedProposalId is a required (non-nullable) FK,
-        // so the accepted Proposal must exist before the Project row can be inserted.
+        // Seed Proposals first so the accepted Proposal exists before the Project row is inserted.
         var proposal1 = new Proposal
         {
             JobId = jobPost1.Id,

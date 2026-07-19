@@ -60,6 +60,7 @@ public class Response
         public string SuggestedDescription { get; set; } = null!;
         public List<ServicePackageResponse> Packages { get; set; } = new();
         public List<ServiceFaqResponse> Faqs { get; set; } = new();
+        public string Provider { get; set; } = null!;
     }
 
     public class ServicePackageResponse

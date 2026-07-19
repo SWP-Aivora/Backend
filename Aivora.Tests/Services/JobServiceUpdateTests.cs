@@ -273,4 +273,40 @@ public class JobServiceUpdateTests
         var dbJob = await dbContext.JobPosts.FindAsync(job.Id);
         dbJob!.Status.Should().Be(JobStatus.OPEN);
     }
+
+    [Fact]
+    public async Task CancelJobAsync_ExpiresPendingJobInvitesForThatJob()
+    {
+        var dbContext = GetDbContext();
+        var (_, client, clientId) = SetupClient(dbContext);
+        var expert = new User { FullName = "Expert", Email = "expert@test.com", PasswordHash = "hash" };
+        dbContext.Users.Add(expert);
+
+        var job = new JobPost
+        {
+            ClientId = clientId,
+            Title = "Test Job",
+            OriginalDescription = "Desc",
+            CategoryId = Guid.NewGuid(),
+            Status = JobStatus.OPEN
+        };
+        dbContext.JobPosts.Add(job);
+        await dbContext.SaveChangesAsync();
+
+        var invite = new JobInvite
+        {
+            JobId = job.Id,
+            ExpertId = expert.Id,
+            ClientId = clientId,
+            Status = JobInviteStatus.PENDING
+        };
+        dbContext.JobInvites.Add(invite);
+        await dbContext.SaveChangesAsync();
+
+        var service = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService());
+        await service.CancelJobAsync(clientId, job.Id, "No longer needed");
+
+        var dbInvite = await dbContext.JobInvites.FindAsync(invite.Id);
+        dbInvite!.Status.Should().Be(JobInviteStatus.EXPIRED);
+    }
 }

@@ -117,6 +117,7 @@ public class Service : IService
             Id = p.Id,
             JobId = p.JobId,
             AcceptedProposalId = p.AcceptedProposalId,
+            ServiceRequestId = p.ServiceRequestId,
             ClientId = p.ClientId,
             ClientName = p.Client?.FullName ?? "N/A",
             ExpertId = p.ExpertId,

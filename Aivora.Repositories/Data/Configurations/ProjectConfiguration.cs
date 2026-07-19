@@ -20,12 +20,23 @@ public class ProjectConfiguration : IEntityTypeConfiguration<Project>
         builder.HasOne(x => x.Job)
             .WithOne()
             .HasForeignKey<Project>(x => x.JobId)
+            .IsRequired(false)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(x => x.AcceptedProposal)
             .WithOne()
             .HasForeignKey<Project>(x => x.AcceptedProposalId)
+            .IsRequired(false)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.ServiceRequest)
+            .WithMany()
+            .HasForeignKey(x => x.ServiceRequestId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(x => x.ServiceRequestId)
+            .HasFilter("\"IsDeleted\" = false AND \"ServiceRequestId\" IS NOT NULL")
+            .IsUnique();
 
         builder.HasOne(x => x.Client)
             .WithMany()

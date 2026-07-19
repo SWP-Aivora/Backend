@@ -180,6 +180,77 @@ public class MilestoneServiceTests
     }
 
     [Fact]
+    public async Task CreateMilestoneAsync_WhenProjectDisputed_ThrowsValidationException()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+
+        var project = new Project { Id = projectId, ClientId = clientId, ExpertId = Guid.NewGuid(), Title = "Test Project", Status = ProjectStatus.DISPUTED };
+        dbContext.Projects.Add(project);
+        await dbContext.SaveChangesAsync();
+
+        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
+        var request = new Request.CreateMilestoneRequest { Title = "M1", Amount = 100 };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.CreateMilestoneAsync(clientId, projectId, request));
+        ex.Message.Should().Be("Cannot create a milestone while there is an active dispute.");
+    }
+
+    [Fact]
+    public async Task UpdateMilestoneAsync_WhenMilestoneDisputed_ThrowsValidationException()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var milestoneId = Guid.NewGuid();
+
+        var project = new Project { Id = projectId, ClientId = clientId, ExpertId = Guid.NewGuid(), Title = "Test Project", Status = ProjectStatus.DISPUTED };
+        var milestone = new Milestone { Id = milestoneId, ProjectId = projectId, Amount = 300, Status = MilestoneStatus.DISPUTED, Title = "Milestone 1" };
+
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestone);
+        await dbContext.SaveChangesAsync();
+
+        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
+        var request = new Request.UpdateMilestoneRequest { DueDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)) };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.UpdateMilestoneAsync(clientId, milestoneId, request));
+        ex.Message.Should().Be("Cannot update a milestone while there is an active dispute.");
+    }
+
+    [Fact]
+    public async Task UpdateMilestoneAsync_WhenProjectDisputed_ThrowsValidationException()
+    {
+        // Arrange: milestone itself is not DISPUTED, but a sibling milestone made the project DISPUTED
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var milestoneId = Guid.NewGuid();
+
+        var project = new Project { Id = projectId, ClientId = clientId, ExpertId = Guid.NewGuid(), Title = "Test Project", Status = ProjectStatus.DISPUTED };
+        var milestone = new Milestone { Id = milestoneId, ProjectId = projectId, Amount = 300, Status = MilestoneStatus.CREATED, Title = "Milestone 1" };
+
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestone);
+        await dbContext.SaveChangesAsync();
+
+        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
+        var request = new Request.UpdateMilestoneRequest { DueDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)) };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.UpdateMilestoneAsync(clientId, milestoneId, request));
+        ex.Message.Should().Be("Cannot update a milestone while there is an active dispute.");
+    }
+
+    [Fact]
     public async Task CreateMilestoneAsync_TitleTooLong_ThrowsValidationException()
     {
         // Arrange

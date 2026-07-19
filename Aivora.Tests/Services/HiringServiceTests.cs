@@ -61,6 +61,40 @@ public class HiringServiceTests
     }
 
     [Fact]
+    public async Task AcceptProposalAsync_ExpiresPendingJobInvitesForThatJobInTheSameTransaction()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+        var invitedExpertId = Guid.NewGuid();
+        var respondedInvitedExpertId = Guid.NewGuid();
+
+        var job = new JobPost { Id = Guid.NewGuid(), ClientId = clientId, Title = "Test Job", Status = JobStatus.OPEN, OriginalDescription = "X" };
+        var proposal = new Proposal { Id = Guid.NewGuid(), JobId = job.Id, ExpertId = expertId, Status = ProposalStatus.SUBMITTED, ProposedBudget = 1000, Currency = "AICOIN", CoverLetter = "L1" };
+        var pendingInvite = new JobInvite { Id = Guid.NewGuid(), JobId = job.Id, ExpertId = invitedExpertId, ClientId = clientId, Status = JobInviteStatus.PENDING };
+        var acceptedInvite = new JobInvite { Id = Guid.NewGuid(), JobId = job.Id, ExpertId = respondedInvitedExpertId, ClientId = clientId, Status = JobInviteStatus.ACCEPTED, RespondedAt = DateTimeOffset.UtcNow };
+
+        dbContext.JobPosts.Add(job);
+        dbContext.Proposals.Add(proposal);
+        dbContext.JobInvites.AddRange(pendingInvite, acceptedInvite);
+        await dbContext.SaveChangesAsync();
+
+        var service = new Aivora.Services.HiringService.HiringService(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService());
+
+        // Act
+        await service.AcceptProposalAsync(clientId, proposal.Id);
+
+        // Assert
+        var updatedPendingInvite = await dbContext.JobInvites.FindAsync(pendingInvite.Id);
+        updatedPendingInvite!.Status.Should().Be(JobInviteStatus.EXPIRED);
+
+        // An invite the Expert already responded to must not be touched by the auto-expire.
+        var updatedAcceptedInvite = await dbContext.JobInvites.FindAsync(acceptedInvite.Id);
+        updatedAcceptedInvite!.Status.Should().Be(JobInviteStatus.ACCEPTED);
+    }
+
+    [Fact]
     public async Task ShortlistProposalAsync_UpdatesStatus()
     {
         // Arrange

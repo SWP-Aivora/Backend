@@ -832,6 +832,102 @@ public class MilestoneStepServiceTests
     }
 
     [Fact]
+    public async Task ModifyStep_WhenProjectDisputed_ThrowsValidationException()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var milestoneId = Guid.NewGuid();
+        var stepId = Guid.NewGuid();
+
+        var project = new Project { Id = projectId, ClientId = clientId, ExpertId = expertId, Title = "Test Project", Status = ProjectStatus.DISPUTED };
+        var milestone = new Milestone { Id = milestoneId, ProjectId = projectId, Title = "Milestone 1", Amount = 100, Status = MilestoneStatus.CREATED };
+        var step = new MilestoneStep { Id = stepId, MilestoneId = milestoneId, Title = "Step 1", OrderIndex = 1, Status = MilestoneStepStatus.PENDING };
+
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestone);
+        dbContext.MilestoneSteps.Add(step);
+        await dbContext.SaveChangesAsync();
+
+        var service = GetService(dbContext);
+
+        // Act & Assert for AddMilestoneStepAsync
+        var addEx = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.AddMilestoneStepAsync(expertId, milestoneId, new Request.CreateMilestoneStepRequest { Title = "New Step", OrderIndex = 2 }));
+        addEx.Message.Should().Be("Cannot add steps while there is an active dispute.");
+
+        // Act & Assert for UpdateMilestoneStepAsync
+        var updateEx = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.UpdateMilestoneStepAsync(expertId, stepId, new Request.UpdateMilestoneStepRequest { Title = "New Title" }));
+        updateEx.Message.Should().Be("Cannot modify steps while there is an active dispute.");
+
+        // Act & Assert for DeleteMilestoneStepAsync
+        var deleteEx = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.DeleteMilestoneStepAsync(expertId, stepId));
+        deleteEx.Message.Should().Be("Cannot modify steps while there is an active dispute.");
+
+        // Act & Assert for ReorderMilestoneStepsAsync
+        var reorderEx = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.ReorderMilestoneStepsAsync(expertId, milestoneId, new List<Guid> { stepId }));
+        reorderEx.Message.Should().Be("Cannot modify steps while there is an active dispute.");
+
+        // Act & Assert for UpdateStepStatusAsync
+        var statusEx = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.UpdateStepStatusAsync(expertId, stepId, new Request.UpdateStepStatusRequest { Status = MilestoneStepStatus.SKIPPED }));
+        statusEx.Message.Should().Be("Cannot modify steps while there is an active dispute.");
+    }
+
+    [Fact]
+    public async Task ModifyStep_WhenMilestoneDisputed_ThrowsValidationException()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var milestoneId = Guid.NewGuid();
+        var stepId = Guid.NewGuid();
+
+        var project = new Project { Id = projectId, ClientId = clientId, ExpertId = expertId, Title = "Test Project", Status = ProjectStatus.ACTIVE };
+        var milestone = new Milestone { Id = milestoneId, ProjectId = projectId, Title = "Milestone 1", Amount = 100, Status = MilestoneStatus.DISPUTED };
+        var step = new MilestoneStep { Id = stepId, MilestoneId = milestoneId, Title = "Step 1", OrderIndex = 1, Status = MilestoneStepStatus.PENDING };
+
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestone);
+        dbContext.MilestoneSteps.Add(step);
+        await dbContext.SaveChangesAsync();
+
+        var service = GetService(dbContext);
+
+        // Act & Assert for AddMilestoneStepAsync
+        var addEx = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.AddMilestoneStepAsync(expertId, milestoneId, new Request.CreateMilestoneStepRequest { Title = "New Step", OrderIndex = 2 }));
+        addEx.Message.Should().Be("Cannot add steps while there is an active dispute.");
+
+        // Act & Assert for UpdateMilestoneStepAsync
+        var updateEx = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.UpdateMilestoneStepAsync(expertId, stepId, new Request.UpdateMilestoneStepRequest { Title = "New Title" }));
+        updateEx.Message.Should().Be("Cannot modify steps while there is an active dispute.");
+
+        // Act & Assert for DeleteMilestoneStepAsync
+        var deleteEx = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.DeleteMilestoneStepAsync(expertId, stepId));
+        deleteEx.Message.Should().Be("Cannot modify steps while there is an active dispute.");
+
+        // Act & Assert for ReorderMilestoneStepsAsync
+        var reorderEx = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.ReorderMilestoneStepsAsync(expertId, milestoneId, new List<Guid> { stepId }));
+        reorderEx.Message.Should().Be("Cannot modify steps while there is an active dispute.");
+
+        // Act & Assert for UpdateStepStatusAsync
+        var statusEx = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.UpdateStepStatusAsync(expertId, stepId, new Request.UpdateStepStatusRequest { Status = MilestoneStepStatus.SKIPPED }));
+        statusEx.Message.Should().Be("Cannot modify steps while there is an active dispute.");
+    }
+
+    [Fact]
     public async Task ReorderMilestoneStepsAsync_WithMissingStepIds_ThrowsValidationException()
     {
         // Arrange

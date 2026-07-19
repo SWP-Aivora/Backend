@@ -241,6 +241,9 @@ namespace Aivora.Repositories.Data.Migrations
                     b.Property<Guid?>("ProjectId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("ServiceRequestId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -253,6 +256,8 @@ namespace Aivora.Repositories.Data.Migrations
                     b.HasIndex("JobId");
 
                     b.HasIndex("ProjectId");
+
+                    b.HasIndex("ServiceRequestId");
 
                     b.ToTable("Conversations", (string)null);
                 });
@@ -640,6 +645,50 @@ namespace Aivora.Repositories.Data.Migrations
                     b.HasIndex("ExpertSkillId", "CreatedAt");
 
                     b.ToTable("ExpertVerifications", (string)null);
+                });
+
+            modelBuilder.Entity("Aivora.Repositories.Entities.JobInvite", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ExpertId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("JobId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("RespondedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClientId");
+
+                    b.HasIndex("ExpertId");
+
+                    b.HasIndex("JobId", "ExpertId")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false");
+
+                    b.ToTable("JobInvites", (string)null);
                 });
 
             modelBuilder.Entity("Aivora.Repositories.Entities.JobPost", b =>
@@ -1105,7 +1154,7 @@ namespace Aivora.Repositories.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("AcceptedProposalId")
+                    b.Property<Guid?>("AcceptedProposalId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset?>("CancelledAt")
@@ -1138,7 +1187,10 @@ namespace Aivora.Repositories.Data.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
-                    b.Property<Guid>("JobId")
+                    b.Property<Guid?>("JobId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ServiceRequestId")
                         .HasColumnType("uuid");
 
                     b.Property<DateOnly?>("StartDate")
@@ -1171,6 +1223,10 @@ namespace Aivora.Repositories.Data.Migrations
 
                     b.HasIndex("JobId")
                         .IsUnique();
+
+                    b.HasIndex("ServiceRequestId")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false AND \"ServiceRequestId\" IS NOT NULL");
 
                     b.ToTable("Projects", (string)null);
                 });
@@ -1406,6 +1462,279 @@ namespace Aivora.Repositories.Data.Migrations
                     b.HasIndex("ReviewerId");
 
                     b.ToTable("Reviews", (string)null);
+                });
+
+            modelBuilder.Entity("Aivora.Repositories.Entities.ServiceFaq", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Answer")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Question")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("ServiceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ServiceId");
+
+                    b.ToTable("ServiceFaqs", (string)null);
+                });
+
+            modelBuilder.Entity("Aivora.Repositories.Entities.ServiceListing", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AttachmentUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(5000)
+                        .HasColumnType("character varying(5000)");
+
+                    b.Property<Guid>("ExpertId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset?>("PublishedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpertId");
+
+                    b.ToTable("Services", (string)null);
+                });
+
+            modelBuilder.Entity("Aivora.Repositories.Entities.ServiceOffer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ExpertId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("ServiceRequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpertId");
+
+                    b.HasIndex("ServiceRequestId");
+
+                    b.ToTable("ServiceOffers", (string)null);
+                });
+
+            modelBuilder.Entity("Aivora.Repositories.Entities.ServiceOfferMilestone", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AcceptanceCriteria")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("DueDays")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("OrderIndex")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ServiceOfferId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ServiceOfferId");
+
+                    b.ToTable("ServiceOfferMilestones", (string)null);
+                });
+
+            modelBuilder.Entity("Aivora.Repositories.Entities.ServicePackage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("DeliveryDays")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("Features")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<decimal>("Price")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid>("ServiceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Tier")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ServiceId");
+
+                    b.ToTable("ServicePackages", (string)null);
+                });
+
+            modelBuilder.Entity("Aivora.Repositories.Entities.ServiceRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("PackageDeliveryDays")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("PackageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("PackagePrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("PackageTitle")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<Guid>("ServiceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClientId");
+
+                    b.HasIndex("PackageId");
+
+                    b.HasIndex("ServiceId", "ClientId")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false AND \"Status\" = 'PENDING'");
+
+                    b.ToTable("ServiceRequests", (string)null);
                 });
 
             modelBuilder.Entity("Aivora.Repositories.Entities.Skill", b =>
@@ -1682,6 +2011,11 @@ namespace Aivora.Repositories.Data.Migrations
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("Aivora.Repositories.Entities.ServiceRequest", "ServiceRequest")
+                        .WithMany()
+                        .HasForeignKey("ServiceRequestId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("Client");
 
                     b.Navigation("Expert");
@@ -1689,6 +2023,8 @@ namespace Aivora.Repositories.Data.Migrations
                     b.Navigation("Job");
 
                     b.Navigation("Project");
+
+                    b.Navigation("ServiceRequest");
                 });
 
             modelBuilder.Entity("Aivora.Repositories.Entities.Deliverable", b =>
@@ -1833,6 +2169,33 @@ namespace Aivora.Repositories.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("ExpertSkill");
+                });
+
+            modelBuilder.Entity("Aivora.Repositories.Entities.JobInvite", b =>
+                {
+                    b.HasOne("Aivora.Repositories.Entities.User", "Client")
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Aivora.Repositories.Entities.User", "Expert")
+                        .WithMany()
+                        .HasForeignKey("ExpertId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Aivora.Repositories.Entities.JobPost", "Job")
+                        .WithMany()
+                        .HasForeignKey("JobId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Client");
+
+                    b.Navigation("Expert");
+
+                    b.Navigation("Job");
                 });
 
             modelBuilder.Entity("Aivora.Repositories.Entities.JobPost", b =>
@@ -1982,8 +2345,7 @@ namespace Aivora.Repositories.Data.Migrations
                     b.HasOne("Aivora.Repositories.Entities.Proposal", "AcceptedProposal")
                         .WithOne()
                         .HasForeignKey("Aivora.Repositories.Entities.Project", "AcceptedProposalId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("Aivora.Repositories.Entities.User", "Client")
                         .WithMany()
@@ -2000,8 +2362,12 @@ namespace Aivora.Repositories.Data.Migrations
                     b.HasOne("Aivora.Repositories.Entities.JobPost", "Job")
                         .WithOne()
                         .HasForeignKey("Aivora.Repositories.Entities.Project", "JobId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Aivora.Repositories.Entities.ServiceRequest", "ServiceRequest")
+                        .WithMany()
+                        .HasForeignKey("ServiceRequestId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("AcceptedProposal");
 
@@ -2010,6 +2376,8 @@ namespace Aivora.Repositories.Data.Migrations
                     b.Navigation("Expert");
 
                     b.Navigation("Job");
+
+                    b.Navigation("ServiceRequest");
                 });
 
             modelBuilder.Entity("Aivora.Repositories.Entities.Proposal", b =>
@@ -2086,6 +2454,96 @@ namespace Aivora.Repositories.Data.Migrations
                     b.Navigation("Reviewee");
 
                     b.Navigation("Reviewer");
+                });
+
+            modelBuilder.Entity("Aivora.Repositories.Entities.ServiceFaq", b =>
+                {
+                    b.HasOne("Aivora.Repositories.Entities.ServiceListing", "Service")
+                        .WithMany("Faqs")
+                        .HasForeignKey("ServiceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Service");
+                });
+
+            modelBuilder.Entity("Aivora.Repositories.Entities.ServiceListing", b =>
+                {
+                    b.HasOne("Aivora.Repositories.Entities.User", "Expert")
+                        .WithMany()
+                        .HasForeignKey("ExpertId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Expert");
+                });
+
+            modelBuilder.Entity("Aivora.Repositories.Entities.ServiceOffer", b =>
+                {
+                    b.HasOne("Aivora.Repositories.Entities.User", "Expert")
+                        .WithMany()
+                        .HasForeignKey("ExpertId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Aivora.Repositories.Entities.ServiceRequest", "ServiceRequest")
+                        .WithMany()
+                        .HasForeignKey("ServiceRequestId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Expert");
+
+                    b.Navigation("ServiceRequest");
+                });
+
+            modelBuilder.Entity("Aivora.Repositories.Entities.ServiceOfferMilestone", b =>
+                {
+                    b.HasOne("Aivora.Repositories.Entities.ServiceOffer", "ServiceOffer")
+                        .WithMany("Milestones")
+                        .HasForeignKey("ServiceOfferId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ServiceOffer");
+                });
+
+            modelBuilder.Entity("Aivora.Repositories.Entities.ServicePackage", b =>
+                {
+                    b.HasOne("Aivora.Repositories.Entities.ServiceListing", "Service")
+                        .WithMany("Packages")
+                        .HasForeignKey("ServiceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Service");
+                });
+
+            modelBuilder.Entity("Aivora.Repositories.Entities.ServiceRequest", b =>
+                {
+                    b.HasOne("Aivora.Repositories.Entities.User", "Client")
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Aivora.Repositories.Entities.ServicePackage", "Package")
+                        .WithMany()
+                        .HasForeignKey("PackageId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Aivora.Repositories.Entities.ServiceListing", "Service")
+                        .WithMany()
+                        .HasForeignKey("ServiceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Client");
+
+                    b.Navigation("Package");
+
+                    b.Navigation("Service");
                 });
 
             modelBuilder.Entity("Aivora.Repositories.Entities.Skill", b =>
@@ -2176,6 +2634,18 @@ namespace Aivora.Repositories.Data.Migrations
                 });
 
             modelBuilder.Entity("Aivora.Repositories.Entities.Proposal", b =>
+                {
+                    b.Navigation("Milestones");
+                });
+
+            modelBuilder.Entity("Aivora.Repositories.Entities.ServiceListing", b =>
+                {
+                    b.Navigation("Faqs");
+
+                    b.Navigation("Packages");
+                });
+
+            modelBuilder.Entity("Aivora.Repositories.Entities.ServiceOffer", b =>
                 {
                     b.Navigation("Milestones");
                 });
