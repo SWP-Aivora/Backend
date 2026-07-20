@@ -5,18 +5,21 @@ namespace Aivora.api.Extensions;
 
 public static class SeedingServiceExtensions
 {
-    public static async Task EnsureSystemSeedAsync(this IApplicationBuilder app)
+    public static Task EnsureSystemSeedAsync(this IApplicationBuilder app)
     {
-        using var scope = app.ApplicationServices.CreateScope();
-        var seeder = scope.ServiceProvider.GetRequiredService<IAivoraDataSeeder>();
-        await seeder.EnsureSystemUserAsync();
+        return WithSeederAsync(app, seeder => seeder.EnsureSystemUserAsync());
     }
 
-    public static async Task SeedDataAsync(this IApplicationBuilder app)
+    public static Task SeedDataAsync(this IApplicationBuilder app)
+    {
+        return WithSeederAsync(app, seeder => seeder.SeedAsync());
+    }
+
+    private static async Task WithSeederAsync(IApplicationBuilder app, Func<IAivoraDataSeeder, Task> action)
     {
         using var scope = app.ApplicationServices.CreateScope();
         var seeder = scope.ServiceProvider.GetRequiredService<IAivoraDataSeeder>();
-        await seeder.SeedAsync();
+        await action(seeder);
     }
 
     public static IServiceCollection AddAivoraDataSeeder(this IServiceCollection services)

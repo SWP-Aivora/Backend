@@ -24,21 +24,12 @@ public class AivoraDataSeeder : IAivoraDataSeeder
         _configuration = configuration;
     }
 
+    // Runs unconditionally on every environment, including Production, on every startup
+    // (see Program.cs) — Treasury's milestone payout path hard-depends on this wallet
+    // existing. Each insert is guarded against a concurrent-startup race (e.g. multiple
+    // Render instances booting at once) via the same duplicate-key catch pattern used in
+    // WalletService/Service.cs.
     public async Task EnsureSystemUserAsync()
-    {
-        await _context.Database.EnsureCreatedAsync();
-        await EnsureSystemUserAndWalletAsync();
-    }
-
-    public async Task SeedAsync()
-    {
-        if (!await _context.Users.AnyAsync(u => u.Role != UserRole.SYSTEM))
-        {
-            await SeedDefaultData();
-        }
-    }
-
-    private async Task EnsureSystemUserAndWalletAsync()
     {
         var systemUserId = SystemConstants.SystemUserId;
 
@@ -56,7 +47,14 @@ public class AivoraDataSeeder : IAivoraDataSeeder
                 CreatedAt = DateTimeOffset.UtcNow,
                 UpdatedAt = DateTimeOffset.UtcNow
             });
-            await _context.SaveChangesAsync();
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+            {
+                _context.Entry(_context.Users.Local.First(u => u.Id == systemUserId)).State = EntityState.Detached;
+            }
         }
 
         if (!await _context.Wallets.AnyAsync(w => w.UserId == systemUserId))
@@ -69,7 +67,27 @@ public class AivoraDataSeeder : IAivoraDataSeeder
                 CreatedAt = DateTimeOffset.UtcNow,
                 UpdatedAt = DateTimeOffset.UtcNow
             });
-            await _context.SaveChangesAsync();
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+            {
+                // Another instance won the race and already created it — fine.
+            }
+        }
+    }
+
+    private static bool IsUniqueViolation(DbUpdateException ex)
+    {
+        return ex.InnerException is Npgsql.PostgresException pgEx && pgEx.SqlState == "23505";
+    }
+
+    public async Task SeedAsync()
+    {
+        if (!await _context.Users.AnyAsync(u => u.Role != UserRole.SYSTEM))
+        {
+            await SeedDefaultData();
         }
     }
 
