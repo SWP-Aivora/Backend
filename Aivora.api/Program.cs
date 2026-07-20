@@ -49,7 +49,11 @@ app.MapHub<Aivora.api.Hubs.ChatHub>("/api/v1/chat");
 try
 {
     await app.MigrateDatabaseAsync();
-    await app.SeedDataAsync();
+    await app.EnsureSystemSeedAsync();
+    if (!app.Environment.IsProduction())
+    {
+        await app.SeedDataAsync();
+    }
 }
 catch (Exception ex)
 {

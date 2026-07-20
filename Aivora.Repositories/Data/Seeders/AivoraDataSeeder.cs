@@ -4,35 +4,80 @@ using Aivora.Repositories.Enums;
 using Aivora.Repositories.Constants;
 using BCrypt.Net;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 
 namespace Aivora.Repositories;
 
 public class AivoraDataSeeder : IAivoraDataSeeder
 {
-    private readonly AivoraDbContext _context;
+    // Fallback login for seeded demo accounts when Seed:DefaultPassword isn't configured.
+    // Not a real secret: SeedAsync() (Program.cs) never runs on Production, so this
+    // password only ever applies to local/dev/staging fixture data.
+    private const string DefaultSeedPassword = "Aivora@DevSeed2026!";
 
-    public AivoraDataSeeder(AivoraDbContext context)
+    private readonly AivoraDbContext _context;
+    private readonly IConfiguration _configuration;
+
+    public AivoraDataSeeder(AivoraDbContext context, IConfiguration configuration)
     {
         _context = context;
+        _configuration = configuration;
+    }
+
+    public async Task EnsureSystemUserAsync()
+    {
+        await _context.Database.EnsureCreatedAsync();
+        await EnsureSystemUserAndWalletAsync();
     }
 
     public async Task SeedAsync()
     {
-        await _context.Database.EnsureCreatedAsync();
-
-        if (!await _context.Users.AnyAsync())
+        if (!await _context.Users.AnyAsync(u => u.Role != UserRole.SYSTEM))
         {
             await SeedDefaultData();
+        }
+    }
+
+    private async Task EnsureSystemUserAndWalletAsync()
+    {
+        var systemUserId = SystemConstants.SystemUserId;
+
+        if (!await _context.Users.AnyAsync(u => u.Id == systemUserId))
+        {
+            await _context.Users.AddAsync(new User
+            {
+                Id = systemUserId,
+                Email = "system@aivora.com",
+                // Set an invalid hash so this account can never be logged into
+                PasswordHash = "x",
+                FullName = "System Platform",
+                Role = UserRole.SYSTEM,
+                Status = UserStatus.ACTIVE,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
+            });
+            await _context.SaveChangesAsync();
+        }
+
+        if (!await _context.Wallets.AnyAsync(w => w.UserId == systemUserId))
+        {
+            await _context.Wallets.AddAsync(new Wallet
+            {
+                UserId = systemUserId,
+                AvailableBalance = 0,
+                Currency = "AICOIN",
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
+            });
+            await _context.SaveChangesAsync();
         }
     }
 
     private async Task SeedDefaultData()
     {
         // Hash passwords
-        var adminPasswordHash = HashPassword("123456");
-        var admin2PasswordHash = HashPassword("ahihi123"); // Keep specific password for ahihi admin
-        var clientPasswordHash = HashPassword("123456");
-        var expertPasswordHash = HashPassword("123456");
+        var seedPassword = _configuration["Seed:DefaultPassword"] ?? DefaultSeedPassword;
+        var seedPasswordHash = HashPassword(seedPassword);
 
         // Seed Categories and Skills
         var categories = await SeedCategoriesAndSkills();
@@ -44,20 +89,8 @@ public class AivoraDataSeeder : IAivoraDataSeeder
             new User
             {
                 Email = "admin@aivora.com",
-                PasswordHash = adminPasswordHash,
+                PasswordHash = seedPasswordHash,
                 FullName = "Main Admin",
-                Role = UserRole.ADMIN,
-                Status = UserStatus.ACTIVE,
-                CreatedAt = DateTimeOffset.UtcNow,
-                UpdatedAt = DateTimeOffset.UtcNow
-            },
-
-            // Admin 2 (New as requested)
-            new User
-            {
-                Email = "ahihi@aivora.com",
-                PasswordHash = admin2PasswordHash,
-                FullName = "Ahihi Admin",
                 Role = UserRole.ADMIN,
                 Status = UserStatus.ACTIVE,
                 CreatedAt = DateTimeOffset.UtcNow,
@@ -68,7 +101,7 @@ public class AivoraDataSeeder : IAivoraDataSeeder
             new User
             {
                 Email = "client1@example.com",
-                PasswordHash = clientPasswordHash,
+                PasswordHash = seedPasswordHash,
                 FullName = "Client One",
                 Role = UserRole.CLIENT,
                 Status = UserStatus.ACTIVE,
@@ -79,7 +112,7 @@ public class AivoraDataSeeder : IAivoraDataSeeder
             new User
             {
                 Email = "client2@example.com",
-                PasswordHash = clientPasswordHash,
+                PasswordHash = seedPasswordHash,
                 FullName = "Client Two",
                 Role = UserRole.CLIENT,
                 Status = UserStatus.ACTIVE,
@@ -91,7 +124,7 @@ public class AivoraDataSeeder : IAivoraDataSeeder
             new User
             {
                 Email = "expert1@example.com",
-                PasswordHash = expertPasswordHash,
+                PasswordHash = seedPasswordHash,
                 FullName = "Expert One",
                 Role = UserRole.EXPERT,
                 Status = UserStatus.ACTIVE,
@@ -102,7 +135,7 @@ public class AivoraDataSeeder : IAivoraDataSeeder
             new User
             {
                 Email = "expert2@example.com",
-                PasswordHash = expertPasswordHash,
+                PasswordHash = seedPasswordHash,
                 FullName = "Expert Two",
                 Role = UserRole.EXPERT,
                 Status = UserStatus.ACTIVE,
@@ -113,7 +146,7 @@ public class AivoraDataSeeder : IAivoraDataSeeder
             new User
             {
                 Email = "expert3@example.com",
-                PasswordHash = expertPasswordHash,
+                PasswordHash = seedPasswordHash,
                 FullName = "Expert Three",
                 Role = UserRole.EXPERT,
                 Status = UserStatus.ACTIVE,
@@ -124,27 +157,16 @@ public class AivoraDataSeeder : IAivoraDataSeeder
             new User
             {
                 Email = "expert4@example.com",
-                PasswordHash = expertPasswordHash,
+                PasswordHash = seedPasswordHash,
                 FullName = "Expert Four",
                 Role = UserRole.EXPERT,
                 Status = UserStatus.ACTIVE,
                 CreatedAt = DateTimeOffset.UtcNow,
                 UpdatedAt = DateTimeOffset.UtcNow
-            },
-
-            // System Platform User
-            new User
-            {
-                Id = Aivora.Repositories.Constants.SystemConstants.SystemUserId,
-                Email = "system@aivora.com",
-                // Set an invalid hash so this account can never be logged into
-                PasswordHash = "x",
-                FullName = "System Platform",
-                Role = UserRole.SYSTEM,
-                Status = UserStatus.ACTIVE,
-                CreatedAt = DateTimeOffset.UtcNow,
-                UpdatedAt = DateTimeOffset.UtcNow
             }
+
+            // System Platform User is seeded unconditionally by
+            // EnsureSystemUserAndWalletAsync() before this method runs.
         };
 
         await _context.Users.AddRangeAsync(users);
@@ -911,14 +933,6 @@ public class AivoraDataSeeder : IAivoraDataSeeder
                 CreatedAt = DateTimeOffset.UtcNow,
                 UpdatedAt = DateTimeOffset.UtcNow
             },
-            new Wallet
-            {
-                UserId = users.FirstOrDefault(u => u.Email == "ahihi@aivora.com")!.Id,
-                AvailableBalance = 50000,
-                Currency = "AICOIN",
-                CreatedAt = DateTimeOffset.UtcNow,
-                UpdatedAt = DateTimeOffset.UtcNow
-            },
             // Client wallets
             new Wallet
             {
@@ -968,17 +982,10 @@ public class AivoraDataSeeder : IAivoraDataSeeder
                 Currency = "AICOIN",
                 CreatedAt = DateTimeOffset.UtcNow,
                 UpdatedAt = DateTimeOffset.UtcNow
-            },
-
-            // Platform Wallet
-            new Wallet
-            {
-                UserId = Aivora.Repositories.Constants.SystemConstants.SystemUserId,
-                AvailableBalance = 0,
-                Currency = "AICOIN",
-                CreatedAt = DateTimeOffset.UtcNow,
-                UpdatedAt = DateTimeOffset.UtcNow
             }
+
+            // Platform wallet is seeded unconditionally by
+            // EnsureSystemUserAndWalletAsync() before this method runs.
         };
 
         await _context.Wallets.AddRangeAsync(wallets);
