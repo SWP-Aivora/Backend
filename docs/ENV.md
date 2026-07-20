@@ -51,6 +51,12 @@ These variables **must** be set or the application will crash at startup with `I
 
 > Sandbox VNPay credentials in `.env.example` are test-only keys, safe to commit for local development.
 
+### Seeding
+
+| Variable | Config Key | Default | Description |
+|----------|-----------|---------|-------------|
+| `Seed__DefaultPassword` | `Seed:DefaultPassword` | `Aivora@DevSeed2026!` (hardcoded fallback) | Password for all seeded demo accounts (admin/client/expert). Only relevant where seeding runs (never on `Production` — see [ADR 0001](adr/0001-no-manual-testing-on-shared-db.md)) |
+
 ### Rate Limiting
 
 | Variable | Config Key | Default | Description |

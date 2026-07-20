@@ -10,22 +10,21 @@ This document describes the seed data for the Aivora platform. The seed data is 
 
 ### 1. Users
 
-#### Admin Users (2)
-- **admin@aivora.com** - Main admin account (password: `admin123`)
-- **ahihi@aivora.com** - Second admin account (password: `ahihi123`) ⭐ *New*
+#### Admin Users (1)
+- **admin@aivora.com** - Main admin account (password: see `Seed:DefaultPassword` config / `AivoraDataSeeder.DefaultSeedPassword`, not hardcoded here)
 
 #### System Account (not for login)
 - **system@aivora.com** - `UserRole.SYSTEM`, seeded with an invalid password hash so it can never be logged into. Used internally as the actor for system-generated records (e.g. `SystemConstants.SystemUserId`).
 
 #### Client Users (2)
-- **client1@example.com** - Tech Corp (password: `client123`)
-- **client2@example.com** - StartupXYZ (password: `client123`)
+- **client1@example.com** - Tech Corp (password: see `Seed:DefaultPassword` config)
+- **client2@example.com** - StartupXYZ (password: see `Seed:DefaultPassword` config)
 
 #### Expert Users (4)
-- **expert1@example.com** - Senior Full-stack Developer (password: `expert123`)
-- **expert2@example.com** - UI/UX Designer (password: `expert123`)
-- **expert3@example.com** - Mobile App Developer (password: `expert123`)
-- **expert4@example.com** - ML Engineer (password: `expert123`)
+- **expert1@example.com** - Senior Full-stack Developer (password: see `Seed:DefaultPassword` config)
+- **expert2@example.com** - UI/UX Designer (password: see `Seed:DefaultPassword` config)
+- **expert3@example.com** - Mobile App Developer (password: see `Seed:DefaultPassword` config)
+- **expert4@example.com** - ML Engineer (password: see `Seed:DefaultPassword` config)
 
 ### 2. Categories & Skills
 
@@ -172,7 +171,7 @@ This document describes the seed data for the Aivora platform. The seed data is 
 
 ## How to Run the Seed Data
 
-1. The seed data runs automatically when the application starts
+1. The seed data runs automatically when the application starts, except on `Production` (see ADR [`0001-no-manual-testing-on-shared-db.md`](adr/0001-no-manual-testing-on-shared-db.md))
 2. Only runs if the database is empty (no existing users)
 3. Seed data is idempotent - can be safely run multiple times
 
