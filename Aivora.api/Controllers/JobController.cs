@@ -42,12 +42,13 @@ public class JobController : ControllerBase
     /// </summary>
     /// <param name="pageRequest">Pagination parameters</param>
     /// <param name="categoryId">Optional category filter</param>
+    /// <param name="status">Optional status filter. Defaults to OPEN when omitted (public-listing behavior)</param>
     /// <returns>Paginated list of jobs</returns>
     [HttpGet]
     [AllowAnonymous]
-    public async Task<IActionResult> GetJobs([FromQuery] Aivora.Services.Base.Request.PageRequest pageRequest, [FromQuery] Guid? categoryId)
+    public async Task<IActionResult> GetJobs([FromQuery] Aivora.Services.Base.Request.PageRequest pageRequest, [FromQuery] Guid? categoryId, [FromQuery] Aivora.Repositories.Enums.JobStatus? status)
     {
-        var result = await _jobService.GetJobsAsync(pageRequest, categoryId);
+        var result = await _jobService.GetJobsAsync(pageRequest, categoryId, status);
         return Ok(ApiResponseFactory.SuccessResponse(result, "Jobs retrieved successfully", HttpContext.TraceIdentifier));
     }
 
