@@ -11,6 +11,8 @@ namespace Aivora.api.Hubs;
 [Authorize]
 public class ChatHub : Hub
 {
+    private const int MaxContentLength = 4000; // matches MessageConfiguration.cs varchar(4000)
+
     private readonly IMessageService _messageService;
     private readonly ILogger<ChatHub> _logger;
 
@@ -76,6 +78,11 @@ public class ChatHub : Hub
 
     public async Task SendMessage(Aivora.Services.MessageService.Request.SendMessageRequest request)
     {
+        if (request.Content is { Length: > MaxContentLength })
+        {
+            throw new HubException($"Message content exceeds the {MaxContentLength} character limit.");
+        }
+
         var senderId = GetCurrentUserId();
         var senderRole = Context.User!.GetUserRole();
         var message = await _messageService.SendMessageAsync(senderId, senderRole, request);

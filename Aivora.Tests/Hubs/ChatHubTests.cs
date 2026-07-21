@@ -88,6 +88,30 @@ public class ChatHubTests
     }
 
     [Fact]
+    public async Task SendMessage_ContentOverLimit_ThrowsHubExceptionAndDoesNotCallService()
+    {
+        // Arrange
+        var adminId = Guid.NewGuid();
+        var conversationId = Guid.NewGuid();
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, adminId.ToString()),
+            new Claim(ClaimTypes.Role, "ADMIN")
+        };
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, "Test"));
+        var hub = CreateHub(principal);
+
+        var request = new MessageRequest.SendMessageRequest { ConversationId = conversationId, Content = new string('a', 4001) };
+
+        // Act
+        Func<Task> act = async () => await hub.SendMessage(request);
+
+        // Assert
+        await act.Should().ThrowAsync<HubException>();
+        _mockMessageService.Verify(s => s.SendMessageAsync(It.IsAny<Guid>(), It.IsAny<UserRole>(), It.IsAny<MessageRequest.SendMessageRequest>()), Times.Never);
+    }
+
+    [Fact]
     public async Task JoinConversation_AdminSender_ShouldCallEnsureConversationParticipant()
     {
         // Arrange
