@@ -223,13 +223,13 @@ public class Service : IService
         return await GetJobByIdAsync(job.Id);
     }
 
-    public async Task<Aivora.Services.Base.Response.PageResult<Response.JobResponse>> GetJobsAsync(Aivora.Services.Base.Request.PageRequest pageRequest, Guid? categoryId = null)
+    public async Task<Aivora.Services.Base.Response.PageResult<Response.JobResponse>> GetJobsAsync(Aivora.Services.Base.Request.PageRequest pageRequest, Guid? categoryId = null, JobStatus? status = null)
     {
         var query = _dbContext.JobPosts
             .Include(j => j.Client)
             .Include(j => j.Category)
             .IncludeSkills()
-            .Where(j => j.Status == JobStatus.OPEN && j.Visibility == JobVisibility.PUBLIC);
+            .Where(j => j.Status == (status ?? JobStatus.OPEN) && j.Visibility == JobVisibility.PUBLIC);
 
         if (categoryId.HasValue)
         {

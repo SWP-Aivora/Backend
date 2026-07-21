@@ -514,4 +514,53 @@ public class Flow1JobCreationAndRecommendationTests
 
         Console.WriteLine("✅ Test passed: AI Job Assistant suggestion generation works correctly");
     }
+
+    /// <summary>
+    /// GetJobsAsync status filter (Issue #172)
+    /// </summary>
+    [Fact]
+    public async Task GetJobsAsync_WithStatusProvided_ReturnsOnlyMatchingStatus()
+    {
+        // Arrange
+        var (dbContext, jobService, pageRequest, openJob, inProgressJob) = await SeedOpenAndInProgressJobs();
+
+        // Act
+        var result = await jobService.GetJobsAsync(pageRequest, status: JobStatus.IN_PROGRESS);
+
+        // Assert
+        result.Items.Should().ContainSingle(j => j.Id == inProgressJob.Id);
+        result.Items.Should().NotContain(j => j.Id == openJob.Id);
+    }
+
+    [Fact]
+    public async Task GetJobsAsync_WithoutStatusProvided_DefaultsToOpen()
+    {
+        // Arrange
+        var (dbContext, jobService, pageRequest, openJob, inProgressJob) = await SeedOpenAndInProgressJobs();
+
+        // Act
+        var result = await jobService.GetJobsAsync(pageRequest);
+
+        // Assert
+        result.Items.Should().ContainSingle(j => j.Id == openJob.Id);
+        result.Items.Should().NotContain(j => j.Id == inProgressJob.Id);
+    }
+
+    private async Task<(AivoraDbContext dbContext, Service jobService, Aivora.Services.Base.Request.PageRequest pageRequest, JobPost openJob, JobPost inProgressJob)> SeedOpenAndInProgressJobs()
+    {
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var clientUser = new User { Id = clientId, Email = $"client-{Guid.NewGuid()}@aivora.com", PasswordHash = "hash", FullName = "Client User", Role = UserRole.CLIENT, Status = UserStatus.ACTIVE };
+        dbContext.Users.Add(clientUser);
+
+        var openJob = new JobPost { Id = Guid.NewGuid(), ClientId = clientId, Title = "Open Job", OriginalDescription = "desc", FinalDescription = "desc", Status = JobStatus.OPEN, Visibility = JobVisibility.PUBLIC, BudgetType = BudgetType.FIXED };
+        var inProgressJob = new JobPost { Id = Guid.NewGuid(), ClientId = clientId, Title = "In Progress Job", OriginalDescription = "desc", FinalDescription = "desc", Status = JobStatus.IN_PROGRESS, Visibility = JobVisibility.PUBLIC, BudgetType = BudgetType.FIXED };
+        dbContext.JobPosts.AddRange(openJob, inProgressJob);
+        await dbContext.SaveChangesAsync();
+
+        var jobService = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService());
+        var pageRequest = new Aivora.Services.Base.Request.PageRequest { PageIndex = 1, PageSize = 10 };
+
+        return (dbContext, jobService, pageRequest, openJob, inProgressJob);
+    }
 }
