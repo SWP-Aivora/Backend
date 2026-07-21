@@ -45,6 +45,14 @@ public class AdminController : ControllerBase
         return Ok(ApiResponseFactory.SuccessResponse(result, "Users retrieved", HttpContext.TraceIdentifier));
     }
 
+    [HttpGet("users/{id}")]
+    [Authorize(Policy = JwtExtensions.AdminPolicy)]
+    public async Task<IActionResult> GetUserById(Guid id)
+    {
+        var result = await _adminService.GetUserByIdAsync(id);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "User retrieved", HttpContext.TraceIdentifier));
+    }
+
     [HttpPut("users/{id}/suspend")]
     public async Task<IActionResult> SuspendUser(Guid id, [FromBody] Request.SuspendUserRequest request)
     {

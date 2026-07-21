@@ -21,6 +21,14 @@ public class AdminService : IAdminService
         _notificationService = notificationService;
     }
 
+    public async Task<IdentityService.Response.UserResponse> GetUserByIdAsync(Guid userId)
+    {
+        var user = await _dbContext.Users.FindAsync(userId);
+        if (user == null) throw new NotFoundException("User not found.");
+
+        return MapToResponse(user);
+    }
+
     public async Task<IdentityService.Response.UserResponse> SuspendUserAsync(Guid adminId, Guid userId, string reason)
     {
         var user = await _dbContext.Users.FindAsync(userId);
