@@ -225,6 +225,12 @@ public class Service : IService
 
     public async Task<Aivora.Services.Base.Response.PageResult<Response.JobResponse>> GetJobsAsync(Aivora.Services.Base.Request.PageRequest pageRequest, Guid? categoryId = null, JobStatus? status = null)
     {
+        // This endpoint is anonymous-accessible. DRAFT jobs commonly have Visibility=PUBLIC
+        // (the default when a client omits it) despite not being published yet, so DRAFT must
+        // never be reachable here regardless of caller - unlike other statuses, which were all
+        // OPEN+PUBLIC (i.e. already anonymous-visible) at some point.
+        if (status == JobStatus.DRAFT) throw new ValidationException("Cannot filter jobs by DRAFT status.");
+
         var query = _dbContext.JobPosts
             .Include(j => j.Client)
             .Include(j => j.Category)

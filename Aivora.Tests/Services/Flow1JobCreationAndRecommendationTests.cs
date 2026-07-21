@@ -546,6 +546,16 @@ public class Flow1JobCreationAndRecommendationTests
         result.Items.Should().NotContain(j => j.Id == inProgressJob.Id);
     }
 
+    [Fact]
+    public async Task GetJobsAsync_WithDraftStatus_ThrowsValidationException()
+    {
+        // Arrange
+        var (_, jobService, pageRequest, _, _) = await SeedOpenAndInProgressJobs();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ValidationException>(() => jobService.GetJobsAsync(pageRequest, status: JobStatus.DRAFT));
+    }
+
     private async Task<(AivoraDbContext dbContext, Service jobService, Aivora.Services.Base.Request.PageRequest pageRequest, JobPost openJob, JobPost inProgressJob)> SeedOpenAndInProgressJobs()
     {
         var dbContext = GetDbContext();
