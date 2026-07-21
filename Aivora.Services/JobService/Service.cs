@@ -225,17 +225,16 @@ public class Service : IService
 
     public async Task<Aivora.Services.Base.Response.PageResult<Response.JobResponse>> GetJobsAsync(Aivora.Services.Base.Request.PageRequest pageRequest, Guid? categoryId = null, JobStatus? status = null)
     {
-        // This endpoint is anonymous-accessible. DRAFT jobs commonly have Visibility=PUBLIC
-        // (the default when a client omits it) despite not being published yet, so DRAFT must
-        // never be reachable here regardless of caller - unlike other statuses, which were all
-        // OPEN+PUBLIC (i.e. already anonymous-visible) at some point.
-        if (status == JobStatus.DRAFT) throw new ValidationException("Cannot filter jobs by DRAFT status.");
-
         var query = _dbContext.JobPosts
             .Include(j => j.Client)
             .Include(j => j.Category)
             .IncludeSkills()
-            .Where(j => j.Status == (status ?? JobStatus.OPEN) && j.Visibility == JobVisibility.PUBLIC);
+            // This endpoint is anonymous-accessible, and Visibility=PUBLIC alone isn't enough to
+            // gate it: it's the default when a client omits the field, so unpublished jobs (DRAFT,
+            // or CANCELLED reached directly from DRAFT without ever passing through OPEN) commonly
+            // carry it too. Requiring PublishedAt closes that for every status, not just the ones
+            // we happen to think of - CANCELLED-from-DRAFT was missed by an earlier DRAFT-only guard.
+            .Where(j => j.Status == (status ?? JobStatus.OPEN) && j.Visibility == JobVisibility.PUBLIC && j.PublishedAt != null);
 
         if (categoryId.HasValue)
         {

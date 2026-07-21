@@ -547,13 +547,45 @@ public class Flow1JobCreationAndRecommendationTests
     }
 
     [Fact]
-    public async Task GetJobsAsync_WithDraftStatus_ThrowsValidationException()
+    public async Task GetJobsAsync_WithDraftStatus_ReturnsEmpty()
     {
         // Arrange
         var (_, jobService, pageRequest, _, _) = await SeedOpenAndInProgressJobs();
 
-        // Act & Assert
-        await Assert.ThrowsAsync<ValidationException>(() => jobService.GetJobsAsync(pageRequest, status: JobStatus.DRAFT));
+        // Act
+        var result = await jobService.GetJobsAsync(pageRequest, status: JobStatus.DRAFT);
+
+        // Assert
+        result.Items.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Regression test for a job that goes DRAFT -> CANCELLED directly (CancelJobAsync allows
+    /// this) without ever passing through OPEN, so PublishedAt is never set. Visibility defaults
+    /// to PUBLIC when a client omits it on creation, so before the PublishedAt guard this job was
+    /// reachable by anonymous callers via ?status=CANCELLED despite never being published.
+    /// </summary>
+    [Fact]
+    public async Task GetJobsAsync_WithCancelledStatus_ExcludesJobNeverPublished()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var clientUser = new User { Id = clientId, Email = $"client-{Guid.NewGuid()}@aivora.com", PasswordHash = "hash", FullName = "Client User", Role = UserRole.CLIENT, Status = UserStatus.ACTIVE };
+        dbContext.Users.Add(clientUser);
+
+        var neverPublishedCancelledJob = new JobPost { Id = Guid.NewGuid(), ClientId = clientId, Title = "Cancelled Draft", OriginalDescription = "desc", FinalDescription = "desc", Status = JobStatus.CANCELLED, Visibility = JobVisibility.PUBLIC, PublishedAt = null, BudgetType = BudgetType.FIXED };
+        dbContext.JobPosts.Add(neverPublishedCancelledJob);
+        await dbContext.SaveChangesAsync();
+
+        var jobService = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService());
+        var pageRequest = new Aivora.Services.Base.Request.PageRequest { PageIndex = 1, PageSize = 10 };
+
+        // Act
+        var result = await jobService.GetJobsAsync(pageRequest, status: JobStatus.CANCELLED);
+
+        // Assert
+        result.Items.Should().BeEmpty();
     }
 
     private async Task<(AivoraDbContext dbContext, Service jobService, Aivora.Services.Base.Request.PageRequest pageRequest, JobPost openJob, JobPost inProgressJob)> SeedOpenAndInProgressJobs()
@@ -563,8 +595,8 @@ public class Flow1JobCreationAndRecommendationTests
         var clientUser = new User { Id = clientId, Email = $"client-{Guid.NewGuid()}@aivora.com", PasswordHash = "hash", FullName = "Client User", Role = UserRole.CLIENT, Status = UserStatus.ACTIVE };
         dbContext.Users.Add(clientUser);
 
-        var openJob = new JobPost { Id = Guid.NewGuid(), ClientId = clientId, Title = "Open Job", OriginalDescription = "desc", FinalDescription = "desc", Status = JobStatus.OPEN, Visibility = JobVisibility.PUBLIC, BudgetType = BudgetType.FIXED };
-        var inProgressJob = new JobPost { Id = Guid.NewGuid(), ClientId = clientId, Title = "In Progress Job", OriginalDescription = "desc", FinalDescription = "desc", Status = JobStatus.IN_PROGRESS, Visibility = JobVisibility.PUBLIC, BudgetType = BudgetType.FIXED };
+        var openJob = new JobPost { Id = Guid.NewGuid(), ClientId = clientId, Title = "Open Job", OriginalDescription = "desc", FinalDescription = "desc", Status = JobStatus.OPEN, Visibility = JobVisibility.PUBLIC, PublishedAt = DateTimeOffset.UtcNow, BudgetType = BudgetType.FIXED };
+        var inProgressJob = new JobPost { Id = Guid.NewGuid(), ClientId = clientId, Title = "In Progress Job", OriginalDescription = "desc", FinalDescription = "desc", Status = JobStatus.IN_PROGRESS, Visibility = JobVisibility.PUBLIC, PublishedAt = DateTimeOffset.UtcNow, BudgetType = BudgetType.FIXED };
         dbContext.JobPosts.AddRange(openJob, inProgressJob);
         await dbContext.SaveChangesAsync();
 
