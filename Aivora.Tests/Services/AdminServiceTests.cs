@@ -47,6 +47,37 @@ public class AdminServiceTests
     }
 
     [Fact]
+    public async Task GetUserByIdAsync_ReturnsUser_WhenUserExists()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var userId = Guid.NewGuid();
+        var user = new User { Id = userId, Email = "test@test.com", FullName = "Test User", Role = UserRole.CLIENT, Status = UserStatus.ACTIVE, PasswordHash = "x" };
+        dbContext.Users.Add(user);
+        await dbContext.SaveChangesAsync();
+
+        var service = new AdminService(dbContext, Mock.Of<ILogger<AdminService>>(), Mock.Of<Aivora.Services.NotificationService.IService>());
+
+        // Act
+        var result = await service.GetUserByIdAsync(userId);
+
+        // Assert
+        result.Id.Should().Be(userId);
+        result.Email.Should().Be("test@test.com");
+    }
+
+    [Fact]
+    public async Task GetUserByIdAsync_ThrowsNotFoundException_WhenUserDoesNotExist()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var service = new AdminService(dbContext, Mock.Of<ILogger<AdminService>>(), Mock.Of<Aivora.Services.NotificationService.IService>());
+
+        // Act & Assert
+        await Assert.ThrowsAsync<NotFoundException>(() => service.GetUserByIdAsync(Guid.NewGuid()));
+    }
+
+    [Fact]
     public async Task SuspendUserAsync_Succeeds_WhenUserIsValid()
     {
         // Arrange
