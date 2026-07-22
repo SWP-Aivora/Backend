@@ -11,13 +11,18 @@ namespace Aivora.Services.RecommendationService;
 
 public class Service : IService
 {
+    // Scorer lam candidate generator: lay top-CandidatePoolSize tu pool 50 de gui AI re-rank.
+    private const int CandidatePoolSize = 12;
+
     private readonly AivoraDbContext _dbContext;
     private readonly RecommendationOptions _options;
+    private readonly IExpertRecommendationProvider _recommendationProvider;
 
-    public Service(AivoraDbContext dbContext, IOptions<RecommendationOptions> options)
+    public Service(AivoraDbContext dbContext, IOptions<RecommendationOptions> options, IExpertRecommendationProvider recommendationProvider)
     {
         _dbContext = dbContext;
         _options = options.Value;
+        _recommendationProvider = recommendationProvider;
     }
 
     public async Task<List<Response.RecommendationResponse>> GenerateRecommendationsAsync(Guid clientId, Guid jobId)
@@ -88,22 +93,64 @@ public class Service : IService
             .Where(e => expertIds.Contains(e.UserId))
             .ToListAsync();
 
-        var recommendations = experts
+        var scored = experts
             .Select(expert =>
             {
                 var disputeCount = disputeCounts.GetValueOrDefault(expert.UserId, 0);
                 var milestoneStat = milestoneStats.GetValueOrDefault(expert.UserId, (Total: 0, Overdue: 0));
-                return BuildRecommendation(
+                var result = BuildRecommendation(
                     job,
                     requiredSkills,
                     expert,
                     disputeCount,
                     milestoneStat.Total,
                     milestoneStat.Overdue);
+                return (Expert: expert, DisputeCount: disputeCount, Result: result);
             })
-            .OrderByDescending(r => r.TotalScore)
-            .Take(5)
+            .OrderByDescending(x => x.Result.TotalScore)
+            .Take(CandidatePoolSize)
             .ToList();
+
+        var context = new ExpertRecommendationContext
+        {
+            JobTitle = job.Title,
+            JobDescription = job.FinalDescription ?? job.OriginalDescription,
+            RequiredSkills = requiredSkills.Select(rs => rs.SkillName).ToList(),
+            BudgetType = job.BudgetType.ToString(),
+            BudgetMin = job.BudgetMin,
+            BudgetMax = job.BudgetMax,
+            Candidates = scored.Select(x => new CandidateExpert
+            {
+                ExpertId = x.Expert.UserId,
+                Skills = x.Expert.ExpertSkills.Select(es => es.Skill.Name).ToList(),
+                Rating = x.Expert.Rating,
+                HourlyRate = x.Expert.HourlyRate,
+                AvailabilityStatus = x.Expert.AvailabilityStatus.ToString(),
+                SuccessRate = x.Expert.SuccessRate,
+                CompletedProjects = x.Expert.CompletedProjects,
+                DisputeCount = x.DisputeCount,
+                OverdueRate = x.Result.OverdueRate,
+                ScorerTotalScore = x.Result.TotalScore,
+                ScorerExplanation = x.Result.Explanation ?? string.Empty
+            }).ToList()
+        };
+
+        var draft = await _recommendationProvider.RankAsync(context, CancellationToken.None);
+
+        var resultsByExpertId = scored.ToDictionary(x => x.Expert.UserId, x => x.Result);
+        var recommendations = new List<RecommendationResult>();
+        var rank = 1;
+        foreach (var ranked in draft.Ranked)
+        {
+            if (!resultsByExpertId.TryGetValue(ranked.ExpertId, out var result))
+            {
+                continue;
+            }
+
+            result.Explanation = ranked.Reasoning;
+            result.AiRank = rank++;
+            recommendations.Add(result);
+        }
 
         _dbContext.RecommendationResults.AddRange(recommendations);
         await _dbContext.SaveChangesAsync();
@@ -119,7 +166,7 @@ public class Service : IService
         return await _dbContext.RecommendationResults
             .Include(r => r.Expert).ThenInclude(u => u.ExpertProfile)
             .Where(r => r.JobId == jobId)
-            .OrderByDescending(r => r.TotalScore)
+            .OrderBy(r => r.AiRank)
             .Select(r => new Response.RecommendationResponse
             {
                 Id = r.Id,

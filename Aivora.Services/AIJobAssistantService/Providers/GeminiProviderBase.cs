@@ -23,7 +23,8 @@ public abstract class GeminiProviderBase
         Func<CancellationToken, Task<T>> mockFallback,
         string logNoun,
         string errorNoun,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        double? temperature = null)
     {
         if (!_client.HasApiKey && _options.EnableFallback)
         {
@@ -33,7 +34,7 @@ public abstract class GeminiProviderBase
 
         try
         {
-            var providerText = await _client.GenerateAsync(buildPrompt(), cancellationToken);
+            var providerText = await _client.GenerateAsync(buildPrompt(), Array.Empty<(string, byte[])>(), cancellationToken, temperature);
             return parse(providerText);
         }
         catch (OperationCanceledException)
