@@ -37,4 +37,13 @@ public class ServiceOffersController : ControllerBase
         var result = await _serviceOfferService.AcceptOfferAsync(clientId, id);
         return Ok(ApiResponseFactory.SuccessResponse(result, "Service offer accepted", HttpContext.TraceIdentifier));
     }
+
+    [HttpGet("service-requests/{id}/offer")]
+    [Authorize(Policy = JwtExtensions.ClientPolicy)]
+    public async Task<IActionResult> GetServiceRequestOffer(Guid id)
+    {
+        var clientId = this.GetUserId();
+        var result = await _serviceOfferService.GetOfferForServiceRequestAsync(clientId, id);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Service offer retrieved", HttpContext.TraceIdentifier));
+    }
 }
