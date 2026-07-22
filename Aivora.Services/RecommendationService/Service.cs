@@ -25,16 +25,16 @@ public class Service : IService
         _recommendationProvider = recommendationProvider;
     }
 
-    public async Task<List<Response.RecommendationResponse>> GenerateRecommendationsAsync(Guid clientId, Guid jobId)
+    public async Task<List<Response.RecommendationResponse>> GenerateRecommendationsAsync(Guid clientId, Guid jobId, CancellationToken cancellationToken = default)
     {
         var job = await _dbContext.JobPosts
             .IncludeSkills()
-            .FirstOrDefaultAsync(j => j.Id == jobId && j.ClientId == clientId);
+            .FirstOrDefaultAsync(j => j.Id == jobId && j.ClientId == clientId, cancellationToken);
 
         if (job == null) throw new NotFoundException("Job not found or access denied.");
         if (job.Status != JobStatus.OPEN) throw new ValidationException("Job must be OPEN to generate recommendations.");
 
-        var existing = await _dbContext.RecommendationResults.Where(r => r.JobId == jobId).ToListAsync();
+        var existing = await _dbContext.RecommendationResults.Where(r => r.JobId == jobId).ToListAsync(cancellationToken);
         _dbContext.RecommendationResults.RemoveRange(existing);
 
         var requiredSkills = job.JobSkills
@@ -61,13 +61,13 @@ public class Service : IService
         // Limit the candidate pool to the top 50 experts at database level to prevent memory issues
         activeExpertsQuery = activeExpertsQuery.Take(50);
 
-        var expertIds = await activeExpertsQuery.Select(e => e.UserId).ToListAsync();
+        var expertIds = await activeExpertsQuery.Select(e => e.UserId).ToListAsync(cancellationToken);
 
         var disputeCounts = await _dbContext.Disputes
             .Where(d => expertIds.Contains(d.Project.ExpertId))
             .GroupBy(d => d.Project.ExpertId)
             .Select(g => new { ExpertId = g.Key, Count = g.Count() })
-            .ToDictionaryAsync(x => x.ExpertId, x => x.Count);
+            .ToDictionaryAsync(x => x.ExpertId, x => x.Count, cancellationToken);
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var milestoneStats = await _dbContext.Milestones
@@ -85,13 +85,13 @@ public class Service : IService
                     && m.Status != MilestoneStatus.REFUNDED
                     && m.Status != MilestoneStatus.APPROVED)
             })
-            .ToDictionaryAsync(x => x.ExpertId, x => (Total: x.TotalCount, Overdue: x.OverdueCount));
+            .ToDictionaryAsync(x => x.ExpertId, x => (Total: x.TotalCount, Overdue: x.OverdueCount), cancellationToken);
 
         var experts = await _dbContext.ExpertProfiles
             .Include(e => e.User)
             .Include(e => e.ExpertSkills).ThenInclude(es => es.Skill)
             .Where(e => expertIds.Contains(e.UserId))
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
 
         var scored = experts
             .Select(expert =>
@@ -135,7 +135,7 @@ public class Service : IService
             }).ToList()
         };
 
-        var draft = await _recommendationProvider.RankAsync(context, CancellationToken.None);
+        var draft = await _recommendationProvider.RankAsync(context, cancellationToken);
 
         var resultsByExpertId = scored.ToDictionary(x => x.Expert.UserId, x => x.Result);
         var recommendations = new List<RecommendationResult>();
@@ -153,14 +153,14 @@ public class Service : IService
         }
 
         _dbContext.RecommendationResults.AddRange(recommendations);
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync(cancellationToken);
 
-        return await GetRecommendationsAsync(clientId, jobId);
+        return await GetRecommendationsAsync(clientId, jobId, cancellationToken);
     }
 
-    public async Task<List<Response.RecommendationResponse>> GetRecommendationsAsync(Guid clientId, Guid jobId)
+    public async Task<List<Response.RecommendationResponse>> GetRecommendationsAsync(Guid clientId, Guid jobId, CancellationToken cancellationToken = default)
     {
-        var job = await _dbContext.JobPosts.AnyAsync(j => j.Id == jobId && j.ClientId == clientId);
+        var job = await _dbContext.JobPosts.AnyAsync(j => j.Id == jobId && j.ClientId == clientId, cancellationToken);
         if (!job) throw new NotFoundException("Job not found or access denied.");
 
         return await _dbContext.RecommendationResults
@@ -189,7 +189,7 @@ public class Service : IService
                 OverdueRate = r.OverdueRate,
                 OverduePenalty = r.OverduePenalty
             })
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
     }
 
     private RecommendationResult BuildRecommendation(

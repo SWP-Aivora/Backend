@@ -8,12 +8,12 @@ public class ExpertRecommendationParser
 {
     private const int MaxRanked = 5;
     private const int MaxReasoningLength = 2000; // khop HasMaxLength(2000) cua RecommendationResult.Explanation
-    private const string GeminiModelName = "Gemini 2.5 Flash";
+    private const string DefaultModelName = "gemini-2.5-flash"; // khop default cua AIProviderOptions.Model
 
-    public ExpertRecommendationDraft Parse(string providerText, ExpertRecommendationContext context, ILogger? logger = null)
+    public ExpertRecommendationDraft Parse(string providerText, ExpertRecommendationContext context, string modelName = DefaultModelName, ILogger? logger = null)
     {
         var fallback = BuildScorerOrderDraft(context);
-        fallback.AIModel = GeminiModelName;
+        fallback.AIModel = modelName;
 
         using var document = AIJsonParser.ParseObject(providerText);
         var root = document.RootElement;
@@ -60,7 +60,7 @@ public class ExpertRecommendationParser
             return fallback;
         }
 
-        return new ExpertRecommendationDraft { Ranked = ranked, AIModel = GeminiModelName };
+        return new ExpertRecommendationDraft { Ranked = ranked, AIModel = modelName };
     }
 
     // Deterministic ranking = scorer order. Dung lam fallback khi AI loi/rong,

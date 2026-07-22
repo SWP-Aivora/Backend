@@ -13,6 +13,7 @@ public class GeminiExpertRecommendationProvider : GeminiProviderBase, IExpertRec
     private readonly ExpertRecommendationParser _parser;
     private readonly MockExpertRecommendationProvider _fallbackProvider;
     private readonly ILogger<GeminiExpertRecommendationProvider> _logger;
+    private readonly string _modelName;
 
     public GeminiExpertRecommendationProvider(
         GeminiProviderClient client,
@@ -27,13 +28,14 @@ public class GeminiExpertRecommendationProvider : GeminiProviderBase, IExpertRec
         _parser = parser;
         _fallbackProvider = fallbackProvider;
         _logger = logger;
+        _modelName = options.Value.Model;
     }
 
     public Task<ExpertRecommendationDraft> RankAsync(ExpertRecommendationContext context, CancellationToken cancellationToken = default)
     {
         return ExecuteAsync(
             buildPrompt: () => _promptBuilder.Build(context),
-            parse: providerText => _parser.Parse(providerText, context, _logger),
+            parse: providerText => _parser.Parse(providerText, context, _modelName, _logger),
             mockFallback: ct => _fallbackProvider.RankAsync(context, ct),
             logNoun: "expert recommendation",
             errorNoun: "expert recommendation",

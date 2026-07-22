@@ -40,7 +40,7 @@ public class ExpertRecommendationParserTests
             candidates[4].ExpertId,
             candidates[1].ExpertId,
             candidates[3].ExpertId);
-        draft.AIModel.Should().Be("Gemini 2.5 Flash");
+        draft.AIModel.Should().Be("gemini-2.5-flash");
     }
 
     [Fact]
