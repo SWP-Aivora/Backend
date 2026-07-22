@@ -8,4 +8,5 @@ public interface IService
     Task<Response.ServiceResponse> UnpublishServiceAsync(Guid expertId, Guid serviceId);
     Task<List<Response.ServiceResponse>> GetMyServicesAsync(Guid expertId);
     Task<Response.ServiceResponse> GetServiceByIdAsync(Guid serviceId, Guid? viewerId);
+    Task<Base.Response.PageResult<Response.ServiceResponse>> GetPublishedServicesAsync(Base.Request.PageRequest pageRequest);
 }
