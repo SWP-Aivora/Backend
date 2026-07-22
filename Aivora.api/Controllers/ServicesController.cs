@@ -56,6 +56,14 @@ public class ServicesController : ControllerBase
         return Ok(ApiResponseFactory.SuccessResponse(result, "Service unpublished successfully", HttpContext.TraceIdentifier));
     }
 
+    [HttpGet]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetPublishedServices([FromQuery] Aivora.Services.Base.Request.PageRequest pageRequest)
+    {
+        var result = await _serviceCatalogService.GetPublishedServicesAsync(pageRequest);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Published services retrieved successfully", HttpContext.TraceIdentifier));
+    }
+
     [HttpGet("mine")]
     [Authorize(Policy = JwtExtensions.ExpertPolicy)]
     public async Task<IActionResult> GetMyServices()

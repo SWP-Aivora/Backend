@@ -173,6 +173,39 @@ public class Service : IService
         return MapToResponse(service);
     }
 
+    public async Task<Base.Response.PageResult<Response.ServiceResponse>> GetPublishedServicesAsync(Base.Request.PageRequest pageRequest)
+    {
+        var query = _dbContext.Services
+            .Include(s => s.Expert)
+            .Include(s => s.Packages)
+            .Include(s => s.Faqs)
+            .Where(s => s.Status == ServiceStatus.PUBLISHED);
+
+        if (!string.IsNullOrWhiteSpace(pageRequest.SearchTerm))
+        {
+            query = query.Where(s =>
+                s.Title.Contains(pageRequest.SearchTerm) ||
+                s.Description.Contains(pageRequest.SearchTerm));
+        }
+
+        var totalItems = await query.CountAsync();
+
+        var services = await query
+            .OrderByDescending(s => s.PublishedAt)
+            .ThenByDescending(s => s.Id)
+            .Skip((pageRequest.PageIndex - 1) * pageRequest.PageSize)
+            .Take(pageRequest.PageSize)
+            .ToListAsync();
+
+        return new Base.Response.PageResult<Response.ServiceResponse>
+        {
+            Items = services.Select(MapToResponse).ToList(),
+            TotalItems = totalItems,
+            PageIndex = pageRequest.PageIndex,
+            PageSize = pageRequest.PageSize
+        };
+    }
+
     private static Response.ServiceResponse MapToResponse(ServiceListing service)
     {
         return new Response.ServiceResponse

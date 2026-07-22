@@ -207,4 +207,60 @@ public class ServiceCatalogServiceTests
 
         await act.Should().ThrowAsync<ValidationException>();
     }
+
+    [Fact]
+    public async Task GetPublishedServicesAsync_WithDraftAndPublishedServices_ReturnsOnlyPublished()
+    {
+        var dbContext = GetDbContext();
+        var service = new Service(dbContext);
+        var expertId = SeedExpert(dbContext);
+        var draft = await service.CreateServiceAsync(expertId, ValidCreateRequest());
+        var published = await service.CreateServiceAsync(expertId, ValidCreateRequest());
+        await service.PublishServiceAsync(expertId, published.Id);
+
+        var result = await service.GetPublishedServicesAsync(new Aivora.Services.Base.Request.PageRequest());
+
+        result.Items.Should().ContainSingle(s => s.Id == published.Id);
+        result.Items.Should().NotContain(s => s.Id == draft.Id);
+        result.TotalItems.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task GetPublishedServicesAsync_WithSearchTerm_FiltersByTitle()
+    {
+        var dbContext = GetDbContext();
+        var service = new Service(dbContext);
+        var expertId = SeedExpert(dbContext);
+        var matching = ValidCreateRequest();
+        matching.Title = "Landing page in a week";
+        var other = ValidCreateRequest();
+        other.Title = "Logo design service";
+        var created1 = await service.CreateServiceAsync(expertId, matching);
+        var created2 = await service.CreateServiceAsync(expertId, other);
+        await service.PublishServiceAsync(expertId, created1.Id);
+        await service.PublishServiceAsync(expertId, created2.Id);
+
+        var result = await service.GetPublishedServicesAsync(new Aivora.Services.Base.Request.PageRequest { SearchTerm = "Landing" });
+
+        result.Items.Should().ContainSingle(s => s.Id == created1.Id);
+    }
+
+    [Fact]
+    public async Task GetPublishedServicesAsync_WithMorePublishedServicesThanPageSize_Paginates()
+    {
+        var dbContext = GetDbContext();
+        var service = new Service(dbContext);
+        var expertId = SeedExpert(dbContext);
+        for (var i = 0; i < 3; i++)
+        {
+            var created = await service.CreateServiceAsync(expertId, ValidCreateRequest());
+            await service.PublishServiceAsync(expertId, created.Id);
+        }
+
+        var result = await service.GetPublishedServicesAsync(new Aivora.Services.Base.Request.PageRequest { PageSize = 2 });
+
+        result.Items.Should().HaveCount(2);
+        result.TotalItems.Should().Be(3);
+        result.TotalPages.Should().Be(2);
+    }
 }
