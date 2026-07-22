@@ -146,6 +146,29 @@ public class Service : IService
         };
     }
 
+    public async Task<Response.ServiceOfferResponse> GetOfferForServiceRequestAsync(Guid clientId, Guid serviceRequestId)
+    {
+        var serviceRequest = await _dbContext.ServiceRequests
+            .FirstOrDefaultAsync(r => r.Id == serviceRequestId);
+
+        if (serviceRequest == null) throw new NotFoundException("Service request not found.");
+        if (serviceRequest.ClientId != clientId) throw new ForbiddenException("Only the client who owns this request can view its offer.");
+
+        var offers = await _dbContext.ServiceOffers
+            .Include(o => o.Milestones)
+            .Where(o => o.ServiceRequestId == serviceRequestId)
+            .ToListAsync();
+
+        var offer = offers
+            .OrderByDescending(o => o.Status == ServiceOfferStatus.ACCEPTED)
+            .ThenByDescending(o => o.CreatedAt)
+            .FirstOrDefault();
+
+        if (offer == null) throw new NotFoundException("No offer found for this service request.");
+
+        return MapToResponse(offer);
+    }
+
     private static bool IsUniqueViolation(DbUpdateException ex)
     {
         return ex.InnerException?.Message?.Contains("23505") == true;

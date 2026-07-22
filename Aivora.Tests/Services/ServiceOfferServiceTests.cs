@@ -214,4 +214,82 @@ public class ServiceOfferServiceTests
         var listing = await dbContext.Services.FirstAsync(s => s.Id == serviceRequest.ServiceId);
         listing.Status.Should().Be(ServiceStatus.PUBLISHED);
     }
+
+    [Fact]
+    public async Task GetOfferForServiceRequestAsync_ByOwnerClient_ReturnsOfferWithMilestones()
+    {
+        var dbContext = GetDbContext();
+        var expertId = SeedUser(dbContext);
+        var clientId = SeedUser(dbContext);
+        var serviceRequest = SeedAcceptedServiceRequest(dbContext, expertId, clientId);
+        var service = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
+        var offer = await service.CreateOfferAsync(expertId, serviceRequest.Id, BuildOfferRequest());
+
+        var result = await service.GetOfferForServiceRequestAsync(clientId, serviceRequest.Id);
+
+        result.Id.Should().Be(offer.Id);
+        result.Status.Should().Be(ServiceOfferStatus.PENDING);
+        result.Milestones.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public async Task GetOfferForServiceRequestAsync_PrefersAcceptedOfferOverPending()
+    {
+        var dbContext = GetDbContext();
+        var expertId = SeedUser(dbContext);
+        var clientId = SeedUser(dbContext);
+        var serviceRequest = SeedAcceptedServiceRequest(dbContext, expertId, clientId);
+        var service = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
+        var acceptedOffer = await service.CreateOfferAsync(expertId, serviceRequest.Id, BuildOfferRequest());
+        await service.AcceptOfferAsync(clientId, acceptedOffer.Id);
+        var pendingOffer = await service.CreateOfferAsync(expertId, serviceRequest.Id, BuildOfferRequest());
+
+        var result = await service.GetOfferForServiceRequestAsync(clientId, serviceRequest.Id);
+
+        result.Id.Should().Be(acceptedOffer.Id);
+        result.Id.Should().NotBe(pendingOffer.Id);
+        result.Status.Should().Be(ServiceOfferStatus.ACCEPTED);
+    }
+
+    [Fact]
+    public async Task GetOfferForServiceRequestAsync_ByNonOwnerClient_ThrowsForbidden()
+    {
+        var dbContext = GetDbContext();
+        var expertId = SeedUser(dbContext);
+        var clientId = SeedUser(dbContext);
+        var outsiderId = SeedUser(dbContext);
+        var serviceRequest = SeedAcceptedServiceRequest(dbContext, expertId, clientId);
+        var service = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
+        await service.CreateOfferAsync(expertId, serviceRequest.Id, BuildOfferRequest());
+
+        var act = () => service.GetOfferForServiceRequestAsync(outsiderId, serviceRequest.Id);
+
+        await act.Should().ThrowAsync<ForbiddenException>();
+    }
+
+    [Fact]
+    public async Task GetOfferForServiceRequestAsync_WhenServiceRequestNotFound_ThrowsNotFound()
+    {
+        var dbContext = GetDbContext();
+        var clientId = SeedUser(dbContext);
+        var service = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
+
+        var act = () => service.GetOfferForServiceRequestAsync(clientId, Guid.NewGuid());
+
+        await act.Should().ThrowAsync<NotFoundException>();
+    }
+
+    [Fact]
+    public async Task GetOfferForServiceRequestAsync_WhenNoOfferExists_ThrowsNotFound()
+    {
+        var dbContext = GetDbContext();
+        var expertId = SeedUser(dbContext);
+        var clientId = SeedUser(dbContext);
+        var serviceRequest = SeedAcceptedServiceRequest(dbContext, expertId, clientId);
+        var service = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
+
+        var act = () => service.GetOfferForServiceRequestAsync(clientId, serviceRequest.Id);
+
+        await act.Should().ThrowAsync<NotFoundException>();
+    }
 }
