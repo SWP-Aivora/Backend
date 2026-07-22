@@ -213,7 +213,7 @@ public Task<ExpertRecommendationDraft> RankAsync(ExpertRecommendationContext con
 {
     return ExecuteAsync(
         buildPrompt: () => _promptBuilder.Build(context),
-        parse: providerText => _parser.Parse(providerText, context, _logger),
+        parse: providerText => _parser.Parse(providerText, context, _modelName, _logger),
         mockFallback: ct => _fallbackProvider.RankAsync(context, ct),
         logNoun: "expert recommendation",
         errorNoun: "expert recommendation",
@@ -274,7 +274,7 @@ public Task<ExpertRecommendationDraft> RankAsync(ExpertRecommendationContext con
 `Aivora.Services/RecommendationService/Service.cs:138-156`
 
 ```csharp
-var draft = await _recommendationProvider.RankAsync(context, CancellationToken.None);
+var draft = await _recommendationProvider.RankAsync(context, cancellationToken);
 
 var resultsByExpertId = scored.ToDictionary(x => x.Expert.UserId, x => x.Result);
 var recommendations = new List<RecommendationResult>();
