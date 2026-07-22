@@ -48,6 +48,15 @@ public class ServiceRequestsController : ControllerBase
         return Ok(ApiResponseFactory.SuccessResponse(result, "My service requests retrieved successfully", HttpContext.TraceIdentifier));
     }
 
+    [HttpGet("clients/me/service-requests")]
+    [Authorize(Policy = JwtExtensions.ClientPolicy)]
+    public async Task<IActionResult> GetMyClientServiceRequests([FromQuery] Aivora.Services.Base.Request.PageRequest pageRequest, [FromQuery] ServiceRequestStatus? status)
+    {
+        var clientId = this.GetUserId();
+        var result = await _serviceRequestService.GetMyRequestsForClientAsync(clientId, pageRequest, status);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "My service requests retrieved successfully", HttpContext.TraceIdentifier));
+    }
+
     [HttpPost("service-requests/{id}/accept")]
     [Authorize(Policy = JwtExtensions.ExpertPolicy)]
     public async Task<IActionResult> AcceptServiceRequest(Guid id)
