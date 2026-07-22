@@ -154,15 +154,12 @@ public class Service : IService
         if (serviceRequest == null) throw new NotFoundException("Service request not found.");
         if (serviceRequest.ClientId != clientId) throw new ForbiddenException("Only the client who owns this request can view its offer.");
 
-        var offers = await _dbContext.ServiceOffers
+        var offer = await _dbContext.ServiceOffers
             .Include(o => o.Milestones)
             .Where(o => o.ServiceRequestId == serviceRequestId)
-            .ToListAsync();
-
-        var offer = offers
             .OrderByDescending(o => o.Status == ServiceOfferStatus.ACCEPTED)
             .ThenByDescending(o => o.CreatedAt)
-            .FirstOrDefault();
+            .FirstOrDefaultAsync();
 
         if (offer == null) throw new NotFoundException("No offer found for this service request.");
 
