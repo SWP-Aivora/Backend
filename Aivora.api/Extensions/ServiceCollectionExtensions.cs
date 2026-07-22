@@ -207,6 +207,18 @@ public static class ServiceCollectionExtensions
                 : sp.GetRequiredService<Aivora.Services.AIMilestoneStepAssistantService.Providers.MockAIMilestoneStepSuggestionProvider>();
         });
 
+        services.AddScoped<Aivora.Services.RecommendationService.Prompting.ExpertRecommendationPromptBuilder>();
+        services.AddScoped<Aivora.Services.RecommendationService.Parsing.ExpertRecommendationParser>();
+        services.AddScoped<Aivora.Services.RecommendationService.Providers.MockExpertRecommendationProvider>();
+        services.AddScoped<Aivora.Services.RecommendationService.Providers.GeminiExpertRecommendationProvider>();
+        services.AddScoped<Aivora.Services.RecommendationService.IExpertRecommendationProvider>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<AIProviderOptions>>().Value;
+            return string.Equals(options.Provider, "Gemini", StringComparison.OrdinalIgnoreCase)
+                   && !string.IsNullOrWhiteSpace(options.ApiKey)
+                ? sp.GetRequiredService<Aivora.Services.RecommendationService.Providers.GeminiExpertRecommendationProvider>()
+                : sp.GetRequiredService<Aivora.Services.RecommendationService.Providers.MockExpertRecommendationProvider>();
+        });
         services.AddScoped<Aivora.Services.RecommendationService.IService, Aivora.Services.RecommendationService.Service>();
         services.AddScoped<Aivora.Services.ProjectService.IService, Aivora.Services.ProjectService.Service>();
         services.AddScoped<Aivora.Services.MilestoneService.IService, Aivora.Services.MilestoneService.Service>();

@@ -17,6 +17,7 @@ public class RecommendationResult : AuditableBaseEntity
     public decimal OverdueRate { get; set; }
     public decimal OverduePenalty { get; set; }
     public string? Explanation { get; set; }
+    public int AiRank { get; set; }
 
     // Navigation Properties
     public virtual JobPost Job { get; set; } = null!;

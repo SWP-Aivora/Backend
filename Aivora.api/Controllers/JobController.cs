@@ -123,19 +123,19 @@ public class JobController : ControllerBase
 
     [HttpPost("{id}/recommendations/generate")]
     [Authorize(Policy = JwtExtensions.ClientPolicy)]
-    public async Task<IActionResult> GenerateRecommendations(Guid id)
+    public async Task<IActionResult> GenerateRecommendations(Guid id, CancellationToken cancellationToken)
     {
         var clientId = this.GetUserId();
-        var result = await _recommendationService.GenerateRecommendationsAsync(clientId, id);
+        var result = await _recommendationService.GenerateRecommendationsAsync(clientId, id, cancellationToken);
         return StatusCode(StatusCodes.Status201Created, ApiResponseFactory.SuccessResponse(result, "Expert recommendations generated", HttpContext.TraceIdentifier));
     }
 
     [HttpGet("{id}/recommendations")]
     [Authorize(Policy = JwtExtensions.ClientPolicy)]
-    public async Task<IActionResult> GetRecommendations(Guid id)
+    public async Task<IActionResult> GetRecommendations(Guid id, CancellationToken cancellationToken)
     {
         var clientId = this.GetUserId();
-        var result = await _recommendationService.GetRecommendationsAsync(clientId, id);
+        var result = await _recommendationService.GetRecommendationsAsync(clientId, id, cancellationToken);
         return Ok(ApiResponseFactory.SuccessResponse(result, "Expert recommendations retrieved", HttpContext.TraceIdentifier));
     }
 

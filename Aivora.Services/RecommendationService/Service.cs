@@ -11,25 +11,30 @@ namespace Aivora.Services.RecommendationService;
 
 public class Service : IService
 {
+    // Scorer lam candidate generator: lay top-CandidatePoolSize tu pool 50 de gui AI re-rank.
+    private const int CandidatePoolSize = 12;
+
     private readonly AivoraDbContext _dbContext;
     private readonly RecommendationOptions _options;
+    private readonly IExpertRecommendationProvider _recommendationProvider;
 
-    public Service(AivoraDbContext dbContext, IOptions<RecommendationOptions> options)
+    public Service(AivoraDbContext dbContext, IOptions<RecommendationOptions> options, IExpertRecommendationProvider recommendationProvider)
     {
         _dbContext = dbContext;
         _options = options.Value;
+        _recommendationProvider = recommendationProvider;
     }
 
-    public async Task<List<Response.RecommendationResponse>> GenerateRecommendationsAsync(Guid clientId, Guid jobId)
+    public async Task<List<Response.RecommendationResponse>> GenerateRecommendationsAsync(Guid clientId, Guid jobId, CancellationToken cancellationToken = default)
     {
         var job = await _dbContext.JobPosts
             .IncludeSkills()
-            .FirstOrDefaultAsync(j => j.Id == jobId && j.ClientId == clientId);
+            .FirstOrDefaultAsync(j => j.Id == jobId && j.ClientId == clientId, cancellationToken);
 
         if (job == null) throw new NotFoundException("Job not found or access denied.");
         if (job.Status != JobStatus.OPEN) throw new ValidationException("Job must be OPEN to generate recommendations.");
 
-        var existing = await _dbContext.RecommendationResults.Where(r => r.JobId == jobId).ToListAsync();
+        var existing = await _dbContext.RecommendationResults.Where(r => r.JobId == jobId).ToListAsync(cancellationToken);
         _dbContext.RecommendationResults.RemoveRange(existing);
 
         var requiredSkills = job.JobSkills
@@ -56,13 +61,13 @@ public class Service : IService
         // Limit the candidate pool to the top 50 experts at database level to prevent memory issues
         activeExpertsQuery = activeExpertsQuery.Take(50);
 
-        var expertIds = await activeExpertsQuery.Select(e => e.UserId).ToListAsync();
+        var expertIds = await activeExpertsQuery.Select(e => e.UserId).ToListAsync(cancellationToken);
 
         var disputeCounts = await _dbContext.Disputes
             .Where(d => expertIds.Contains(d.Project.ExpertId))
             .GroupBy(d => d.Project.ExpertId)
             .Select(g => new { ExpertId = g.Key, Count = g.Count() })
-            .ToDictionaryAsync(x => x.ExpertId, x => x.Count);
+            .ToDictionaryAsync(x => x.ExpertId, x => x.Count, cancellationToken);
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var milestoneStats = await _dbContext.Milestones
@@ -80,46 +85,88 @@ public class Service : IService
                     && m.Status != MilestoneStatus.REFUNDED
                     && m.Status != MilestoneStatus.APPROVED)
             })
-            .ToDictionaryAsync(x => x.ExpertId, x => (Total: x.TotalCount, Overdue: x.OverdueCount));
+            .ToDictionaryAsync(x => x.ExpertId, x => (Total: x.TotalCount, Overdue: x.OverdueCount), cancellationToken);
 
         var experts = await _dbContext.ExpertProfiles
             .Include(e => e.User)
             .Include(e => e.ExpertSkills).ThenInclude(es => es.Skill)
             .Where(e => expertIds.Contains(e.UserId))
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
 
-        var recommendations = experts
+        var scored = experts
             .Select(expert =>
             {
                 var disputeCount = disputeCounts.GetValueOrDefault(expert.UserId, 0);
                 var milestoneStat = milestoneStats.GetValueOrDefault(expert.UserId, (Total: 0, Overdue: 0));
-                return BuildRecommendation(
+                var result = BuildRecommendation(
                     job,
                     requiredSkills,
                     expert,
                     disputeCount,
                     milestoneStat.Total,
                     milestoneStat.Overdue);
+                return (Expert: expert, DisputeCount: disputeCount, Result: result);
             })
-            .OrderByDescending(r => r.TotalScore)
-            .Take(5)
+            .OrderByDescending(x => x.Result.TotalScore)
+            .Take(CandidatePoolSize)
             .ToList();
 
-        _dbContext.RecommendationResults.AddRange(recommendations);
-        await _dbContext.SaveChangesAsync();
+        var context = new ExpertRecommendationContext
+        {
+            JobTitle = job.Title,
+            JobDescription = job.FinalDescription ?? job.OriginalDescription,
+            RequiredSkills = requiredSkills.Select(rs => rs.SkillName).ToList(),
+            BudgetType = job.BudgetType.ToString(),
+            BudgetMin = job.BudgetMin,
+            BudgetMax = job.BudgetMax,
+            Candidates = scored.Select(x => new CandidateExpert
+            {
+                ExpertId = x.Expert.UserId,
+                Skills = x.Expert.ExpertSkills.Select(es => es.Skill.Name).ToList(),
+                Rating = x.Expert.Rating,
+                HourlyRate = x.Expert.HourlyRate,
+                AvailabilityStatus = x.Expert.AvailabilityStatus.ToString(),
+                SuccessRate = x.Expert.SuccessRate,
+                CompletedProjects = x.Expert.CompletedProjects,
+                DisputeCount = x.DisputeCount,
+                OverdueRate = x.Result.OverdueRate,
+                ScorerTotalScore = x.Result.TotalScore,
+                ScorerExplanation = x.Result.Explanation ?? string.Empty
+            }).ToList()
+        };
 
-        return await GetRecommendationsAsync(clientId, jobId);
+        var draft = await _recommendationProvider.RankAsync(context, cancellationToken);
+
+        var resultsByExpertId = scored.ToDictionary(x => x.Expert.UserId, x => x.Result);
+        var recommendations = new List<RecommendationResult>();
+        var rank = 1;
+        foreach (var ranked in draft.Ranked)
+        {
+            if (!resultsByExpertId.TryGetValue(ranked.ExpertId, out var result))
+            {
+                continue;
+            }
+
+            result.Explanation = ranked.Reasoning;
+            result.AiRank = rank++;
+            recommendations.Add(result);
+        }
+
+        _dbContext.RecommendationResults.AddRange(recommendations);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return await GetRecommendationsAsync(clientId, jobId, cancellationToken);
     }
 
-    public async Task<List<Response.RecommendationResponse>> GetRecommendationsAsync(Guid clientId, Guid jobId)
+    public async Task<List<Response.RecommendationResponse>> GetRecommendationsAsync(Guid clientId, Guid jobId, CancellationToken cancellationToken = default)
     {
-        var job = await _dbContext.JobPosts.AnyAsync(j => j.Id == jobId && j.ClientId == clientId);
+        var job = await _dbContext.JobPosts.AnyAsync(j => j.Id == jobId && j.ClientId == clientId, cancellationToken);
         if (!job) throw new NotFoundException("Job not found or access denied.");
 
         return await _dbContext.RecommendationResults
             .Include(r => r.Expert).ThenInclude(u => u.ExpertProfile)
             .Where(r => r.JobId == jobId)
-            .OrderByDescending(r => r.TotalScore)
+            .OrderBy(r => r.AiRank)
             .Select(r => new Response.RecommendationResponse
             {
                 Id = r.Id,
@@ -142,7 +189,7 @@ public class Service : IService
                 OverdueRate = r.OverdueRate,
                 OverduePenalty = r.OverduePenalty
             })
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
     }
 
     private RecommendationResult BuildRecommendation(

@@ -27,7 +27,8 @@ public class GeminiProviderClient
     public async Task<string> GenerateAsync(
         string prompt,
         IReadOnlyList<(string MimeType, byte[] Data)> attachments,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        double? temperature = null)
     {
         if (string.IsNullOrWhiteSpace(_options.ApiKey))
         {
@@ -53,6 +54,12 @@ public class GeminiProviderClient
             });
         }
 
+        var generationConfig = new Dictionary<string, object> { ["responseMimeType"] = "application/json" };
+        if (temperature.HasValue)
+        {
+            generationConfig["temperature"] = temperature.Value;
+        }
+
         var payload = new
         {
             contents = new[]
@@ -63,7 +70,7 @@ public class GeminiProviderClient
                     parts = requestParts.ToArray()
                 }
             },
-            generationConfig = new { responseMimeType = "application/json" }
+            generationConfig
         };
 
         using var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
