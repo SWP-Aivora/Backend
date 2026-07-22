@@ -85,7 +85,7 @@ public class Service : IService
         if (service.ExpertId != expertId) throw new ForbiddenException("Only the service owner can view its requests.");
 
         var requests = await _dbContext.ServiceRequests
-            .Include(r => r.Service)
+            .Include(r => r.Service).ThenInclude(s => s.Expert)
             .Include(r => r.Client)
             .Where(r => r.ServiceId == serviceId)
             .OrderByDescending(r => r.CreatedAt)
@@ -97,7 +97,7 @@ public class Service : IService
     public async Task<List<Response.ServiceRequestResponse>> GetMyRequestsForExpertAsync(Guid expertId, ServiceRequestStatus? status)
     {
         var query = _dbContext.ServiceRequests
-            .Include(r => r.Service)
+            .Include(r => r.Service).ThenInclude(s => s.Expert)
             .Include(r => r.Client)
             .Where(r => r.Service.ExpertId == expertId);
 
@@ -109,6 +109,35 @@ public class Service : IService
         var requests = await query.OrderByDescending(r => r.CreatedAt).ToListAsync();
 
         return requests.Select(MapToResponse).ToList();
+    }
+
+    public async Task<Aivora.Services.Base.Response.PageResult<Response.ServiceRequestResponse>> GetMyRequestsForClientAsync(Guid clientId, Aivora.Services.Base.Request.PageRequest pageRequest, ServiceRequestStatus? status)
+    {
+        var query = _dbContext.ServiceRequests
+            .Include(r => r.Service).ThenInclude(s => s.Expert)
+            .Include(r => r.Client)
+            .Where(r => r.ClientId == clientId);
+
+        if (status.HasValue)
+        {
+            query = query.Where(r => r.Status == status.Value);
+        }
+
+        var totalItems = await query.CountAsync();
+        var requests = await query
+            .OrderByDescending(r => r.CreatedAt)
+            .Skip((pageRequest.PageIndex - 1) * pageRequest.PageSize)
+            .Take(pageRequest.PageSize)
+            .ToListAsync();
+        var items = requests.Select(MapToResponse).ToList();
+
+        return new Aivora.Services.Base.Response.PageResult<Response.ServiceRequestResponse>
+        {
+            Items = items,
+            TotalItems = totalItems,
+            PageIndex = pageRequest.PageIndex,
+            PageSize = pageRequest.PageSize
+        };
     }
 
     public async Task<Response.ServiceRequestResponse> AcceptRequestAsync(Guid expertId, Guid serviceRequestId)
@@ -190,7 +219,7 @@ public class Service : IService
     private async Task<Response.ServiceRequestResponse> GetRequestByIdAsync(Guid id)
     {
         var request = await _dbContext.ServiceRequests
-            .Include(r => r.Service)
+            .Include(r => r.Service).ThenInclude(s => s.Expert)
             .Include(r => r.Client)
             .FirstOrDefaultAsync(r => r.Id == id);
 
@@ -212,6 +241,7 @@ public class Service : IService
             ServiceId = request.ServiceId,
             ServiceTitle = request.Service?.Title ?? "N/A",
             ExpertId = request.Service?.ExpertId ?? Guid.Empty,
+            ExpertName = request.Service?.Expert?.FullName ?? "N/A",
             ClientId = request.ClientId,
             ClientName = request.Client?.FullName ?? "N/A",
             PackageId = request.PackageId,

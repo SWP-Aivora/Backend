@@ -10,6 +10,7 @@ public class Response
         public Guid ServiceId { get; set; }
         public string ServiceTitle { get; set; } = null!;
         public Guid ExpertId { get; set; }
+        public string ExpertName { get; set; } = null!;
         public Guid ClientId { get; set; }
         public string ClientName { get; set; } = null!;
         public Guid PackageId { get; set; }

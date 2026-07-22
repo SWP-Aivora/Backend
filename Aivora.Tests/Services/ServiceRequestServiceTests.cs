@@ -168,6 +168,76 @@ public class ServiceRequestServiceTests
     }
 
     [Fact]
+    public async Task GetMyRequestsForClientAsync_WithMultipleClients_ReturnsOnlyOwnRequests()
+    {
+        var dbContext = GetDbContext();
+        var expertId = SeedUser(dbContext);
+        var clientA = SeedUser(dbContext);
+        var clientB = SeedUser(dbContext);
+        var (service, package) = SeedPublishedService(dbContext, expertId);
+        var serviceRequestService = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.MessageService.IService>());
+        await serviceRequestService.CreateRequestAsync(clientA, service.Id, new Request.CreateServiceRequestRequest { PackageId = package.Id });
+        await serviceRequestService.CreateRequestAsync(clientB, service.Id, new Request.CreateServiceRequestRequest { PackageId = package.Id });
+
+        var result = await serviceRequestService.GetMyRequestsForClientAsync(clientA, new Aivora.Services.Base.Request.PageRequest(), null);
+
+        result.Items.Should().ContainSingle().Which.ClientId.Should().Be(clientA);
+    }
+
+    [Fact]
+    public async Task GetMyRequestsForClientAsync_WithStatusFilter_ReturnsOnlyMatching()
+    {
+        var dbContext = GetDbContext();
+        var expertId = SeedUser(dbContext);
+        var clientId = SeedUser(dbContext);
+        var (service, package) = SeedPublishedService(dbContext, expertId);
+        var serviceRequestService = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.MessageService.IService>());
+        await serviceRequestService.CreateRequestAsync(clientId, service.Id, new Request.CreateServiceRequestRequest { PackageId = package.Id });
+
+        var pending = await serviceRequestService.GetMyRequestsForClientAsync(clientId, new Aivora.Services.Base.Request.PageRequest(), ServiceRequestStatus.PENDING);
+        var accepted = await serviceRequestService.GetMyRequestsForClientAsync(clientId, new Aivora.Services.Base.Request.PageRequest(), ServiceRequestStatus.ACCEPTED);
+
+        pending.Items.Should().HaveCount(1);
+        accepted.Items.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetMyRequestsForClientAsync_WithExpertOnService_PopulatesExpertName()
+    {
+        var dbContext = GetDbContext();
+        var expert = new User { FullName = "Expert Jane", Email = $"{Guid.NewGuid()}@test.com", PasswordHash = "hash" };
+        dbContext.Users.Add(expert);
+        dbContext.SaveChanges();
+        var clientId = SeedUser(dbContext);
+        var (service, package) = SeedPublishedService(dbContext, expert.Id);
+        var serviceRequestService = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.MessageService.IService>());
+        await serviceRequestService.CreateRequestAsync(clientId, service.Id, new Request.CreateServiceRequestRequest { PackageId = package.Id });
+
+        var result = await serviceRequestService.GetMyRequestsForClientAsync(clientId, new Aivora.Services.Base.Request.PageRequest(), null);
+
+        result.Items.Should().ContainSingle().Which.ExpertName.Should().Be("Expert Jane");
+    }
+
+    [Fact]
+    public async Task GetMyRequestsForClientAsync_WithPageSizeSmallerThanTotal_ReturnsPagedResult()
+    {
+        var dbContext = GetDbContext();
+        var expertId = SeedUser(dbContext);
+        var clientId = SeedUser(dbContext);
+        var (service, package) = SeedPublishedService(dbContext, expertId);
+        var (service2, package2) = SeedPublishedService(dbContext, expertId);
+        var serviceRequestService = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.MessageService.IService>());
+        await serviceRequestService.CreateRequestAsync(clientId, service.Id, new Request.CreateServiceRequestRequest { PackageId = package.Id });
+        await serviceRequestService.CreateRequestAsync(clientId, service2.Id, new Request.CreateServiceRequestRequest { PackageId = package2.Id });
+
+        var result = await serviceRequestService.GetMyRequestsForClientAsync(clientId, new Aivora.Services.Base.Request.PageRequest { PageSize = 1, PageIndex = 1 }, null);
+
+        result.Items.Should().HaveCount(1);
+        result.TotalItems.Should().Be(2);
+        result.TotalPages.Should().Be(2);
+    }
+
+    [Fact]
     public async Task AcceptRequestAsync_ByOwnerExpert_SetsAcceptedAndCreatesConversation()
     {
         var dbContext = GetDbContext();
