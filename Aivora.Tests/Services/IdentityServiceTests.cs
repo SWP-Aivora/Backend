@@ -89,6 +89,36 @@ public class IdentityServiceTests
     }
 
     [Fact]
+    public async Task RegisterAsync_ThrowsValidationException_WhenFullNameIsEmpty()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var service = new Aivora.Services.IdentityService.Service(dbContext, _jwtServiceMock.Object);
+        var request = new Request.RegisterRequest { Email = "e@t.com", FullName = "", Password = "p", Role = "EXPERT" };
+
+        // Act
+        Func<Task> act = async () => await service.RegisterAsync(request);
+
+        // Assert
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    [Fact]
+    public async Task RegisterAsync_ThrowsValidationException_WhenFullNameIsWhitespace()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var service = new Aivora.Services.IdentityService.Service(dbContext, _jwtServiceMock.Object);
+        var request = new Request.RegisterRequest { Email = "e@t.com", FullName = "   ", Password = "p", Role = "EXPERT" };
+
+        // Act
+        Func<Task> act = async () => await service.RegisterAsync(request);
+
+        // Assert
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    [Fact]
     public async Task RefreshTokenAsync_Succeeds_WithValidToken()
     {
         // Arrange
