@@ -114,7 +114,8 @@ public class Flow3MilestonePaymentDeliverableApiTests : IClassFixture<ApiContrac
         );
 
         // 6. PUT /api/v1/milestones/{id}
-        var updateMreq = new { title = "Updated custom milestone title", amount = 600 };
+        // amount stays within the project's total budget (700 M1 + this milestone must not exceed 1200)
+        var updateMreq = new { title = "Updated custom milestone title", amount = 450 };
         var (updateMres, updateMbody) = await client.PutAsync($"/api/v1/milestones/{customMilestoneId}", updateMreq);
         updateMres.StatusCode.Should().Be(HttpStatusCode.OK);
         bool updateMsuccess = updateMbody?.GetProperty("success").GetBoolean() ?? false;

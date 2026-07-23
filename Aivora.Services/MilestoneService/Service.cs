@@ -135,6 +135,16 @@ public class Service : IService
         ValidateLength(request.Description, 1000, "Description");
         ValidateLength(request.AcceptanceCriteria, 2000, "AcceptanceCriteria");
 
+        if (request.Amount.HasValue && milestone.Project.TotalBudget.HasValue)
+        {
+            var otherAmount = await _dbContext.Milestones
+                .Where(m => m.ProjectId == milestone.ProjectId && m.Id != milestoneId)
+                .SumAsync(m => m.Amount);
+
+            if (otherAmount + request.Amount.Value > milestone.Project.TotalBudget.Value)
+                throw new ValidationException("Total milestone amount exceeds the project's total budget.");
+        }
+
         if (request.Title != null) milestone.Title = request.Title;
         if (request.Description != null) milestone.Description = request.Description;
         if (request.AcceptanceCriteria != null) milestone.AcceptanceCriteria = request.AcceptanceCriteria;
