@@ -298,6 +298,62 @@ public class MilestoneServiceTests
     }
 
     [Fact]
+    public async Task UpdateMilestoneAsync_ExceedsProjectBudget_ThrowsValidationException()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var milestoneId = Guid.NewGuid();
+
+        var project = new Project { Id = projectId, ClientId = clientId, ExpertId = expertId, Title = "Test Project", Status = ProjectStatus.ACTIVE, TotalBudget = 500 };
+        var otherMilestone = new Milestone { Id = Guid.NewGuid(), ProjectId = projectId, Title = "Milestone 1", Amount = 200, Status = MilestoneStatus.CREATED };
+        var milestone = new Milestone { Id = milestoneId, ProjectId = projectId, Title = "Milestone 2", Amount = 100, Status = MilestoneStatus.CREATED };
+
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.AddRange(otherMilestone, milestone);
+        await dbContext.SaveChangesAsync();
+
+        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
+        var request = new Request.UpdateMilestoneRequest { Amount = 400 };
+
+        // Act & Assert (200 other + 400 new = 600 > 500 budget)
+        var ex = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.UpdateMilestoneAsync(clientId, milestoneId, request));
+        ex.Message.Should().Be("Total milestone amount exceeds the project's total budget.");
+    }
+
+    [Fact]
+    public async Task UpdateMilestoneAsync_WithinProjectBudget_Success()
+    {
+        // Arrange: milestone's own old amount (300) must be excluded from the sum, otherwise
+        // this would false-fail as a double-count (300 old + 300 new + 200 other = 800 > 500).
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var milestoneId = Guid.NewGuid();
+
+        var project = new Project { Id = projectId, ClientId = clientId, ExpertId = expertId, Title = "Test Project", Status = ProjectStatus.ACTIVE, TotalBudget = 500 };
+        var otherMilestone = new Milestone { Id = Guid.NewGuid(), ProjectId = projectId, Title = "Milestone 1", Amount = 200, Status = MilestoneStatus.CREATED };
+        var milestone = new Milestone { Id = milestoneId, ProjectId = projectId, Title = "Milestone 2", Amount = 300, Status = MilestoneStatus.CREATED };
+
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.AddRange(otherMilestone, milestone);
+        await dbContext.SaveChangesAsync();
+
+        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
+        var request = new Request.UpdateMilestoneRequest { Amount = 300 };
+
+        // Act (200 other + 300 new = 500, exactly at budget)
+        var result = await service.UpdateMilestoneAsync(clientId, milestoneId, request);
+
+        // Assert
+        result.Amount.Should().Be(300);
+    }
+
+    [Fact]
     public async Task CreateMilestoneAsync_DescriptionTooLong_ThrowsValidationException()
     {
         // Arrange

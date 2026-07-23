@@ -62,6 +62,11 @@ public class Service : IService
             throw new ValidationException("Email is already in use.");
         }
 
+        if (request.FullName != null && request.FullName.Length > 255)
+        {
+            throw new ValidationException("Full name must not exceed 255 characters.");
+        }
+
         var user = new User
         {
             Email = request.Email,

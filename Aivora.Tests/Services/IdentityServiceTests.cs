@@ -55,6 +55,40 @@ public class IdentityServiceTests
     }
 
     [Fact]
+    public async Task RegisterAsync_ThrowsValidationException_WhenFullNameExceeds255Chars()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var service = new Aivora.Services.IdentityService.Service(dbContext, _jwtServiceMock.Object);
+        var request = new Request.RegisterRequest { Email = "e@t.com", FullName = new string('a', 256), Password = "p", Role = "EXPERT" };
+
+        // Act
+        Func<Task> act = async () => await service.RegisterAsync(request);
+
+        // Assert
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    [Fact]
+    public async Task RegisterAsync_Succeeds_WhenFullNameIsExactly255Chars()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var service = new Aivora.Services.IdentityService.Service(dbContext, _jwtServiceMock.Object);
+        var request = new Request.RegisterRequest { Email = "e@t.com", FullName = new string('a', 255), Password = "p", Role = "EXPERT" };
+
+        _jwtServiceMock.Setup(x => x.GenerateAccessToken(It.IsAny<User>(), It.IsAny<string>())).Returns("at");
+        _jwtServiceMock.Setup(x => x.GenerateRefreshToken()).Returns("rt");
+
+        // Act
+        await service.RegisterAsync(request);
+
+        // Assert
+        var user = await dbContext.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
+        user.Should().NotBeNull();
+    }
+
+    [Fact]
     public async Task RefreshTokenAsync_Succeeds_WithValidToken()
     {
         // Arrange
