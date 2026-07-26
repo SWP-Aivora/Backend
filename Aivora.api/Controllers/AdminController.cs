@@ -15,11 +15,20 @@ public class AdminController : ControllerBase
 {
     private readonly IAdminService _adminService;
     private readonly Aivora.Services.ExpertVerificationService.IService _expertVerificationService;
+    private readonly Aivora.Services.JobService.IService _jobService;
 
-    public AdminController(IAdminService adminService, Aivora.Services.ExpertVerificationService.IService expertVerificationService)
+    public AdminController(IAdminService adminService, Aivora.Services.ExpertVerificationService.IService expertVerificationService, Aivora.Services.JobService.IService jobService)
     {
         _adminService = adminService;
         _expertVerificationService = expertVerificationService;
+        _jobService = jobService;
+    }
+
+    [HttpGet("job-posts")]
+    public async Task<IActionResult> GetJobPosts([FromQuery] Aivora.Services.Base.Request.PageRequest pageRequest, [FromQuery] Aivora.Repositories.Enums.JobStatus? status)
+    {
+        var result = await _jobService.GetMyJobsAsync(null, pageRequest, status);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Job posts retrieved", HttpContext.TraceIdentifier));
     }
 
     [HttpGet("stats")]

@@ -263,14 +263,19 @@ public class Service : IService
         };
     }
 
-    public async Task<Aivora.Services.Base.Response.PageResult<Response.JobResponse>> GetMyJobsAsync(Guid clientId, Aivora.Services.Base.Request.PageRequest pageRequest, Aivora.Repositories.Enums.JobStatus? status = null)
+    public async Task<Aivora.Services.Base.Response.PageResult<Response.JobResponse>> GetMyJobsAsync(Guid? clientId, Aivora.Services.Base.Request.PageRequest pageRequest, Aivora.Repositories.Enums.JobStatus? status = null)
     {
         var query = _dbContext.JobPosts
             .Include(j => j.Client)
             .Include(j => j.Category)
             .IncludeSkills()
             .Include(j => j.Milestones)
-            .Where(j => j.ClientId == clientId);
+            .AsQueryable();
+
+        if (clientId.HasValue)
+        {
+            query = query.Where(j => j.ClientId == clientId.Value);
+        }
 
         if (status.HasValue)
         {

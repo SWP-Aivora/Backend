@@ -309,4 +309,46 @@ public class JobServiceUpdateTests
         var dbInvite = await dbContext.JobInvites.FindAsync(invite.Id);
         dbInvite!.Status.Should().Be(JobInviteStatus.EXPIRED);
     }
+
+    [Fact]
+    public async Task GetMyJobsAsync_WithNullClientId_ReturnsJobsFromAllClientsIncludingDrafts()
+    {
+        var dbContext = GetDbContext();
+        var (_, _, clientId) = SetupClient(dbContext);
+        var otherClient = new User { FullName = "Other Client", Email = "other@test.com", PasswordHash = "hash" };
+        dbContext.Users.Add(otherClient);
+
+        dbContext.JobPosts.AddRange(
+            new JobPost { ClientId = clientId, Title = "Draft Job", OriginalDescription = "Desc", CategoryId = Guid.NewGuid(), Status = JobStatus.DRAFT },
+            new JobPost { ClientId = otherClient.Id, Title = "Open Job", OriginalDescription = "Desc", CategoryId = Guid.NewGuid(), Status = JobStatus.OPEN }
+        );
+        await dbContext.SaveChangesAsync();
+
+        var service = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService());
+
+        var result = await service.GetMyJobsAsync(null, new Aivora.Services.Base.Request.PageRequest { PageIndex = 1, PageSize = 10 });
+
+        result.Items.Should().HaveCount(2);
+        result.Items.Select(j => j.Title).Should().BeEquivalentTo(new[] { "Draft Job", "Open Job" });
+    }
+
+    [Fact]
+    public async Task GetMyJobsAsync_WithNullClientIdAndStatusFilter_OnlyReturnsMatchingStatus()
+    {
+        var dbContext = GetDbContext();
+        var (_, _, clientId) = SetupClient(dbContext);
+
+        dbContext.JobPosts.AddRange(
+            new JobPost { ClientId = clientId, Title = "Draft Job", OriginalDescription = "Desc", CategoryId = Guid.NewGuid(), Status = JobStatus.DRAFT },
+            new JobPost { ClientId = clientId, Title = "Open Job", OriginalDescription = "Desc", CategoryId = Guid.NewGuid(), Status = JobStatus.OPEN }
+        );
+        await dbContext.SaveChangesAsync();
+
+        var service = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService());
+
+        var result = await service.GetMyJobsAsync(null, new Aivora.Services.Base.Request.PageRequest { PageIndex = 1, PageSize = 10 }, JobStatus.DRAFT);
+
+        result.Items.Should().ContainSingle();
+        result.Items[0].Title.Should().Be("Draft Job");
+    }
 }

@@ -57,6 +57,15 @@ public class ServiceRequestsController : ControllerBase
         return Ok(ApiResponseFactory.SuccessResponse(result, "My service requests retrieved successfully", HttpContext.TraceIdentifier));
     }
 
+    [HttpGet("service-requests/{id}")]
+    [Authorize(Policy = JwtExtensions.ClientOrExpertPolicy)]
+    public async Task<IActionResult> GetServiceRequest(Guid id)
+    {
+        var userId = this.GetUserId();
+        var result = await _serviceRequestService.GetRequestForUserAsync(userId, id);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Service request retrieved successfully", HttpContext.TraceIdentifier));
+    }
+
     [HttpPost("service-requests/{id}/accept")]
     [Authorize(Policy = JwtExtensions.ExpertPolicy)]
     public async Task<IActionResult> AcceptServiceRequest(Guid id)

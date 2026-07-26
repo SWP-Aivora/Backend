@@ -123,6 +123,11 @@ public class Service : IService
             query = query.Where(r => r.Status == status.Value);
         }
 
+        if (!string.IsNullOrWhiteSpace(pageRequest.SearchTerm))
+        {
+            query = query.Where(r => r.Service.Title.Contains(pageRequest.SearchTerm) || r.PackageTitle.Contains(pageRequest.SearchTerm));
+        }
+
         var totalItems = await query.CountAsync();
         var requests = await query
             .OrderByDescending(r => r.CreatedAt)
@@ -138,6 +143,20 @@ public class Service : IService
             PageIndex = pageRequest.PageIndex,
             PageSize = pageRequest.PageSize
         };
+    }
+
+    public async Task<Response.ServiceRequestResponse> GetRequestForUserAsync(Guid userId, Guid serviceRequestId)
+    {
+        var request = await _dbContext.ServiceRequests
+            .Include(r => r.Service).ThenInclude(s => s.Expert)
+            .Include(r => r.Client)
+            .FirstOrDefaultAsync(r => r.Id == serviceRequestId);
+
+        if (request == null) throw new NotFoundException("Service request not found.");
+        if (request.ClientId != userId && request.Service.ExpertId != userId)
+            throw new ForbiddenException("Only the client or expert on this request can view it.");
+
+        return MapToResponse(request);
     }
 
     public async Task<Response.ServiceRequestResponse> AcceptRequestAsync(Guid expertId, Guid serviceRequestId)

@@ -126,7 +126,7 @@ public class Service : IService
                 Amount = request.Amount,
                 Type = WalletTransactionType.DEPOSIT,
                 Direction = TransactionDirection.CREDIT,
-                Description = request.Description ?? $"Deposit via {request.PaymentMethod}",
+                Description = request.Description ?? (string.IsNullOrWhiteSpace(request.PaymentMethod) ? "Wallet deposit" : $"Deposit via {request.PaymentMethod}"),
                 PaymentId = null,
                 BalanceBefore = balanceBefore,
                 BalanceAfter = wallet.AvailableBalance
@@ -215,10 +215,10 @@ public class Service : IService
                 Amount = request.Amount,
                 Type = WalletTransactionType.WITHDRAWAL,
                 Direction = TransactionDirection.DEBIT,
-                Description = request.Description ?? $"Withdrawal via {request.PaymentMethod}",
+                Description = request.Description ?? (string.IsNullOrWhiteSpace(request.PaymentMethod) ? "Wallet withdrawal" : $"Withdrawal via {request.PaymentMethod}"),
                 PaymentId = null,
                 BalanceBefore = balanceBefore,
-                BalanceAfter = wallet.AvailableBalance
+                BalanceAfter = currentWallet.AvailableBalance
             };
 
             _dbContext.WalletTransactions.Add(walletTx);
