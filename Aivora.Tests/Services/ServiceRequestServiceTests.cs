@@ -238,6 +238,83 @@ public class ServiceRequestServiceTests
     }
 
     [Fact]
+    public async Task GetRequestForUserAsync_ByOwnerClient_ReturnsRequest()
+    {
+        var dbContext = GetDbContext();
+        var expertId = SeedUser(dbContext);
+        var clientId = SeedUser(dbContext);
+        var (service, package) = SeedPublishedService(dbContext, expertId);
+        var serviceRequestService = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.MessageService.IService>());
+        var created = await serviceRequestService.CreateRequestAsync(clientId, service.Id, new Request.CreateServiceRequestRequest { PackageId = package.Id });
+
+        var result = await serviceRequestService.GetRequestForUserAsync(clientId, created.Id);
+
+        result.Id.Should().Be(created.Id);
+    }
+
+    [Fact]
+    public async Task GetRequestForUserAsync_ByOwnerExpert_ReturnsRequest()
+    {
+        var dbContext = GetDbContext();
+        var expertId = SeedUser(dbContext);
+        var clientId = SeedUser(dbContext);
+        var (service, package) = SeedPublishedService(dbContext, expertId);
+        var serviceRequestService = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.MessageService.IService>());
+        var created = await serviceRequestService.CreateRequestAsync(clientId, service.Id, new Request.CreateServiceRequestRequest { PackageId = package.Id });
+
+        var result = await serviceRequestService.GetRequestForUserAsync(expertId, created.Id);
+
+        result.Id.Should().Be(created.Id);
+    }
+
+    [Fact]
+    public async Task GetRequestForUserAsync_ByThirdParty_ThrowsForbidden()
+    {
+        var dbContext = GetDbContext();
+        var expertId = SeedUser(dbContext);
+        var clientId = SeedUser(dbContext);
+        var thirdPartyId = SeedUser(dbContext);
+        var (service, package) = SeedPublishedService(dbContext, expertId);
+        var serviceRequestService = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.MessageService.IService>());
+        var created = await serviceRequestService.CreateRequestAsync(clientId, service.Id, new Request.CreateServiceRequestRequest { PackageId = package.Id });
+
+        var act = () => serviceRequestService.GetRequestForUserAsync(thirdPartyId, created.Id);
+
+        await act.Should().ThrowAsync<ForbiddenException>();
+    }
+
+    [Fact]
+    public async Task GetRequestForUserAsync_WithNonExistentRequest_ThrowsNotFound()
+    {
+        var dbContext = GetDbContext();
+        var userId = SeedUser(dbContext);
+        var serviceRequestService = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.MessageService.IService>());
+
+        var act = () => serviceRequestService.GetRequestForUserAsync(userId, Guid.NewGuid());
+
+        await act.Should().ThrowAsync<NotFoundException>();
+    }
+
+    [Fact]
+    public async Task GetMyRequestsForClientAsync_WithSearchTerm_FiltersByServiceTitle()
+    {
+        var dbContext = GetDbContext();
+        var expertId = SeedUser(dbContext);
+        var clientId = SeedUser(dbContext);
+        var (service, package) = SeedPublishedService(dbContext, expertId);
+        var (service2, package2) = SeedPublishedService(dbContext, expertId);
+        service2.Title = "Mobile app design";
+        await dbContext.SaveChangesAsync();
+        var serviceRequestService = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.MessageService.IService>());
+        await serviceRequestService.CreateRequestAsync(clientId, service.Id, new Request.CreateServiceRequestRequest { PackageId = package.Id });
+        await serviceRequestService.CreateRequestAsync(clientId, service2.Id, new Request.CreateServiceRequestRequest { PackageId = package2.Id });
+
+        var result = await serviceRequestService.GetMyRequestsForClientAsync(clientId, new Aivora.Services.Base.Request.PageRequest { SearchTerm = "Mobile" }, null);
+
+        result.Items.Should().ContainSingle().Which.ServiceId.Should().Be(service2.Id);
+    }
+
+    [Fact]
     public async Task AcceptRequestAsync_ByOwnerExpert_SetsAcceptedAndCreatesConversation()
     {
         var dbContext = GetDbContext();
