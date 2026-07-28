@@ -3,6 +3,7 @@ using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.AIJobAssistantService.Parsing;
+using Aivora.Services.Constants;
 using Aivora.Services.Exceptions;
 using Aivora.Services.Options;
 using Microsoft.EntityFrameworkCore;
@@ -505,9 +506,9 @@ public class Service : IService
             throw new ValidationException("SuggestedBudgetMin must be less than or equal to SuggestedBudgetMax.");
         }
 
-        if (timelineDays.HasValue && (timelineDays.Value < 1 || timelineDays.Value > 3650))
+        if (timelineDays.HasValue && (timelineDays.Value < ValidationLimits.MinDurationDays || timelineDays.Value > ValidationLimits.MaxDurationDays))
         {
-            throw new ValidationException("SuggestedTimelineDays must be between 1 and 3650.");
+            throw new ValidationException($"SuggestedTimelineDays must be between {ValidationLimits.MinDurationDays} and {ValidationLimits.MaxDurationDays}.");
         }
     }
 
@@ -519,7 +520,7 @@ public class Service : IService
                 Title = NormalizeRequiredLimited(milestone.Title, $"Milestone {index + 1}", 255),
                 Description = NormalizeLimited(milestone.Description, 2000),
                 Amount = Math.Max(milestone.Amount, 1),
-                DueDays = Math.Clamp(milestone.DueDays, 1, 3650),
+                DueDays = Math.Clamp(milestone.DueDays, ValidationLimits.MinDurationDays, ValidationLimits.MaxDurationDays),
                 AcceptanceCriteria = NormalizeLimited(milestone.AcceptanceCriteria, 2000)
             })
             .ToList();

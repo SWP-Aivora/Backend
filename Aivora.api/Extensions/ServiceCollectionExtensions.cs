@@ -62,6 +62,10 @@ public static class ServiceCollectionExtensions
             .Bind(configuration.GetSection("Recommendation"))
             .ValidateDataAnnotations()
             .ValidateOnStart();
+        services.AddOptions<EscrowOptions>()
+            .Bind(configuration.GetSection("Escrow"))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
 
         return services;
     }

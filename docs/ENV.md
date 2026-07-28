@@ -19,10 +19,17 @@ These variables **must** be set or the application will crash at startup with `I
 | `CloudinaryOptions__CloudName` | `CloudinaryOptions:CloudName` | `your_cloud_name` | Cloudinary cloud name |
 | `CloudinaryOptions__ApiKey` | `CloudinaryOptions:ApiKey` | `your_api_key` | Cloudinary API key |
 | `CloudinaryOptions__ApiSecret` | `CloudinaryOptions:ApiSecret` | `your_api_secret` | Cloudinary API secret |
+| `VNPay__BaseUrl` | `VNPay:BaseUrl` | `https://sandbox.vnpayment.vn/paymentv2/vpcpay.html` | VNPay payment gateway URL. No longer has a code fallback — must be set explicitly (sandbox URL for dev/staging, VNPay's production URL for prod) or deposits/approvals crash at startup |
 
 ---
 
 ## Optional Variables
+
+### JWT
+
+| Variable | Config Key | Default | Description |
+|----------|-----------|---------|-------------|
+| `JwtSettings__RefreshTokenExpiryDays` | `JwtSettings:RefreshTokenExpiryDays` | `7` | Refresh token lifetime in days |
 
 ### AI Provider
 
@@ -43,11 +50,13 @@ These variables **must** be set or the application will crash at startup with `I
 | `FrontendUrl` | `FrontendUrl` | `http://localhost:5173` | Used to build the VNPay return redirect URL back to the FE |
 | `VNPay__TmnCode` | `VNPay:TmnCode` | `BIVWVEYB` | VNPay merchant terminal code |
 | `VNPay__HashSecret` | `VNPay:HashSecret` | `B4IEDEG7MNWFS3OGH87GEFX1KVHBII6O` | VNPay secure hash secret |
-| `VNPay__BaseUrl` | `VNPay:BaseUrl` | `https://sandbox.vnpayment.vn/paymentv2/vpcpay.html` | VNPay payment gateway URL |
 | `VNPay__ReturnUrl` | `VNPay:ReturnUrl` | `https://localhost:5000/api/v1/wallet/vnpay-return` | Callback URL VNPay redirects the user to after payment |
 | `VNPay__IpnUrl` | `VNPay:IpnUrl` | `https://localhost:5000/api/v1/wallet/vnpay-ipn` | Server-to-server IPN callback URL |
 | `Commission__Rate` | `Commission:Rate` | `0.10` | Platform commission rate (10%) taken on released payments |
 | `Commission__MaxDebtLimit` | `Commission:MaxDebtLimit` | `1000` | Max negative balance allowed before blocking further spend |
+| `Escrow__DepositRate` | `Escrow:DepositRate` | `0.30` | Fraction of the milestone amount paid upfront as deposit; the rest (`1 - DepositRate`) is released on approval |
+
+`VNPay__BaseUrl` moved to Required Variables above — it no longer has a code fallback.
 
 > Sandbox VNPay credentials in `.env.example` are test-only keys, safe to commit for local development.
 
@@ -97,7 +106,7 @@ Make sure to replace all placeholder values in `appsettings.Development.json` wi
    dotnet user-secrets set "CloudinaryOptions:ApiSecret" "your-api-secret"
    ```
 
-2. For Render/cloud deployment, set environment variables in the dashboard using the `__` separator format. See `render.yaml` for the current Render service definition — note it does not yet set the VNPay/Commission vars above; add them manually on the dashboard if payment features are needed in that environment.
+2. For Render/cloud deployment, set environment variables in the dashboard using the `__` separator format. See `render.yaml` for the current Render service definition — note it does not yet set the VNPay/Commission vars above; add them manually on the dashboard. `VNPay__BaseUrl` is now Required (see above) — the app will not start without it.
 
 ---
 

@@ -1,6 +1,7 @@
 using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
+using Aivora.Services.Constants;
 using Aivora.Services.Exceptions;
 using Microsoft.EntityFrameworkCore;
 
@@ -255,8 +256,8 @@ public class Service : IService
         foreach (var package in normalized)
         {
             if (package.Price <= 0) throw new ValidationException("Package price must be greater than 0.");
-            if (package.DeliveryDays < 1 || package.DeliveryDays > 3650)
-                throw new ValidationException("Package delivery days must be between 1 and 3650.");
+            if (package.DeliveryDays < ValidationLimits.MinDurationDays || package.DeliveryDays > ValidationLimits.MaxDurationDays)
+                throw new ValidationException($"Package delivery days must be between {ValidationLimits.MinDurationDays} and {ValidationLimits.MaxDurationDays}.");
         }
 
         return normalized;

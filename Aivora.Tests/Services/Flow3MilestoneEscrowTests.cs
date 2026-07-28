@@ -132,7 +132,7 @@ public class Flow3MilestoneEscrowTests
 
         // Use the service (public interface)
         var commissionOptions = Options.Create(new CommissionOptions { Rate = 0.10m });
-        var treasury = new Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService());
+        var treasury = new Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService(), Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.EscrowOptions()));
         var milestoneService = new Service(dbContext, treasury, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
 
         // ----------------------------------------------------
@@ -268,7 +268,7 @@ public class Flow3MilestoneEscrowTests
         await dbContext.SaveChangesAsync();
 
         var commissionOptions = Options.Create(new CommissionOptions { Rate = 0.10m });
-        var treasury = new Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService());
+        var treasury = new Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService(), Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.EscrowOptions()));
         var milestoneService = new Service(dbContext, treasury, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
 
         // ----------------------------------------------------
@@ -386,7 +386,7 @@ public class Flow3MilestoneEscrowTests
         await dbContext.SaveChangesAsync();
 
         var commissionOptions = Options.Create(new CommissionOptions { Rate = 0.10m });
-        var treasury = new Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService());
+        var treasury = new Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService(), Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.EscrowOptions()));
         var milestoneService = new Service(dbContext, treasury, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
 
         // ----------------------------------------------------
@@ -463,7 +463,7 @@ public class Flow3MilestoneEscrowTests
         {
             var dbContext = GetDbContext(dbName);
             var commissionOptions = Options.Create(new CommissionOptions { Rate = 0.10m });
-            var treasury = new Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService());
+            var treasury = new Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService(), Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.EscrowOptions()));
             var milestoneService = new Service(dbContext, treasury, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
             return milestoneService.FundMilestoneAsync(clientId, milestoneId);
         }
@@ -551,7 +551,7 @@ public class Flow3MilestoneEscrowTests
         {
             var dbContext = GetDbContext(dbName);
             var commissionOptions = Options.Create(new CommissionOptions { Rate = 0.10m });
-            var treasury = new Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService());
+            var treasury = new Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService(), Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.EscrowOptions()));
             return treasury.PayRemainingAsync(clientId, milestoneId);
         }
 
@@ -639,7 +639,7 @@ public class Flow3MilestoneEscrowTests
         {
             var dbContext = GetDbContext(dbName);
             var commissionOptions = Options.Create(new CommissionOptions { Rate = 0.10m });
-            var treasury = new Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService());
+            var treasury = new Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService(), Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.EscrowOptions()));
             return treasury.RefundMilestoneAsync(adminId, milestoneId, "test refund");
         }
 
@@ -730,7 +730,7 @@ public class Flow3MilestoneEscrowTests
         {
             var dbContext = GetDbContext(dbName);
             var commissionOptions = Options.Create(new CommissionOptions { Rate = 0.10m });
-            var treasury = new Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService());
+            var treasury = new Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService(), Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.EscrowOptions()));
             return treasury.SplitMilestoneFundsAsync(milestoneId, 600m, 400m, "test split");
         }
 

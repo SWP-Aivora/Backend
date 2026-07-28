@@ -51,6 +51,17 @@ services:
         value: 1
       - key: FrontendUrl
         value: https://frontend-beige-pi-17.vercel.app
+      # VNPay: BaseUrl no longer has a code fallback — missing it crashes the app at startup.
+      - key: VNPay__BaseUrl
+        sync: false
+      - key: VNPay__TmnCode
+        sync: false
+      - key: VNPay__HashSecret
+        sync: false
+      - key: VNPay__ReturnUrl
+        sync: false
+      - key: VNPay__IpnUrl
+        sync: false
 
 databases:
   - name: aivora-db

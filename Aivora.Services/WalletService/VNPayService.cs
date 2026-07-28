@@ -41,6 +41,11 @@ public class VNPayService : IVNPayService
 
         _ = _configuration["VNPay:IpnUrl"]
             ?? throw new InvalidOperationException("VNPay:IpnUrl is not configured.");
+
+        if (string.IsNullOrWhiteSpace(_configuration["VNPay:BaseUrl"]))
+        {
+            throw new InvalidOperationException("VNPay:BaseUrl is not configured.");
+        }
     }
 
     public VnPayPaymentResult CreatePaymentUrl(Guid userId, decimal amount, string orderInfo, Wallet wallet)
@@ -49,8 +54,7 @@ public class VNPayService : IVNPayService
 
         var tmnCode = _configuration["VNPay:TmnCode"];
         var hashSecret = _configuration["VNPay:HashSecret"];
-        var baseUrl = _configuration["VNPay:BaseUrl"]
-            ?? "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html";
+        var baseUrl = _configuration["VNPay:BaseUrl"];
         var returnUrl = _configuration["VNPay:ReturnUrl"];
         var ipnUrl = _configuration["VNPay:IpnUrl"];
 
