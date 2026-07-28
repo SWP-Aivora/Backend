@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
 using IMessageService = Aivora.Services.MessageService.IService;
+using MessageService = Aivora.Services.MessageService.Service;
 using Aivora.api.Extensions;
 
 namespace Aivora.api.Hubs;
@@ -11,7 +12,7 @@ namespace Aivora.api.Hubs;
 [Authorize]
 public class ChatHub : Hub
 {
-    private const int MaxContentLength = 4000; // matches MessageConfiguration.cs varchar(4000)
+    private const int MaxContentLength = MessageService.MaxContentLength;
 
     private readonly IMessageService _messageService;
     private readonly ILogger<ChatHub> _logger;
