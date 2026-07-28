@@ -11,7 +11,7 @@ namespace Aivora.api.Hubs;
 [Authorize]
 public class ChatHub : Hub
 {
-    private const int MaxContentLength = 4000; // matches MessageConfiguration.cs varchar(4000)
+    private const int MaxContentLength = IMessageService.MaxContentLength;
 
     private readonly IMessageService _messageService;
     private readonly ILogger<ChatHub> _logger;

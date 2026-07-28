@@ -62,6 +62,93 @@ public class MessageServiceTests
     }
 
     [Fact]
+    public async Task SendMessageAsync_ContentOverMaxLength_ThrowsValidationAndDoesNotPersist()
+    {
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+        var conversationId = Guid.NewGuid();
+
+        var client = new User { Id = clientId, FullName = "Client", Email = "c@t.com", PasswordHash = "x", Role = UserRole.CLIENT };
+        var expert = new User { Id = expertId, FullName = "Expert", Email = "e@t.com", PasswordHash = "x", Role = UserRole.EXPERT };
+        var conversation = new Conversation { Id = conversationId, ClientId = clientId, ExpertId = expertId };
+
+        dbContext.Users.AddRange(client, expert);
+        dbContext.Conversations.Add(conversation);
+        await dbContext.SaveChangesAsync();
+
+        var service = new Service(dbContext);
+        var request = new Request.SendMessageRequest
+        {
+            ConversationId = conversationId,
+            Content = new string('a', IService.MaxContentLength + 1)
+        };
+
+        var act = () => service.SendMessageAsync(clientId, UserRole.CLIENT, request);
+
+        await act.Should().ThrowAsync<ValidationException>();
+        (await dbContext.Messages.CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task SendMessageAsync_ContentAtMaxLength_Succeeds()
+    {
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+        var conversationId = Guid.NewGuid();
+
+        var client = new User { Id = clientId, FullName = "Client", Email = "c@t.com", PasswordHash = "x", Role = UserRole.CLIENT };
+        var expert = new User { Id = expertId, FullName = "Expert", Email = "e@t.com", PasswordHash = "x", Role = UserRole.EXPERT };
+        var conversation = new Conversation { Id = conversationId, ClientId = clientId, ExpertId = expertId };
+
+        dbContext.Users.AddRange(client, expert);
+        dbContext.Conversations.Add(conversation);
+        await dbContext.SaveChangesAsync();
+
+        var service = new Service(dbContext);
+        var request = new Request.SendMessageRequest
+        {
+            ConversationId = conversationId,
+            Content = new string('a', IService.MaxContentLength)
+        };
+
+        var result = await service.SendMessageAsync(clientId, UserRole.CLIENT, request);
+
+        result.Content.Should().HaveLength(IService.MaxContentLength);
+    }
+
+    [Fact]
+    public async Task SendMessageAsync_AttachmentOnlyWithNullContent_Succeeds()
+    {
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+        var conversationId = Guid.NewGuid();
+
+        var client = new User { Id = clientId, FullName = "Client", Email = "c@t.com", PasswordHash = "x", Role = UserRole.CLIENT };
+        var expert = new User { Id = expertId, FullName = "Expert", Email = "e@t.com", PasswordHash = "x", Role = UserRole.EXPERT };
+        var conversation = new Conversation { Id = conversationId, ClientId = clientId, ExpertId = expertId };
+
+        dbContext.Users.AddRange(client, expert);
+        dbContext.Conversations.Add(conversation);
+        await dbContext.SaveChangesAsync();
+
+        var service = new Service(dbContext);
+        var request = new Request.SendMessageRequest
+        {
+            ConversationId = conversationId,
+            Content = null,
+            AttachmentUrl = "https://example.com/file.png"
+        };
+
+        var result = await service.SendMessageAsync(clientId, UserRole.CLIENT, request);
+
+        result.Content.Should().BeNull();
+        result.AttachmentUrl.Should().Be("https://example.com/file.png");
+    }
+
+    [Fact]
     public async Task MarkAsReadAsync_UpdatesOnlyIncomingMessages()
     {
         // Arrange

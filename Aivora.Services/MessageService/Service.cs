@@ -173,6 +173,11 @@ public class Service : IService
 
         if (conversation == null) throw new NotFoundException("Conversation not found.");
 
+        if (request.Content is { Length: > IService.MaxContentLength })
+        {
+            throw new ValidationException($"Message content exceeds the {IService.MaxContentLength} character limit.");
+        }
+
         string senderName = "Unknown";
         if (senderRole == UserRole.ADMIN)
         {
