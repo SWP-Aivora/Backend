@@ -8,8 +8,6 @@ namespace Aivora.Services.MessageService;
 
 public class Service : IService
 {
-    public const int MaxContentLength = 4000; // matches MessageConfiguration.cs varchar(4000)
-
     private readonly AivoraDbContext _dbContext;
 
     public Service(AivoraDbContext dbContext)
@@ -175,9 +173,9 @@ public class Service : IService
 
         if (conversation == null) throw new NotFoundException("Conversation not found.");
 
-        if (request.Content is { Length: > MaxContentLength })
+        if (request.Content is { Length: > IService.MaxContentLength })
         {
-            throw new ValidationException($"Message content exceeds the {MaxContentLength} character limit.");
+            throw new ValidationException($"Message content exceeds the {IService.MaxContentLength} character limit.");
         }
 
         string senderName = "Unknown";

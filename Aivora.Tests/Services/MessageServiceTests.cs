@@ -81,7 +81,7 @@ public class MessageServiceTests
         var request = new Request.SendMessageRequest
         {
             ConversationId = conversationId,
-            Content = new string('a', Service.MaxContentLength + 1)
+            Content = new string('a', IService.MaxContentLength + 1)
         };
 
         var act = () => service.SendMessageAsync(clientId, UserRole.CLIENT, request);
@@ -110,12 +110,12 @@ public class MessageServiceTests
         var request = new Request.SendMessageRequest
         {
             ConversationId = conversationId,
-            Content = new string('a', Service.MaxContentLength)
+            Content = new string('a', IService.MaxContentLength)
         };
 
         var result = await service.SendMessageAsync(clientId, UserRole.CLIENT, request);
 
-        result.Content.Should().HaveLength(Service.MaxContentLength);
+        result.Content.Should().HaveLength(IService.MaxContentLength);
     }
 
     [Fact]
