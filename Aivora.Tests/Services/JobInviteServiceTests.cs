@@ -37,6 +37,14 @@ public class JobInviteServiceTests
         return job;
     }
 
+    private static Aivora.Services.MessageService.IService CreateMessageServiceMock()
+    {
+        var mock = new Mock<Aivora.Services.MessageService.IService>();
+        mock.Setup(m => m.GetOrCreateConversationAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid?>(), It.IsAny<Guid?>(), It.IsAny<Guid?>()))
+            .ReturnsAsync(new Aivora.Services.MessageService.Response.ConversationResponse { Id = Guid.NewGuid() });
+        return mock.Object;
+    }
+
     [Fact]
     public async Task CreateInviteAsync_WithOpenJobAndValidExpert_CreatesPendingInvite()
     {
@@ -44,7 +52,7 @@ public class JobInviteServiceTests
         var client = SeedUser(dbContext, UserRole.CLIENT);
         var expert = SeedUser(dbContext, UserRole.EXPERT);
         var job = SeedOpenJob(dbContext, client.Id);
-        var service = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
+        var service = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), CreateMessageServiceMock());
 
         var result = await service.CreateInviteAsync(client.Id, job.Id, new Request.CreateJobInviteRequest { ExpertId = expert.Id });
 
@@ -61,7 +69,7 @@ public class JobInviteServiceTests
         var otherClient = SeedUser(dbContext, UserRole.CLIENT);
         var expert = SeedUser(dbContext, UserRole.EXPERT);
         var job = SeedOpenJob(dbContext, client.Id);
-        var service = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
+        var service = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), CreateMessageServiceMock());
 
         var act = () => service.CreateInviteAsync(otherClient.Id, job.Id, new Request.CreateJobInviteRequest { ExpertId = expert.Id });
 
@@ -77,7 +85,7 @@ public class JobInviteServiceTests
         var job = SeedOpenJob(dbContext, client.Id);
         job.Status = JobStatus.IN_PROGRESS;
         await dbContext.SaveChangesAsync();
-        var service = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
+        var service = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), CreateMessageServiceMock());
 
         var act = () => service.CreateInviteAsync(client.Id, job.Id, new Request.CreateJobInviteRequest { ExpertId = expert.Id });
 
@@ -91,7 +99,7 @@ public class JobInviteServiceTests
         var client = SeedUser(dbContext, UserRole.CLIENT);
         var notExpert = SeedUser(dbContext, UserRole.CLIENT);
         var job = SeedOpenJob(dbContext, client.Id);
-        var service = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
+        var service = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), CreateMessageServiceMock());
 
         var act = () => service.CreateInviteAsync(client.Id, job.Id, new Request.CreateJobInviteRequest { ExpertId = notExpert.Id });
 
@@ -105,7 +113,7 @@ public class JobInviteServiceTests
         var client = SeedUser(dbContext, UserRole.CLIENT);
         var expert = SeedUser(dbContext, UserRole.EXPERT);
         var job = SeedOpenJob(dbContext, client.Id);
-        var service = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
+        var service = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), CreateMessageServiceMock());
         await service.CreateInviteAsync(client.Id, job.Id, new Request.CreateJobInviteRequest { ExpertId = expert.Id });
 
         var act = () => service.CreateInviteAsync(client.Id, job.Id, new Request.CreateJobInviteRequest { ExpertId = expert.Id });
@@ -123,7 +131,7 @@ public class JobInviteServiceTests
         var client = SeedUser(dbContext, UserRole.CLIENT);
         var expert = SeedUser(dbContext, UserRole.EXPERT);
         var job = SeedOpenJob(dbContext, client.Id);
-        var service = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
+        var service = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), CreateMessageServiceMock());
         var created = await service.CreateInviteAsync(client.Id, job.Id, new Request.CreateJobInviteRequest { ExpertId = expert.Id });
         await service.DeclineInviteAsync(expert.Id, created.Id);
 
@@ -139,13 +147,14 @@ public class JobInviteServiceTests
         var client = SeedUser(dbContext, UserRole.CLIENT);
         var expert = SeedUser(dbContext, UserRole.EXPERT);
         var job = SeedOpenJob(dbContext, client.Id);
-        var service = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
+        var service = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), CreateMessageServiceMock());
         var created = await service.CreateInviteAsync(client.Id, job.Id, new Request.CreateJobInviteRequest { ExpertId = expert.Id });
 
         var result = await service.AcceptInviteAsync(expert.Id, created.Id);
 
         result.Status.Should().Be(JobInviteStatus.ACCEPTED);
         result.RespondedAt.Should().NotBeNull();
+        result.ConversationId.Should().NotBeNull();
     }
 
     [Fact]
@@ -156,7 +165,7 @@ public class JobInviteServiceTests
         var expert = SeedUser(dbContext, UserRole.EXPERT);
         var otherExpert = SeedUser(dbContext, UserRole.EXPERT);
         var job = SeedOpenJob(dbContext, client.Id);
-        var service = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
+        var service = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), CreateMessageServiceMock());
         var created = await service.CreateInviteAsync(client.Id, job.Id, new Request.CreateJobInviteRequest { ExpertId = expert.Id });
 
         var act = () => service.AcceptInviteAsync(otherExpert.Id, created.Id);
@@ -171,7 +180,7 @@ public class JobInviteServiceTests
         var client = SeedUser(dbContext, UserRole.CLIENT);
         var expert = SeedUser(dbContext, UserRole.EXPERT);
         var job = SeedOpenJob(dbContext, client.Id);
-        var service = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
+        var service = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), CreateMessageServiceMock());
         var created = await service.CreateInviteAsync(client.Id, job.Id, new Request.CreateJobInviteRequest { ExpertId = expert.Id });
         await service.DeclineInviteAsync(expert.Id, created.Id);
 
@@ -187,7 +196,7 @@ public class JobInviteServiceTests
         var client = SeedUser(dbContext, UserRole.CLIENT);
         var expert = SeedUser(dbContext, UserRole.EXPERT);
         var job = SeedOpenJob(dbContext, client.Id);
-        var service = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
+        var service = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), CreateMessageServiceMock());
         var created = await service.CreateInviteAsync(client.Id, job.Id, new Request.CreateJobInviteRequest { ExpertId = expert.Id });
 
         var result = await service.DeclineInviteAsync(expert.Id, created.Id);
@@ -202,7 +211,7 @@ public class JobInviteServiceTests
         var client = SeedUser(dbContext, UserRole.CLIENT);
         var otherClient = SeedUser(dbContext, UserRole.CLIENT);
         var job = SeedOpenJob(dbContext, client.Id);
-        var service = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
+        var service = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), CreateMessageServiceMock());
 
         var act = () => service.GetInvitesByJobAsync(otherClient.Id, job.Id);
 
@@ -216,7 +225,7 @@ public class JobInviteServiceTests
         var client = SeedUser(dbContext, UserRole.CLIENT);
         var expert = SeedUser(dbContext, UserRole.EXPERT);
         var job = SeedOpenJob(dbContext, client.Id);
-        var service = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
+        var service = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), CreateMessageServiceMock());
         await service.CreateInviteAsync(client.Id, job.Id, new Request.CreateJobInviteRequest { ExpertId = expert.Id });
 
         var pending = await service.GetMyInvitesForExpertAsync(expert.Id, JobInviteStatus.PENDING);

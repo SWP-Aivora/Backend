@@ -15,5 +15,6 @@ public class Response
         public JobInviteStatus Status { get; set; }
         public DateTimeOffset? RespondedAt { get; set; }
         public DateTimeOffset CreatedAt { get; set; }
+        public Guid? ConversationId { get; set; }
     }
 }
