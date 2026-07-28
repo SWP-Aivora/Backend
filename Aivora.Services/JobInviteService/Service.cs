@@ -10,11 +10,13 @@ public class Service : IService
 {
     private readonly AivoraDbContext _dbContext;
     private readonly NotificationService.IService _notificationService;
+    private readonly MessageService.IService _messageService;
 
-    public Service(AivoraDbContext dbContext, NotificationService.IService notificationService)
+    public Service(AivoraDbContext dbContext, NotificationService.IService notificationService, MessageService.IService messageService)
     {
         _dbContext = dbContext;
         _notificationService = notificationService;
+        _messageService = messageService;
     }
 
     public async Task<Response.JobInviteResponse> CreateInviteAsync(Guid clientId, Guid jobId, Request.CreateJobInviteRequest request)
@@ -74,11 +76,29 @@ public class Service : IService
     {
         var invite = await LoadOwnedPendingInviteAsync(expertId, inviteId, "accepted");
 
-        invite.Status = JobInviteStatus.ACCEPTED;
-        invite.RespondedAt = DateTimeOffset.UtcNow;
-        await _dbContext.SaveChangesAsync();
+        MessageService.Response.ConversationResponse conversation;
+        using (var transaction = await _dbContext.Database.BeginTransactionAsync())
+        {
+            try
+            {
+                invite.Status = JobInviteStatus.ACCEPTED;
+                invite.RespondedAt = DateTimeOffset.UtcNow;
+                await _dbContext.SaveChangesAsync();
 
-        return await GetInviteByIdAsync(invite.Id);
+                conversation = await _messageService.GetOrCreateConversationAsync(invite.ClientId, invite.ExpertId, invite.JobId);
+
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+        }
+
+        var response = await GetInviteByIdAsync(invite.Id);
+        response.ConversationId = conversation.Id;
+        return response;
     }
 
     public async Task<Response.JobInviteResponse> DeclineInviteAsync(Guid expertId, Guid inviteId)
