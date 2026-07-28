@@ -16,6 +16,11 @@ services:
       - CloudinaryOptions__CloudName=${CloudinaryOptions__CloudName}
       - CloudinaryOptions__ApiKey=${CloudinaryOptions__ApiKey}
       - CloudinaryOptions__ApiSecret=${CloudinaryOptions__ApiSecret}
+      - VNPay__BaseUrl=${VNPay__BaseUrl:-https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
+      - VNPay__TmnCode=${VNPay__TmnCode}
+      - VNPay__HashSecret=${VNPay__HashSecret}
+      - VNPay__ReturnUrl=${VNPay__ReturnUrl}
+      - VNPay__IpnUrl=${VNPay__IpnUrl}
       - AIProvider__Provider=${AIProvider__Provider:-Mock}
       - AIProvider__ApiKey=${AIProvider__ApiKey}
       - AIProvider__BaseUrl=${AIProvider__BaseUrl:-https://generativelanguage.googleapis.com}

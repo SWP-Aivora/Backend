@@ -16,6 +16,7 @@ public static class ConfigurationValidationExtensions
             ["CloudinaryOptions:CloudName"] = "CloudinaryOptions__CloudName",
             ["CloudinaryOptions:ApiKey"] = "CloudinaryOptions__ApiKey",
             ["CloudinaryOptions:ApiSecret"] = "CloudinaryOptions__ApiSecret",
+            ["VNPay:BaseUrl"] = "VNPay__BaseUrl",
         };
 
         var errors = new List<string>();

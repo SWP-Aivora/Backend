@@ -3,7 +3,9 @@ using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.Exceptions;
 using Aivora.Services.JwtService;
+using Aivora.Services.Options;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Aivora.Services.IdentityService;
 
@@ -11,11 +13,32 @@ public class Service : IService
 {
     private readonly AivoraDbContext _dbContext;
     private readonly IJwtService _jwtService;
+    private readonly JwtOptions _jwtOptions;
 
-    public Service(AivoraDbContext dbContext, IJwtService jwtService)
+    public Service(AivoraDbContext dbContext, IJwtService jwtService, IOptions<JwtOptions> jwtOptions)
     {
         _dbContext = dbContext;
         _jwtService = jwtService;
+        _jwtOptions = jwtOptions.Value;
+    }
+
+    private async Task<Response.IdentityResponse> IssueTokensAsync(User user)
+    {
+        var accessToken = _jwtService.GenerateAccessToken(user, user.Role.ToString());
+        var refreshToken = _jwtService.GenerateRefreshToken();
+
+        user.RefreshToken = _jwtService.HashRefreshToken(refreshToken);
+        user.RefreshTokenExpiryTime = DateTimeOffset.UtcNow.AddDays(_jwtOptions.RefreshTokenExpiryDays);
+        await _dbContext.SaveChangesAsync();
+
+        return new Response.IdentityResponse
+        {
+            AccessToken = accessToken,
+            RefreshToken = refreshToken,
+            UserId = user.Id,
+            Email = user.Email,
+            Role = user.Role.ToString()
+        };
     }
 
     public async Task<Response.IdentityResponse> LoginAsync(Request.LoginRequest request)
@@ -31,21 +54,7 @@ public class Service : IService
             throw new UnauthorizedException("Your account has been suspended. Please contact support.");
         }
 
-        var accessToken = _jwtService.GenerateAccessToken(user, user.Role.ToString());
-        var refreshToken = _jwtService.GenerateRefreshToken();
-
-        user.RefreshToken = _jwtService.HashRefreshToken(refreshToken);
-        user.RefreshTokenExpiryTime = DateTimeOffset.UtcNow.AddDays(7);
-        await _dbContext.SaveChangesAsync();
-
-        return new Response.IdentityResponse
-        {
-            AccessToken = accessToken,
-            RefreshToken = refreshToken,
-            UserId = user.Id,
-            Email = user.Email,
-            Role = user.Role.ToString()
-        };
+        return await IssueTokensAsync(user);
     }
 
     public async Task<Response.IdentityResponse> RegisterAsync(Request.RegisterRequest request)
@@ -101,21 +110,7 @@ public class Service : IService
         _dbContext.Users.Add(user);
         await _dbContext.SaveChangesAsync();
 
-        var accessToken = _jwtService.GenerateAccessToken(user, user.Role.ToString());
-        var refreshToken = _jwtService.GenerateRefreshToken();
-
-        user.RefreshToken = _jwtService.HashRefreshToken(refreshToken);
-        user.RefreshTokenExpiryTime = DateTimeOffset.UtcNow.AddDays(7);
-        await _dbContext.SaveChangesAsync();
-
-        return new Response.IdentityResponse
-        {
-            AccessToken = accessToken,
-            RefreshToken = refreshToken,
-            UserId = user.Id,
-            Email = user.Email,
-            Role = user.Role.ToString()
-        };
+        return await IssueTokensAsync(user);
     }
 
     public async Task<Response.IdentityResponse> RefreshTokenAsync(Request.RefreshTokenRequest request)
@@ -137,21 +132,7 @@ public class Service : IService
             throw new UnauthorizedException("Your account has been suspended. Please contact support.");
         }
 
-        var accessToken = _jwtService.GenerateAccessToken(user, user.Role.ToString());
-        var refreshToken = _jwtService.GenerateRefreshToken();
-
-        user.RefreshToken = _jwtService.HashRefreshToken(refreshToken);
-        user.RefreshTokenExpiryTime = DateTimeOffset.UtcNow.AddDays(7);
-        await _dbContext.SaveChangesAsync();
-
-        return new Response.IdentityResponse
-        {
-            AccessToken = accessToken,
-            RefreshToken = refreshToken,
-            UserId = user.Id,
-            Email = user.Email,
-            Role = user.Role.ToString()
-        };
+        return await IssueTokensAsync(user);
     }
 
     public async Task<Response.UserResponse> GetCurrentUserAsync(Guid userId)

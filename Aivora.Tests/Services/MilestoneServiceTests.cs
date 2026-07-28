@@ -47,7 +47,7 @@ public class MilestoneServiceTests
 
         // Finance setup
         var commissionOptions = Options.Create(new CommissionOptions { Rate = 0.10m });
-        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService());
+        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService(), Options.Create(new Aivora.Services.Options.EscrowOptions()));
         var service = new Service(dbContext, treasury, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
 
         // Act
@@ -95,7 +95,7 @@ public class MilestoneServiceTests
 
         // Finance setup
         var commissionOptions = Options.Create(new CommissionOptions { Rate = 0.10m });
-        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService());
+        var treasury = new Aivora.Services.Treasury.Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService(), Options.Create(new Aivora.Services.Options.EscrowOptions()));
         var service = new Service(dbContext, treasury, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
 
         // Act

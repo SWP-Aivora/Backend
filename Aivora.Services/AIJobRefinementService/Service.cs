@@ -2,6 +2,7 @@ using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using Aivora.Services.AIJobAssistantService.Parsing;
+using Aivora.Services.Constants;
 using Aivora.Services.Exceptions;
 using Aivora.Services.Extensions;
 using Aivora.Services.Options;
@@ -108,7 +109,7 @@ public class Service : IService
                     break;
                 case "timelineDays":
                     if (draft.TimelineDays.HasValue)
-                        job.TimelineDays = Math.Clamp(draft.TimelineDays.Value, 1, 3650);
+                        job.TimelineDays = Math.Clamp(draft.TimelineDays.Value, ValidationLimits.MinDurationDays, ValidationLimits.MaxDurationDays);
                     break;
                 case "experienceLevel":
                     if (draft.ExperienceLevel.HasValue)
@@ -153,7 +154,7 @@ public class Service : IService
                             Title = m.Title,
                             Description = m.Description,
                             Amount = Math.Max(m.Amount, 1),
-                            DueDays = Math.Clamp(m.DueDays, 1, 3650),
+                            DueDays = Math.Clamp(m.DueDays, ValidationLimits.MinDurationDays, ValidationLimits.MaxDurationDays),
                             AcceptanceCriteria = m.AcceptanceCriteria,
                             OrderIndex = index
                         }).ToList();

@@ -83,7 +83,8 @@ public class TreasuryCommissionTests
             new CommissionCalculator(commissionOptions),
             Mock.Of<ILogger<Treasury>>(),
             Mock.Of<Aivora.Services.NotificationService.IService>(),
-            new Aivora.Services.RealtimeService.NullRealtimeService()
+            new Aivora.Services.RealtimeService.NullRealtimeService(),
+            Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.EscrowOptions())
         );
 
         // Act
@@ -112,6 +113,58 @@ public class TreasuryCommissionTests
         feeTransaction.Should().NotBeNull();
         feeTransaction!.Amount.Should().Be(100);
         feeTransaction.Direction.Should().Be(TransactionDirection.CREDIT);
+    }
+
+    [Fact]
+    public async Task RefundMilestoneAsync_AfterPayRemaining_DeductsCommissionOnlyOnce()
+    {
+        // Guards Treasury.RefundMilestoneAsync's classification of the remaining-payment amount
+        // (payment.Amount == milestone.Amount * EscrowOptions.RemainingRate) — a config-driven
+        // equality check. Runs the real PayDeposit -> PayRemaining -> Refund flow so the payment
+        // amounts are computed the same way production does, not hand-picked to match the rate.
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var milestoneId = Guid.NewGuid();
+
+        var clientWallet = new Wallet { UserId = clientId, AvailableBalance = 2000, Currency = CurrencyConstants.AICOIN };
+        var expertWallet = new Wallet { UserId = expertId, AvailableBalance = 0, Currency = CurrencyConstants.AICOIN };
+        var platformWallet = new Wallet { UserId = SystemConstants.SystemUserId, AvailableBalance = 0, Currency = CurrencyConstants.AICOIN };
+
+        var project = new Project { Id = projectId, ClientId = clientId, ExpertId = expertId, Title = "Test Project", Status = ProjectStatus.PENDING_PAYMENT, Currency = CurrencyConstants.AICOIN };
+        var milestone = new Milestone { Id = milestoneId, ProjectId = projectId, Amount = 1000, Status = MilestoneStatus.CREATED, Title = "Test Milestone" };
+
+        dbContext.Wallets.AddRange(clientWallet, expertWallet, platformWallet);
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestone);
+        await dbContext.SaveChangesAsync();
+
+        var commissionOptions = Options.Create(new CommissionOptions { Rate = 0.10m });
+        var treasury = new Treasury(
+            dbContext,
+            new CommissionCalculator(commissionOptions),
+            Mock.Of<ILogger<Treasury>>(),
+            Mock.Of<Aivora.Services.NotificationService.IService>(),
+            new Aivora.Services.RealtimeService.NullRealtimeService(),
+            Options.Create(new EscrowOptions())
+        );
+
+        await treasury.PayDepositAsync(clientId, milestoneId); // 300 to expert
+        milestone.Status = MilestoneStatus.SUBMITTED;
+        await dbContext.SaveChangesAsync();
+        await treasury.PayRemainingAsync(clientId, milestoneId); // 700 - 100 commission = 600 to expert
+
+        var expertBeforeRefund = await dbContext.Wallets.FirstAsync(w => w.UserId == expertId);
+        expertBeforeRefund.TotalEarned.Should().Be(900); // 300 deposit + 600 remaining
+
+        await treasury.RefundMilestoneAsync(Guid.NewGuid(), milestoneId, "test refund");
+
+        var expertAfterRefund = await dbContext.Wallets.FirstAsync(w => w.UserId == expertId);
+        // Deposit payment (300) has no commission attached; remaining payment (700) matches
+        // milestone.Amount * RemainingRate exactly, so the 100 commission is subtracted once,
+        // not double-counted and not skipped.
+        expertAfterRefund.TotalEarned.Should().Be(0);
     }
 }
 

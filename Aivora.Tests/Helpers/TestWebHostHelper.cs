@@ -26,6 +26,7 @@ public static class TestWebHostHelper
         ["CloudinaryOptions__ApiKey"] = "test-api-key",
         ["CloudinaryOptions__ApiSecret"] = "test-api-secret",
         ["AIProvider__Provider"] = "Mock",
+        ["VNPay__BaseUrl"] = "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html",
     };
 
     /// <summary>

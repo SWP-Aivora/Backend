@@ -1,6 +1,7 @@
 using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
+using Aivora.Services.Constants;
 using Aivora.Services.Exceptions;
 using Aivora.Services.Extensions;
 using Microsoft.EntityFrameworkCore;
@@ -397,9 +398,9 @@ public class Service : IService
             throw new ValidationException("BudgetMin must be less than or equal to BudgetMax.");
         }
 
-        if (timelineDays.HasValue && (timelineDays.Value < 1 || timelineDays.Value > 3650))
+        if (timelineDays.HasValue && (timelineDays.Value < ValidationLimits.MinDurationDays || timelineDays.Value > ValidationLimits.MaxDurationDays))
         {
-            throw new ValidationException("TimelineDays must be between 1 and 3650.");
+            throw new ValidationException($"TimelineDays must be between {ValidationLimits.MinDurationDays} and {ValidationLimits.MaxDurationDays}.");
         }
 
         if (deadline.HasValue && deadline.Value < DateOnly.FromDateTime(DateTime.UtcNow))
@@ -437,9 +438,9 @@ public class Service : IService
                 throw new ValidationException("Milestone amounts must be greater than 0.");
             }
 
-            if (milestone.DueDays < 1 || milestone.DueDays > 3650)
+            if (milestone.DueDays < ValidationLimits.MinDurationDays || milestone.DueDays > ValidationLimits.MaxDurationDays)
             {
-                throw new ValidationException("Milestone due days must be between 1 and 3650.");
+                throw new ValidationException($"Milestone due days must be between {ValidationLimits.MinDurationDays} and {ValidationLimits.MaxDurationDays}.");
             }
         }
 
@@ -466,9 +467,9 @@ public class Service : IService
                 throw new ValidationException("Milestone amounts must be greater than 0.");
             }
 
-            if (milestone.DueDays < 1 || milestone.DueDays > 3650)
+            if (milestone.DueDays < ValidationLimits.MinDurationDays || milestone.DueDays > ValidationLimits.MaxDurationDays)
             {
-                throw new ValidationException("Milestone due days must be between 1 and 3650.");
+                throw new ValidationException($"Milestone due days must be between {ValidationLimits.MinDurationDays} and {ValidationLimits.MaxDurationDays}.");
             }
         }
 

@@ -23,19 +23,22 @@ public class Treasury : ITreasury
     private readonly ILogger<Treasury> _logger;
     private readonly NotificationService.IService _notificationService;
     private readonly RealtimeService.IService _realtimeService;
+    private readonly EscrowOptions _escrow;
 
     public Treasury(
         AivoraDbContext dbContext,
         ICommissionCalculator commissionCalculator,
         ILogger<Treasury> logger,
         NotificationService.IService notificationService,
-        RealtimeService.IService realtimeService)
+        RealtimeService.IService realtimeService,
+        IOptions<EscrowOptions> escrowOptions)
     {
         _dbContext = dbContext;
         _commissionCalculator = commissionCalculator;
         _logger = logger;
         _notificationService = notificationService;
         _realtimeService = realtimeService;
+        _escrow = escrowOptions.Value;
     }
 
     private const string MilestoneMustBeCreatedError = "Milestone must be CREATED to pay deposit.";
@@ -56,7 +59,7 @@ public class Treasury : ITreasury
             var clientWallet = wallets.First(w => w.UserId == clientId);
             var expertWallet = wallets.First(w => w.UserId == milestone.Project.ExpertId);
 
-            var depositAmount = milestone.Amount * 0.3m; // 30%
+            var depositAmount = milestone.Amount * _escrow.DepositRate;
 
             if (clientWallet.AvailableBalance < depositAmount) throw new ValidationException("Insufficient balance for deposit.");
 
@@ -101,7 +104,7 @@ public class Treasury : ITreasury
                 Amount = depositAmount,
                 Type = WalletTransactionType.PAYMENT_RELEASE, // Or maybe a new type for deposit
                 Direction = TransactionDirection.DEBIT,
-                Description = $"Paid 30% deposit for milestone: {milestone.Title}",
+                Description = $"Paid {_escrow.DepositRate * 100:0}% deposit for milestone: {milestone.Title}",
                 BalanceBefore = clientBalanceBefore,
                 BalanceAfter = clientWallet.AvailableBalance,
                 PaymentId = payment.Id
@@ -114,7 +117,7 @@ public class Treasury : ITreasury
                 Amount = depositAmount,
                 Type = WalletTransactionType.PAYMENT_RELEASE,
                 Direction = TransactionDirection.CREDIT,
-                Description = $"Received 30% deposit for milestone: {milestone.Title}",
+                Description = $"Received {_escrow.DepositRate * 100:0}% deposit for milestone: {milestone.Title}",
                 BalanceBefore = expertBalanceBefore,
                 BalanceAfter = expertWallet.AvailableBalance,
                 PaymentId = payment.Id
@@ -154,11 +157,11 @@ public class Treasury : ITreasury
             _notificationService.SendInBackground(
                 milestone.Project.ExpertId,
                 "Milestone deposit paid",
-                $"The client has paid the 30% deposit for milestone \"{milestone.Title}\". You can start working on it.",
+                $"The client has paid the {_escrow.DepositRate * 100:0}% deposit for milestone \"{milestone.Title}\". You can start working on it.",
                 "MILESTONE",
                 $"/projects/{milestone.ProjectId}/milestones/{milestoneId}"
             );
-            _logger.LogInformation("✅ Milestone {MilestoneId} 30% deposit paid by Client {ClientId}", milestoneId, clientId);
+            _logger.LogInformation("✅ Milestone {MilestoneId} {DepositRatePercent}% deposit paid by Client {ClientId}", milestoneId, _escrow.DepositRate * 100, clientId);
             return new TreasuryResult(milestone, clientWallet, expertWallet, [payment]);
         }
         catch (DbUpdateConcurrencyException)
@@ -201,7 +204,7 @@ public class Treasury : ITreasury
             var expertWallet = wallets.First(w => w.UserId == milestone.Project.ExpertId);
             var platformWallet = wallets.First(w => w.UserId == SystemConstants.SystemUserId);
 
-            var remainingAmount = milestone.Amount * 0.7m; // 70%
+            var remainingAmount = milestone.Amount * _escrow.RemainingRate;
             var commissionAmount = _commissionCalculator.CalculateCommission(milestone.Amount);
             var expertAmount = remainingAmount - commissionAmount;
 
@@ -251,7 +254,7 @@ public class Treasury : ITreasury
                 Amount = remainingAmount,
                 Type = WalletTransactionType.PAYMENT_RELEASE,
                 Direction = TransactionDirection.DEBIT,
-                Description = $"Paid 70% remaining for milestone: {milestone.Title}",
+                Description = $"Paid {_escrow.RemainingRate * 100:0}% remaining for milestone: {milestone.Title}",
                 BalanceBefore = clientBalanceBefore,
                 BalanceAfter = clientWallet.AvailableBalance,
                 PaymentId = payment.Id
@@ -279,7 +282,7 @@ public class Treasury : ITreasury
                     Amount = commissionAmount,
                     Type = WalletTransactionType.PLATFORM_FEE,
                     Direction = TransactionDirection.CREDIT,
-                    Description = $"10% Platform fee for milestone: {milestone.Title}",
+                    Description = $"{_commissionCalculator.Rate * 100:0}% Platform fee for milestone: {milestone.Title}",
                     BalanceBefore = platformWallet.AvailableBalance - commissionAmount,
                     BalanceAfter = platformWallet.AvailableBalance,
                     PaymentId = payment.Id
@@ -318,11 +321,11 @@ public class Treasury : ITreasury
             _notificationService.SendInBackground(
                 milestone.Project.ExpertId,
                 "Milestone approved and paid",
-                $"The client has approved milestone \"{milestone.Title}\" and the remaining 70% has been released to your wallet.",
+                $"The client has approved milestone \"{milestone.Title}\" and the remaining {_escrow.RemainingRate * 100:0}% has been released to your wallet.",
                 "MILESTONE",
                 $"/projects/{milestone.ProjectId}/milestones/{milestoneId}"
             );
-            _logger.LogInformation("✅ Remaining 70% funds released for Milestone {MilestoneId}", milestoneId);
+            _logger.LogInformation("✅ Remaining {RemainingRatePercent}% funds released for Milestone {MilestoneId}", _escrow.RemainingRate * 100, milestoneId);
             return new TreasuryResult(milestone, clientWallet, expertWallet, [payment]);
         }
         catch (DbUpdateConcurrencyException)
@@ -383,7 +386,10 @@ public class Treasury : ITreasury
                 payerWallet.Credit(payment.Amount);
 
                 // Adjust TotalEarned: expert only received payment.Amount - commission
-                var isRemainingPayment = (payment.Amount == milestone.Amount * 0.7m);
+                // NOTE: equality check against a config-driven rate. If DepositRate/RemainingRate
+                // changes after payments already exist in DB, old payments can misclassify here
+                // (refund would compute commission wrong). Root fix needs a payment-kind column — out of scope.
+                var isRemainingPayment = (payment.Amount == milestone.Amount * _escrow.RemainingRate);
                 var commissionAmount = isRemainingPayment ? _commissionCalculator.CalculateCommission(milestone.Amount) : 0m;
                 var expertActualEarned = payment.Amount - commissionAmount;
                 payeeWallet.TotalEarned = Math.Max(0, payeeWallet.TotalEarned - expertActualEarned);
@@ -469,7 +475,7 @@ public class Treasury : ITreasury
             milestone.ApprovedAt = DateTimeOffset.UtcNow;
             await _dbContext.SaveChangesAsync();
 
-            // In 30/70 direct deposit, the expert already holds the full payment amount.
+            // In split direct deposit, the expert already holds the full payment amount.
             // We claw back the refundToClientAmount from the expert.
 
             // 1. Move money & log transactions for the refund portion

@@ -1,6 +1,7 @@
 using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
+using Aivora.Services.Constants;
 using Aivora.Services.Exceptions;
 using Aivora.Services.NotificationService;
 using Microsoft.EntityFrameworkCore;
@@ -270,9 +271,9 @@ public class Service : IService
                 throw new ValidationException("Milestone amounts must be greater than 0.");
             }
 
-            if (milestone.DueDays < 1 || milestone.DueDays > 3650)
+            if (milestone.DueDays < ValidationLimits.MinDurationDays || milestone.DueDays > ValidationLimits.MaxDurationDays)
             {
-                throw new ValidationException("Milestone due days must be between 1 and 3650.");
+                throw new ValidationException($"Milestone due days must be between {ValidationLimits.MinDurationDays} and {ValidationLimits.MaxDurationDays}.");
             }
         }
 

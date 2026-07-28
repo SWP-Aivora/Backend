@@ -23,12 +23,13 @@ public sealed record TreasuryResult(
 public interface ITreasury
 {
     /// <summary>
-    /// Thực hiện chuyển 30% tiền cọc trực tiếp từ Client sang Expert.
+    /// Thực hiện chuyển phần tiền cọc (deposit) trực tiếp từ Client sang Expert.
+    /// Tỷ lệ deposit lấy từ <see cref="Aivora.Services.Options.EscrowOptions"/>.
     /// </summary>
     Task<TreasuryResult> PayDepositAsync(Guid clientId, Guid milestoneId);
 
     /// <summary>
-    /// Thực hiện chuyển 70% tiền còn lại trực tiếp từ Client sang Expert.
+    /// Thực hiện chuyển phần tiền còn lại trực tiếp từ Client sang Expert.
     /// Từ chối khi Milestone không ở SUBMITTED hoặc còn Dispute đang mở.
     /// </summary>
     Task<TreasuryResult> PayRemainingAsync(Guid clientId, Guid milestoneId);

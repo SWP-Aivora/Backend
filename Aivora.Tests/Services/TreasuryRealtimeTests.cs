@@ -46,7 +46,7 @@ public class TreasuryRealtimeTests
 
         var mockRealtime = new Mock<Aivora.Services.RealtimeService.IService>();
         var commissionOptions = Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.CommissionOptions { Rate = 0.10m });
-        var treasury = new Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), mockRealtime.Object);
+        var treasury = new Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), mockRealtime.Object, Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.EscrowOptions()));
 
         await treasury.SyncProjectStatusAsync(project.Id);
 
@@ -74,7 +74,7 @@ public class TreasuryRealtimeTests
 
         var mockRealtime = new Mock<Aivora.Services.RealtimeService.IService>();
         var commissionOptions = Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.CommissionOptions { Rate = 0.10m });
-        var treasury = new Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), mockRealtime.Object);
+        var treasury = new Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), mockRealtime.Object, Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.EscrowOptions()));
 
         await treasury.SyncProjectStatusAsync(project.Id);
 
@@ -111,7 +111,8 @@ public class TreasuryRealtimeTests
             new Aivora.Services.Treasury.CommissionCalculator(Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.CommissionOptions { Rate = 0.10m })),
             Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(),
             Mock.Of<Aivora.Services.NotificationService.IService>(),
-            Mock.Of<Aivora.Services.RealtimeService.IService>()
+            Mock.Of<Aivora.Services.RealtimeService.IService>(),
+            Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.EscrowOptions())
         );
 
         await treasury.PayDepositAsync(clientId, milestone.Id);
@@ -151,7 +152,8 @@ public class TreasuryRealtimeTests
             new Aivora.Services.Treasury.CommissionCalculator(Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.CommissionOptions { Rate = 0.10m })),
             Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(),
             Mock.Of<Aivora.Services.NotificationService.IService>(),
-            Mock.Of<Aivora.Services.RealtimeService.IService>()
+            Mock.Of<Aivora.Services.RealtimeService.IService>(),
+            Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.EscrowOptions())
         );
 
         await treasury.PayRemainingAsync(clientId, milestone.Id);
@@ -194,7 +196,8 @@ public class TreasuryRealtimeTests
             new CommissionCalculator(commissionOptions),
             Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(),
             Mock.Of<Aivora.Services.NotificationService.IService>(),
-            Mock.Of<Aivora.Services.RealtimeService.IService>()
+            Mock.Of<Aivora.Services.RealtimeService.IService>(),
+            Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.EscrowOptions())
         );
 
         await treasury.RefundMilestoneAsync(Guid.NewGuid(), milestone.Id, "Disputed result");
@@ -257,7 +260,8 @@ public class TreasuryRealtimeTests
             new CommissionCalculator(commissionOptions),
             Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(),
             Mock.Of<Aivora.Services.NotificationService.IService>(),
-            Mock.Of<Aivora.Services.RealtimeService.IService>()
+            Mock.Of<Aivora.Services.RealtimeService.IService>(),
+            Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.EscrowOptions())
         );
 
         // Act
@@ -295,7 +299,8 @@ public class TreasuryRealtimeTests
             new CommissionCalculator(commissionOptions),
             Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(),
             Mock.Of<Aivora.Services.NotificationService.IService>(),
-            Mock.Of<Aivora.Services.RealtimeService.IService>()
+            Mock.Of<Aivora.Services.RealtimeService.IService>(),
+            Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.EscrowOptions())
         );
 
         // Act
@@ -334,7 +339,8 @@ public class TreasuryRealtimeTests
             new CommissionCalculator(commissionOptions),
             Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(),
             Mock.Of<Aivora.Services.NotificationService.IService>(),
-            Mock.Of<Aivora.Services.RealtimeService.IService>()
+            Mock.Of<Aivora.Services.RealtimeService.IService>(),
+            Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.EscrowOptions())
         );
 
         // Act
@@ -369,7 +375,8 @@ public class TreasuryRealtimeTests
             new CommissionCalculator(commissionOptions),
             Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(),
             Mock.Of<Aivora.Services.NotificationService.IService>(),
-            Mock.Of<Aivora.Services.RealtimeService.IService>()
+            Mock.Of<Aivora.Services.RealtimeService.IService>(),
+            Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.EscrowOptions())
         );
 
         // Act

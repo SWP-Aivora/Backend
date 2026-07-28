@@ -18,4 +18,6 @@ public class CommissionCalculator : ICommissionCalculator
     }
 
     public decimal MaxDebtLimit => _options.MaxDebtLimit;
+
+    public decimal Rate => _options.Rate;
 }

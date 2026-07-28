@@ -40,11 +40,11 @@ public static class RecommendationScorer
         var completionScore = expert.SuccessRate > 0 ? expert.SuccessRate : 80m;
         var portfolioScore = 0m;
         var totalScore = Math.Round(
-            (skillScore * 0.40m)
-            + (budgetScore * 0.20m)
-            + (ratingScore * 0.20m)
-            + (availabilityScore * 0.10m)
-            + (completionScore * 0.10m),
+            (skillScore * options.SkillWeight)
+            + (budgetScore * options.BudgetWeight)
+            + (ratingScore * options.RatingWeight)
+            + (availabilityScore * options.AvailabilityWeight)
+            + (completionScore * options.CompletionWeight),
             2);
 
         // Rationale for dispute penalty:

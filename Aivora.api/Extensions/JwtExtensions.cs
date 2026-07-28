@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text;
+using Aivora.Repositories.Enums;
 using Aivora.Services.Options;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -68,12 +69,12 @@ public static class JwtExtensions
 
         services.AddAuthorization(options =>
         {
-            options.AddPolicy(ClientPolicy, policy => policy.RequireRole("CLIENT"));
-            options.AddPolicy(ExpertPolicy, policy => policy.RequireRole("EXPERT"));
-            options.AddPolicy(AdminPolicy, policy => policy.RequireRole("ADMIN"));
-            options.AddPolicy(WithdrawPolicy, policy => policy.RequireRole("CLIENT", "EXPERT"));
-            options.AddPolicy(AdminOrParticipantPolicy, policy => policy.RequireRole("ADMIN", "CLIENT", "EXPERT"));
-            options.AddPolicy(ClientOrExpertPolicy, policy => policy.RequireRole("CLIENT", "EXPERT"));
+            options.AddPolicy(ClientPolicy, policy => policy.RequireRole(nameof(UserRole.CLIENT)));
+            options.AddPolicy(ExpertPolicy, policy => policy.RequireRole(nameof(UserRole.EXPERT)));
+            options.AddPolicy(AdminPolicy, policy => policy.RequireRole(nameof(UserRole.ADMIN)));
+            options.AddPolicy(WithdrawPolicy, policy => policy.RequireRole(nameof(UserRole.CLIENT), nameof(UserRole.EXPERT)));
+            options.AddPolicy(AdminOrParticipantPolicy, policy => policy.RequireRole(nameof(UserRole.ADMIN), nameof(UserRole.CLIENT), nameof(UserRole.EXPERT)));
+            options.AddPolicy(ClientOrExpertPolicy, policy => policy.RequireRole(nameof(UserRole.CLIENT), nameof(UserRole.EXPERT)));
         });
     }
 }
