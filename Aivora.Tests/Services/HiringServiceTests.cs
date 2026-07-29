@@ -182,6 +182,62 @@ public class HiringServiceTests
     }
 
     [Fact]
+    public async Task AcceptProposalAsync_SetsMilestoneDueDatesFromDueDays()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+
+        var job = new JobPost { Id = Guid.NewGuid(), ClientId = clientId, Title = "Test Job", Status = JobStatus.OPEN, OriginalDescription = "X" };
+        var proposal = new Proposal
+        {
+            Id = Guid.NewGuid(),
+            JobId = job.Id,
+            ExpertId = expertId,
+            Status = ProposalStatus.SUBMITTED,
+            ProposedBudget = 1000,
+            Currency = "AICOIN",
+            CoverLetter = "L1",
+            Milestones = new List<ProposalMilestone>
+            {
+                new() { Title = "M1", Amount = 100, OrderIndex = 0, DueDays = 7 },
+                new() { Title = "M2", Amount = 200, OrderIndex = 1, DueDays = 14 },
+                new() { Title = "M3", Amount = 300, OrderIndex = 2, DueDays = 30 },
+            }
+        };
+
+        dbContext.JobPosts.Add(job);
+        dbContext.Proposals.Add(proposal);
+        await dbContext.SaveChangesAsync();
+
+        var service = new Aivora.Services.HiringService.HiringService(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService());
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        // Act
+        var result = await service.AcceptProposalAsync(clientId, proposal.Id);
+
+        // Assert
+        var project = await dbContext.Projects
+            .Include(p => p.Milestones)
+            .FirstAsync(p => p.Id == result.ProjectId);
+
+        var m1 = project.Milestones.Single(m => m.Title == "M1");
+        var m2 = project.Milestones.Single(m => m.Title == "M2");
+        var m3 = project.Milestones.Single(m => m.Title == "M3");
+
+        m1.DueDate.Should().Be(today.AddDays(7));
+        m2.DueDate.Should().Be(today.AddDays(14));
+        m3.DueDate.Should().Be(today.AddDays(30));
+
+        // Other fields unaffected
+        m1.Amount.Should().Be(100);
+        m1.OrderIndex.Should().Be(0);
+        m2.Amount.Should().Be(200);
+        m2.OrderIndex.Should().Be(1);
+    }
+
+    [Fact]
     public async Task AcceptProposalAsync_CallsRealtimeService()
     {
         var dbContext = GetDbContext();

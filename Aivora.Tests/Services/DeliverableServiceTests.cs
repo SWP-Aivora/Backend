@@ -27,7 +27,8 @@ public class DeliverableServiceTests
         return new Service(
             dbContext,
             Mock.Of<ITreasury>(),
-            Mock.Of<Aivora.Services.NotificationService.IService>()
+            Mock.Of<Aivora.Services.NotificationService.IService>(),
+            new Aivora.Services.RealtimeService.NullRealtimeService()
         );
     }
 

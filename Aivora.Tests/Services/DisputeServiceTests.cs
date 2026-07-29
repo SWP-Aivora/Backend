@@ -28,7 +28,7 @@ public class DisputeServiceTests : IDisposable
         _dbContext = new AivoraDbContext(options);
         _mockNotificationService = new MockNotificationService();
 
-        _disputeService = new DisputeService(_dbContext, _mockNotificationService, Mock.Of<ILogger<DisputeService>>());
+        _disputeService = new DisputeService(_dbContext, _mockNotificationService, Mock.Of<ILogger<DisputeService>>(), new Aivora.Services.RealtimeService.NullRealtimeService());
     }
 
     // ==================== ResolveDispute Tests ====================

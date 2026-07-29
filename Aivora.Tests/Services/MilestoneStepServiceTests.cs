@@ -29,7 +29,8 @@ public class MilestoneStepServiceTests
             dbContext,
             Mock.Of<ITreasury>(),
             notificationService ?? Mock.Of<Aivora.Services.NotificationService.IService>(),
-            Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>()
+            Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>(),
+            new Aivora.Services.RealtimeService.NullRealtimeService()
         );
     }
 

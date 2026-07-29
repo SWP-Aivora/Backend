@@ -15,17 +15,20 @@ public class Service : IService
     private readonly ITreasury _treasury;
     private readonly NotificationService.IService _notificationService;
     private readonly IAIMilestoneStepSuggestionProvider _stepSuggestionProvider;
+    private readonly RealtimeService.IService _realtimeService;
 
     public Service(
         AivoraDbContext dbContext,
         ITreasury treasury,
         NotificationService.IService notificationService,
-        IAIMilestoneStepSuggestionProvider stepSuggestionProvider)
+        IAIMilestoneStepSuggestionProvider stepSuggestionProvider,
+        RealtimeService.IService realtimeService)
     {
         _dbContext = dbContext;
         _treasury = treasury;
         _notificationService = notificationService;
         _stepSuggestionProvider = stepSuggestionProvider;
+        _realtimeService = realtimeService;
     }
 
     public async Task<Response.MilestoneResponse> GetMilestoneByIdAsync(Guid userId, Guid milestoneId)
@@ -211,6 +214,8 @@ public class Service : IService
         milestone.Status = MilestoneStatus.REVISION_REQUESTED;
 
         await _dbContext.SaveChangesAsync();
+
+        _realtimeService.SendMilestoneUpdatedAsync(milestone.ProjectId, milestoneId);
 
         // Send notification to the Expert that the client requested a revision
         try
@@ -653,6 +658,7 @@ public class Service : IService
             Currency = m.Currency,
             Status = m.Status,
             DueDate = m.DueDate,
+            DueDays = m.DueDate.HasValue ? m.DueDate.Value.DayNumber - DateOnly.FromDateTime(m.CreatedAt.UtcDateTime).DayNumber : null,
             OrderIndex = m.OrderIndex,
             CreatedAt = m.CreatedAt,
             FundedAt = m.FundedAt,

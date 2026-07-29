@@ -13,12 +13,14 @@ public class Service : IService
     private readonly AivoraDbContext _dbContext;
     private readonly NotificationService.IService _notificationService;
     private readonly ILogger<Service> _logger;
+    private readonly RealtimeService.IService _realtimeService;
 
-    public Service(AivoraDbContext dbContext, NotificationService.IService notificationService, ILogger<Service> logger)
+    public Service(AivoraDbContext dbContext, NotificationService.IService notificationService, ILogger<Service> logger, RealtimeService.IService realtimeService)
     {
         _dbContext = dbContext;
         _notificationService = notificationService;
         _logger = logger;
+        _realtimeService = realtimeService;
     }
 
     public async Task<Response.DisputeResponse> OpenDisputeAsync(Guid userId, Request.OpenDisputeRequest request)
@@ -65,6 +67,8 @@ public class Service : IService
             _dbContext.Disputes.Add(dispute);
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
+
+            _realtimeService.SendMilestoneUpdatedAsync(milestone.ProjectId, milestone.Id);
 
             // Send notification to the respondent
             try

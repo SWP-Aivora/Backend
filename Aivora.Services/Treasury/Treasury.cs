@@ -154,6 +154,8 @@ public class Treasury : ITreasury
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
+            _realtimeService.SendMilestoneUpdatedAsync(milestone.ProjectId, milestoneId);
+
             _notificationService.SendInBackground(
                 milestone.Project.ExpertId,
                 "Milestone deposit paid",
@@ -317,6 +319,8 @@ public class Treasury : ITreasury
 
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
+
+            _realtimeService.SendMilestoneUpdatedAsync(milestone.ProjectId, milestoneId);
 
             _notificationService.SendInBackground(
                 milestone.Project.ExpertId,

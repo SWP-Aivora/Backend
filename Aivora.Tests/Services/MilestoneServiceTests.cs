@@ -48,7 +48,7 @@ public class MilestoneServiceTests
         // Finance setup
         var commissionOptions = Options.Create(new CommissionOptions { Rate = 0.10m });
         var treasury = new Aivora.Services.Treasury.Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService(), Options.Create(new Aivora.Services.Options.EscrowOptions()));
-        var service = new Service(dbContext, treasury, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
+        var service = new Service(dbContext, treasury, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>(), new Aivora.Services.RealtimeService.NullRealtimeService());
 
         // Act
         var result = await service.FundMilestoneAsync(clientId, milestoneId);
@@ -96,7 +96,7 @@ public class MilestoneServiceTests
         // Finance setup
         var commissionOptions = Options.Create(new CommissionOptions { Rate = 0.10m });
         var treasury = new Aivora.Services.Treasury.Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService(), Options.Create(new Aivora.Services.Options.EscrowOptions()));
-        var service = new Service(dbContext, treasury, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
+        var service = new Service(dbContext, treasury, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>(), new Aivora.Services.RealtimeService.NullRealtimeService());
 
         // Act
         var result = await service.ApproveMilestoneAsync(clientId, milestoneId);
@@ -119,6 +119,59 @@ public class MilestoneServiceTests
     }
 
     [Fact]
+    public async Task GetMilestoneByIdAsync_DerivesDueDaysFromDueDateAndCreatedAt()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var milestoneId = Guid.NewGuid();
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        var project = new Project { Id = projectId, ClientId = clientId, ExpertId = expertId, Title = "Test Project", Status = ProjectStatus.ACTIVE };
+        var milestone = new Milestone { Id = milestoneId, ProjectId = projectId, Amount = 300, Status = MilestoneStatus.CREATED, Title = "Milestone 1", DueDate = today.AddDays(10) };
+
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestone);
+        await dbContext.SaveChangesAsync();
+
+        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>(), new Aivora.Services.RealtimeService.NullRealtimeService());
+
+        // Act
+        var result = await service.GetMilestoneByIdAsync(clientId, milestoneId);
+
+        // Assert
+        result.DueDays.Should().Be(10);
+    }
+
+    [Fact]
+    public async Task GetMilestoneByIdAsync_DueDateNull_DueDaysNull()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var milestoneId = Guid.NewGuid();
+
+        var project = new Project { Id = projectId, ClientId = clientId, ExpertId = expertId, Title = "Test Project", Status = ProjectStatus.ACTIVE };
+        var milestone = new Milestone { Id = milestoneId, ProjectId = projectId, Amount = 300, Status = MilestoneStatus.CREATED, Title = "Milestone 1", DueDate = null };
+
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestone);
+        await dbContext.SaveChangesAsync();
+
+        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>(), new Aivora.Services.RealtimeService.NullRealtimeService());
+
+        // Act
+        var result = await service.GetMilestoneByIdAsync(clientId, milestoneId);
+
+        // Assert
+        result.DueDays.Should().BeNull();
+    }
+
+    [Fact]
     public async Task UpdateMilestoneAsync_RelaxesDueDateConstraint_ForActiveMilestones()
     {
         // Arrange
@@ -136,7 +189,7 @@ public class MilestoneServiceTests
         dbContext.Milestones.Add(milestone);
         await dbContext.SaveChangesAsync();
 
-        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
+        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>(), new Aivora.Services.RealtimeService.NullRealtimeService());
         var request = new Request.UpdateMilestoneRequest
         {
             DueDate = new DateOnly(2026, 7, 10)
@@ -168,7 +221,7 @@ public class MilestoneServiceTests
         dbContext.Milestones.Add(milestone);
         await dbContext.SaveChangesAsync();
 
-        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
+        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>(), new Aivora.Services.RealtimeService.NullRealtimeService());
         var request = new Request.UpdateMilestoneRequest
         {
             Title = "Updated Title"
@@ -191,7 +244,7 @@ public class MilestoneServiceTests
         dbContext.Projects.Add(project);
         await dbContext.SaveChangesAsync();
 
-        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
+        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>(), new Aivora.Services.RealtimeService.NullRealtimeService());
         var request = new Request.CreateMilestoneRequest { Title = "M1", Amount = 100 };
 
         // Act & Assert
@@ -216,7 +269,7 @@ public class MilestoneServiceTests
         dbContext.Milestones.Add(milestone);
         await dbContext.SaveChangesAsync();
 
-        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
+        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>(), new Aivora.Services.RealtimeService.NullRealtimeService());
         var request = new Request.UpdateMilestoneRequest { DueDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)) };
 
         // Act & Assert
@@ -241,7 +294,7 @@ public class MilestoneServiceTests
         dbContext.Milestones.Add(milestone);
         await dbContext.SaveChangesAsync();
 
-        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
+        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>(), new Aivora.Services.RealtimeService.NullRealtimeService());
         var request = new Request.UpdateMilestoneRequest { DueDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)) };
 
         // Act & Assert
@@ -262,7 +315,7 @@ public class MilestoneServiceTests
         dbContext.Projects.Add(project);
         await dbContext.SaveChangesAsync();
 
-        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
+        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>(), new Aivora.Services.RealtimeService.NullRealtimeService());
         var request = new Request.CreateMilestoneRequest { Title = new string('a', 256), Amount = 100 };
 
         // Act & Assert
@@ -288,7 +341,7 @@ public class MilestoneServiceTests
         dbContext.Milestones.Add(milestone);
         await dbContext.SaveChangesAsync();
 
-        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
+        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>(), new Aivora.Services.RealtimeService.NullRealtimeService());
         var request = new Request.UpdateMilestoneRequest { Title = new string('a', 256) };
 
         // Act & Assert
@@ -315,7 +368,7 @@ public class MilestoneServiceTests
         dbContext.Milestones.AddRange(otherMilestone, milestone);
         await dbContext.SaveChangesAsync();
 
-        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
+        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>(), new Aivora.Services.RealtimeService.NullRealtimeService());
         var request = new Request.UpdateMilestoneRequest { Amount = 400 };
 
         // Act & Assert (200 other + 400 new = 600 > 500 budget)
@@ -343,7 +396,7 @@ public class MilestoneServiceTests
         dbContext.Milestones.AddRange(otherMilestone, milestone);
         await dbContext.SaveChangesAsync();
 
-        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
+        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>(), new Aivora.Services.RealtimeService.NullRealtimeService());
         var request = new Request.UpdateMilestoneRequest { Amount = 300 };
 
         // Act (200 other + 300 new = 500, exactly at budget)
@@ -365,7 +418,7 @@ public class MilestoneServiceTests
         dbContext.Projects.Add(project);
         await dbContext.SaveChangesAsync();
 
-        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
+        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>(), new Aivora.Services.RealtimeService.NullRealtimeService());
         var request = new Request.CreateMilestoneRequest { Title = "Valid title", Description = new string('a', 1001), Amount = 100 };
 
         // Act & Assert
@@ -386,7 +439,7 @@ public class MilestoneServiceTests
         dbContext.Projects.Add(project);
         await dbContext.SaveChangesAsync();
 
-        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
+        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>(), new Aivora.Services.RealtimeService.NullRealtimeService());
         var request = new Request.CreateMilestoneRequest { Title = "Valid title", AcceptanceCriteria = new string('a', 2001), Amount = 100 };
 
         // Act & Assert
@@ -407,7 +460,7 @@ public class MilestoneServiceTests
         dbContext.Projects.Add(project);
         await dbContext.SaveChangesAsync();
 
-        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
+        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>(), new Aivora.Services.RealtimeService.NullRealtimeService());
         var request = new Request.CreateMilestoneRequest { Title = "Milestone 1", Amount = 300 };
 
         // Act
@@ -432,7 +485,7 @@ public class MilestoneServiceTests
         dbContext.Projects.Add(project);
         await dbContext.SaveChangesAsync();
 
-        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
+        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>(), new Aivora.Services.RealtimeService.NullRealtimeService());
         var request = new Request.CreateMilestoneRequest { Title = "Milestone 1", Amount = amount };
 
         // Act & Assert
@@ -455,7 +508,7 @@ public class MilestoneServiceTests
         dbContext.Projects.Add(project);
         await dbContext.SaveChangesAsync();
 
-        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
+        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>(), new Aivora.Services.RealtimeService.NullRealtimeService());
         var request = new Request.CreateMilestoneRequest { Title = title, Amount = 100 };
 
         // Act & Assert
@@ -478,7 +531,7 @@ public class MilestoneServiceTests
         dbContext.Milestones.Add(existingMilestone);
         await dbContext.SaveChangesAsync();
 
-        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
+        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>(), new Aivora.Services.RealtimeService.NullRealtimeService());
         var request = new Request.CreateMilestoneRequest { Title = "Milestone 2", Amount = 300 };
 
         // Act & Assert (300 existing + 300 new = 600 > 500 budget)
@@ -501,7 +554,7 @@ public class MilestoneServiceTests
         dbContext.Milestones.Add(existingMilestone);
         await dbContext.SaveChangesAsync();
 
-        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
+        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>(), new Aivora.Services.RealtimeService.NullRealtimeService());
         var request = new Request.CreateMilestoneRequest { Title = "Milestone 2", Amount = 300 };
 
         // Act (200 existing + 300 new = 500, exactly at budget)
@@ -523,7 +576,7 @@ public class MilestoneServiceTests
         dbContext.Projects.Add(project);
         await dbContext.SaveChangesAsync();
 
-        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
+        var service = new Service(dbContext, Mock.Of<ITreasury>(), Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>(), new Aivora.Services.RealtimeService.NullRealtimeService());
         var request = new Request.CreateMilestoneRequest { Title = "Milestone 1", Amount = 999999 };
 
         // Act

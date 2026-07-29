@@ -15,7 +15,7 @@ public static class ProjectFactory
         Guid? jobId,
         Guid? acceptedProposalId,
         Guid? serviceRequestId,
-        IEnumerable<(string Title, string? Description, decimal Amount, int OrderIndex)> milestones)
+        IEnumerable<(string Title, string? Description, decimal Amount, int OrderIndex, int DueDays)> milestones)
     {
         return new Project
         {
@@ -35,6 +35,7 @@ public static class ProjectFactory
                 Description = m.Description,
                 Amount = m.Amount,
                 OrderIndex = m.OrderIndex,
+                DueDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(m.DueDays),
                 Status = MilestoneStatus.CREATED,
                 Currency = currency,
                 Steps = new List<MilestoneStep>

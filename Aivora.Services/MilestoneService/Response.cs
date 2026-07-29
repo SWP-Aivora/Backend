@@ -15,6 +15,7 @@ public class Response
         public string Currency { get; set; } = null!;
         public MilestoneStatus Status { get; set; }
         public DateOnly? DueDate { get; set; }
+        public int? DueDays { get; set; }
         public int OrderIndex { get; set; }
         public DateTimeOffset CreatedAt { get; set; }
         public DateTimeOffset? FundedAt { get; set; }

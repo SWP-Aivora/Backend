@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Aivora.api.Hubs;
 using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
@@ -9,6 +10,7 @@ using Aivora.Repositories.Constants;
 using Aivora.Services.Options;
 using Aivora.Services.Treasury;
 using FluentAssertions;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -349,6 +351,48 @@ public class TreasuryRealtimeTests
         // Assert
         await act.Should().ThrowAsync<Aivora.Services.Exceptions.ValidationException>()
             .WithMessage("*active dispute*");
+    }
+
+    [Fact]
+    public async Task PayDepositAsync_WhenMilestoneBroadcastThrows_StillCommitsAndReturnsResult()
+    {
+        // Arrange: a real RealtimeService backed by a hub context that throws as soon as it's used.
+        // PayDepositAsync's fire-and-forget realtime call must not let that exception escape into
+        // the transaction's try/catch (which would otherwise call RollbackAsync on an already-committed transaction).
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+
+        var clientWallet = new Wallet { UserId = clientId, AvailableBalance = 1000, HeldBalance = 0, Currency = CurrencyConstants.VND };
+        var expertWallet = new Wallet { UserId = expertId, AvailableBalance = 0, HeldBalance = 0, Currency = CurrencyConstants.VND };
+        var project = new Project { ClientId = clientId, ExpertId = expertId, Title = "P1" };
+        var milestone = new Milestone { Project = project, Amount = 1000, Status = MilestoneStatus.CREATED, Title = "M1" };
+
+        dbContext.Wallets.AddRange(clientWallet, expertWallet);
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestone);
+        await dbContext.SaveChangesAsync();
+
+        var mockHubContext = new Mock<IHubContext<ChatHub>>();
+        mockHubContext.Setup(h => h.Clients).Throws(new InvalidOperationException("hub is down"));
+        var realtimeService = new Aivora.Services.RealtimeService.Service(mockHubContext.Object);
+
+        var treasury = new Aivora.Services.Treasury.Treasury(
+            dbContext,
+            new Aivora.Services.Treasury.CommissionCalculator(Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.CommissionOptions { Rate = 0.10m })),
+            Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(),
+            Mock.Of<Aivora.Services.NotificationService.IService>(),
+            realtimeService,
+            Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.EscrowOptions())
+        );
+
+        // Act
+        var result = await treasury.PayDepositAsync(clientId, milestone.Id);
+
+        // Assert: the fund transaction completed normally despite the broadcast blowing up.
+        result.Should().NotBeNull();
+        milestone.Status.Should().Be(MilestoneStatus.IN_PROGRESS);
+        clientWallet.AvailableBalance.Should().Be(700);
     }
 
     [Fact]
