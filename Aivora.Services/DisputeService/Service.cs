@@ -241,6 +241,7 @@ public class Service : IService
 
         if (dispute == null) throw new NotFoundException("Dispute not found.");
         if (dispute.Status == DisputeStatus.RESOLVED) throw new ValidationException("Dispute is already resolved.");
+        if (dispute.Status == DisputeStatus.CLOSED) throw new ValidationException("Dispute is already closed.");
 
         var project = dispute.Project;
         var milestone = dispute.Milestone;

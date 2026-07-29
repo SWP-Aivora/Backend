@@ -564,8 +564,14 @@ public class Flow3MilestoneEscrowTests
         succeeded.Should().HaveCount(1, "double-click / retry-on-timeout must not release the remaining funds twice");
         failed.Should().HaveCount(concurrentRequests - 1);
         failed.Should().OnlyContain(t => t.Exception!.InnerException is ValidationException);
+        // The loser can legitimately see either message depending on timing: if it reads
+        // before the winner's release settles the milestone, it sees the SUBMITTED-status
+        // check; if it reads after the winner's release also closes the project (all
+        // milestones settled), it sees the closed-project guard instead. Both are correct
+        // rejections of the same double-release attempt.
         failed.Select(t => ((ValidationException)t.Exception!.InnerException!).Message)
-            .Should().OnlyContain(m => m == "Milestone must be in SUBMITTED status to release remaining funds.");
+            .Should().OnlyContain(m => m == "Milestone must be in SUBMITTED status to release remaining funds."
+                || m == "Cannot release remaining funds on a closed project.");
 
         using var verifyContext = GetDbContext(dbName);
         var payments = await verifyContext.Payments.Where(p => p.MilestoneId == milestoneId).ToListAsync();

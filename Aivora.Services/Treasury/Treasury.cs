@@ -51,6 +51,7 @@ public class Treasury : ITreasury
 
         if (milestone.Project.ClientId != clientId) throw new ForbiddenException("Access denied.");
         if (milestone.Project.Status == ProjectStatus.DISPUTED) throw new ValidationException("Cannot fund a milestone while there is an active dispute.");
+        if (milestone.Project.IsClosed) throw new ValidationException("Cannot fund a milestone on a closed project.");
         if (milestone.Status != MilestoneStatus.CREATED) throw new ValidationException(MilestoneMustBeCreatedError);
 
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
@@ -188,6 +189,7 @@ public class Treasury : ITreasury
         var milestone = await GetMilestoneWithProjectAsync(milestoneId);
 
         if (milestone.Project.ClientId != clientId) throw new ForbiddenException("Only the client can approve and release funds.");
+        if (milestone.Project.IsClosed) throw new ValidationException("Cannot release remaining funds on a closed project.");
         if (milestone.Status == MilestoneStatus.DISPUTED)
             throw new ValidationException("Cannot release remaining funds while the milestone is disputed.");
         if (milestone.Status != MilestoneStatus.SUBMITTED)

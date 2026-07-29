@@ -58,6 +58,27 @@ public class DisputeServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ResolveDisputeAsync_WhenAlreadyClosed_Throws()
+    {
+        // Arrange
+        var admin = await SeedUserAsync(UserRole.ADMIN, "admin2@test.com");
+        var client = await SeedUserAsync(UserRole.CLIENT, "client2@test.com");
+        var expert = await SeedUserAsync(UserRole.EXPERT, "expert2@test.com");
+        var dispute = await SeedDisputeAsync(client.Id, expert.Id, DisputeStatus.CLOSED);
+
+        var request = new Aivora.Services.DisputeService.Request.ResolveDisputeRequest
+        {
+            ResolutionNote = "Too late"
+        };
+
+        // Act
+        var act = () => _disputeService.ResolveDisputeAsync(admin.Id, dispute.Id, request);
+
+        // Assert
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    [Fact]
     public async Task ResolveDispute_NoDeliverable_ShouldRevertToInProgress()
     {
         // Arrange - dispute opened before Expert ever submitted a deliverable (SubmittedAt = null)
