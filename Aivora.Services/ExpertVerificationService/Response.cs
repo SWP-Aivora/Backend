@@ -8,6 +8,7 @@ public class Response
         public Guid ExpertSkillId { get; set; }
         public string? SkillName { get; set; }
         public Guid ExpertId { get; set; }
+        public string? ExpertName { get; set; }
         public string EvidenceFileUrl { get; set; } = null!;
         public string Status { get; set; } = null!;
         public decimal? AIConfidenceScore { get; set; }

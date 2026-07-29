@@ -50,6 +50,7 @@ public class Treasury : ITreasury
         var milestone = await GetMilestoneWithProjectAsync(milestoneId);
 
         if (milestone.Project.ClientId != clientId) throw new ForbiddenException("Access denied.");
+        if (milestone.Project.Status == ProjectStatus.DISPUTED) throw new ValidationException("Cannot fund a milestone while there is an active dispute.");
         if (milestone.Status != MilestoneStatus.CREATED) throw new ValidationException(MilestoneMustBeCreatedError);
 
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
@@ -590,6 +591,9 @@ public class Treasury : ITreasury
 
     private async Task SyncProjectStateAsync(Project project)
     {
+        // CANCELLED/COMPLETED are terminal — never let milestone-driven recompute reopen them.
+        if (project.IsClosed) return;
+
         // Terminal milestones are PAID or REFUNDED
         var allSettled = project.Milestones.All(m => m.IsSettled);
 

@@ -86,6 +86,43 @@ public class RealtimeServiceTests
     }
 
     [Fact]
+    public async Task SendDisputeUpdatedAsync_BroadcastsDisputeUpdatedToProjectGroup()
+    {
+        var mockHubContext = new Mock<IHubContext<ChatHub>>();
+        var mockClients = new Mock<IHubClients>();
+        var mockClientProxy = new Mock<IClientProxy>();
+        var done = new ManualResetEventSlim(false);
+
+        var projectId = Guid.NewGuid();
+        var disputeId = Guid.NewGuid();
+
+        mockHubContext.Setup(h => h.Clients).Returns(mockClients.Object);
+        mockClients.Setup(c => c.Group($"project-{projectId}")).Returns(mockClientProxy.Object);
+        mockClientProxy
+            .Setup(p => p.SendCoreAsync("DisputeUpdated", It.IsAny<object[]>(), It.IsAny<CancellationToken>()))
+            .Callback(() => done.Set())
+            .Returns(Task.CompletedTask);
+
+        var service = new Service(mockHubContext.Object);
+
+        service.SendDisputeUpdatedAsync(projectId, disputeId);
+
+        done.Wait(TimeSpan.FromSeconds(2)).Should().BeTrue();
+
+        mockClients.Verify(c => c.Group($"project-{projectId}"), Times.Once);
+        mockClientProxy.Verify(p => p.SendCoreAsync(
+            "DisputeUpdated",
+            It.Is<object[]>(args =>
+                args.Length == 1 &&
+                args[0] is DisputeUpdatedDto &&
+                ((DisputeUpdatedDto)args[0]).ProjectId == projectId &&
+                ((DisputeUpdatedDto)args[0]).DisputeId == disputeId
+            ),
+            It.IsAny<CancellationToken>()
+        ), Times.Once);
+    }
+
+    [Fact]
     public void SendMilestoneUpdatedAsync_WhenBroadcastThrows_DoesNotThrowAndLogsError()
     {
         var mockHubContext = new Mock<IHubContext<ChatHub>>();

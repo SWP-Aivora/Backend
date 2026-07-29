@@ -92,6 +92,32 @@ public class TreasuryRealtimeTests
     }
 
     [Fact]
+    public async Task SyncProjectStatusAsync_WhenProjectCancelled_DoesNotOverwriteStatus()
+    {
+        // Arrange: project is CANCELLED (terminal) but still has a DISPUTED milestone lying around
+        // (e.g. from before the cancel-disputed flow closed it out). Sync must not resurrect it.
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+
+        var project = new Project { ClientId = clientId, ExpertId = expertId, Status = ProjectStatus.CANCELLED, Title = "Cancelled Project" };
+        var milestone = new Milestone { Project = project, Title = "M1", Amount = 100, Status = MilestoneStatus.DISPUTED };
+
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestone);
+        await dbContext.SaveChangesAsync();
+
+        var mockRealtime = new Mock<Aivora.Services.RealtimeService.IService>();
+        var commissionOptions = Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.CommissionOptions { Rate = 0.10m });
+        var treasury = new Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), mockRealtime.Object, Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.EscrowOptions()));
+
+        await treasury.SyncProjectStatusAsync(project.Id);
+
+        var updated = await dbContext.Projects.FindAsync(project.Id);
+        updated!.Status.Should().Be(ProjectStatus.CANCELLED);
+    }
+
+    [Fact]
     public async Task PayDepositAsync_Should_Transfer_30Percent_Directly()
     {
         var dbContext = GetDbContext();
@@ -429,6 +455,80 @@ public class TreasuryRealtimeTests
         // Assert
         await act.Should().ThrowAsync<Aivora.Services.Exceptions.ValidationException>()
             .WithMessage("Cannot release remaining funds while the milestone is disputed.");
+    }
+
+    [Fact]
+    public async Task PayDepositAsync_Should_Throw_ValidationException_When_Project_Is_Disputed()
+    {
+        // Arrange: milestone A is DISPUTED (project-level DISPUTED), milestone B is still CREATED.
+        // Funding milestone B must be rejected because the project has an active dispute.
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+
+        var clientWallet = new Wallet { UserId = clientId, AvailableBalance = 1000, HeldBalance = 0, Currency = "AICOIN" };
+        var expertWallet = new Wallet { UserId = expertId, AvailableBalance = 0, HeldBalance = 0, Currency = "AICOIN" };
+        var project = new Project { ClientId = clientId, ExpertId = expertId, Title = "Disputed Project", Status = ProjectStatus.DISPUTED };
+        var disputedMilestone = new Milestone { Project = project, Amount = 500, Status = MilestoneStatus.DISPUTED, Title = "M1" };
+        var milestoneToFund = new Milestone { Project = project, Amount = 500, Status = MilestoneStatus.CREATED, Title = "M2" };
+
+        dbContext.Wallets.AddRange(clientWallet, expertWallet);
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.AddRange(disputedMilestone, milestoneToFund);
+        await dbContext.SaveChangesAsync();
+
+        var treasury = new Aivora.Services.Treasury.Treasury(
+            dbContext,
+            new CommissionCalculator(Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.CommissionOptions { Rate = 0.10m })),
+            Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(),
+            Mock.Of<Aivora.Services.NotificationService.IService>(),
+            Mock.Of<Aivora.Services.RealtimeService.IService>(),
+            Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.EscrowOptions())
+        );
+
+        // Act
+        Func<Task> act = async () => await treasury.PayDepositAsync(clientId, milestoneToFund.Id);
+
+        // Assert - rejected, no wallet mutation
+        await act.Should().ThrowAsync<Aivora.Services.Exceptions.ValidationException>()
+            .WithMessage("Cannot fund a milestone while there is an active dispute.");
+        clientWallet.AvailableBalance.Should().Be(1000);
+        expertWallet.AvailableBalance.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task PayDepositAsync_Should_Succeed_After_Dispute_Is_Closed()
+    {
+        // Arrange: project was DISPUTED but the dispute has since been closed (project back to ACTIVE).
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+
+        var clientWallet = new Wallet { UserId = clientId, AvailableBalance = 1000, HeldBalance = 0, Currency = "AICOIN" };
+        var expertWallet = new Wallet { UserId = expertId, AvailableBalance = 0, HeldBalance = 0, Currency = "AICOIN" };
+        var project = new Project { ClientId = clientId, ExpertId = expertId, Title = "Formerly Disputed Project", Status = ProjectStatus.ACTIVE };
+        var milestoneToFund = new Milestone { Project = project, Amount = 500, Status = MilestoneStatus.CREATED, Title = "M2" };
+
+        dbContext.Wallets.AddRange(clientWallet, expertWallet);
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestoneToFund);
+        await dbContext.SaveChangesAsync();
+
+        var treasury = new Aivora.Services.Treasury.Treasury(
+            dbContext,
+            new CommissionCalculator(Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.CommissionOptions { Rate = 0.10m })),
+            Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(),
+            Mock.Of<Aivora.Services.NotificationService.IService>(),
+            Mock.Of<Aivora.Services.RealtimeService.IService>(),
+            Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.EscrowOptions())
+        );
+
+        // Act
+        var result = await treasury.PayDepositAsync(clientId, milestoneToFund.Id);
+
+        // Assert
+        result.Should().NotBeNull();
+        milestoneToFund.Status.Should().Be(MilestoneStatus.IN_PROGRESS);
     }
 }
 

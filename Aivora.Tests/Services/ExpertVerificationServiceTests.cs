@@ -377,4 +377,122 @@ public class ExpertVerificationServiceTests
 
         await act.Should().ThrowAsync<ValidationException>();
     }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ReviewEscalatedVerificationAsync_Succeeds_WhenRecordIsNeedsReview(bool isApproved)
+    {
+        var dbContext = GetDbContext();
+        var (_, _, _, expertSkill) = SeedExpertSkill(dbContext);
+
+        var verification = new ExpertVerification
+        {
+            ExpertSkillId = expertSkill.Id,
+            EvidenceFileUrl = "https://cdn/1.png",
+            EvidencePublicId = "1",
+            Status = ExpertVerificationStatus.NEEDS_REVIEW
+        };
+        dbContext.ExpertVerifications.Add(verification);
+        await dbContext.SaveChangesAsync();
+
+        var service = BuildService(dbContext, BuildAiProviderMock(ExpertVerificationStatus.APPROVED));
+
+        var request = new Request.ReviewVerificationRequest { IsApproved = isApproved, RejectionReason = isApproved ? null : "Not sufficient evidence" };
+        var reviewed = await service.ReviewEscalatedVerificationAsync(Guid.NewGuid(), verification.Id, request);
+
+        reviewed.Status.Should().Be(isApproved ? ExpertVerificationStatus.APPROVED.ToString() : ExpertVerificationStatus.REJECTED.ToString());
+        reviewed.ExpertName.Should().NotBeNullOrEmpty();
+    }
+
+    [Theory]
+    [InlineData(ExpertVerificationStatus.APPROVED)]
+    [InlineData(ExpertVerificationStatus.REJECTED)]
+    public async Task ReviewEscalatedVerificationAsync_Throws_WhenAlreadyDecided(ExpertVerificationStatus status)
+    {
+        var dbContext = GetDbContext();
+        var (_, _, _, expertSkill) = SeedExpertSkill(dbContext);
+
+        var verification = new ExpertVerification
+        {
+            ExpertSkillId = expertSkill.Id,
+            EvidenceFileUrl = "https://cdn/1.png",
+            EvidencePublicId = "1",
+            Status = status
+        };
+        dbContext.ExpertVerifications.Add(verification);
+        await dbContext.SaveChangesAsync();
+
+        var service = BuildService(dbContext, BuildAiProviderMock(ExpertVerificationStatus.APPROVED));
+
+        Func<Task> act = () => service.ReviewEscalatedVerificationAsync(Guid.NewGuid(), verification.Id, new Request.ReviewVerificationRequest { IsApproved = true });
+
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    [Fact]
+    public async Task SubmitEvidenceAsync_PopulatesExpertName()
+    {
+        var dbContext = GetDbContext();
+        var (user, _, _, expertSkill) = SeedExpertSkill(dbContext);
+        var service = BuildService(dbContext, BuildAiProviderMock(ExpertVerificationStatus.APPROVED));
+
+        var result = await service.SubmitEvidenceAsync(user.Id, new Request.SubmitEvidenceRequest { ExpertSkillId = expertSkill.Id, File = BuildEvidenceFile() });
+
+        result.ExpertName.Should().Be(user.FullName);
+    }
+
+    [Fact]
+    public async Task GetAdminVerificationsAsync_PopulatesExpertName()
+    {
+        var dbContext = GetDbContext();
+        var (user, _, _, expertSkill) = SeedExpertSkill(dbContext);
+        dbContext.ExpertVerifications.Add(new ExpertVerification
+        {
+            ExpertSkillId = expertSkill.Id,
+            EvidenceFileUrl = "https://cdn/1.png",
+            EvidencePublicId = "1",
+            Status = ExpertVerificationStatus.NEEDS_REVIEW
+        });
+        await dbContext.SaveChangesAsync();
+
+        var service = BuildService(dbContext, BuildAiProviderMock(ExpertVerificationStatus.APPROVED));
+
+        var result = await service.GetAdminVerificationsAsync(new Aivora.Services.Base.Request.PageRequest(), null, null);
+
+        result.Items.Single().ExpertName.Should().Be(user.FullName);
+    }
+
+    [Fact]
+    public async Task GetAdminVerificationsAsync_FiltersBySearch_MatchingExpertOrSkillName_CaseInsensitive()
+    {
+        var dbContext = GetDbContext();
+        var (matchingUser, _, matchingSkill, matchingExpertSkill) = SeedExpertSkill(dbContext, "React");
+        var (otherUser, _, _, otherExpertSkill) = SeedExpertSkill(dbContext, "Vue");
+
+        dbContext.ExpertVerifications.AddRange(
+            new ExpertVerification
+            {
+                ExpertSkillId = matchingExpertSkill.Id,
+                EvidenceFileUrl = "https://cdn/1.png",
+                EvidencePublicId = "1",
+                Status = ExpertVerificationStatus.NEEDS_REVIEW
+            },
+            new ExpertVerification
+            {
+                ExpertSkillId = otherExpertSkill.Id,
+                EvidenceFileUrl = "https://cdn/2.png",
+                EvidencePublicId = "2",
+                Status = ExpertVerificationStatus.NEEDS_REVIEW
+            });
+        await dbContext.SaveChangesAsync();
+
+        var service = BuildService(dbContext, BuildAiProviderMock(ExpertVerificationStatus.APPROVED));
+
+        var bySkill = await service.GetAdminVerificationsAsync(new Aivora.Services.Base.Request.PageRequest(), null, null, "react");
+        bySkill.Items.Should().ContainSingle(v => v.ExpertSkillId == matchingExpertSkill.Id);
+
+        var byExpertName = await service.GetAdminVerificationsAsync(new Aivora.Services.Base.Request.PageRequest(), null, null, matchingUser.FullName.ToUpperInvariant());
+        byExpertName.Items.Should().ContainSingle(v => v.ExpertSkillId == matchingExpertSkill.Id);
+    }
 }

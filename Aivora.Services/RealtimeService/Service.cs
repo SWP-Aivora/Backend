@@ -65,4 +65,21 @@ public class Service : IService
             }
         });
     }
+
+    // Same fire-and-forget shape as SendMilestoneUpdatedAsync — see the comment above for why.
+    public void SendDisputeUpdatedAsync(Guid projectId, Guid disputeId)
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var payload = new DisputeUpdatedDto { ProjectId = projectId, DisputeId = disputeId };
+                await _hubContext.Clients.Group($"project-{projectId}").SendAsync("DisputeUpdated", payload);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Failed to broadcast DisputeUpdated for project {ProjectId}, dispute {DisputeId}", projectId, disputeId);
+            }
+        });
+    }
 }

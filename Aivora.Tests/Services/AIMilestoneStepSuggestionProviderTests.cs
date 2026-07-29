@@ -24,6 +24,7 @@ public class AIMilestoneStepSuggestionProviderTests
 
         draft.Steps.Should().NotBeEmpty();
         draft.Steps.Should().OnlyContain(s => !string.IsNullOrWhiteSpace(s.Title));
+        draft.Steps.Should().OnlyContain(s => s.EstimatedDays > 0);
         draft.AIModel.Should().Be("Aivora-Mock");
     }
 
@@ -35,8 +36,8 @@ public class AIMilestoneStepSuggestionProviderTests
             """
             {
               "steps": [
-                { "title": "Design schema", "description": "Draft the DB schema" },
-                { "title": "Build API", "description": "Implement the endpoints" }
+                { "title": "Design schema", "description": "Draft the DB schema", "estimatedDays": 3 },
+                { "title": "Build API", "description": "Implement the endpoints", "estimatedDays": 7 }
               ]
             }
             """,
@@ -44,7 +45,23 @@ public class AIMilestoneStepSuggestionProviderTests
 
         draft.Steps.Should().HaveCount(2);
         draft.Steps[0].Title.Should().Be("Design schema");
+        draft.Steps[0].EstimatedDays.Should().Be(3);
+        draft.Steps[1].EstimatedDays.Should().Be(7);
         draft.AIModel.Should().Be("Gemini 2.5 Flash");
+    }
+
+    [Fact]
+    public void Parser_MissingStepsArray_FallbackStepsHaveEstimatedDays()
+    {
+        var parser = new AIMilestoneStepSuggestionParser();
+        var draft = parser.Parse(
+            """
+            { "notes": "no steps key here" }
+            """,
+            new Request.SuggestMilestoneStepsRequest { Title = "Fallback job", Description = "desc", AcceptanceCriteria = "criteria" });
+
+        draft.Steps.Should().NotBeEmpty();
+        draft.Steps.Should().OnlyContain(s => s.EstimatedDays > 0);
     }
 
     [Fact]

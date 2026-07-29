@@ -14,3 +14,9 @@ public class MilestoneUpdatedDto
     public Guid ProjectId { get; set; }
     public Guid MilestoneId { get; set; }
 }
+
+public class DisputeUpdatedDto
+{
+    public Guid ProjectId { get; set; }
+    public Guid DisputeId { get; set; }
+}

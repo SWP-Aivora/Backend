@@ -53,6 +53,7 @@ public class Service : IService
 
         var expertSkill = await _dbContext.ExpertSkills
             .Include(s => s.Skill)
+            .Include(s => s.Expert).ThenInclude(e => e.User)
             .FirstOrDefaultAsync(s => s.Id == request.ExpertSkillId && s.ExpertId == expert.Id, cancellationToken);
         if (expertSkill == null) throw new NotFoundException("Expert skill not found for the current expert.");
 
@@ -118,6 +119,7 @@ public class Service : IService
 
         var query = _dbContext.ExpertVerifications
             .Include(v => v.ExpertSkill).ThenInclude(s => s.Skill)
+            .Include(v => v.ExpertSkill).ThenInclude(s => s.Expert).ThenInclude(e => e.User)
             .Where(v => v.ExpertSkill.ExpertId == expert.Id);
 
         if (expertSkillId.HasValue)
@@ -135,6 +137,7 @@ public class Service : IService
 
         var verification = await _dbContext.ExpertVerifications
             .Include(v => v.ExpertSkill).ThenInclude(s => s.Skill)
+            .Include(v => v.ExpertSkill).ThenInclude(s => s.Expert).ThenInclude(e => e.User)
             .FirstOrDefaultAsync(v => v.Id == verificationId);
 
         if (verification == null || verification.ExpertSkill.ExpertId != expert.Id)
@@ -155,10 +158,11 @@ public class Service : IService
         return MapToResponse(verification, verification.ExpertSkill, canEscalate: false);
     }
 
-    public async Task<Base.Response.PageResult<Response.ExpertVerificationResponse>> GetAdminVerificationsAsync(Base.Request.PageRequest pageRequest, ExpertVerificationStatus? status, Guid? expertId)
+    public async Task<Base.Response.PageResult<Response.ExpertVerificationResponse>> GetAdminVerificationsAsync(Base.Request.PageRequest pageRequest, ExpertVerificationStatus? status, Guid? expertId, string? search = null)
     {
         var query = _dbContext.ExpertVerifications
             .Include(v => v.ExpertSkill).ThenInclude(s => s.Skill)
+            .Include(v => v.ExpertSkill).ThenInclude(s => s.Expert).ThenInclude(e => e.User)
             .AsQueryable();
 
         if (status.HasValue)
@@ -171,6 +175,14 @@ public class Service : IService
             query = query.Where(v => v.ExpertSkill.ExpertId == expertId.Value);
         }
 
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var keyword = search.ToLower();
+            query = query.Where(v =>
+                v.ExpertSkill.Expert.User.FullName.ToLower().Contains(keyword) ||
+                v.ExpertSkill.Skill.Name.ToLower().Contains(keyword));
+        }
+
         return await ToPageResultAsync(query, pageRequest);
     }
 
@@ -178,12 +190,12 @@ public class Service : IService
     {
         var verification = await _dbContext.ExpertVerifications
             .Include(v => v.ExpertSkill).ThenInclude(s => s.Skill)
-            .Include(v => v.ExpertSkill).ThenInclude(s => s.Expert)
+            .Include(v => v.ExpertSkill).ThenInclude(s => s.Expert).ThenInclude(e => e.User)
             .FirstOrDefaultAsync(v => v.Id == verificationId);
 
         if (verification == null) throw new NotFoundException("Verification not found.");
-        if (verification.Status != ExpertVerificationStatus.ESCALATED)
-            throw new ValidationException("Only escalated verifications can be reviewed.");
+        if (verification.Status != ExpertVerificationStatus.ESCALATED && verification.Status != ExpertVerificationStatus.NEEDS_REVIEW)
+            throw new ValidationException("Only escalated or needs-review verifications can be reviewed.");
 
         verification.AdminId = adminId;
         verification.ReviewedAt = DateTimeOffset.UtcNow;
@@ -315,6 +327,7 @@ public class Service : IService
             ExpertSkillId = verification.ExpertSkillId,
             SkillName = expertSkill?.Skill?.Name,
             ExpertId = expertSkill?.ExpertId ?? Guid.Empty,
+            ExpertName = expertSkill?.Expert?.User?.FullName,
             EvidenceFileUrl = verification.EvidenceFileUrl,
             Status = verification.Status.ToString(),
             AIConfidenceScore = verification.AIConfidenceScore,

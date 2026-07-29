@@ -13,4 +13,5 @@ public interface IService
 
     // ponytail: fire-and-forget (void, not Task) - see Service.cs for why. Callers just call it, no await.
     void SendMilestoneUpdatedAsync(Guid projectId, Guid milestoneId);
+    void SendDisputeUpdatedAsync(Guid projectId, Guid disputeId);
 }

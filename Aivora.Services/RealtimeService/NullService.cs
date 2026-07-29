@@ -11,4 +11,5 @@ public class NullRealtimeService : IService
     public Task SendJobStatusUpdateToUsersAsync(IEnumerable<Guid> userIds, Guid jobId, JobStatus status, string? title) => Task.CompletedTask;
     public Task SendNewJobPublishedAsync(Guid jobId, string title) => Task.CompletedTask;
     public void SendMilestoneUpdatedAsync(Guid projectId, Guid milestoneId) { }
+    public void SendDisputeUpdatedAsync(Guid projectId, Guid disputeId) { }
 }
