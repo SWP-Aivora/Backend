@@ -8,7 +8,7 @@ public class AIJobRefinementPromptBuilder
     public string Build(JobService.Response.JobResponse current, string message)
     {
         return $$"""
-            You are an AI Job Assistant. Refine this existing job post based on the user's request:
+            You are an AI Job Assistant. Refine this existing job post based on the user's request. Important: You MUST generate all responses and text content strictly in English, regardless of the language the user uses:
             {{JsonSerializer.Serialize(current)}}
 
             User message:
