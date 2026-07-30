@@ -3,6 +3,8 @@
 > Purpose: This document is the canonical **main business flow** for Aivora.
 > It is written for AI coding agents, backend developers, frontend developers, testers, and report writers.
 > **v2** — supersedes `MAINFLOW_v1.md` (removed). Rewritten to match current code: dispute resolution no longer auto-moves money (issue #94), project renamed AITasker → Aivora, table names corrected.
+> **v2.1** — Flow 2 now covers two independent paths that both create a `Project`: Path A (Job → Proposal, Client-initiated) and Path B (Service → Request → Offer, Expert-initiated). `Service Publishing` was previously listed as "not main flow"; it is now part of Main Flow 2 since the code implements the full Service → Project path.
+> **v2.2** — Flow 3/4 rewritten to match the actual `Treasury` module (`Aivora.Services/Treasury/Treasury.cs`), which replaced the "hold-then-release escrow" model this document previously described. There is no `HELD`/`FROZEN` payment state anywhere in the real pipeline: every `Payment` is created `RELEASED` immediately, money moves wallet-to-wallet in two installments (deposit % on Fund, remaining % minus platform commission on Approve). See §3 of `Main Flow 3` below for the exact mechanism.
 
 ---
 
@@ -11,11 +13,20 @@
 The core system flow is:
 
 ```text
-Client đăng nhu cầu
-→ Expert nhận job
-→ Project được thực hiện
+Client đăng nhu cầu HOẶC Expert đăng service
+→ Đối phương phản hồi (Expert gửi proposal / Client chọn service & gửi request)
+→ Project được tạo
 → Thanh toán / review / dispute
 ```
+
+There are exactly **two ways to create a Project**:
+
+```text
+Path A — Client-initiated:  Job (Client) → Proposal (Expert) → Accept → Project
+Path B — Expert-initiated:  Service (Expert) → Request (Client) → Offer (Expert) → Accept → Project
+```
+
+Both paths converge on the same `Projects` table and the same downstream flows (Milestone/Escrow/Deliverable, Completion/Payment/Review). Everything after project creation is identical regardless of which path was used.
 
 Important rule:
 
@@ -35,12 +46,13 @@ Aivora has exactly **4 main business flows**:
 | No. | Main Flow | Main Actors | Purpose |
 |---:|---|---|---|
 | 1 | **Create Job & Match Expert** | Client, System, Expert | Client creates a job, System refines requirements and recommends suitable experts |
-| 2 | **Proposal & Project Creation** | Expert, Client, System | Expert submits a proposal, Client accepts one proposal, System creates a project |
+| 2 | **Project Creation** (Path A: Proposal, Path B: Service) | Expert, Client, System | Path A: Expert submits a proposal on a job, Client accepts. Path B: Expert publishes a service, Client requests it, Expert offers, Client accepts. Either path creates a project |
 | 3 | **Milestone, Escrow & Deliverable** | Client, Expert, System | Client and Expert confirm milestones, Client funds escrow, Expert submits deliverable, Client reviews result |
 | 4 | **Completion, Payment, and Review** | Client, Expert, System, Admin | System releases payment, completes project, handles dispute if needed, and allows both sides to review |
 
 Do not split these into 10–15 separate main flows.
 Do not use an old 6-flow version as the main version.
+Do not treat Path A and Path B as separate main flows — they are two entry points into the same Main Flow 2 (Project Creation), and both converge on Flow 3.
 
 ---
 
@@ -49,7 +61,9 @@ Do not use an old 6-flow version as the main version.
 ```text
 1. Client creates a job and the System helps refine the requirement, suggest skills, budget, timeline, milestones, and recommend suitable experts.
 
-2. Expert views the job, submits a proposal, and Client reviews proposals to select the most suitable expert. The System then creates a project from the accepted proposal.
+2. A project gets created through one of two paths:
+   - **Path A (Proposal):** Expert views the job, submits a proposal, and Client reviews proposals to select the most suitable expert. The System creates a project from the accepted proposal.
+   - **Path B (Service):** Expert publishes a service with packages. Client browses services, sends a request on a package. Expert accepts the request and sends a price/milestone offer. Client accepts the offer. The System creates a project from the accepted offer.
 
 3. Client and Expert confirm milestones. Client funds each milestone using escrow. Expert completes the work and submits deliverables. Client reviews the deliverable and either approves, requests revision, or opens a dispute.
 
@@ -59,7 +73,7 @@ Do not use an old 6-flow version as the main version.
 One-line description:
 
 ```text
-Aivora has four main business flows: job creation and expert matching, proposal and project creation, milestone-based delivery with escrow, and dispute review with project completion and peer review.
+Aivora has four main business flows: job creation and expert matching, project creation (via proposal on a job, or via a service request/offer), milestone-based delivery with escrow, and dispute review with project completion and peer review.
 ```
 
 ---
@@ -192,7 +206,18 @@ Without an OPEN job, proposal, project, milestone, escrow, deliverable, payment,
 
 ---
 
-# MAIN FLOW 2: Proposal & Project Creation
+# MAIN FLOW 2: Project Creation
+
+Project creation has **two independent paths**. Both end with a `Project` row created and linked to Client + Expert; everything from Main Flow 3 onward is identical regardless of path.
+
+```text
+Path A (Proposal, Client-initiated): Job (OPEN) → Expert Proposal → Client Accept → Project
+Path B (Service, Expert-initiated):  Expert Service (PUBLISHED) → Client Request → Expert Offer → Client Accept → Project
+```
+
+---
+
+## Path A: Proposal & Project Creation
 
 ## Actor chính
 
@@ -363,6 +388,166 @@ After this flow, Aivora starts managing real project delivery.
 
 ---
 
+## Path B: Service & Project Creation
+
+## Actor chính
+
+**Expert**, **Client**
+
+## Internal system capability
+
+**Service catalog management and atomic project creation from an accepted offer**
+
+## Goal
+
+Expert publishes a reusable service (with pricing packages) instead of waiting for a job post.
+Client browses services, requests one on a specific package, Expert reviews and sends a price/milestone offer, Client accepts, and the System creates a project — no Job or Proposal involved.
+
+## Preconditions
+
+```text
+1. Expert has an active account.
+2. Expert has created a service with at least one package and one FAQ.
+3. Client has an active account.
+4. Client is not the owner of the service (cannot request own service).
+```
+
+## Main Flow
+
+```text
+1. Expert selects Create Service.
+
+2. Expert enters service details:
+   - Title
+   - Description
+   - Attachment (optional)
+   - One or more pricing packages (tier: BASIC/STANDARD/PREMIUM, title, price, delivery days, features)
+   - One or more FAQs
+
+3. System saves service with status DRAFT.
+
+4. Expert edits service if needed (title, description, packages, FAQs — partial update).
+
+5. Expert selects Publish Service.
+
+6. System validates the service has at least one package and one FAQ.
+
+7. System sets service status to PUBLISHED, PublishedAt = now.
+
+8. Client browses published services on the marketplace.
+
+9. Client opens a service and selects a package.
+
+10. Client selects Request Service, optionally with a note.
+
+11. System validates:
+    - Service is PUBLISHED
+    - Client is not the service owner
+    - Client has no other PENDING request on this service
+
+12. System creates ServiceRequest with status PENDING, snapshotting the package's
+    title/price/delivery days at request time (so a later Expert edit to the
+    package can't retroactively change what the Client already requested).
+
+13. Expert receives notification of the new request.
+
+14. Expert opens the request and chooses Accept or Decline.
+
+15a. If Expert declines:
+     System sets ServiceRequest status to DECLINED. Flow ends.
+
+15b. If Expert accepts:
+     System sets ServiceRequest status to ACCEPTED.
+     System opens a Conversation between Client and Expert for this request.
+
+16. Expert selects Send Offer, entering:
+    - Total amount
+    - One or more milestones (title, description, amount, due days, acceptance criteria)
+
+17. System validates the ServiceRequest is ACCEPTED, then saves the offer with
+    status PENDING.
+
+18. Client receives notification of the offer and reviews it.
+
+19. Client selects Accept Offer.
+
+20. System validates the offer is still PENDING.
+
+21. System creates Project from:
+    - Service title/description
+    - Offer amount and milestones
+    - Client (requester) and Expert (offer sender)
+    - ServiceRequestId (no JobId, no ProposalId)
+
+22. Client and Expert move to project management phase (Main Flow 3).
+```
+
+## Status Transition
+
+```text
+Service: NULL → DRAFT → PUBLISHED (→ DRAFT again via Unpublish)
+
+ServiceRequest: NULL → PENDING → ACCEPTED / DECLINED
+
+ServiceOffer: NULL → PENDING → ACCEPTED
+
+Project: NULL → PENDING_PAYMENT (created directly ACTIVE-bound, same as Path A)
+```
+
+## Main Tables
+
+| Table | Purpose |
+|---|---|
+| `Services` (`ServiceListing`) | Stores the expert's published service |
+| `ServicePackages` | Pricing tiers (BASIC/STANDARD/PREMIUM) for a service |
+| `ServiceFaqs` | FAQ entries shown on the service page |
+| `ServiceRequests` | Stores a client's request against one service package (snapshots price/delivery at request time) |
+| `ServiceOffers` | Stores the expert's price/milestone offer sent in response to an accepted request |
+| `ServiceOfferMilestones` | Milestone plan proposed inside a service offer |
+| `Projects` | Created after offer acceptance (same table as Path A) |
+| `Milestones` | Generated from offer milestones when accepted |
+| `Conversations` | Opened automatically when Expert accepts a service request |
+
+## Transaction Rule
+
+Accepting a service offer must be atomic, mirroring the proposal-accept transaction in Path A.
+
+```text
+Accept offer transaction:
+1. Validate offer is PENDING and requester owns the underlying ServiceRequest.
+2. Set offer = ACCEPTED.
+3. Create project (status = PENDING_PAYMENT), linked via ServiceRequestId.
+4. Create milestones from offer milestones.
+5. Commit transaction.
+```
+
+A partial unique index on `Projects.ServiceRequestId` guards against a race where two concurrent accepts on the same service request would otherwise create two projects — the second commit fails with a unique violation and is surfaced as a validation error ("This service request already has an accepted offer.").
+
+## Expected Output
+
+```text
+1. Service offer becomes ACCEPTED.
+2. Project is created.
+3. Project is linked to service request, accepted offer, client, and expert.
+4. Job and Proposal tables are untouched — this path never creates a JobPosts or Proposals row.
+```
+
+## Business Meaning
+
+This flow combines:
+
+```text
+Publish Service
++ Client Request
++ Expert Offer
++ Client Accept Offer
++ Create Project
+```
+
+This is the Expert-initiated counterpart to Path A: instead of a Client posting a need and waiting for proposals, the Expert pre-packages their offering and Clients discover and request it directly. Both paths converge on the same project execution phase.
+
+---
+
 # MAIN FLOW 3: Milestone, Escrow & Deliverable
 
 ## Actor chính
@@ -376,19 +561,25 @@ After this flow, Aivora starts managing real project delivery.
 ## Goal
 
 Client and Expert confirm project milestones.
-Client funds a milestone using escrow.
+Client funds a milestone with a **deposit installment** (not a full-amount hold).
 Expert completes the work and submits deliverable, optionally tracked through granular **milestone steps**.
-Client reviews the deliverable.
+Client reviews the deliverable; approving it releases the **remaining installment minus platform commission**.
+
+> **Money model — read this before anything else.** All money movement for Flow 3/4 goes through one module, `Aivora.Services/Treasury/Treasury.cs` ("Deep Module chịu trách nhiệm duy nhất về tính toàn vẹn tài chính"). It is **not** an escrow-hold system despite the entity being called `Payment` with a `HELD`/`FROZEN` status in the enum — those enum values exist but are **never assigned** by the current pipeline. Instead:
+> - **Fund** (`PUT /milestones/{id}/fund` → `Treasury.PayDepositAsync`) transfers `milestone.Amount × DepositRate` (default **30%**, `EscrowOptions.DepositRate`) directly **Client wallet → Expert wallet**, right away. The `Payment` row created here has `Status = RELEASED` from the start.
+> - **Approve** (`PUT /milestones/{id}/approve` → `Treasury.PayRemainingAsync`) transfers the remaining `milestone.Amount × RemainingRate` (default **70%**) from Client, splits it into `expertAmount = remaining − commission` to Expert and `commission = milestone.Amount × CommissionRate` (default **10% of the full milestone amount**, not of the remaining 70%) to a platform system wallet (`SystemConstants.SystemUserId`). Another `Payment` row is created, again `Status = RELEASED` immediately.
+> - Net result at default rates: Expert receives 30% + (70% − 10%) = **90%** of `milestone.Amount`; platform keeps **10%**.
+> - `Treasury` also has `RefundMilestoneAsync` and `SplitMilestoneFundsAsync` fully implemented (clawback from Expert wallet with a configurable `MaxDebtLimit`, default 1000 AICOIN) — **but no controller or service currently calls either method**. They exist as ready-to-wire logic for a future "Admin force-refund/split" feature, not as part of today's dispute flow (see Main Flow 4 §4B).
 
 ## Preconditions
 
 ```text
 1. Project exists.
-2. Project is linked to one accepted proposal.
+2. Project is linked to one accepted proposal (Path A) or one accepted service offer (Path B).
 3. Project has Client and Expert.
 4. Client has wallet with sufficient balance (deposited via VNPay, or credited via demo deposit in dev/test).
 5. Expert has wallet.
-6. Milestone plan exists or can be created from proposal/job suggestion.
+6. Milestone plan exists or can be created from proposal/job suggestion/service offer.
 ```
 
 ## Main Flow
@@ -411,6 +602,7 @@ Client reviews the deliverable.
    - Due date
    - Acceptance criteria
    - Optional list of milestone steps (Expert can ask AI to suggest steps, add/reorder/update them)
+   - The system also auto-inserts a `MilestoneStep` titled `"Created"` (status `COMPLETED`) the moment the milestone itself is created — this and two other reserved titles (`"Funded"`, `"Completed"`, added later at fund/approve time) are system-generated markers that Expert cannot create, rename, or delete through the milestone-step endpoints.
 
 5. Client confirms milestone plan.
 
@@ -424,19 +616,20 @@ Client reviews the deliverable.
 
 9. Client clicks Fund Milestone.
 
-10. System checks Client wallet balance.
+10. System checks Client wallet balance against the **deposit installment** (`milestone.Amount × DepositRate`, default 30%) — not the full milestone amount.
 
-11. If balance is enough:
-    - System subtracts money from Client available balance
-    - System holds money in escrow
-    - Payment status becomes HELD
-    - Milestone status becomes FUNDED
-    - Project status becomes ACTIVE
+11. If balance is enough (`Treasury.PayDepositAsync`):
+    - System debits the deposit amount from Client's available balance
+    - System credits the SAME amount directly to Expert's available balance (no platform hold)
+    - A `Payments` row is created with `Status = RELEASED` immediately (never `HELD`)
+    - System auto-adds a `"Funded"` milestone step (status `COMPLETED`) if not already present
+    - Milestone status becomes IN_PROGRESS (not `FUNDED` — that enum value is never assigned by the current code)
+    - Project status becomes ACTIVE (if it was PENDING_PAYMENT)
 
-12. Expert receives notification that milestone is funded.
+12. Expert receives notification that the deposit was paid and can start working.
 
 13. Expert starts working, optionally tracking granular progress via milestone steps
-    (PENDING → IN_PROGRESS → COMPLETED / SKIPPED / BLOCKED per step).
+    (PENDING → IN_PROGRESS → COMPLETED / SKIPPED / BLOCKED per step; unblocking BLOCKED → IN_PROGRESS is the one transition that belongs to Client, every other transition is Expert's).
 
 14. When finished, Expert submits deliverable:
     - Description
@@ -446,7 +639,7 @@ Client reviews the deliverable.
     - Setup instruction
     - Note to Client
 
-15. System saves deliverable.
+15. System saves deliverable with status SUBMITTED.
 
 16. Milestone status becomes SUBMITTED.
 
@@ -467,23 +660,40 @@ Client reviews the deliverable.
 ```text
 1. Client selects Approve.
 
-2. System marks deliverable as APPROVED.
+2. System does NOT change Deliverable.Status — it stays SUBMITTED forever. No code path in
+   the current pipeline (Treasury.PayRemainingAsync, MilestoneService, DeliverableService)
+   ever sets Deliverable.Status to APPROVED/REVISION_REQUESTED/REJECTED, and
+   Deliverable.ReviewedAt stays null. "Was this deliverable approved?" can only be answered
+   by checking Milestone.Status == RELEASED, not the Deliverable row itself.
 
-3. System marks milestone as APPROVED.
+3. System releases the remaining installment via Treasury.PayRemainingAsync:
+   - remainingAmount = milestone.Amount × RemainingRate (default 70%)
+   - commissionAmount = milestone.Amount × CommissionRate (default 10%, computed on the
+     FULL milestone amount, not on remainingAmount)
+   - expertAmount = remainingAmount − commissionAmount
+   - Client wallet debited remainingAmount; Expert wallet credited expertAmount;
+     platform system wallet credited commissionAmount (WalletTransaction Type=PLATFORM_FEE)
+   - A new Payments row created, Status = RELEASED
 
-4. System releases money from escrow to Expert.
+4. Milestone status becomes RELEASED (skips the FUNDED/APPROVED enum values entirely).
 
-5. Payment status becomes RELEASED.
+5. System auto-adds a "Completed" milestone step (status COMPLETED) if not already present,
+   and auto-completes every remaining PENDING/IN_PROGRESS/BLOCKED step on that milestone.
 
-6. Milestone status becomes RELEASED.
+6. Expert earning (TotalEarned) increases by expertAmount; platform wallet TotalEarned
+   increases by commissionAmount.
 
-7. Expert earning increases.
+7. Treasury.SyncProjectStatusAsync recalculates Project.Status from milestone states:
+   if there are remaining un-settled milestones, Project stays/returns to ACTIVE.
 
-8. If there are remaining milestones, Client continues funding the next milestone
-   (Project status returns to ACTIVE).
-
-9. If all milestones are RELEASED, Project becomes COMPLETED and Job becomes COMPLETED.
+8. If ALL milestones on the project are settled (RELEASED or REFUNDED), Project becomes
+   COMPLETED automatically (no explicit "finish project" action exists on the backend —
+   see the gotcha below) and, if the Project has a JobId, JobPosts.Status becomes COMPLETED
+   too, with JobStatusUpdated emitted over SignalR. Projects created via Flow 2 Path B
+   (Service offer) have no JobId, so no Job-side update happens for them.
 ```
+
+> **Gotcha:** the frontend has a "Finish Project" button (`ProjectWorkspacePage.tsx`, `completeProject` → `PUT /projects/{id}/complete`) but `ProjectController.cs` has no such route. Since completion is already automatic via `SyncProjectStatusAsync`, this button currently 404s if clicked — it needs to either be removed or backed by a real endpoint.
 
 ## Case B: Request Revision
 
@@ -492,23 +702,24 @@ Client reviews the deliverable.
 
 2. Client enters revision reason.
 
-3. System stores revision request.
+3. System stores revision request — but again, only on Milestone, not on Deliverable
+   (Deliverable.Status stays SUBMITTED; there is no REVISION_REQUESTED write anywhere for it).
 
-4. Deliverable status becomes REVISION_REQUESTED.
+4. Milestone status becomes REVISION_REQUESTED.
 
-5. Milestone status becomes REVISION_REQUESTED.
+5. Project status returns to ACTIVE (via Treasury.SyncProjectStatusAsync).
 
-6. Project status returns to ACTIVE.
+6. No money moves: both installments (deposit already paid, remaining not yet paid) are
+   untouched — there is nothing "HELD" to keep, the deposit already sits in Expert's wallet
+   from step 11 of the main flow above.
 
-7. Payment remains HELD.
+7. Expert fixes the deliverable.
 
-8. Expert fixes the deliverable.
+8. Expert submits again (same endpoint, new Deliverable row with RevisionNumber + 1).
 
-9. Expert submits again.
+9. Milestone returns to SUBMITTED.
 
-10. Milestone returns to SUBMITTED.
-
-11. Client reviews again.
+10. Client reviews again.
 ```
 
 ## Case C: Open Dispute
@@ -516,15 +727,21 @@ Client reviews the deliverable.
 ```text
 1. Client or Expert selects Open Dispute (from the milestone, or directly via POST /disputes).
 
-2. User enters dispute reason and evidence if available.
+2. User enters dispute reason and evidence if available. Precondition: a Payments row for
+   this milestone must exist with Status RELEASED or HELD (in practice always RELEASED,
+   since the deposit payment is created RELEASED the moment the milestone is funded).
 
 3. System creates dispute (status = OPEN).
 
 4. Milestone status becomes DISPUTED.
 
-5. Payment status becomes FROZEN.
+5. Project status becomes DISPUTED.
 
-6. Project status becomes DISPUTED.
+6. Payment status is NOT changed — it stays RELEASED. There is no FROZEN transition anywhere
+   in DisputeService.OpenDisputeAsync; money already transferred (the deposit installment)
+   stays in Expert's wallet while the dispute is open. Only the milestone/project are locked
+   from further action (fund/approve/request-revision/submit-deliverable all reject while
+   DISPUTED).
 
 7. Admin receives notification to review the dispute.
 ```
@@ -536,23 +753,33 @@ Project:
 CREATED → PENDING_PAYMENT → ACTIVE → IN_REVIEW → COMPLETED
 or
 ACTIVE / IN_REVIEW → DISPUTED
-DISPUTED → ACTIVE / IN_REVIEW / COMPLETED / CANCELLED
+DISPUTED → ACTIVE (via dispute resolve/close) → ... → COMPLETED
+(project completion is fully automatic once every milestone is settled — there is no
+manual "complete project" action on the backend)
 
-Milestone:
-CREATED → FUNDED → IN_PROGRESS → SUBMITTED → APPROVED → RELEASED
+Milestone (as actually assigned by code — FUNDED/APPROVED/COMPLETED enum values exist but
+are never set by any current code path):
+CREATED → IN_PROGRESS → SUBMITTED → RELEASED
 
 Milestone revision path:
 SUBMITTED → REVISION_REQUESTED → SUBMITTED
 
 Milestone dispute path:
-SUBMITTED → DISPUTED
-DISPUTED → RELEASED / REFUNDED / REVISION_REQUESTED (via a follow-up milestone action, not automatic)
+IN_PROGRESS / SUBMITTED → DISPUTED
+DISPUTED → SUBMITTED (if a deliverable was already submitted) / IN_PROGRESS (otherwise),
+           via dispute resolve or close — RELEASED/REFUNDED only through a subsequent
+           normal approve action, never automatically by the dispute itself
 
-Payment:
-NULL → PENDING → HELD → RELEASED
+Payment (as actually assigned by code — HELD/FROZEN/PARTIALLY_RELEASED enum values exist
+but are never set by the current pipeline; every Payment row is created RELEASED):
+NULL → RELEASED (created RELEASED at Fund time for the deposit installment,
+                 and again at Approve time for the remaining installment —
+                 two separate Payment rows per milestone in the happy path)
 
 Payment dispute path:
-HELD → FROZEN → (stays FROZEN until resolved through a normal milestone action; dispute resolution itself does not move money)
+No transition happens — Payment status is untouched while a dispute is open or resolved.
+REFUNDED only happens if Treasury.RefundMilestoneAsync is ever wired up and called
+(currently no caller exists anywhere in the codebase).
 ```
 
 ## Main Tables
@@ -561,11 +788,11 @@ HELD → FROZEN → (stays FROZEN until resolved through a normal milestone acti
 |---|---|
 | `Projects` | Stores project lifecycle |
 | `Milestones` | Stores project milestone status |
-| `MilestoneSteps` | Stores granular per-milestone task tracking |
-| `Payments` | Stores escrow/payment state |
-| `Wallets` | Stores user wallet balance |
-| `WalletTransactions` | Stores wallet movement logs |
-| `Deliverables` | Stores expert submission |
+| `MilestoneSteps` | Granular per-milestone task tracking — includes 3 system-generated marker steps (`Created`/`Funded`/`Completed`) mixed in with Expert-authored ones, distinguishable only by `Title` |
+| `Payments` | One row per money movement (deposit, remaining) — always created `RELEASED`, never used as a real "hold" ledger despite the enum having `HELD`/`FROZEN`/`PARTIALLY_RELEASED` |
+| `Wallets` | User wallet balance, including one system wallet (`SystemConstants.SystemUserId`) that accumulates platform commission |
+| `WalletTransactions` | Wallet movement logs — `Type = PLATFORM_FEE` marks the commission cut, separate from `PAYMENT_RELEASE` |
+| `Deliverables` | Stores expert submission — `Status` never advances past `SUBMITTED` in the current code |
 | `Disputes` | Created only if dispute is opened |
 | `DisputeEvidences` | Stores dispute evidence if available |
 
@@ -601,7 +828,7 @@ Admin participates only when a dispute occurs — and only as an **observer**, n
 
 ## Goal
 
-When work is completed and approved, the System releases payment, marks milestone/project as completed, and allows both sides to review each other.
+When work is completed and approved, the System releases the remaining payment installment (minus platform commission), marks milestone/project as completed, and allows both sides to review each other.
 
 If a dispute occurs, Admin reviews the evidence and writes a resolution note for the record, then unlocks the milestone/project so Client and Expert can continue on their own. **The platform does not decide who is right or move any money** — Client (fund the milestone further, approve it) and Expert (resubmit, negotiate) resolve the disagreement themselves through the normal milestone actions once unlocked.
 
@@ -612,13 +839,15 @@ If a dispute occurs, Admin reviews the evidence and writes a resolution note for
 ### Preconditions
 
 ```text
-1. Job status = IN_PROGRESS.
+1. Job status = IN_PROGRESS (if the project came from Flow 2 Path A / has a JobId).
 2. Project status = ACTIVE or IN_REVIEW.
 3. Milestone status = SUBMITTED.
-4. Deliverable status = SUBMITTED.
-5. Payment status = HELD.
-6. Client wallet has already funded the milestone.
-7. Expert wallet can receive released payment.
+4. Deliverable status = SUBMITTED (it will still be SUBMITTED after approval too — see gotcha below).
+5. A Payments row for the deposit installment already exists with Status = RELEASED
+   (created at Fund time — there is no HELD state to check).
+6. Client wallet has already paid the deposit installment at Fund time, and has enough
+   available balance to cover the remaining installment for Approve to succeed.
+7. Expert wallet can receive the released payment.
 ```
 
 ### Step 4.1 — Expert submits deliverable
@@ -675,51 +904,58 @@ Approve
 
 ### Step 4.3 — Client approves deliverable
 
-Expected database result:
+Expected database result — **`Deliverables` is untouched**, this is the biggest divergence from the old design:
 
 | Table | Field | Expected Value |
 |---|---|---|
-| `Deliverables` | `Status` | `APPROVED` |
-| `Deliverables` | `ReviewedAt` | Not null |
-| `Milestones` | `Status` | `APPROVED` |
+| `Deliverables` | `Status` | Stays `SUBMITTED` — never becomes `APPROVED` in the current code |
+| `Deliverables` | `ReviewedAt` | Stays `null` — never written by any code path |
+| `Milestones` | `Status` | `RELEASED` (goes straight from `SUBMITTED`, the `APPROVED` enum value is skipped) |
+| `Milestones` | `PaidAt` | Not null |
 | `Milestones` | `ApprovedAt` | Not null |
 
-### Step 4.4 — System releases payment
+### Step 4.4 — System releases the remaining installment (with commission)
 
-Approving a deliverable and releasing its payment happen in the **same atomic transaction** (`PUT /milestones/{id}/approve`) — there is no separate release-payment endpoint.
+Approving a deliverable and releasing its payment happen in the **same atomic transaction** (`PUT /milestones/{id}/approve` → `MilestoneService.ApproveMilestoneAsync` → `Treasury.PayRemainingAsync`) — there is no separate release-payment endpoint. This is the **second** `Payments` row for this milestone; the deposit installment already created its own `Payments` row back at Fund time.
 
 Expected database result:
 
 | Table | Field | Expected Value |
 |---|---|---|
-| `Payments` | `Status` | `RELEASED` |
+| `Payments` (new row) | `Status` | `RELEASED` (created RELEASED, never passes through HELD) |
 | `Payments` | `ReleasedAt` | Not null |
+| `Payments` | `Amount` | `milestone.Amount × RemainingRate` (default 70% of the milestone amount — NOT the full amount) |
 | `Milestones` | `Status` | `RELEASED` |
 | `Milestones` | `PaidAt` | Not null |
-| `WalletTransactions` | `Type` | `PAYMENT_RELEASE` |
-| `WalletTransactions` | `Direction` | `CREDIT` for Expert, `DEBIT` for Client |
+| `WalletTransactions` (Client) | `Type` / `Direction` | `PAYMENT_RELEASE` / `DEBIT`, amount = remaining installment |
+| `WalletTransactions` (Expert) | `Type` / `Direction` | `PAYMENT_RELEASE` / `CREDIT`, amount = remaining installment **minus commission** |
+| `WalletTransactions` (Platform system wallet) | `Type` / `Direction` | `PLATFORM_FEE` / `CREDIT`, amount = commission (only written if commission > 0) |
 
-Example wallet result:
+Example wallet result — milestone amount 900, default rates (30% deposit / 10% commission):
 
 ```text
-Client initial available balance = 2000
-Milestone amount = 900
-Expert initial available balance = 0
+At Fund time (deposit = 900 × 0.30 = 270):
+  Client available -= 270 ; Expert available += 270
+
+At Approve time (remaining = 900 × 0.70 = 630 ; commission = 900 × 0.10 = 90 ; expertAmount = 630 - 90 = 540):
+  Client available -= 630 ; Expert available += 540 ; Platform available += 90
 ```
 
-After payment release:
+| Wallet | Available Balance change | Total Earned change |
+|---|---:|---:|
+| Client | `-270` (Fund) then `-630` (Approve) = `-900` total | unchanged |
+| Expert | `+270` (Fund) then `+540` (Approve) = `+810` total (= 90% of milestone.Amount) | `+810` |
+| Platform (system wallet) | `+90` (Approve only) | `+90` (10% of milestone.Amount) |
 
-| Wallet | Available Balance | Held Balance | Total Earned |
-|---|---:|---:|---:|
-| Client | `1100` | `0` | unchanged |
-| Expert | `900` | `0` | `900` |
+> There is **no "Held Balance" column moving** anywhere in this flow — `Wallet.HeldBalance` exists on the entity but the Treasury pipeline debits/credits `AvailableBalance` directly for both the deposit and the remaining installment. If `Wallet.HeldBalance` is used elsewhere in the codebase (e.g. a different feature), it is not this one.
 
-### Step 4.5 — System completes project
+### Step 4.5 — System completes project (fully automatic, no manual trigger)
 
-System checks:
+`Treasury.SyncProjectStatusAsync` runs at the end of every money-moving operation (Fund, Approve, and also after Request Revision / Submit Deliverable) and checks:
 
 ```text
-If all milestones are RELEASED, mark project as COMPLETED.
+If every Milestone on the Project is "settled" (Status RELEASED or REFUNDED),
+mark Project as COMPLETED.
 ```
 
 Expected database result:
@@ -728,9 +964,11 @@ Expected database result:
 |---|---|---|
 | `Projects` | `Status` | `COMPLETED` |
 | `Projects` | `CompletedAt` | Not null |
-| `JobPosts` | `Status` | `COMPLETED` |
+| `JobPosts` | `Status` | `COMPLETED` — **only if the Project has a `JobId`** (Flow 2 Path A). Projects created via Flow 2 Path B (Service offer) have no `JobId` and this step is simply skipped for them — there is no Job row to update. |
 
-System emits `JobStatusUpdated` (status=completed) to the Client over SignalR.
+System emits `JobStatusUpdated` (status=completed) to the Client over SignalR — again, only when `JobId` is present.
+
+> **There is no "Client clicks Finish Project" step.** The frontend has a button wired to `PUT /projects/{id}/complete`, but that route does not exist on `ProjectController`. Completion always happens as an automatic side effect of the last milestone being settled.
 
 ### Step 4.6 — Client reviews Expert
 
@@ -843,6 +1081,10 @@ Client or Expert opens a dispute from a submitted milestone/deliverable, or dire
     the parties without needing Admin involvement at all.
 ```
 
+> **Inconsistency to know about:** `ResolveDisputeAsync` unlocks the milestone smartly — `SUBMITTED` if a deliverable was already submitted (`Milestone.SubmittedAt != null`), else `IN_PROGRESS`. `CloseDisputeAsync` (self-close by the opener) **always** sets `IN_PROGRESS` regardless of `SubmittedAt` — if a deliverable had already been submitted before the dispute opened, closing it this way drops the milestone back to `IN_PROGRESS` and Expert has to submit again even though the earlier `Deliverable` row is still sitting in the DB (unreachable by status, only by direct query). Not confirmed whether this is intentional; flag it if it causes confusion during testing.
+
+> **`Treasury.RefundMilestoneAsync` / `SplitMilestoneFundsAsync` are not part of this flow.** Both methods exist fully implemented in `Treasury.cs` (clawback logic, `MaxDebtLimit` guard, wallet transaction logging) but **no controller or service in the codebase calls either one** — `DisputeService.ResolveDisputeAsync` only ever touches `Disputes`/`Milestones`/`Projects`, never `Treasury`. If a future requirement needs "Admin force-refund the client" or "Admin split the payment," the financial logic already exists and only needs a new endpoint + a call site.
+
 ### Dispute Status Values
 
 | Status | Meaning |
@@ -860,13 +1102,14 @@ Happy path final state:
 
 | Entity | Final Status |
 |---|---|
-| `JobPosts.Status` | `COMPLETED` |
+| `JobPosts.Status` | `COMPLETED` (only if the project has a `JobId`) |
 | `Projects.Status` | `COMPLETED` |
 | `Milestones.Status` | `RELEASED` |
-| `Deliverables.Status` | `APPROVED` |
-| `Payments.Status` | `RELEASED` |
+| `Deliverables.Status` | `SUBMITTED` — stays as-is, never becomes `APPROVED` |
+| `Payments` | 2 rows per milestone (deposit + remaining), both `Status = RELEASED` |
 | `Reviews` | 2 reviews created |
-| Expert wallet | Received payment |
+| Expert wallet | Received 90% of milestone.Amount at default rates (30% deposit + 60% net remaining) |
+| Platform system wallet | Received 10% of milestone.Amount as commission |
 | Expert profile | Completed project count increased |
 
 ---
@@ -875,18 +1118,26 @@ Happy path final state:
 
 ```text
 1. Expert can submit deliverable.
-2. Client can approve deliverable.
-3. Payment is released only after approval, in the same transaction as the approval.
-4. Milestone changes to RELEASED after payment release.
-5. Project changes to COMPLETED after all milestones are released.
+2. Client can approve deliverable — this releases the remaining installment (minus
+   platform commission) but does NOT change Deliverable.Status.
+3. Payment (remaining installment) is released only after approval, in the same
+   transaction as the approval. The deposit installment was already released earlier,
+   at Fund time — "payment" here is not a single release, it's the second of two.
+4. Milestone changes to RELEASED after the remaining installment is released.
+5. Project changes to COMPLETED automatically once all milestones are RELEASED/REFUNDED
+   — there is no manual "complete project" action.
 6. Client can review Expert.
 7. Expert can review Client.
 8. Review rating must be between 1 and 5.
 9. User cannot review themselves.
 10. Same reviewer cannot review the same reviewee twice for the same project.
-11. If Client requests revision, payment must remain HELD.
-12. If Client/Expert opens dispute, payment must become FROZEN and project must become DISPUTED.
-13. Admin resolving a dispute only records a ResolutionNote — it does not itself release, refund, or split payment.
+11. If Client requests revision, no money moves (deposit already paid stays paid; nothing
+    was "HELD" to keep held).
+12. If Client/Expert opens dispute, Milestone and Project become DISPUTED, but Payment
+    status is NOT changed (stays RELEASED — there is no FROZEN transition in the code).
+13. Admin resolving a dispute only records a ResolutionNote and unlocks milestone/project
+    — it does not itself release, refund, or split payment. (`Treasury.RefundMilestoneAsync`
+    / `SplitMilestoneFundsAsync` exist but have no caller.)
 ```
 
 ---
@@ -895,19 +1146,23 @@ Happy path final state:
 
 | Test Case | Expected Result |
 |---|---|
-| Release payment before deliverable approval | Should fail — no standalone release endpoint exists |
+| Release payment before deliverable submission | Should fail — Approve requires Milestone.Status = SUBMITTED |
 | Review before project completed | Should not be allowed |
 | Rating = 0 or 6 | Should fail |
 | ReviewerId = RevieweeId | Should fail |
 | Duplicate review for same project/reviewer/reviewee | Should fail |
-| Client requests revision | Payment should stay `HELD` |
-| Client opens dispute | Payment should become `FROZEN`, project should become `DISPUTED` |
+| Client requests revision | No wallet balance changes; Milestone → REVISION_REQUESTED |
+| Client opens dispute | Payment status unchanged (stays RELEASED); Milestone/Project become `DISPUTED` |
 | Non-admin resolves dispute | Should fail — `AdminPolicy` required |
-| Resolve dispute expecting auto payment release | Should NOT happen — only `ResolutionNote` is recorded |
+| Resolve dispute expecting auto payment release/refund/split | Should NOT happen — only `ResolutionNote` is recorded, `Treasury` is never called |
+| Fund milestone when Milestone.Status != CREATED | Should fail (also guards a fund/fund race via optimistic-concurrency on Milestone.Status) |
+| Approve milestone while there is any active (`OPEN`/`UNDER_REVIEW`) dispute on it | Should fail |
 | Non-owner Client accepts proposal | Should fail |
 | Expert submits proposal to non-OPEN job | Should fail |
-| Client funds milestone with insufficient balance | Should fail |
+| Client funds milestone with insufficient balance for the deposit installment | Should fail |
+| Client approves milestone with insufficient balance for the remaining installment | Should fail |
 | Expert submits deliverable to project they do not own | Should fail |
+| Expert tries to create/rename/delete a milestone step titled "Created"/"Funded"/"Completed" | Should fail — reserved system titles |
 
 ---
 
@@ -936,15 +1191,18 @@ Use this scenario for presentation and testing:
 11. System creates project.
 12. Client confirms milestone.
 13. Client tops up wallet (VNPay or demo deposit) if needed.
-14. Client funds milestone.
-15. Payment is held in escrow.
-16. Expert submits deliverable.
-17. Client approves deliverable.
-18. System releases payment (same transaction as approval).
-19. Milestone becomes RELEASED.
-20. Project becomes COMPLETED.
-21. Client reviews Expert.
-22. Expert reviews Client.
+14. Client funds milestone → 30% deposit (default rate) transfers Client wallet → Expert
+    wallet immediately, Payment row created RELEASED, Milestone → IN_PROGRESS.
+15. Expert submits deliverable → Milestone → SUBMITTED (Deliverable.Status also SUBMITTED
+    and stays that way — it never advances to APPROVED).
+16. Client approves deliverable → remaining 70% released, minus 10% platform commission
+    (second Payment row created RELEASED, commission WalletTransaction to platform
+    system wallet).
+17. Milestone becomes RELEASED.
+18. Project becomes COMPLETED automatically (no manual "finish" action) once every
+    milestone on it is settled.
+19. Client reviews Expert.
+20. Expert reviews Client.
 ```
 
 Optional dispute demo:
@@ -952,9 +1210,13 @@ Optional dispute demo:
 ```text
 Expert submits deliverable
 → Client opens dispute
-→ Payment becomes FROZEN
-→ Admin reviews evidence, writes resolution note
-→ Dispute becomes RESOLVED (payment still FROZEN — needs a follow-up milestone action to move)
+→ Milestone/Project become DISPUTED (Payment status is untouched — stays RELEASED,
+  the deposit installment is already in Expert's wallet)
+→ Admin reviews evidence, writes resolution note (PUT /disputes/{id}/resolve)
+→ Dispute becomes RESOLVED, Milestone unlocks to SUBMITTED (deliverable was submitted)
+  or IN_PROGRESS (if not)
+→ No money moved by the resolve step itself — Client/Expert continue via the normal
+  approve/request-revision actions once unlocked
 ```
 
 ---
@@ -997,8 +1259,10 @@ DISPUTED → ACTIVE / IN_REVIEW / COMPLETED / CANCELLED
 
 ## Milestone Status
 
+Enum declares `CREATED, FUNDED, IN_PROGRESS, SUBMITTED, REVISION_REQUESTED, APPROVED, DISPUTED, COMPLETED, RELEASED, REFUNDED` — but only the path below is ever actually assigned by current code. `FUNDED`, `APPROVED`, `COMPLETED` are dead enum values, never set anywhere.
+
 ```text
-CREATED → FUNDED → IN_PROGRESS → SUBMITTED → APPROVED → RELEASED
+CREATED → IN_PROGRESS → SUBMITTED → RELEASED
 ```
 
 Revision path:
@@ -1010,28 +1274,38 @@ SUBMITTED → REVISION_REQUESTED → SUBMITTED
 Dispute path:
 
 ```text
-SUBMITTED → DISPUTED
-DISPUTED → RELEASED / REFUNDED / REVISION_REQUESTED (follow-up action, not automatic)
+IN_PROGRESS / SUBMITTED → DISPUTED
+DISPUTED → SUBMITTED (if deliverable already submitted) / IN_PROGRESS (otherwise),
+           via dispute resolve or close
+RELEASED / REFUNDED only via a subsequent normal approve action — never automatic,
+and REFUNDED specifically requires Treasury.RefundMilestoneAsync, which currently
+has no caller anywhere in the codebase
 ```
 
 ## Payment Status
 
+Enum declares `PENDING, HELD, RELEASED, REFUNDED, FROZEN, FAILED, PARTIALLY_RELEASED` — but the actual `Treasury` pipeline only ever creates rows directly as `RELEASED`. `HELD`, `FROZEN`, `PARTIALLY_RELEASED` are dead enum values in the current code path.
+
 ```text
-PENDING → HELD → RELEASED
+NULL → RELEASED   (created RELEASED immediately, both for the deposit installment at
+                    Fund time and the remaining installment at Approve time — two
+                    separate Payment rows per milestone in the happy path)
 ```
 
-Dispute/refund path:
+Dispute path:
 
 ```text
-HELD → FROZEN → RELEASED / REFUNDED / PARTIALLY_RELEASED (via follow-up milestone action)
+No transition — Payment status is untouched while a dispute is OPEN/UNDER_REVIEW/RESOLVED/CLOSED.
+REFUNDED is only reachable if Treasury.RefundMilestoneAsync is wired up in the future.
 ```
 
 ## Deliverable Status
 
+Enum declares `SUBMITTED, APPROVED, REVISION_REQUESTED, REJECTED` — but only `SUBMITTED` is ever assigned. No code path advances a Deliverable past `SUBMITTED`, even when its milestone is approved, revised, or disputed.
+
 ```text
-SUBMITTED → APPROVED
-SUBMITTED → REVISION_REQUESTED → SUBMITTED
-SUBMITTED → REJECTED
+SUBMITTED   (terminal in practice — a new revision creates a NEW Deliverable row with
+             RevisionNumber + 1, also starting at SUBMITTED, rather than mutating the old one)
 ```
 
 ## Dispute Status
@@ -1060,7 +1334,9 @@ Review is created only after project completion.
 | Job creation | `JobPosts`, `JobSkills`, `JobPostMilestones`, `AIJobSuggestions` |
 | Expert matching | `RecommendationResults`, `ExpertProfiles`, `ExpertSkills` |
 | Expert verification | `ExpertVerifications` |
-| Proposal | `Proposals`, `ProposalMilestones` |
+| Proposal (Path A) | `Proposals`, `ProposalMilestones` |
+| Service catalog (Path B) | `Services`, `ServicePackages`, `ServiceFaqs` |
+| Service request/offer (Path B) | `ServiceRequests`, `ServiceOffers`, `ServiceOfferMilestones` |
 | Project creation | `Projects`, `Milestones` |
 | Milestone tracking | `Milestones`, `MilestoneSteps` |
 | Escrow/payment | `Wallets`, `Payments`, `WalletTransactions` |
@@ -1086,7 +1362,9 @@ GET /jobs/{id}/recommendations
 GET /profiles/expert/{id}
 ```
 
-## Flow 2 — Proposal & Project Creation
+## Flow 2 — Project Creation
+
+### Path A — Proposal
 
 ```text
 GET /jobs
@@ -1096,6 +1374,29 @@ GET /jobs/{id}/proposals
 PUT /proposals/{id}/shortlist
 PUT /proposals/{id}/reject
 PUT /proposals/{id}/accept
+GET /projects/{id}
+```
+
+### Path B — Service
+
+```text
+POST /services
+PUT /services/{id}
+POST /services/{id}/publish
+POST /services/{id}/unpublish
+GET /services
+GET /services/mine
+GET /services/{id}
+POST /services/{id}/requests
+GET /services/{id}/requests
+GET /experts/me/service-requests
+GET /clients/me/service-requests
+GET /service-requests/{id}
+POST /service-requests/{id}/accept
+POST /service-requests/{id}/decline
+POST /service-requests/{id}/offers
+POST /service-offers/{id}/accept
+GET /service-requests/{id}/offer
 GET /projects/{id}
 ```
 
@@ -1155,9 +1456,9 @@ AI chooses expert.
 AI approves project.
 ```
 
-## Rule 2: Accept proposal must create project
+## Rule 2: Accepting a proposal or a service offer must create a project
 
-When Client accepts a proposal:
+Path A — When Client accepts a proposal:
 
 ```text
 Selected proposal → ACCEPTED
@@ -1167,13 +1468,27 @@ Project → PENDING_PAYMENT
 Milestones → CREATED
 ```
 
+Path B — When Client accepts a service offer:
+
+```text
+Selected offer → ACCEPTED
+Project → PENDING_PAYMENT
+Milestones → CREATED
+(no Job/Proposal involved)
+```
+
 ## Rule 3: Payment must be safe
 
 ```text
-Payment cannot be RELEASED before deliverable is approved.
-Payment must stay HELD during revision.
-Payment must become FROZEN during dispute.
-Resolving a dispute does not by itself release/refund payment — that's a separate follow-up action.
+The remaining installment cannot be released before the milestone reaches SUBMITTED
+(i.e. a deliverable was submitted) — enforced by Treasury.PayRemainingAsync.
+During revision, no Payment is created or changed — the deposit installment already
+released stays released, nothing is "held".
+During dispute, Payment status is NOT changed (there is no FROZEN transition in the
+current code) — only Milestone/Project are locked from further money-moving actions.
+Resolving a dispute does not by itself release/refund/split payment — that's a
+separate follow-up action, and the Treasury methods that WOULD do a refund/split
+(RefundMilestoneAsync, SplitMilestoneFundsAsync) currently have no caller at all.
 ```
 
 ## Rule 4: Project completion depends on milestones
@@ -1203,12 +1518,13 @@ Same reviewer cannot review same reviewee twice in the same project.
 These features can exist, but they are not part of the 4 final main flows:
 
 ```text
-1. Service Publishing (AI Service Generator for Experts)
-2. Advanced Analytics
-3. Direct wallet transfer (Client → Expert, outside escrow)
-4. Real-time chat
-5. Complex notification system
-6. Expert skill/certificate verification (KYC-adjacent)
+1. Advanced Analytics
+2. Direct wallet transfer (Client → Expert, outside escrow)
+3. Real-time chat
+4. Complex notification system
+5. Expert skill/certificate verification (KYC-adjacent)
 ```
+
+> Note: Service Publishing was previously listed here — it has been promoted to Main Flow 2, Path B, since the full Service → Request → Offer → Project path is implemented in code.
 
 They can be treated as secondary flows or future work.
