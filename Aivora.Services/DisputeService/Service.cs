@@ -38,15 +38,19 @@ public class Service : IService
         var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestone.Id && (p.Status == PaymentStatus.RELEASED || p.Status == PaymentStatus.HELD));
         if (payment == null) throw new ValidationException("Only funded milestones with released payments can be disputed.");
 
-        // Block re-opening dispute after CLOSED
-        var hasClosedDispute = await _dbContext.Disputes
-            .AnyAsync(d => d.MilestoneId == milestone.Id && d.Status == DisputeStatus.CLOSED);
-        if (hasClosedDispute)
-            throw new ValidationException("A dispute for this milestone was already closed. Cannot open a new dispute.");
-
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
+            var disputeStatuses = await _dbContext.Disputes
+                .Where(d => d.MilestoneId == milestone.Id)
+                .Select(d => d.Status)
+                .ToListAsync();
+
+            if (disputeStatuses.Count >= 3)
+                throw new ValidationException("Dispute limit reached (maximum 3 disputes per milestone).");
+
+            if (disputeStatuses.Any(s => s != DisputeStatus.CLOSED && s != DisputeStatus.RESOLVED))
+                throw new ValidationException("There is already an active dispute for this milestone. Cannot open a new dispute.");
             var againstUserId = (userId == milestone.Project.ClientId) ? milestone.Project.ExpertId : milestone.Project.ClientId;
 
             var dispute = new Dispute

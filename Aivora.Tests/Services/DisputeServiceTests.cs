@@ -237,12 +237,16 @@ public class DisputeServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task OpenDispute_WithClosedDispute_ShouldThrowValidation()
+    public async Task OpenDispute_WithClosedDisputeAndUnderQuota_ShouldSucceed()
     {
         // Arrange
         var client = await SeedUserAsync(UserRole.CLIENT, "client@test.com");
         var expert = await SeedUserAsync(UserRole.EXPERT, "expert@test.com");
         var dispute = await SeedDisputeAsync(client.Id, expert.Id, DisputeStatus.CLOSED);
+
+        var payment = await _dbContext.Payments.FindAsync(dispute.PaymentId);
+        payment!.Status = PaymentStatus.RELEASED;
+        await _dbContext.SaveChangesAsync();
 
         var request = new Aivora.Services.DisputeService.Request.OpenDisputeRequest
         {
@@ -250,10 +254,63 @@ public class DisputeServiceTests : IDisposable
             Reason = "Second dispute"
         };
 
+        // Act
+        var response = await _disputeService.OpenDisputeAsync(client.Id, request);
+
+        // Assert
+        response.Should().NotBeNull();
+        response.Status.Should().Be(DisputeStatus.OPEN.ToString());
+    }
+
+    [Fact]
+    public async Task OpenDispute_WithActiveDispute_ShouldThrowValidation()
+    {
+        // Arrange
+        var client = await SeedUserAsync(UserRole.CLIENT, "client@test.com");
+        var expert = await SeedUserAsync(UserRole.EXPERT, "expert@test.com");
+        var dispute = await SeedDisputeAsync(client.Id, expert.Id, DisputeStatus.OPEN);
+
+        var request = new Aivora.Services.DisputeService.Request.OpenDisputeRequest
+        {
+            MilestoneId = dispute.MilestoneId,
+            Reason = "Second dispute while first is active"
+        };
+
         // Act & Assert
         var act = () => _disputeService.OpenDisputeAsync(client.Id, request);
         var ex = await act.Should().ThrowAsync<ValidationException>();
-        ex.Which.Message.ToLower().Should().Contain("already closed");
+        ex.Which.Message.Should().Contain("active dispute");
+    }
+
+    [Fact]
+    public async Task OpenDispute_ExceedingQuota_ShouldThrowValidation()
+    {
+        // Arrange
+        var client = await SeedUserAsync(UserRole.CLIENT, "client@test.com");
+        var expert = await SeedUserAsync(UserRole.EXPERT, "expert@test.com");
+
+        var dispute1 = await SeedDisputeAsync(client.Id, expert.Id, DisputeStatus.CLOSED);
+
+        var dispute2 = new Dispute { Id = Guid.NewGuid(), ProjectId = dispute1.ProjectId, MilestoneId = dispute1.MilestoneId, PaymentId = dispute1.PaymentId, OpenedBy = client.Id, AgainstUserId = expert.Id, Reason = "2", Status = DisputeStatus.CLOSED };
+        _dbContext.Disputes.Add(dispute2);
+
+        var dispute3 = new Dispute { Id = Guid.NewGuid(), ProjectId = dispute1.ProjectId, MilestoneId = dispute1.MilestoneId, PaymentId = dispute1.PaymentId, OpenedBy = client.Id, AgainstUserId = expert.Id, Reason = "3", Status = DisputeStatus.CLOSED };
+        _dbContext.Disputes.Add(dispute3);
+
+        var payment = await _dbContext.Payments.FindAsync(dispute1.PaymentId);
+        payment!.Status = PaymentStatus.RELEASED;
+        await _dbContext.SaveChangesAsync();
+
+        var request = new Aivora.Services.DisputeService.Request.OpenDisputeRequest
+        {
+            MilestoneId = dispute1.MilestoneId,
+            Reason = "Fourth dispute"
+        };
+
+        // Act & Assert
+        var act = () => _disputeService.OpenDisputeAsync(client.Id, request);
+        var ex = await act.Should().ThrowAsync<ValidationException>();
+        ex.Which.Message.Should().Contain("limit reached");
     }
 
     // ==================== CloseDispute Tests ====================
