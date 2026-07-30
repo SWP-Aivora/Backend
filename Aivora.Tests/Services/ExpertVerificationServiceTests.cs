@@ -105,6 +105,34 @@ public class ExpertVerificationServiceTests
         updatedSkill!.IsVerified.Should().BeTrue();
     }
 
+    [Fact]
+    public async Task SubmitEvidenceAsync_DowngradesToNeedsReview_WhenApprovedConfidenceBelowThreshold()
+    {
+        var dbContext = GetDbContext();
+        var (user, _, _, expertSkill) = SeedExpertSkill(dbContext);
+        var service = BuildService(dbContext, BuildAiProviderMock(ExpertVerificationStatus.APPROVED, confidence: 69));
+
+        var result = await service.SubmitEvidenceAsync(user.Id, new Request.SubmitEvidenceRequest { ExpertSkillId = expertSkill.Id, File = BuildEvidenceFile() });
+
+        result.Status.Should().Be(ExpertVerificationStatus.NEEDS_REVIEW.ToString());
+        var updatedSkill = await dbContext.ExpertSkills.FindAsync(expertSkill.Id);
+        updatedSkill!.IsVerified.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task SubmitEvidenceAsync_SetsIsVerified_WhenApprovedConfidenceMeetsThreshold()
+    {
+        var dbContext = GetDbContext();
+        var (user, _, _, expertSkill) = SeedExpertSkill(dbContext);
+        var service = BuildService(dbContext, BuildAiProviderMock(ExpertVerificationStatus.APPROVED, confidence: 70));
+
+        var result = await service.SubmitEvidenceAsync(user.Id, new Request.SubmitEvidenceRequest { ExpertSkillId = expertSkill.Id, File = BuildEvidenceFile() });
+
+        result.Status.Should().Be(ExpertVerificationStatus.APPROVED.ToString());
+        var updatedSkill = await dbContext.ExpertSkills.FindAsync(expertSkill.Id);
+        updatedSkill!.IsVerified.Should().BeTrue();
+    }
+
     [Theory]
     [InlineData(ExpertVerificationStatus.REJECTED)]
     [InlineData(ExpertVerificationStatus.NEEDS_REVIEW)]

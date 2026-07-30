@@ -50,4 +50,46 @@ public class AIServiceDescriptionPromptBuilder
             }
             """;
     }
+
+    // Mirrors the JSON template above. Nothing required: AIServiceDescriptionParser falls back
+    // per-field (and pads/truncates packages to exactly 3) for anything missing.
+    public static object ResponseSchema { get; } = new
+    {
+        type = "OBJECT",
+        properties = new
+        {
+            suggestedTitle = new { type = "STRING" },
+            suggestedDescription = new { type = "STRING" },
+            packages = new
+            {
+                type = "ARRAY",
+                items = new
+                {
+                    type = "OBJECT",
+                    properties = new
+                    {
+                        name = new { type = "STRING" },
+                        title = new { type = "STRING" },
+                        description = new { type = "STRING" },
+                        price = new { type = "NUMBER" },
+                        deliveryDays = new { type = "INTEGER" },
+                        features = new { type = "ARRAY", items = new { type = "STRING" } }
+                    }
+                }
+            },
+            faqs = new
+            {
+                type = "ARRAY",
+                items = new
+                {
+                    type = "OBJECT",
+                    properties = new
+                    {
+                        question = new { type = "STRING" },
+                        answer = new { type = "STRING" }
+                    }
+                }
+            }
+        }
+    };
 }

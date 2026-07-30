@@ -10,6 +10,9 @@ namespace Aivora.Services.ExpertVerificationService;
 
 public class Service : IService
 {
+    // Below this, an "APPROVED" verdict from the AI is a guess, not a verdict — see SubmitEvidenceAsync.
+    private const int MinAutoApproveConfidence = 70;
+
     private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".jpg", ".jpeg", ".png", ".webp", ".pdf"
@@ -84,19 +87,25 @@ public class Service : IService
             ClaimedSkillName = expertSkill.Skill.Name
         }, cancellationToken);
 
+        // A low-confidence "APPROVED" is a guess, not a verdict — require a human to review it
+        // rather than silently mark the skill verified.
+        var outcome = aiResult.Outcome == ExpertVerificationStatus.APPROVED && aiResult.ConfidenceScore < MinAutoApproveConfidence
+            ? ExpertVerificationStatus.NEEDS_REVIEW
+            : aiResult.Outcome;
+
         var verification = new ExpertVerification
         {
             ExpertSkillId = expertSkill.Id,
             EvidenceFileUrl = uploadResult.Url,
             EvidencePublicId = uploadResult.PublicId,
-            Status = aiResult.Outcome,
+            Status = outcome,
             AIConfidenceScore = aiResult.ConfidenceScore,
             AIReasoning = aiResult.Reasoning
         };
 
         _dbContext.ExpertVerifications.Add(verification);
 
-        if (aiResult.Outcome == ExpertVerificationStatus.APPROVED)
+        if (outcome == ExpertVerificationStatus.APPROVED)
         {
             expertSkill.IsVerified = true;
         }
@@ -105,9 +114,9 @@ public class Service : IService
 
         var canEscalate = await ComputeCanEscalateAsync(verification);
 
-        _logger.LogInformation("Expert {ExpertId} submitted verification evidence for skill {SkillId}. Outcome: {Outcome}", expert.Id, expertSkill.Id, aiResult.Outcome);
+        _logger.LogInformation("Expert {ExpertId} submitted verification evidence for skill {SkillId}. Outcome: {Outcome}", expert.Id, expertSkill.Id, outcome);
 
-        await SendVerificationNotificationAsync(expert.UserId, expertSkill.Skill.Name, aiResult.Outcome, aiResult.Reasoning);
+        await SendVerificationNotificationAsync(expert.UserId, expertSkill.Skill.Name, outcome, aiResult.Reasoning);
 
         return MapToResponse(verification, expertSkill, canEscalate);
     }

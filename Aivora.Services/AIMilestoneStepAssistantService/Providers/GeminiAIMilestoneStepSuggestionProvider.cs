@@ -35,6 +35,7 @@ public class GeminiAIMilestoneStepSuggestionProvider : GeminiProviderBase, IAIMi
             mockFallback: ct => _fallbackProvider.GenerateSuggestionAsync(request, ct),
             logNoun: "milestone step suggestion",
             errorNoun: "suggestion",
-            cancellationToken);
+            cancellationToken,
+            responseSchema: AIMilestoneStepSuggestionPromptBuilder.ResponseSchema);
     }
 }

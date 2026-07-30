@@ -40,6 +40,7 @@ public class GeminiExpertRecommendationProvider : GeminiProviderBase, IExpertRec
             logNoun: "expert recommendation",
             errorNoun: "expert recommendation",
             cancellationToken,
-            temperature: 0);
+            temperature: 0,
+            responseSchema: ExpertRecommendationPromptBuilder.ResponseSchema);
     }
 }

@@ -24,7 +24,8 @@ public abstract class GeminiProviderBase
         string logNoun,
         string errorNoun,
         CancellationToken cancellationToken,
-        double? temperature = null)
+        double? temperature = null,
+        object? responseSchema = null)
     {
         if (!_client.HasApiKey && _options.EnableFallback)
         {
@@ -34,7 +35,7 @@ public abstract class GeminiProviderBase
 
         try
         {
-            var providerText = await _client.GenerateAsync(buildPrompt(), Array.Empty<(string, byte[])>(), cancellationToken, temperature);
+            var providerText = await _client.GenerateAsync(buildPrompt(), Array.Empty<(string, byte[])>(), cancellationToken, temperature, responseSchema);
             return parse(providerText);
         }
         catch (OperationCanceledException)
@@ -43,7 +44,9 @@ public abstract class GeminiProviderBase
         }
         catch (Exception ex) when (_options.EnableFallback)
         {
-            _logger.LogWarning(ex, "Gemini {LogNoun} provider failed; using mock fallback.", logNoun);
+            // LogError, not LogWarning: a fallback here means the caller silently gets a Mock
+            // answer indistinguishable from a real one unless someone reads the logs.
+            _logger.LogError(ex, "Gemini {LogNoun} provider failed; using mock fallback.", logNoun);
             return await mockFallback(cancellationToken);
         }
         catch (Exception ex)

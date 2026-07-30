@@ -28,7 +28,8 @@ public class GeminiProviderClient
         string prompt,
         IReadOnlyList<(string MimeType, byte[] Data)> attachments,
         CancellationToken cancellationToken = default,
-        double? temperature = null)
+        double? temperature = null,
+        object? responseSchema = null)
     {
         if (string.IsNullOrWhiteSpace(_options.ApiKey))
         {
@@ -54,10 +55,16 @@ public class GeminiProviderClient
             });
         }
 
-        var generationConfig = new Dictionary<string, object> { ["responseMimeType"] = "application/json" };
-        if (temperature.HasValue)
+        // Default to temperature 0: an AI-refinement JSON response feeding a diff/apply pipeline
+        // needs to be as reproducible as possible, not creatively varied.
+        var generationConfig = new Dictionary<string, object>
         {
-            generationConfig["temperature"] = temperature.Value;
+            ["responseMimeType"] = "application/json",
+            ["temperature"] = temperature ?? 0
+        };
+        if (responseSchema is not null)
+        {
+            generationConfig["responseSchema"] = responseSchema;
         }
 
         var payload = new

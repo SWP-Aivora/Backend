@@ -60,6 +60,23 @@ public class ExpertRecommendationParser
             return fallback;
         }
 
+        // Gemini can drop individual candidates (hallucinated/duplicate expertId) while still
+        // returning a mostly-valid list — backfill from the scorer order instead of silently
+        // returning fewer than MaxRanked recommendations.
+        if (ranked.Count < MaxRanked)
+        {
+            var backfill = context.Candidates
+                .Where(c => !seen.Contains(c.ExpertId))
+                .Take(MaxRanked - ranked.Count)
+                .Select(c => new RankedExpert { ExpertId = c.ExpertId, Reasoning = c.ScorerExplanation })
+                .ToList();
+            if (backfill.Count > 0)
+            {
+                logger?.LogWarning("Gemini expert recommendation response returned only {Count} valid candidates; backfilled {BackfillCount} from scorer order.", ranked.Count, backfill.Count);
+                ranked.AddRange(backfill);
+            }
+        }
+
         return new ExpertRecommendationDraft { Ranked = ranked, AIModel = modelName };
     }
 
