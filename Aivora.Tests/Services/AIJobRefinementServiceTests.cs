@@ -70,8 +70,7 @@ public class AIJobRefinementServiceTests
                 BudgetMin = 1000,
                 BudgetMax = 2000,
                 Currency = "AICOIN",
-                AIResponse = "Budget updated.",
-                ChangedFields = new List<string> { "budgetMin", "budgetMax" }
+                AIResponse = "Budget updated."
             });
 
         _jobServiceMock
@@ -115,8 +114,7 @@ public class AIJobRefinementServiceTests
                 Title = job.Title,
                 BudgetMin = 100,
                 Currency = "USD",
-                AIResponse = "Budget updated.",
-                ChangedFields = new List<string> { "budgetMin", "currency" }
+                AIResponse = "Budget updated."
             });
 
         _jobServiceMock
@@ -129,6 +127,94 @@ public class AIJobRefinementServiceTests
         var updatedJob = await dbContext.JobPosts.FindAsync(job.Id);
         updatedJob!.Currency.Should().Be("AICOIN");
         updatedJob.BudgetMin.Should().Be(100 * 25);
+    }
+
+    [Fact]
+    public async Task RefineJobAsync_WithHallucinatedCurrency_DoesNotThrowAndKeepsCurrentCurrency()
+    {
+        var dbContext = GetDbContext();
+        var client = SetupClient(dbContext);
+        var service = CreateService(dbContext);
+
+        var job = new JobPost
+        {
+            ClientId = client.Id,
+            Client = client,
+            Title = "Test Job",
+            OriginalDescription = "Original description",
+            CategoryId = Guid.NewGuid(),
+            Currency = "AICOIN",
+            Status = JobStatus.DRAFT
+        };
+        dbContext.JobPosts.Add(job);
+        await dbContext.SaveChangesAsync();
+
+        // "EUR" is outside the configured rate table (AICOIN/USD/VND) — an AI hallucination,
+        // not something the client asked to convert.
+        _refinementProviderMock
+            .Setup(x => x.RefineJobAsync(It.IsAny<Aivora.Services.JobService.Response.JobResponse>(), "what currency should I use?", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AIJobRefinementDraft
+            {
+                Title = job.Title,
+                Currency = "EUR",
+                AIResponse = "Advice only."
+            });
+
+        _jobServiceMock
+            .Setup(x => x.GetJobByIdAsync(job.Id))
+            .ReturnsAsync(new Aivora.Services.JobService.Response.JobResponse { Id = job.Id, Title = job.Title, Status = JobStatus.DRAFT });
+
+        Func<Task> act = async () => await service.RefineJobAsync(client.Id, job.Id,
+            new Request.RefineJobRequest { Message = "what currency should I use?" });
+
+        await act.Should().NotThrowAsync();
+        var updatedJob = await dbContext.JobPosts.FindAsync(job.Id);
+        updatedJob!.Currency.Should().Be("AICOIN");
+    }
+
+    [Fact]
+    public async Task RefineJobAsync_WithEmptySkillsList_DoesNotClearExistingSkills()
+    {
+        var dbContext = GetDbContext();
+        var client = SetupClient(dbContext);
+        var service = CreateService(dbContext);
+
+        var skill = new Skill { Name = "React" };
+        dbContext.Skills.Add(skill);
+        var job = new JobPost
+        {
+            ClientId = client.Id,
+            Client = client,
+            Title = "Test Job",
+            OriginalDescription = "Original description",
+            CategoryId = Guid.NewGuid(),
+            Currency = "AICOIN",
+            Status = JobStatus.DRAFT
+        };
+        job.JobSkills.Add(new JobSkill { Job = job, Skill = skill });
+        dbContext.JobPosts.Add(job);
+        await dbContext.SaveChangesAsync();
+
+        // The AI didn't mention skills at all — its draft's Skills list defaults to empty.
+        // That must mean "not mentioned", not "clear every skill".
+        _refinementProviderMock
+            .Setup(x => x.RefineJobAsync(It.IsAny<Aivora.Services.JobService.Response.JobResponse>(), "rename to Updated Title", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AIJobRefinementDraft
+            {
+                Title = "Updated Title",
+                AIResponse = "Title updated."
+            });
+
+        _jobServiceMock
+            .Setup(x => x.GetJobByIdAsync(job.Id))
+            .ReturnsAsync(new Aivora.Services.JobService.Response.JobResponse { Id = job.Id, Title = "Updated Title", Status = JobStatus.DRAFT });
+
+        var result = await service.RefineJobAsync(client.Id, job.Id,
+            new Request.RefineJobRequest { Message = "rename to Updated Title" });
+
+        result.ChangedFields.Should().NotContain("skills");
+        var updatedJob = await dbContext.JobPosts.Include(j => j.JobSkills).FirstAsync(j => j.Id == job.Id);
+        updatedJob.JobSkills.Should().ContainSingle(js => js.SkillId == skill.Id);
     }
 
     [Fact]
@@ -155,8 +241,7 @@ public class AIJobRefinementServiceTests
             .ReturnsAsync(new AIJobRefinementDraft
             {
                 Title = job.Title,
-                AIResponse = "Advice only.",
-                ChangedFields = new List<string>()
+                AIResponse = "Advice only."
             });
 
         _jobServiceMock

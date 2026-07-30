@@ -11,18 +11,16 @@ public class AIJobRefinementParser
             ? updatedSuggestion
             : root;
 
-        var changedFields = AIJsonParser.ReadStringList(root, "changedFields");
-        var draft = changedFields.Count == 0
-            ? fallback
-            : AIJsonParser.ParseSuggestionDraft(suggestionElement, fallback, logger);
-
-        draft.AIModel = current.AIModel ?? fallback.AIModel;
+        var draft = AIJsonParser.ParseSuggestionDraft(suggestionElement, fallback, logger);
+        // This is real Gemini output — stamp it as such, same as the generation parser does.
+        // Inheriting current.AIModel would keep showing "Aivora-Mock" (or a stale model name)
+        // even though Gemini produced this specific refinement.
+        draft.AIModel = "Gemini 2.5 Flash";
 
         return new AIJobRefinementDraft
         {
             Suggestion = draft,
-            AIResponse = AIJsonParser.GetString(root, "aiResponse") ?? "I reviewed the current job suggestion.",
-            ChangedFields = changedFields
+            AIResponse = AIJsonParser.GetString(root, "aiResponse") ?? "I reviewed the current job suggestion."
         };
     }
 }

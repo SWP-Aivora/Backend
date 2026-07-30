@@ -11,7 +11,7 @@ public class MockAIJobRefinementProvider : IAIJobRefinementProvider
         var trimmedMessage = request.Message.Trim();
         var lower = trimmedMessage.ToLowerInvariant();
         var updated = AIJobSuggestionDraft.FromResponse(current);
-        var changedFields = new List<string>();
+        updated.AIModel = "Aivora-Mock";
 
         while (updated.ClarifyingAnswers.Count < updated.ClarifyingQuestions.Count)
         {
@@ -25,66 +25,54 @@ public class MockAIJobRefinementProvider : IAIJobRefinementProvider
             if (index >= 0 && index < updated.ClarifyingQuestions.Count)
             {
                 updated.ClarifyingAnswers[index] = answer;
-                changedFields.Add("clarifyingAnswers");
-                return Task.FromResult(BuildResult(updated, "I saved your clarifying answer.", changedFields));
+                return Task.FromResult(BuildResult(updated, "I saved your clarifying answer."));
             }
         }
 
         if (IsAdvisory(lower))
         {
-            return Task.FromResult(new AIJobRefinementDraft
-            {
-                Suggestion = updated,
-                AIResponse = BuildAdvisoryResponse(current),
-                ChangedFields = new List<string>()
-            });
+            return Task.FromResult(BuildResult(updated, BuildAdvisoryResponse(current)));
         }
 
-        if (TryApplyBudget(lower, updated, changedFields))
+        if (TryApplyBudget(lower, updated))
         {
-            return Task.FromResult(BuildResult(updated, "I updated the suggested budget.", changedFields));
+            return Task.FromResult(BuildResult(updated, "I updated the suggested budget."));
         }
 
-        if (TryApplyTimeline(lower, updated, changedFields))
+        if (TryApplyTimeline(lower, updated))
         {
-            return Task.FromResult(BuildResult(updated, "I updated the suggested timeline.", changedFields));
+            return Task.FromResult(BuildResult(updated, "I updated the suggested timeline."));
         }
 
-        if (TryApplyExperience(lower, updated, changedFields))
+        if (TryApplyExperience(lower, updated))
         {
-            return Task.FromResult(BuildResult(updated, "I updated the suggested experience level.", changedFields));
+            return Task.FromResult(BuildResult(updated, "I updated the suggested experience level."));
         }
 
-        if (TryApplyBudgetType(lower, updated, changedFields))
+        if (TryApplyBudgetType(lower, updated))
         {
-            return Task.FromResult(BuildResult(updated, "I updated the budget type.", changedFields));
+            return Task.FromResult(BuildResult(updated, "I updated the budget type."));
         }
 
-        if (TryApplyCurrency(lower, updated, changedFields))
+        if (TryApplyCurrency(lower, updated))
         {
-            return Task.FromResult(BuildResult(updated, "I updated the currency.", changedFields));
+            return Task.FromResult(BuildResult(updated, "I updated the currency."));
         }
 
-        if (TryApplySkill(trimmedMessage, updated, changedFields))
+        if (TryApplySkill(trimmedMessage, updated))
         {
-            return Task.FromResult(BuildResult(updated, "I added the requested skill.", changedFields));
+            return Task.FromResult(BuildResult(updated, "I added the requested skill."));
         }
 
-        return Task.FromResult(new AIJobRefinementDraft
-        {
-            Suggestion = updated,
-            AIResponse = "I noted the request. Please specify which job field you want to change.",
-            ChangedFields = new List<string>()
-        });
+        return Task.FromResult(BuildResult(updated, "I noted the request. Please specify which job field you want to change."));
     }
 
-    private static AIJobRefinementDraft BuildResult(AIJobSuggestionDraft updated, string aiResponse, List<string> changedFields)
+    private static AIJobRefinementDraft BuildResult(AIJobSuggestionDraft updated, string aiResponse)
     {
         return new AIJobRefinementDraft
         {
             Suggestion = updated,
-            AIResponse = aiResponse,
-            ChangedFields = changedFields.Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+            AIResponse = aiResponse
         };
     }
 
@@ -103,7 +91,7 @@ public class MockAIJobRefinementProvider : IAIJobRefinementProvider
 
     private static bool IsAdvisory(string lower) => MockRefineHelpers.IsAdvisory(lower);
 
-    private static bool TryApplyBudget(string lower, AIJobSuggestionDraft updated, List<string> changedFields)
+    private static bool TryApplyBudget(string lower, AIJobSuggestionDraft updated)
     {
         var budget = MockRefineHelpers.TryParseBudget(lower);
         if (budget is null)
@@ -113,11 +101,10 @@ public class MockAIJobRefinementProvider : IAIJobRefinementProvider
 
         updated.SuggestedBudgetMin = budget.Value.Min;
         updated.SuggestedBudgetMax = budget.Value.Max;
-        changedFields.AddRange(new[] { "suggestedBudgetMin", "suggestedBudgetMax" });
         return true;
     }
 
-    private static bool TryApplyTimeline(string lower, AIJobSuggestionDraft updated, List<string> changedFields)
+    private static bool TryApplyTimeline(string lower, AIJobSuggestionDraft updated)
     {
         var days = MockRefineHelpers.TryParseTimelineDays(lower);
         if (days is null)
@@ -126,11 +113,10 @@ public class MockAIJobRefinementProvider : IAIJobRefinementProvider
         }
 
         updated.SuggestedTimelineDays = days;
-        changedFields.Add("suggestedTimelineDays");
         return true;
     }
 
-    private static bool TryApplyExperience(string lower, AIJobSuggestionDraft updated, List<string> changedFields)
+    private static bool TryApplyExperience(string lower, AIJobSuggestionDraft updated)
     {
         var level = MockRefineHelpers.TryParseExperienceLevel(lower);
         if (level is null)
@@ -139,11 +125,10 @@ public class MockAIJobRefinementProvider : IAIJobRefinementProvider
         }
 
         updated.ExperienceLevel = level;
-        changedFields.Add("experienceLevel");
         return true;
     }
 
-    private static bool TryApplyBudgetType(string lower, AIJobSuggestionDraft updated, List<string> changedFields)
+    private static bool TryApplyBudgetType(string lower, AIJobSuggestionDraft updated)
     {
         var budgetType = MockRefineHelpers.TryParseBudgetType(lower);
         if (budgetType is null)
@@ -152,11 +137,10 @@ public class MockAIJobRefinementProvider : IAIJobRefinementProvider
         }
 
         updated.BudgetType = budgetType.Value;
-        changedFields.Add("budgetType");
         return true;
     }
 
-    private static bool TryApplyCurrency(string lower, AIJobSuggestionDraft updated, List<string> changedFields)
+    private static bool TryApplyCurrency(string lower, AIJobSuggestionDraft updated)
     {
         var currency = MockRefineHelpers.TryParseCurrency(lower);
         if (currency is null)
@@ -165,11 +149,10 @@ public class MockAIJobRefinementProvider : IAIJobRefinementProvider
         }
 
         updated.Currency = currency;
-        changedFields.Add("currency");
         return true;
     }
 
-    private static bool TryApplySkill(string message, AIJobSuggestionDraft updated, List<string> changedFields)
+    private static bool TryApplySkill(string message, AIJobSuggestionDraft updated)
     {
         var skill = MockRefineHelpers.TryParseSkill(message);
         if (skill is null)
@@ -182,7 +165,6 @@ public class MockAIJobRefinementProvider : IAIJobRefinementProvider
             updated.SuggestedSkills.Add(skill);
         }
 
-        changedFields.Add("suggestedSkills");
         return true;
     }
 

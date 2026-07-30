@@ -77,8 +77,12 @@ public class AIJobAssistantProviderTests
     }
 
     [Fact]
-    public void RefinementParser_ReturnsChangedFields()
+    public void RefinementParser_WithEmptyChangedFieldsSelfReport_AppliesUpdate()
     {
+        // Regression test: Gemini's own "changedFields" self-report is not trustworthy (it can
+        // omit a field it actually changed). The parser must always apply "updatedSuggestion"
+        // and let the caller diff it against the current state — not discard real edits just
+        // because the AI forgot to list them.
         var parser = new AIJobRefinementParser();
         var result = parser.Parse(
             """
@@ -90,13 +94,13 @@ public class AIJobAssistantProviderTests
                 "suggestedBudgetMax": 300
               },
               "aiResponse": "Updated budget",
-              "changedFields": ["suggestedBudgetMin", "suggestedBudgetMax"]
+              "changedFields": []
             }
             """,
             BuildCurrentSuggestion());
 
-        result.ChangedFields.Should().Equal("suggestedBudgetMin", "suggestedBudgetMax");
         result.Suggestion.SuggestedBudgetMin.Should().Be(200);
+        result.Suggestion.SuggestedBudgetMax.Should().Be(300);
     }
 
     [Fact]
@@ -149,7 +153,6 @@ public class AIJobAssistantProviderTests
 
         var result = await provider.RefineSuggestionAsync(BuildCurrentSuggestion(), new Request.RefineSuggestionRequest { Message = "budget 100 200", CategoriesContext = "" });
 
-        result.ChangedFields.Should().Contain("suggestedBudgetMin");
         result.Suggestion.SuggestedBudgetMin.Should().Be(100);
     }
 

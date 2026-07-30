@@ -152,25 +152,23 @@ public class AIJobAssistantServiceTests
         var service = CreateService(dbContext);
         var clientId = Guid.NewGuid();
         var suggestion = BuildSuggestion(clientId);
+        // A refined suggestion is always stored in AICOIN (both GenerateSuggestionAsync and
+        // RefineSuggestionAsync convert unconditionally) — use a realistic starting currency so
+        // the diff isn't tripped up by an unconverted fixture value.
+        suggestion.Currency = "AICOIN";
         dbContext.AIJobSuggestions.Add(suggestion);
         await dbContext.SaveChangesAsync();
+
+        var current = await service.GetSuggestionAsync(clientId, suggestion.Id);
 
         _refinementProviderMock
             .Setup(x => x.RefineSuggestionAsync(It.IsAny<Response.SuggestionResponse>(), It.Is<Request.RefineSuggestionRequest>(r => r.Message == "explain the budget"), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AIJobRefinementDraft
             {
-                Suggestion = AIJobSuggestionDraft.FromResponse(new Response.SuggestionResponse
-                {
-                    RawInput = suggestion.RawInput,
-                    SuggestedTitle = suggestion.SuggestedTitle,
-                    SuggestedDescription = suggestion.SuggestedDescription,
-                    BudgetType = suggestion.SuggestedBudgetType,
-                    Currency = suggestion.Currency,
-                    AIModel = suggestion.AIModel,
-                    Status = suggestion.Status.ToString()
-                }),
-                AIResponse = "Advice only",
-                ChangedFields = new List<string>()
+                // Echo the current suggestion back unchanged, exactly like the real Mock/Gemini
+                // providers do for an advisory-only message.
+                Suggestion = AIJobSuggestionDraft.FromResponse(current),
+                AIResponse = "Advice only"
             });
 
         var result = await service.RefineSuggestionAsync(clientId, suggestion.Id, new Request.RefineSuggestionRequest { Message = "explain the budget" });
@@ -206,8 +204,7 @@ public class AIJobAssistantServiceTests
             .ReturnsAsync(new AIJobRefinementDraft
             {
                 Suggestion = draft,
-                AIResponse = "Updated",
-                ChangedFields = new List<string> { "suggestedBudgetMin", "suggestedBudgetMax", "suggestedTimelineDays", "experienceLevel", "suggestedSkills", "budgetType", "currency", "clarifyingAnswers" }
+                AIResponse = "Updated"
             });
 
         var result = await service.RefineSuggestionAsync(clientId, suggestion.Id, new Request.RefineSuggestionRequest { Message = "update everything" });
@@ -228,6 +225,89 @@ public class AIJobAssistantServiceTests
         saved.SuggestedExperienceLevel.Should().Be(SkillLevel.EXPERT);
         saved.SuggestedBudgetType.Should().Be(BudgetType.HOURLY);
         saved.Currency.Should().Be("AICOIN");
+    }
+
+    [Fact]
+    public async Task RefineSuggestionAsync_WithHallucinatedCurrency_DoesNotThrowAndKeepsCurrentCurrency()
+    {
+        var dbContext = GetDbContext();
+        var service = CreateService(dbContext);
+        var clientId = Guid.NewGuid();
+        var suggestion = BuildSuggestion(clientId);
+        suggestion.Currency = "AICOIN";
+        dbContext.AIJobSuggestions.Add(suggestion);
+        await dbContext.SaveChangesAsync();
+
+        var current = await service.GetSuggestionAsync(clientId, suggestion.Id);
+        // "EUR" is outside the configured rate table (AICOIN/USD/VND) — an AI hallucination,
+        // not something the client asked to convert.
+        var draft = AIJobSuggestionDraft.FromResponse(current);
+        draft.Currency = "EUR";
+
+        _refinementProviderMock
+            .Setup(x => x.RefineSuggestionAsync(It.IsAny<Response.SuggestionResponse>(), It.Is<Request.RefineSuggestionRequest>(r => r.Message == "what currency should I use?"), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AIJobRefinementDraft { Suggestion = draft, AIResponse = "Advice only." });
+
+        Func<Task> act = async () => await service.RefineSuggestionAsync(clientId, suggestion.Id, new Request.RefineSuggestionRequest { Message = "what currency should I use?" });
+
+        await act.Should().NotThrowAsync();
+        var saved = await dbContext.AIJobSuggestions.FindAsync(suggestion.Id);
+        saved!.Currency.Should().Be("AICOIN");
+    }
+
+    [Fact]
+    public async Task RefineSuggestionAsync_WithEmptySkillsList_DoesNotClearExistingSkills()
+    {
+        var dbContext = GetDbContext();
+        var service = CreateService(dbContext);
+        var clientId = Guid.NewGuid();
+        var suggestion = BuildSuggestion(clientId);
+        dbContext.AIJobSuggestions.Add(suggestion);
+        await dbContext.SaveChangesAsync();
+
+        // The AI didn't mention skills at all — an explicitly empty list must mean "not
+        // mentioned", not "clear every skill".
+        var draft = BuildDraft();
+        draft.SuggestedTitle = "Renamed title";
+        draft.SuggestedSkills = new List<string>();
+
+        _refinementProviderMock
+            .Setup(x => x.RefineSuggestionAsync(It.IsAny<Response.SuggestionResponse>(), It.Is<Request.RefineSuggestionRequest>(r => r.Message == "rename it"), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AIJobRefinementDraft { Suggestion = draft, AIResponse = "Renamed." });
+
+        var result = await service.RefineSuggestionAsync(clientId, suggestion.Id, new Request.RefineSuggestionRequest { Message = "rename it" });
+
+        result.ChangedFields.Should().NotContain("suggestedSkills");
+        result.Suggestion.SuggestedSkills.Should().BeEquivalentTo(new[] { "React", "AI" });
+    }
+
+    [Fact]
+    public async Task RefineSuggestionAsync_WithNewCategoryName_UpdatesCategoryId()
+    {
+        var dbContext = GetDbContext();
+        var service = CreateService(dbContext);
+        var clientId = Guid.NewGuid();
+        var suggestion = BuildSuggestion(clientId);
+        dbContext.AIJobSuggestions.Add(suggestion);
+        await dbContext.SaveChangesAsync();
+
+        var categoryId = Guid.NewGuid();
+        _categoryServiceMock.Setup(c => c.GetCachedCategoryDictionaryAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, string> { [categoryId] = "Web Development" });
+
+        var draft = BuildDraft();
+        draft.CategoryName = "Web Development";
+
+        _refinementProviderMock
+            .Setup(x => x.RefineSuggestionAsync(It.IsAny<Response.SuggestionResponse>(), It.Is<Request.RefineSuggestionRequest>(r => r.Message == "set category to web dev"), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AIJobRefinementDraft { Suggestion = draft, AIResponse = "Category set." });
+
+        var result = await service.RefineSuggestionAsync(clientId, suggestion.Id, new Request.RefineSuggestionRequest { Message = "set category to web dev" });
+
+        result.ChangedFields.Should().Contain("categoryName");
+        result.Suggestion.CategoryId.Should().Be(categoryId);
+        var saved = await dbContext.AIJobSuggestions.FindAsync(suggestion.Id);
+        saved!.SuggestedCategoryId.Should().Be(categoryId);
     }
 
     [Fact]

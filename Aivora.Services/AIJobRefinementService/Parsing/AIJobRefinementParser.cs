@@ -13,14 +13,11 @@ public class AIJobRefinementParser
         var root = document.RootElement;
         var fallback = DraftFromJobResponse(current);
 
-        var changedFields = AIJsonParser.ReadStringList(root, "changedFields");
         var jobElement = AIJsonParser.TryGetProperty(root, "updatedJob", out var updatedJob)
             ? updatedJob
             : root;
 
-        var draft = changedFields.Count == 0
-            ? fallback
-            : ParseJobDraft(jobElement, fallback);
+        var draft = ParseJobDraft(jobElement, fallback);
 
         return new AIJobRefinementDraft
         {
@@ -36,8 +33,7 @@ public class AIJobRefinementParser
             ExperienceLevel = draft.ExperienceLevel,
             Skills = draft.Skills,
             Milestones = draft.Milestones,
-            AIResponse = AIJsonParser.GetString(root, "aiResponse") ?? "I reviewed the current job post.",
-            ChangedFields = changedFields
+            AIResponse = AIJsonParser.GetString(root, "aiResponse") ?? "I reviewed the current job post."
         };
     }
 
@@ -64,8 +60,7 @@ public class AIJobRefinementParser
                 DueDays = m.DueDays,
                 AcceptanceCriteria = m.AcceptanceCriteria
             }).ToList(),
-            AIResponse = string.Empty,
-            ChangedFields = new List<string>()
+            AIResponse = string.Empty
         };
     }
 
@@ -85,8 +80,7 @@ public class AIJobRefinementParser
             ExperienceLevel = AIJsonParser.GetSkillLevel(element) ?? fallback.ExperienceLevel,
             Skills = AIJsonParser.ReadStringList(element, "skills", fallback.Skills),
             Milestones = AIJsonParser.ReadMilestones(element, fallback.Milestones),
-            AIResponse = fallback.AIResponse,
-            ChangedFields = fallback.ChangedFields
+            AIResponse = fallback.AIResponse
         };
     }
 }

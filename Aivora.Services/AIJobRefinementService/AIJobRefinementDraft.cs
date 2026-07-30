@@ -17,5 +17,4 @@ public class AIJobRefinementDraft
     public List<string> Skills { get; set; } = new();
     public List<AIJobAssistantService.Response.SuggestedMilestone> Milestones { get; set; } = new();
     public string AIResponse { get; set; } = null!;
-    public List<string> ChangedFields { get; set; } = new();
 }
