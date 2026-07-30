@@ -51,6 +51,27 @@ public class AIMilestoneStepSuggestionProviderTests
     }
 
     [Fact]
+    public void Parser_ClampsEstimatedDays_NegativeToMinAndHugeToMax()
+    {
+        var parser = new AIMilestoneStepSuggestionParser();
+        var draft = parser.Parse(
+            """
+            {
+              "steps": [
+                { "title": "Negative days", "description": "d", "estimatedDays": -5 },
+                { "title": "Huge days", "description": "d", "estimatedDays": 99999 },
+                { "title": "Unspecified days", "description": "d" }
+              ]
+            }
+            """,
+            new Request.SuggestMilestoneStepsRequest { Title = "Job", Description = "desc", AcceptanceCriteria = "criteria" });
+
+        draft.Steps[0].EstimatedDays.Should().Be(1);
+        draft.Steps[1].EstimatedDays.Should().Be(3650);
+        draft.Steps[2].EstimatedDays.Should().Be(0);
+    }
+
+    [Fact]
     public void Parser_MissingStepsArray_FallbackStepsHaveEstimatedDays()
     {
         var parser = new AIMilestoneStepSuggestionParser();

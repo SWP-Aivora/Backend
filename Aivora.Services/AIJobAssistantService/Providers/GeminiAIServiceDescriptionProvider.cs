@@ -34,6 +34,7 @@ public class GeminiAIServiceDescriptionProvider : GeminiProviderBase, IAIService
             mockFallback: ct => _fallbackProvider.GenerateServiceDescriptionAsync(request, ct),
             logNoun: "service description",
             errorNoun: "service description",
-            cancellationToken);
+            cancellationToken,
+            responseSchema: AIServiceDescriptionPromptBuilder.ResponseSchema);
     }
 }

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Aivora.Services.AIJobAssistantService.Parsing;
+using Aivora.Services.Constants;
 
 namespace Aivora.Services.AIMilestoneStepAssistantService.Parsing;
 
@@ -57,10 +58,19 @@ public class AIMilestoneStepSuggestionParser
             {
                 Title = title,
                 Description = AIJsonParser.GetString(item, "description"),
-                EstimatedDays = AIJsonParser.GetInt(item, "estimatedDays") ?? 0
+                EstimatedDays = ClampEstimatedDays(AIJsonParser.GetInt(item, "estimatedDays") ?? 0)
             });
         }
 
         return steps;
+    }
+
+    // 0 means "unspecified" (display-only, never persisted) and is left alone; a real but
+    // out-of-range value (negative, or absurdly large) gets clamped to the same bounds
+    // milestones/jobs use.
+    private static int ClampEstimatedDays(int estimatedDays)
+    {
+        if (estimatedDays == 0) return 0;
+        return Math.Clamp(estimatedDays, ValidationLimits.MinDurationDays, ValidationLimits.MaxDurationDays);
     }
 }

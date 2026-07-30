@@ -36,6 +36,7 @@ public class GeminiAIJobRefinementProvider : GeminiProviderBase, IAIJobRefinemen
             mockFallback: ct => _fallbackProvider.RefineSuggestionAsync(current, request, ct),
             logNoun: "job refinement",
             errorNoun: "refinement",
-            cancellationToken);
+            cancellationToken,
+            responseSchema: AIJobRefinementPromptBuilder.ResponseSchema);
     }
 }

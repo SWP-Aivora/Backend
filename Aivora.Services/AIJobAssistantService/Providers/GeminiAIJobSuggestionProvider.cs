@@ -36,6 +36,7 @@ public class GeminiAIJobSuggestionProvider : GeminiProviderBase, IAIJobSuggestio
             mockFallback: ct => _fallbackProvider.GenerateSuggestionAsync(request, ct),
             logNoun: "job suggestion",
             errorNoun: "suggestion",
-            cancellationToken);
+            cancellationToken,
+            responseSchema: AIJobSuggestionPromptBuilder.ResponseSchema);
     }
 }

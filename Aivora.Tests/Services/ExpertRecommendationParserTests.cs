@@ -67,6 +67,35 @@ public class ExpertRecommendationParserTests
     }
 
     [Fact]
+    public void Parse_FewerThanFiveValidIds_BackfillsRemainderFromScorerOrder()
+    {
+        var candidates = CreateCandidates(8);
+        var context = CreateContext(candidates);
+
+        var providerText = $$"""
+            {
+              "ranked": [
+                { "expertId": "{{candidates[2].ExpertId}}", "reasoning": "matches" },
+                { "expertId": "{{Guid.NewGuid()}}", "reasoning": "hallucinated" },
+                { "expertId": "{{candidates[5].ExpertId}}", "reasoning": "also matches" },
+                { "expertId": "{{Guid.NewGuid()}}", "reasoning": "hallucinated" },
+                { "expertId": "{{Guid.NewGuid()}}", "reasoning": "hallucinated" }
+              ]
+            }
+            """;
+
+        var draft = _parser.Parse(providerText, context);
+
+        draft.Ranked.Should().HaveCount(5);
+        draft.Ranked.Select(r => r.ExpertId).Should().Equal(
+            candidates[2].ExpertId,
+            candidates[5].ExpertId,
+            candidates[0].ExpertId,
+            candidates[1].ExpertId,
+            candidates[3].ExpertId);
+    }
+
+    [Fact]
     public void Parse_TruncatesReasoningOver2000Chars()
     {
         var candidates = CreateCandidates(1);

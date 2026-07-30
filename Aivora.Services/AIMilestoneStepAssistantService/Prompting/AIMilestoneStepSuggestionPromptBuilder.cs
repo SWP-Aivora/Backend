@@ -25,10 +25,35 @@ public class AIMilestoneStepSuggestionPromptBuilder
                 {
                   "title": "concise step title",
                   "description": "what the step involves",
-                  "estimatedDays": "estimated number of days to complete this step"
+                  "estimatedDays": 2
                 }
               ]
             }
             """;
     }
+
+    // Mirrors the JSON template above. "title" is required per item — the parser drops any
+    // step whose title is missing rather than falling back to a placeholder.
+    public static object ResponseSchema { get; } = new
+    {
+        type = "OBJECT",
+        properties = new
+        {
+            steps = new
+            {
+                type = "ARRAY",
+                items = new
+                {
+                    type = "OBJECT",
+                    properties = new
+                    {
+                        title = new { type = "STRING" },
+                        description = new { type = "STRING" },
+                        estimatedDays = new { type = "INTEGER" }
+                    },
+                    required = new[] { "title" }
+                }
+            }
+        }
+    };
 }

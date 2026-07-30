@@ -28,4 +28,18 @@ public class AIExpertVerificationPromptBuilder
         }
         """;
     }
+
+    // Mirrors the JSON template above. "outcome" and "reasoning" are required — the parser
+    // throws ValidationException if either is missing (no safe fallback for a verification verdict).
+    public static object ResponseSchema { get; } = new
+    {
+        type = "OBJECT",
+        properties = new
+        {
+            outcome = new { type = "STRING", @enum = new[] { "APPROVED", "REJECTED", "NEEDS_REVIEW" } },
+            confidenceScore = new { type = "NUMBER" },
+            reasoning = new { type = "STRING" }
+        },
+        required = new[] { "outcome", "reasoning" }
+    };
 }

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Aivora.Repositories.Enums;
 
 namespace Aivora.Services.AIJobAssistantService.Prompting;
 
@@ -50,8 +51,51 @@ public class AIJobSuggestionPromptBuilder
                 }
               ],
               "clarifyingQuestions": ["question"],
+              "clarifyingAnswers": [""],
               "riskWarnings": ["risk"]
             }
             """;
     }
+
+    // Mirrors the JSON template above so the Gemini call in GeminiAIJobSuggestionProvider can
+    // pass it as responseSchema — nothing marked required since AIJsonParser.ParseSuggestionDraft
+    // falls back to sane defaults for every field.
+    public static object ResponseSchema { get; } = new
+    {
+        type = "OBJECT",
+        properties = new
+        {
+            suggestedTitle = new { type = "STRING" },
+            suggestedDescription = new { type = "STRING" },
+            categoryName = new { type = "STRING" },
+            businessDomain = new { type = "STRING" },
+            expectedOutcome = new { type = "STRING" },
+            budgetType = new { type = "STRING", @enum = Enum.GetNames<BudgetType>() },
+            suggestedBudgetMin = new { type = "NUMBER" },
+            suggestedBudgetMax = new { type = "NUMBER" },
+            currency = new { type = "STRING", @enum = new[] { "AICOIN", "USD", "VND" } },
+            suggestedTimelineDays = new { type = "INTEGER" },
+            experienceLevel = new { type = "STRING", @enum = Enum.GetNames<SkillLevel>() },
+            suggestedSkills = new { type = "ARRAY", items = new { type = "STRING" } },
+            suggestedMilestones = new
+            {
+                type = "ARRAY",
+                items = new
+                {
+                    type = "OBJECT",
+                    properties = new
+                    {
+                        title = new { type = "STRING" },
+                        description = new { type = "STRING" },
+                        amount = new { type = "NUMBER" },
+                        dueDays = new { type = "INTEGER" },
+                        acceptanceCriteria = new { type = "STRING" }
+                    }
+                }
+            },
+            clarifyingQuestions = new { type = "ARRAY", items = new { type = "STRING" } },
+            clarifyingAnswers = new { type = "ARRAY", items = new { type = "STRING" } },
+            riskWarnings = new { type = "ARRAY", items = new { type = "STRING" } }
+        }
+    };
 }

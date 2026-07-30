@@ -365,7 +365,9 @@ POST /api/v1/jobs/{jobId}/recommendations/generate
 
 **Auth:** `ClientPolicy`, chủ job. **Preconditions:** `JobPosts.Status = OPEN`.
 
-**Side effects:** Tính `TotalScore = 0.35*SkillScore + 0.20*PortfolioScore + 0.15*RatingScore + 0.10*BudgetScore + 0.10*AvailabilityScore + 0.10*CompletionScore`. Lưu vào `RecommendationResults`.
+**Side effects:** Tính `TotalScore = 0.40*SkillScore + 0.20*BudgetScore + 0.20*RatingScore + 0.10*AvailabilityScore + 0.10*CompletionScore` (trọng số cấu hình qua `RecommendationOptions`, phải luôn tổng 1.0). `PortfolioScore` (`RecommendationService/Response.cs:14`) luôn `0` — cột reserved, chưa có trọng số, không cộng vào `TotalScore`. Lưu vào `RecommendationResults`.
+
+**Lưu ý Mock auto-approve:** `ConfigurationValidationExtensions.cs:66-82` đã chặn ở startup — Production bắt buộc `AIProvider:Provider=Gemini`, có `ApiKey`, và `EnableFallback=false`, nên hệ thống không thể âm thầm dùng Mock để tự động APPROVED một hồ sơ expert ở môi trường thật.
 
 ## 1.16. Xem expert recommendations cho job
 

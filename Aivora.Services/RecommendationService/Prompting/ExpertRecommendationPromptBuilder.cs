@@ -24,4 +24,29 @@ public class ExpertRecommendationPromptBuilder
             Rank best first. Include at most 5 experts. Use only expertId values from the candidate list above.
             """;
     }
+
+    // Mirrors the JSON template above. "expertId" is required per item — an item without it is
+    // dropped by the parser (unparseable guid), and a missing/empty "ranked" array as a whole
+    // falls back to scorer order, so nothing is required at the top level.
+    public static object ResponseSchema { get; } = new
+    {
+        type = "OBJECT",
+        properties = new
+        {
+            ranked = new
+            {
+                type = "ARRAY",
+                items = new
+                {
+                    type = "OBJECT",
+                    properties = new
+                    {
+                        expertId = new { type = "STRING" },
+                        reasoning = new { type = "STRING" }
+                    },
+                    required = new[] { "expertId" }
+                }
+            }
+        }
+    };
 }

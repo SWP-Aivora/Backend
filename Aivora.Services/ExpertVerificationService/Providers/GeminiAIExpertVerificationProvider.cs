@@ -50,7 +50,7 @@ public class GeminiAIExpertVerificationProvider : IAIExpertVerificationProvider
         {
             try
             {
-                var providerText = await _client.GenerateAsync(prompt, attachments, cancellationToken);
+                var providerText = await _client.GenerateAsync(prompt, attachments, cancellationToken, temperature: 0, responseSchema: AIExpertVerificationPromptBuilder.ResponseSchema);
                 return _parser.Parse(providerText);
             }
             catch (OperationCanceledException)
