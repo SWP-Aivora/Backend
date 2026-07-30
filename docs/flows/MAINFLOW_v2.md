@@ -767,8 +767,15 @@ SUBMITTED → REVISION_REQUESTED → SUBMITTED
 Milestone dispute path:
 IN_PROGRESS / SUBMITTED → DISPUTED
 DISPUTED → SUBMITTED (if a deliverable was already submitted) / IN_PROGRESS (otherwise),
-           via dispute resolve or close — RELEASED/REFUNDED only through a subsequent
+           via admin dispute resolve — RELEASED/REFUNDED only through a subsequent
            normal approve action, never automatically by the dispute itself
+DISPUTED → IN_PROGRESS unconditionally via dispute close (opener backs out) — see Gotcha below
+
+> **Gotcha:** `ResolveDisputeAsync` and `CloseDisputeAsync` (`DisputeService/Service.cs`) unlock
+> the milestone inconsistently. Resolve checks `milestone.SubmittedAt` and restores `SUBMITTED`
+> if a deliverable was already submitted before the dispute; close always sets `IN_PROGRESS`
+> regardless. If the opener closes a dispute after a deliverable was submitted, the milestone
+> loses its SUBMITTED (review-pending) state and the deliverable needs to be resubmitted.
 
 Payment (as actually assigned by code — HELD/FROZEN/PARTIALLY_RELEASED enum values exist
 but are never set by the current pipeline; every Payment row is created RELEASED):
