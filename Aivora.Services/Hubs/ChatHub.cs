@@ -2,7 +2,10 @@ using System;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Aivora.Repositories.Data;
+using Aivora.Repositories.Enums;
 using IMessageService = Aivora.Services.MessageService.IService;
 using Aivora.api.Extensions;
 
@@ -14,11 +17,13 @@ public class ChatHub : Hub
     private const int MaxContentLength = IMessageService.MaxContentLength;
 
     private readonly IMessageService _messageService;
+    private readonly AivoraDbContext _dbContext;
     private readonly ILogger<ChatHub> _logger;
 
-    public ChatHub(IMessageService messageService, ILogger<ChatHub> logger)
+    public ChatHub(IMessageService messageService, AivoraDbContext dbContext, ILogger<ChatHub> logger)
     {
         _messageService = messageService;
+        _dbContext = dbContext;
         _logger = logger;
     }
 
@@ -74,6 +79,37 @@ public class ChatHub : Hub
         var userRole = Context.User?.GetUserRole();
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, conversationId.ToString());
         _logger.LogInformation("User {UserId} ({Role}) left conversation {ConversationId}", userId, userRole, conversationId);
+    }
+
+    public async Task JoinProject(Guid projectId)
+    {
+        var userId = GetCurrentUserId();
+        var userRole = Context.User!.GetUserRole();
+
+        if (userRole != UserRole.ADMIN)
+        {
+            var project = await _dbContext.Projects
+                .AsNoTracking()
+                .Where(p => p.Id == projectId)
+                .Select(p => new { p.ClientId, p.ExpertId })
+                .FirstOrDefaultAsync();
+
+            if (project == null || (project.ClientId != userId && project.ExpertId != userId))
+            {
+                throw new HubException("You are not authorized to join this project's realtime group.");
+            }
+        }
+
+        await Groups.AddToGroupAsync(Context.ConnectionId, $"project-{projectId}");
+        _logger.LogInformation("User {UserId} ({Role}) joined project {ProjectId}", userId, userRole, projectId);
+    }
+
+    public async Task LeaveProject(Guid projectId)
+    {
+        var userId = GetCurrentUserId();
+        var userRole = Context.User?.GetUserRole();
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"project-{projectId}");
+        _logger.LogInformation("User {UserId} ({Role}) left project {ProjectId}", userId, userRole, projectId);
     }
 
     public async Task SendMessage(Aivora.Services.MessageService.Request.SendMessageRequest request)

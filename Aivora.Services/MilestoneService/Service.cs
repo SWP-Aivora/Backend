@@ -15,17 +15,20 @@ public class Service : IService
     private readonly ITreasury _treasury;
     private readonly NotificationService.IService _notificationService;
     private readonly IAIMilestoneStepSuggestionProvider _stepSuggestionProvider;
+    private readonly RealtimeService.IService _realtimeService;
 
     public Service(
         AivoraDbContext dbContext,
         ITreasury treasury,
         NotificationService.IService notificationService,
-        IAIMilestoneStepSuggestionProvider stepSuggestionProvider)
+        IAIMilestoneStepSuggestionProvider stepSuggestionProvider,
+        RealtimeService.IService realtimeService)
     {
         _dbContext = dbContext;
         _treasury = treasury;
         _notificationService = notificationService;
         _stepSuggestionProvider = stepSuggestionProvider;
+        _realtimeService = realtimeService;
     }
 
     public async Task<Response.MilestoneResponse> GetMilestoneByIdAsync(Guid userId, Guid milestoneId)
@@ -149,11 +152,50 @@ public class Service : IService
         if (request.Description != null) milestone.Description = request.Description;
         if (request.AcceptanceCriteria != null) milestone.AcceptanceCriteria = request.AcceptanceCriteria;
         if (request.Amount.HasValue) milestone.Amount = request.Amount.Value;
-        if (request.DueDate.HasValue) milestone.DueDate = request.DueDate.Value;
         if (request.OrderIndex.HasValue) milestone.OrderIndex = request.OrderIndex.Value;
 
+        var cascadedMilestoneCount = 0;
+        if (request.DueDate.HasValue)
+        {
+            var oldDueDate = milestone.DueDate;
+            milestone.DueDate = request.DueDate.Value;
+
+            if (oldDueDate.HasValue && oldDueDate.Value != request.DueDate.Value)
+            {
+                var delta = request.DueDate.Value.DayNumber - oldDueDate.Value.DayNumber;
+
+                // Shift this milestone's own non-terminal steps so step.DueDate <= milestone.DueDate keeps holding (#201).
+                ShiftNonTerminalStepDueDates(milestone.Steps, delta);
+
+                var laterMilestones = await _dbContext.Milestones
+                    .Include(m => m.Steps)
+                    .Where(m => m.ProjectId == milestone.ProjectId && m.OrderIndex > milestone.OrderIndex
+                        && m.Status != MilestoneStatus.RELEASED && m.Status != MilestoneStatus.REFUNDED)
+                    .ToListAsync();
+
+                foreach (var later in laterMilestones)
+                {
+                    if (later.DueDate.HasValue) later.DueDate = later.DueDate.Value.AddDays(delta);
+                    ShiftNonTerminalStepDueDates(later.Steps, delta);
+                }
+
+                cascadedMilestoneCount = laterMilestones.Count;
+            }
+        }
+
         await _dbContext.SaveChangesAsync();
-        return MapToResponse(milestone);
+        var response = MapToResponse(milestone);
+        response.CascadedMilestoneCount = cascadedMilestoneCount;
+        return response;
+    }
+
+    private static void ShiftNonTerminalStepDueDates(IEnumerable<MilestoneStep> steps, int deltaDays)
+    {
+        foreach (var step in steps)
+        {
+            if (step.DueDate.HasValue && step.Status != MilestoneStepStatus.COMPLETED && step.Status != MilestoneStepStatus.SKIPPED)
+                step.DueDate = step.DueDate.Value.AddDays(deltaDays);
+        }
     }
 
     public async Task<Response.FundResultResponse> FundMilestoneAsync(Guid userId, Guid milestoneId)
@@ -211,6 +253,8 @@ public class Service : IService
         milestone.Status = MilestoneStatus.REVISION_REQUESTED;
 
         await _dbContext.SaveChangesAsync();
+
+        _realtimeService.SendMilestoneUpdatedAsync(milestone.ProjectId, milestoneId);
 
         // Send notification to the Expert that the client requested a revision
         try
@@ -292,7 +336,7 @@ public class Service : IService
             cancellationToken);
 
         var steps = draft?.Steps != null
-            ? draft.Steps.Select(s => new Response.SuggestedMilestoneStep { Title = s.Title, Description = s.Description }).ToList()
+            ? draft.Steps.Select(s => new Response.SuggestedMilestoneStep { Title = s.Title, Description = s.Description, EstimatedDays = s.EstimatedDays }).ToList()
             : new List<Response.SuggestedMilestoneStep>();
 
         return new Response.MilestoneStepSuggestionResponse
@@ -344,6 +388,9 @@ public class Service : IService
 
         ValidateLength(request.Title, 255, "Title");
         ValidateLength(request.Description, 1000, "Description");
+
+        if (request.DueDate.HasValue && milestone.DueDate.HasValue && request.DueDate.Value > milestone.DueDate.Value)
+            throw new ValidationException("Step due date cannot be after the milestone's due date.");
 
         var step = new MilestoneStep
         {
@@ -402,6 +449,9 @@ public class Service : IService
 
         ValidateLength(request.Title, 255, "Title");
         if (request.IsDescriptionSet) ValidateLength(request.Description, 1000, "Description");
+
+        if (request.IsDueDateSet && request.DueDate.HasValue && step.Milestone.DueDate.HasValue && request.DueDate.Value > step.Milestone.DueDate.Value)
+            throw new ValidationException("Step due date cannot be after the milestone's due date.");
 
         if (request.Title != null) step.Title = request.Title;
         if (request.IsDescriptionSet) step.Description = request.Description;
@@ -653,6 +703,7 @@ public class Service : IService
             Currency = m.Currency,
             Status = m.Status,
             DueDate = m.DueDate,
+            DueDays = m.DueDate.HasValue ? m.DueDate.Value.DayNumber - DateOnly.FromDateTime(m.CreatedAt.UtcDateTime).DayNumber : null,
             OrderIndex = m.OrderIndex,
             CreatedAt = m.CreatedAt,
             FundedAt = m.FundedAt,

@@ -6,5 +6,6 @@ public class Response
     {
         public string Title { get; set; } = null!;
         public string? Description { get; set; }
+        public int EstimatedDays { get; set; }
     }
 }

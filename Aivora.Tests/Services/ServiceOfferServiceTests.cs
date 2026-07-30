@@ -158,6 +158,26 @@ public class ServiceOfferServiceTests
     }
 
     [Fact]
+    public async Task AcceptOfferAsync_SetsMilestoneDueDateFromDueDays()
+    {
+        var dbContext = GetDbContext();
+        var expertId = SeedUser(dbContext);
+        var clientId = SeedUser(dbContext);
+        var serviceRequest = SeedAcceptedServiceRequest(dbContext, expertId, clientId);
+        var service = new Service(dbContext, Mock.Of<Aivora.Services.NotificationService.IService>());
+        var offer = await service.CreateOfferAsync(expertId, serviceRequest.Id, BuildOfferRequest());
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        var result = await service.AcceptOfferAsync(clientId, offer.Id);
+
+        var project = await dbContext.Projects
+            .Include(p => p.Milestones)
+            .FirstAsync(p => p.Id == result.ProjectId);
+
+        project.Milestones.Single().DueDate.Should().Be(today.AddDays(5)); // BuildOfferRequest() uses DueDays = 5
+    }
+
+    [Fact]
     public async Task AcceptOfferAsync_ByNonClient_ThrowsForbidden()
     {
         var dbContext = GetDbContext();

@@ -13,12 +13,14 @@ public class Service : IService
     private readonly AivoraDbContext _dbContext;
     private readonly ITreasury _treasury;
     private readonly NotificationService.IService _notificationService;
+    private readonly RealtimeService.IService _realtimeService;
 
-    public Service(AivoraDbContext dbContext, ITreasury treasury, NotificationService.IService notificationService)
+    public Service(AivoraDbContext dbContext, ITreasury treasury, NotificationService.IService notificationService, RealtimeService.IService realtimeService)
     {
         _dbContext = dbContext;
         _treasury = treasury;
         _notificationService = notificationService;
+        _realtimeService = realtimeService;
     }
 
     public async Task<Response.DeliverableResponse> SubmitDeliverableAsync(Guid expertId, Guid milestoneId, Request.SubmitDeliverableRequest request)
@@ -76,6 +78,8 @@ public class Service : IService
             await _treasury.SyncProjectStatusAsync(milestone.ProjectId);
 
             await transaction.CommitAsync();
+
+            _realtimeService.SendMilestoneUpdatedAsync(milestone.ProjectId, milestoneId);
 
             // Send notification to the Client that the Expert has submitted a deliverable
             try

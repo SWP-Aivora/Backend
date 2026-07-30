@@ -103,7 +103,7 @@ public class Service : IService
                 jobId: null,
                 acceptedProposalId: null,
                 serviceRequestId: offer.ServiceRequestId,
-                milestones: offer.Milestones.Select(m => (m.Title, m.Description, m.Amount, m.OrderIndex)));
+                milestones: offer.Milestones.Select(m => (m.Title, m.Description, m.Amount, m.OrderIndex, m.DueDays)));
 
             _dbContext.Projects.Add(project);
             await _dbContext.SaveChangesAsync();

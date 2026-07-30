@@ -8,9 +8,9 @@ public class MockAIMilestoneStepSuggestionProvider : IAIMilestoneStepSuggestionP
         {
             Steps = new List<Response.SuggestedStep>
             {
-                new() { Title = $"Plan: {request.Title}", Description = "Break down the requirements and confirm scope before starting work." },
-                new() { Title = "Implement core work", Description = request.Description ?? "Carry out the main body of work described in the milestone." },
-                new() { Title = "Review against acceptance criteria", Description = request.AcceptanceCriteria ?? "Verify the completed work meets the milestone's acceptance criteria." }
+                new() { Title = $"Plan: {request.Title}", Description = "Break down the requirements and confirm scope before starting work.", EstimatedDays = 2 },
+                new() { Title = "Implement core work", Description = request.Description ?? "Carry out the main body of work described in the milestone.", EstimatedDays = 5 },
+                new() { Title = "Review against acceptance criteria", Description = request.AcceptanceCriteria ?? "Verify the completed work meets the milestone's acceptance criteria.", EstimatedDays = 1 }
             },
             AIModel = "Aivora-Mock"
         };

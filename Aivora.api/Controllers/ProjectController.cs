@@ -52,6 +52,15 @@ public class ProjectController : ControllerBase
         return Ok(ApiResponseFactory.SuccessResponse(result, "Project cancelled successfully", HttpContext.TraceIdentifier));
     }
 
+    [HttpPut("{id}/cancel-disputed")]
+    [Authorize]
+    public async Task<IActionResult> CancelDisputedProject(Guid id)
+    {
+        var userId = this.GetUserId();
+        var result = await _projectService.CancelDisputedProjectAsync(userId, id);
+        return Ok(ApiResponseFactory.SuccessResponse(result, "Project cancelled successfully", HttpContext.TraceIdentifier));
+    }
+
     [HttpPost("{id}/milestones")]
     [Authorize(Policy = JwtExtensions.ClientPolicy)]
     public async Task<IActionResult> CreateMilestone(Guid id, [FromBody] Aivora.Services.MilestoneService.Request.CreateMilestoneRequest request)

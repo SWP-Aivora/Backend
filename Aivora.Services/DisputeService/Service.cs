@@ -13,12 +13,14 @@ public class Service : IService
     private readonly AivoraDbContext _dbContext;
     private readonly NotificationService.IService _notificationService;
     private readonly ILogger<Service> _logger;
+    private readonly RealtimeService.IService _realtimeService;
 
-    public Service(AivoraDbContext dbContext, NotificationService.IService notificationService, ILogger<Service> logger)
+    public Service(AivoraDbContext dbContext, NotificationService.IService notificationService, ILogger<Service> logger, RealtimeService.IService realtimeService)
     {
         _dbContext = dbContext;
         _notificationService = notificationService;
         _logger = logger;
+        _realtimeService = realtimeService;
     }
 
     public async Task<Response.DisputeResponse> OpenDisputeAsync(Guid userId, Request.OpenDisputeRequest request)
@@ -30,6 +32,8 @@ public class Service : IService
         if (milestone == null) throw new NotFoundException("Milestone not found.");
         if (milestone.Project.ClientId != userId && milestone.Project.ExpertId != userId)
             throw new ForbiddenException("You are not authorized to open a dispute for this project.");
+        if (milestone.Project.IsClosed)
+            throw new ValidationException("Cannot open a dispute on a closed project.");
 
         var payment = await _dbContext.Payments.FirstOrDefaultAsync(p => p.MilestoneId == milestone.Id && (p.Status == PaymentStatus.RELEASED || p.Status == PaymentStatus.HELD));
         if (payment == null) throw new ValidationException("Only funded milestones with released payments can be disputed.");
@@ -65,6 +69,9 @@ public class Service : IService
             _dbContext.Disputes.Add(dispute);
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
+
+            _realtimeService.SendMilestoneUpdatedAsync(milestone.ProjectId, milestone.Id);
+            _realtimeService.SendDisputeUpdatedAsync(milestone.ProjectId, dispute.Id);
 
             // Send notification to the respondent
             try
@@ -234,6 +241,7 @@ public class Service : IService
 
         if (dispute == null) throw new NotFoundException("Dispute not found.");
         if (dispute.Status == DisputeStatus.RESOLVED) throw new ValidationException("Dispute is already resolved.");
+        if (dispute.Status == DisputeStatus.CLOSED) throw new ValidationException("Dispute is already closed.");
 
         var project = dispute.Project;
         var milestone = dispute.Milestone;
@@ -251,12 +259,14 @@ public class Service : IService
 
         // Recalculate project status
         var hasDisputed = await _dbContext.Milestones.AnyAsync(m => m.ProjectId == project.Id && m.Id != milestone.Id && m.Status == MilestoneStatus.DISPUTED);
-        if (!hasDisputed)
+        if (!hasDisputed && !project.IsClosed)
         {
             project.Status = ProjectStatus.ACTIVE;
         }
 
         await _dbContext.SaveChangesAsync();
+
+        _realtimeService.SendDisputeUpdatedAsync(project.Id, dispute.Id);
 
         try
         {
@@ -306,12 +316,14 @@ public class Service : IService
 
         // Recalculate project status
         var hasDisputed = await _dbContext.Milestones.AnyAsync(m => m.ProjectId == project.Id && m.Id != milestone.Id && m.Status == MilestoneStatus.DISPUTED);
-        if (!hasDisputed)
+        if (!hasDisputed && !project.IsClosed)
         {
             project.Status = ProjectStatus.ACTIVE;
         }
 
         await _dbContext.SaveChangesAsync();
+
+        _realtimeService.SendDisputeUpdatedAsync(project.Id, dispute.Id);
 
         try
         {

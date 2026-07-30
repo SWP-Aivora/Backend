@@ -36,5 +36,6 @@ public class Response
         public MilestoneStatus Status { get; set; }
         public int OrderIndex { get; set; }
         public DateOnly? DueDate { get; set; }
+        public int? DueDays { get; set; }
     }
 }

@@ -24,7 +24,8 @@ public class AIMilestoneStepSuggestionPromptBuilder
               "steps": [
                 {
                   "title": "concise step title",
-                  "description": "what the step involves"
+                  "description": "what the step involves",
+                  "estimatedDays": "estimated number of days to complete this step"
                 }
               ]
             }

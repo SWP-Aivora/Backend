@@ -15,6 +15,7 @@ public class Response
         public string Currency { get; set; } = null!;
         public MilestoneStatus Status { get; set; }
         public DateOnly? DueDate { get; set; }
+        public int? DueDays { get; set; }
         public int OrderIndex { get; set; }
         public DateTimeOffset CreatedAt { get; set; }
         public DateTimeOffset? FundedAt { get; set; }
@@ -24,6 +25,7 @@ public class Response
         public DateTimeOffset? PaidAt { get; set; }
         public DateTimeOffset? ReleasedAt { get; set; }
         public List<MilestoneStepResponse>? Steps { get; set; }
+        public int CascadedMilestoneCount { get; set; } = 0;
     }
 
     public class MilestoneStepResponse
@@ -44,6 +46,7 @@ public class Response
     {
         public string Title { get; set; } = null!;
         public string? Description { get; set; }
+        public int EstimatedDays { get; set; }
     }
 
     public class MilestoneStepSuggestionResponse

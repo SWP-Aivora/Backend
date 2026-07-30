@@ -2,10 +2,13 @@ using System;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using Aivora.api.Hubs;
+using Aivora.Repositories.Data;
+using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
 using MessageRequest = Aivora.Services.MessageService.Request;
 using MessageResponse = Aivora.Services.MessageService.Response;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
@@ -22,6 +25,7 @@ public class ChatHubTests
     private readonly Mock<IHubCallerClients> _mockClients;
     private readonly Mock<IGroupManager> _mockGroups;
     private readonly Mock<IClientProxy> _mockClientProxy;
+    private readonly AivoraDbContext _dbContext;
 
     public ChatHubTests()
     {
@@ -33,6 +37,11 @@ public class ChatHubTests
         _mockClientProxy = new Mock<IClientProxy>();
 
         _mockClients.Setup(c => c.Group(It.IsAny<string>())).Returns(_mockClientProxy.Object);
+
+        var options = new DbContextOptionsBuilder<AivoraDbContext>()
+            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .Options;
+        _dbContext = new AivoraDbContext(options);
     }
 
     private ChatHub CreateHub(ClaimsPrincipal principal)
@@ -40,12 +49,22 @@ public class ChatHubTests
         _mockContext.Setup(c => c.User).Returns(principal);
         _mockContext.Setup(c => c.ConnectionId).Returns("test-connection-id");
 
-        return new ChatHub(_mockMessageService.Object, _mockLogger.Object)
+        return new ChatHub(_mockMessageService.Object, _dbContext, _mockLogger.Object)
         {
             Context = _mockContext.Object,
             Clients = _mockClients.Object,
             Groups = _mockGroups.Object
         };
+    }
+
+    private static ClaimsPrincipal CreatePrincipal(Guid userId, UserRole role)
+    {
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+            new Claim(ClaimTypes.Role, role.ToString())
+        };
+        return new ClaimsPrincipal(new ClaimsIdentity(claims, "Test"));
     }
 
     [Fact]
@@ -135,5 +154,67 @@ public class ChatHubTests
         await act.Should().NotThrowAsync();
         _mockMessageService.Verify(s => s.EnsureConversationParticipantAsync(adminId, UserRole.ADMIN, conversationId), Times.Once);
         _mockGroups.Verify(g => g.AddToGroupAsync("test-connection-id", conversationId.ToString(), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task JoinProject_ByOutsider_ThrowsHubExceptionAndDoesNotAddToGroup()
+    {
+        // Arrange
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+        var outsiderId = Guid.NewGuid();
+        var project = new Project { ClientId = clientId, ExpertId = expertId, Title = "P1" };
+        _dbContext.Projects.Add(project);
+        await _dbContext.SaveChangesAsync();
+
+        var hub = CreateHub(CreatePrincipal(outsiderId, UserRole.EXPERT));
+
+        // Act
+        Func<Task> act = async () => await hub.JoinProject(project.Id);
+
+        // Assert
+        await act.Should().ThrowAsync<HubException>();
+        _mockGroups.Verify(g => g.AddToGroupAsync(It.IsAny<string>(), It.IsAny<string>(), default), Times.Never);
+    }
+
+    [Fact]
+    public async Task JoinProject_ByClient_AddsToProjectGroup()
+    {
+        // Arrange
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+        var project = new Project { ClientId = clientId, ExpertId = expertId, Title = "P1" };
+        _dbContext.Projects.Add(project);
+        await _dbContext.SaveChangesAsync();
+
+        var hub = CreateHub(CreatePrincipal(clientId, UserRole.CLIENT));
+
+        // Act
+        Func<Task> act = async () => await hub.JoinProject(project.Id);
+
+        // Assert
+        await act.Should().NotThrowAsync();
+        _mockGroups.Verify(g => g.AddToGroupAsync("test-connection-id", $"project-{project.Id}", default), Times.Once);
+    }
+
+    [Fact]
+    public async Task JoinProject_ByAdmin_AddsToProjectGroupEvenIfNotParticipant()
+    {
+        // Arrange
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
+        var project = new Project { ClientId = clientId, ExpertId = expertId, Title = "P1" };
+        _dbContext.Projects.Add(project);
+        await _dbContext.SaveChangesAsync();
+
+        var hub = CreateHub(CreatePrincipal(adminId, UserRole.ADMIN));
+
+        // Act
+        Func<Task> act = async () => await hub.JoinProject(project.Id);
+
+        // Assert
+        await act.Should().NotThrowAsync();
+        _mockGroups.Verify(g => g.AddToGroupAsync("test-connection-id", $"project-{project.Id}", default), Times.Once);
     }
 }

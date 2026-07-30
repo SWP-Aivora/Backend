@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Aivora.api.Hubs;
 using Aivora.Repositories.Data;
 using Aivora.Repositories.Entities;
 using Aivora.Repositories.Enums;
@@ -9,6 +10,7 @@ using Aivora.Repositories.Constants;
 using Aivora.Services.Options;
 using Aivora.Services.Treasury;
 using FluentAssertions;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -87,6 +89,32 @@ public class TreasuryRealtimeTests
             It.IsAny<JobStatus>(),
             It.IsAny<string?>()
         ), Times.Never);
+    }
+
+    [Fact]
+    public async Task SyncProjectStatusAsync_WhenProjectCancelled_DoesNotOverwriteStatus()
+    {
+        // Arrange: project is CANCELLED (terminal) but still has a DISPUTED milestone lying around
+        // (e.g. from before the cancel-disputed flow closed it out). Sync must not resurrect it.
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+
+        var project = new Project { ClientId = clientId, ExpertId = expertId, Status = ProjectStatus.CANCELLED, Title = "Cancelled Project" };
+        var milestone = new Milestone { Project = project, Title = "M1", Amount = 100, Status = MilestoneStatus.DISPUTED };
+
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestone);
+        await dbContext.SaveChangesAsync();
+
+        var mockRealtime = new Mock<Aivora.Services.RealtimeService.IService>();
+        var commissionOptions = Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.CommissionOptions { Rate = 0.10m });
+        var treasury = new Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), mockRealtime.Object, Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.EscrowOptions()));
+
+        await treasury.SyncProjectStatusAsync(project.Id);
+
+        var updated = await dbContext.Projects.FindAsync(project.Id);
+        updated!.Status.Should().Be(ProjectStatus.CANCELLED);
     }
 
     [Fact]
@@ -352,6 +380,48 @@ public class TreasuryRealtimeTests
     }
 
     [Fact]
+    public async Task PayDepositAsync_WhenMilestoneBroadcastThrows_StillCommitsAndReturnsResult()
+    {
+        // Arrange: a real RealtimeService backed by a hub context that throws as soon as it's used.
+        // PayDepositAsync's fire-and-forget realtime call must not let that exception escape into
+        // the transaction's try/catch (which would otherwise call RollbackAsync on an already-committed transaction).
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+
+        var clientWallet = new Wallet { UserId = clientId, AvailableBalance = 1000, HeldBalance = 0, Currency = CurrencyConstants.VND };
+        var expertWallet = new Wallet { UserId = expertId, AvailableBalance = 0, HeldBalance = 0, Currency = CurrencyConstants.VND };
+        var project = new Project { ClientId = clientId, ExpertId = expertId, Title = "P1" };
+        var milestone = new Milestone { Project = project, Amount = 1000, Status = MilestoneStatus.CREATED, Title = "M1" };
+
+        dbContext.Wallets.AddRange(clientWallet, expertWallet);
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestone);
+        await dbContext.SaveChangesAsync();
+
+        var mockHubContext = new Mock<IHubContext<ChatHub>>();
+        mockHubContext.Setup(h => h.Clients).Throws(new InvalidOperationException("hub is down"));
+        var realtimeService = new Aivora.Services.RealtimeService.Service(mockHubContext.Object);
+
+        var treasury = new Aivora.Services.Treasury.Treasury(
+            dbContext,
+            new Aivora.Services.Treasury.CommissionCalculator(Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.CommissionOptions { Rate = 0.10m })),
+            Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(),
+            Mock.Of<Aivora.Services.NotificationService.IService>(),
+            realtimeService,
+            Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.EscrowOptions())
+        );
+
+        // Act
+        var result = await treasury.PayDepositAsync(clientId, milestone.Id);
+
+        // Assert: the fund transaction completed normally despite the broadcast blowing up.
+        result.Should().NotBeNull();
+        milestone.Status.Should().Be(MilestoneStatus.IN_PROGRESS);
+        clientWallet.AvailableBalance.Should().Be(700);
+    }
+
+    [Fact]
     public async Task PayRemainingAsync_Should_Throw_ValidationException_When_Milestone_Is_Disputed()
     {
         // Arrange
@@ -385,6 +455,117 @@ public class TreasuryRealtimeTests
         // Assert
         await act.Should().ThrowAsync<Aivora.Services.Exceptions.ValidationException>()
             .WithMessage("Cannot release remaining funds while the milestone is disputed.");
+    }
+
+    [Fact]
+    public async Task PayDepositAsync_Should_Throw_ValidationException_When_Project_Is_Disputed()
+    {
+        // Arrange: milestone A is DISPUTED (project-level DISPUTED), milestone B is still CREATED.
+        // Funding milestone B must be rejected because the project has an active dispute.
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+
+        var clientWallet = new Wallet { UserId = clientId, AvailableBalance = 1000, HeldBalance = 0, Currency = "AICOIN" };
+        var expertWallet = new Wallet { UserId = expertId, AvailableBalance = 0, HeldBalance = 0, Currency = "AICOIN" };
+        var project = new Project { ClientId = clientId, ExpertId = expertId, Title = "Disputed Project", Status = ProjectStatus.DISPUTED };
+        var disputedMilestone = new Milestone { Project = project, Amount = 500, Status = MilestoneStatus.DISPUTED, Title = "M1" };
+        var milestoneToFund = new Milestone { Project = project, Amount = 500, Status = MilestoneStatus.CREATED, Title = "M2" };
+
+        dbContext.Wallets.AddRange(clientWallet, expertWallet);
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.AddRange(disputedMilestone, milestoneToFund);
+        await dbContext.SaveChangesAsync();
+
+        var treasury = new Aivora.Services.Treasury.Treasury(
+            dbContext,
+            new CommissionCalculator(Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.CommissionOptions { Rate = 0.10m })),
+            Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(),
+            Mock.Of<Aivora.Services.NotificationService.IService>(),
+            Mock.Of<Aivora.Services.RealtimeService.IService>(),
+            Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.EscrowOptions())
+        );
+
+        // Act
+        Func<Task> act = async () => await treasury.PayDepositAsync(clientId, milestoneToFund.Id);
+
+        // Assert - rejected, no wallet mutation
+        await act.Should().ThrowAsync<Aivora.Services.Exceptions.ValidationException>()
+            .WithMessage("Cannot fund a milestone while there is an active dispute.");
+        clientWallet.AvailableBalance.Should().Be(1000);
+        expertWallet.AvailableBalance.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task PayDepositAsync_Should_Succeed_After_Dispute_Is_Closed()
+    {
+        // Arrange: project was DISPUTED but the dispute has since been closed (project back to ACTIVE).
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+
+        var clientWallet = new Wallet { UserId = clientId, AvailableBalance = 1000, HeldBalance = 0, Currency = "AICOIN" };
+        var expertWallet = new Wallet { UserId = expertId, AvailableBalance = 0, HeldBalance = 0, Currency = "AICOIN" };
+        var project = new Project { ClientId = clientId, ExpertId = expertId, Title = "Formerly Disputed Project", Status = ProjectStatus.ACTIVE };
+        var milestoneToFund = new Milestone { Project = project, Amount = 500, Status = MilestoneStatus.CREATED, Title = "M2" };
+
+        dbContext.Wallets.AddRange(clientWallet, expertWallet);
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestoneToFund);
+        await dbContext.SaveChangesAsync();
+
+        var treasury = new Aivora.Services.Treasury.Treasury(
+            dbContext,
+            new CommissionCalculator(Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.CommissionOptions { Rate = 0.10m })),
+            Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(),
+            Mock.Of<Aivora.Services.NotificationService.IService>(),
+            Mock.Of<Aivora.Services.RealtimeService.IService>(),
+            Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.EscrowOptions())
+        );
+
+        // Act
+        var result = await treasury.PayDepositAsync(clientId, milestoneToFund.Id);
+
+        // Assert
+        result.Should().NotBeNull();
+        milestoneToFund.Status.Should().Be(MilestoneStatus.IN_PROGRESS);
+    }
+
+    [Fact]
+    public async Task PayDepositAsync_Should_Throw_ValidationException_When_Project_Is_Cancelled()
+    {
+        // Arrange: project was cancelled via cancel-disputed (dispute closed as a consequence,
+        // so Project.Status is CANCELLED, not DISPUTED). Funding must still be rejected —
+        // CANCELLED has to be as terminal for money movement as DISPUTED is.
+        var dbContext = GetDbContext();
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+
+        var clientWallet = new Wallet { UserId = clientId, AvailableBalance = 1000, HeldBalance = 0, Currency = "AICOIN" };
+        var expertWallet = new Wallet { UserId = expertId, AvailableBalance = 0, HeldBalance = 0, Currency = "AICOIN" };
+        var project = new Project { ClientId = clientId, ExpertId = expertId, Title = "Cancelled Project", Status = ProjectStatus.CANCELLED };
+        var milestoneToFund = new Milestone { Project = project, Amount = 500, Status = MilestoneStatus.CREATED, Title = "M2" };
+
+        dbContext.Wallets.AddRange(clientWallet, expertWallet);
+        dbContext.Projects.Add(project);
+        dbContext.Milestones.Add(milestoneToFund);
+        await dbContext.SaveChangesAsync();
+
+        var treasury = new Aivora.Services.Treasury.Treasury(
+            dbContext,
+            new CommissionCalculator(Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.CommissionOptions { Rate = 0.10m })),
+            Mock.Of<ILogger<Aivora.Services.Treasury.Treasury>>(),
+            Mock.Of<Aivora.Services.NotificationService.IService>(),
+            Mock.Of<Aivora.Services.RealtimeService.IService>(),
+            Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.EscrowOptions())
+        );
+
+        Func<Task> act = async () => await treasury.PayDepositAsync(clientId, milestoneToFund.Id);
+
+        await act.Should().ThrowAsync<Aivora.Services.Exceptions.ValidationException>()
+            .WithMessage("Cannot fund a milestone on a closed project.");
+        clientWallet.AvailableBalance.Should().Be(1000);
+        expertWallet.AvailableBalance.Should().Be(0);
     }
 }
 

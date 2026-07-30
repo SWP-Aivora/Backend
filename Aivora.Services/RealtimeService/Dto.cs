@@ -8,3 +8,15 @@ public class RealtimeJobStatusUpdateDto
     public string Status { get; set; } = null!;
     public string? Title { get; set; }
 }
+
+public class MilestoneUpdatedDto
+{
+    public Guid ProjectId { get; set; }
+    public Guid MilestoneId { get; set; }
+}
+
+public class DisputeUpdatedDto
+{
+    public Guid ProjectId { get; set; }
+    public Guid DisputeId { get; set; }
+}

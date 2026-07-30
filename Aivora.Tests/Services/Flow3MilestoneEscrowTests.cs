@@ -133,7 +133,7 @@ public class Flow3MilestoneEscrowTests
         // Use the service (public interface)
         var commissionOptions = Options.Create(new CommissionOptions { Rate = 0.10m });
         var treasury = new Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService(), Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.EscrowOptions()));
-        var milestoneService = new Service(dbContext, treasury, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
+        var milestoneService = new Service(dbContext, treasury, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>(), new Aivora.Services.RealtimeService.NullRealtimeService());
 
         // ----------------------------------------------------
         // Act: Client funds the milestone
@@ -269,7 +269,7 @@ public class Flow3MilestoneEscrowTests
 
         var commissionOptions = Options.Create(new CommissionOptions { Rate = 0.10m });
         var treasury = new Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService(), Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.EscrowOptions()));
-        var milestoneService = new Service(dbContext, treasury, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
+        var milestoneService = new Service(dbContext, treasury, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>(), new Aivora.Services.RealtimeService.NullRealtimeService());
 
         // ----------------------------------------------------
         // Act & Assert: Should fail with validation error
@@ -387,7 +387,7 @@ public class Flow3MilestoneEscrowTests
 
         var commissionOptions = Options.Create(new CommissionOptions { Rate = 0.10m });
         var treasury = new Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService(), Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.EscrowOptions()));
-        var milestoneService = new Service(dbContext, treasury, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
+        var milestoneService = new Service(dbContext, treasury, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>(), new Aivora.Services.RealtimeService.NullRealtimeService());
 
         // ----------------------------------------------------
         // Act & Assert: Should fail with authorization error
@@ -464,7 +464,7 @@ public class Flow3MilestoneEscrowTests
             var dbContext = GetDbContext(dbName);
             var commissionOptions = Options.Create(new CommissionOptions { Rate = 0.10m });
             var treasury = new Treasury(dbContext, new Aivora.Services.Treasury.CommissionCalculator(commissionOptions), Mock.Of<ILogger<Treasury>>(), Mock.Of<Aivora.Services.NotificationService.IService>(), new Aivora.Services.RealtimeService.NullRealtimeService(), Microsoft.Extensions.Options.Options.Create(new Aivora.Services.Options.EscrowOptions()));
-            var milestoneService = new Service(dbContext, treasury, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>());
+            var milestoneService = new Service(dbContext, treasury, Mock.Of<Aivora.Services.NotificationService.IService>(), Mock.Of<Aivora.Services.AIMilestoneStepAssistantService.IAIMilestoneStepSuggestionProvider>(), new Aivora.Services.RealtimeService.NullRealtimeService());
             return milestoneService.FundMilestoneAsync(clientId, milestoneId);
         }
 
@@ -564,8 +564,14 @@ public class Flow3MilestoneEscrowTests
         succeeded.Should().HaveCount(1, "double-click / retry-on-timeout must not release the remaining funds twice");
         failed.Should().HaveCount(concurrentRequests - 1);
         failed.Should().OnlyContain(t => t.Exception!.InnerException is ValidationException);
+        // The loser can legitimately see either message depending on timing: if it reads
+        // before the winner's release settles the milestone, it sees the SUBMITTED-status
+        // check; if it reads after the winner's release also closes the project (all
+        // milestones settled), it sees the closed-project guard instead. Both are correct
+        // rejections of the same double-release attempt.
         failed.Select(t => ((ValidationException)t.Exception!.InnerException!).Message)
-            .Should().OnlyContain(m => m == "Milestone must be in SUBMITTED status to release remaining funds.");
+            .Should().OnlyContain(m => m == "Milestone must be in SUBMITTED status to release remaining funds."
+                || m == "Cannot release remaining funds on a closed project.");
 
         using var verifyContext = GetDbContext(dbName);
         var payments = await verifyContext.Payments.Where(p => p.MilestoneId == milestoneId).ToListAsync();

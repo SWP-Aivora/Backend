@@ -105,9 +105,9 @@ public class AdminController : ControllerBase
 
     [HttpGet("expert-verifications")]
     [Authorize(Policy = JwtExtensions.AdminPolicy)]
-    public async Task<IActionResult> GetExpertVerifications([FromQuery] Aivora.Services.Base.Request.PageRequest pageRequest, [FromQuery] Aivora.Repositories.Enums.ExpertVerificationStatus? status, [FromQuery] Guid? expertId)
+    public async Task<IActionResult> GetExpertVerifications([FromQuery] Aivora.Services.Base.Request.PageRequest pageRequest, [FromQuery] Aivora.Repositories.Enums.ExpertVerificationStatus? status, [FromQuery] Guid? expertId, [FromQuery] string? search)
     {
-        var result = await _expertVerificationService.GetAdminVerificationsAsync(pageRequest, status, expertId);
+        var result = await _expertVerificationService.GetAdminVerificationsAsync(pageRequest, status, expertId, search);
         return Ok(ApiResponseFactory.SuccessResponse(result, "Expert verifications retrieved", HttpContext.TraceIdentifier));
     }
 

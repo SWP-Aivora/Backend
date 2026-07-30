@@ -10,10 +10,12 @@ namespace Aivora.Services.ProjectService;
 public class Service : IService
 {
     private readonly AivoraDbContext _dbContext;
+    private readonly RealtimeService.IService _realtimeService;
 
-    public Service(AivoraDbContext dbContext)
+    public Service(AivoraDbContext dbContext, RealtimeService.IService realtimeService)
     {
         _dbContext = dbContext;
+        _realtimeService = realtimeService;
     }
 
     public async Task<Response.ProjectResponse> GetProjectByIdAsync(Guid userId, Guid projectId, UserRole userRole)
@@ -110,6 +112,52 @@ public class Service : IService
         return MapToResponse(project);
     }
 
+    public async Task<Response.ProjectResponse> CancelDisputedProjectAsync(Guid userId, Guid projectId)
+    {
+        var project = await _dbContext.Projects
+            .Include(p => p.Milestones)
+            .FirstOrDefaultAsync(p => p.Id == projectId);
+
+        if (project == null) throw new NotFoundException("Project not found.");
+        if (project.ClientId != userId && project.ExpertId != userId)
+            throw new ForbiddenException("Only the client or expert of this project can cancel it.");
+
+        using var transaction = await _dbContext.Database.BeginTransactionAsync();
+        try
+        {
+            var activeDisputes = await _dbContext.Disputes
+                .Where(d => d.ProjectId == projectId && (d.Status == DisputeStatus.OPEN || d.Status == DisputeStatus.UNDER_REVIEW))
+                .ToListAsync();
+
+            if (!activeDisputes.Any())
+                throw new ValidationException("No active dispute to cancel against.");
+
+            project.Status = ProjectStatus.CANCELLED;
+            project.CancelledAt = DateTimeOffset.UtcNow;
+
+            foreach (var dispute in activeDisputes)
+            {
+                dispute.Status = DisputeStatus.CLOSED;
+                dispute.ResolvedAt = DateTimeOffset.UtcNow;
+            }
+
+            await _dbContext.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            foreach (var dispute in activeDisputes)
+            {
+                _realtimeService.SendDisputeUpdatedAsync(projectId, dispute.Id);
+            }
+
+            return MapToResponse(project);
+        }
+        catch (Exception)
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
+    }
+
     private static Response.ProjectResponse MapToResponse(Project p)
     {
         return new Response.ProjectResponse
@@ -140,7 +188,8 @@ public class Service : IService
                 Currency = m.Currency,
                 Status = m.Status,
                 OrderIndex = m.OrderIndex,
-                DueDate = m.DueDate
+                DueDate = m.DueDate,
+                DueDays = m.DueDate.HasValue ? m.DueDate.Value.DayNumber - DateOnly.FromDateTime(m.CreatedAt.UtcDateTime).DayNumber : null
             }).OrderBy(m => m.OrderIndex).ToList()
         };
     }

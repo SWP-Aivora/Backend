@@ -28,7 +28,7 @@ public class DisputeServiceTests : IDisposable
         _dbContext = new AivoraDbContext(options);
         _mockNotificationService = new MockNotificationService();
 
-        _disputeService = new DisputeService(_dbContext, _mockNotificationService, Mock.Of<ILogger<DisputeService>>());
+        _disputeService = new DisputeService(_dbContext, _mockNotificationService, Mock.Of<ILogger<DisputeService>>(), new Aivora.Services.RealtimeService.NullRealtimeService());
     }
 
     // ==================== ResolveDispute Tests ====================
@@ -55,6 +55,27 @@ public class DisputeServiceTests : IDisposable
         response.Status.Should().Be(DisputeStatus.RESOLVED.ToString());
         response.ResolutionNote.Should().Be("Resolved via external mediation");
         response.ResolvedAt.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task ResolveDisputeAsync_WhenAlreadyClosed_Throws()
+    {
+        // Arrange
+        var admin = await SeedUserAsync(UserRole.ADMIN, "admin2@test.com");
+        var client = await SeedUserAsync(UserRole.CLIENT, "client2@test.com");
+        var expert = await SeedUserAsync(UserRole.EXPERT, "expert2@test.com");
+        var dispute = await SeedDisputeAsync(client.Id, expert.Id, DisputeStatus.CLOSED);
+
+        var request = new Aivora.Services.DisputeService.Request.ResolveDisputeRequest
+        {
+            ResolutionNote = "Too late"
+        };
+
+        // Act
+        var act = () => _disputeService.ResolveDisputeAsync(admin.Id, dispute.Id, request);
+
+        // Assert
+        await act.Should().ThrowAsync<ValidationException>();
     }
 
     [Fact]
@@ -412,6 +433,106 @@ public class DisputeServiceTests : IDisposable
         // Act & Assert
         var act = () => _disputeService.DeleteEvidenceAsync(client.Id, dispute.Id, Guid.NewGuid());
         await act.Should().ThrowAsync<NotFoundException>();
+    }
+
+    // ==================== Realtime broadcast Tests (#199) ====================
+
+    [Fact]
+    public async Task OpenDispute_ShouldBroadcastDisputeUpdatedExactlyOnce()
+    {
+        var client = await SeedUserAsync(UserRole.CLIENT, "client@test.com");
+        var expert = await SeedUserAsync(UserRole.EXPERT, "expert@test.com");
+
+        var project = new Project { Id = Guid.NewGuid(), ClientId = client.Id, ExpertId = expert.Id, Status = ProjectStatus.ACTIVE, Title = "Test Project" };
+        _dbContext.Projects.Add(project);
+        var milestone = new Milestone { Id = Guid.NewGuid(), ProjectId = project.Id, Title = "Test Milestone", Amount = 1000, Status = MilestoneStatus.IN_PROGRESS };
+        _dbContext.Milestones.Add(milestone);
+        var payment = new Payment { Id = Guid.NewGuid(), MilestoneId = milestone.Id, ProjectId = project.Id, PayerId = client.Id, PayeeId = expert.Id, Amount = 1000, Status = PaymentStatus.RELEASED };
+        _dbContext.Payments.Add(payment);
+        await _dbContext.SaveChangesAsync();
+
+        var mockRealtime = new Mock<Aivora.Services.RealtimeService.IService>();
+        var service = new DisputeService(_dbContext, _mockNotificationService, Mock.Of<ILogger<DisputeService>>(), mockRealtime.Object);
+
+        var request = new Aivora.Services.DisputeService.Request.OpenDisputeRequest { MilestoneId = milestone.Id, Reason = "Test dispute reason" };
+        await service.OpenDisputeAsync(client.Id, request);
+
+        mockRealtime.Verify(r => r.SendDisputeUpdatedAsync(project.Id, It.IsAny<Guid>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ResolveDispute_ShouldBroadcastDisputeUpdatedExactlyOnce()
+    {
+        var admin = await SeedUserAsync(UserRole.ADMIN, "admin@test.com");
+        var client = await SeedUserAsync(UserRole.CLIENT, "client@test.com");
+        var expert = await SeedUserAsync(UserRole.EXPERT, "expert@test.com");
+        var dispute = await SeedDisputeAsync(client.Id, expert.Id, DisputeStatus.OPEN);
+
+        var mockRealtime = new Mock<Aivora.Services.RealtimeService.IService>();
+        var service = new DisputeService(_dbContext, _mockNotificationService, Mock.Of<ILogger<DisputeService>>(), mockRealtime.Object);
+
+        var request = new Aivora.Services.DisputeService.Request.ResolveDisputeRequest { ResolutionNote = "Resolved" };
+        await service.ResolveDisputeAsync(admin.Id, dispute.Id, request);
+
+        mockRealtime.Verify(r => r.SendDisputeUpdatedAsync(dispute.ProjectId, dispute.Id), Times.Once);
+    }
+
+    [Fact]
+    public async Task CloseDispute_ShouldBroadcastDisputeUpdatedExactlyOnce()
+    {
+        var client = await SeedUserAsync(UserRole.CLIENT, "client@test.com");
+        var expert = await SeedUserAsync(UserRole.EXPERT, "expert@test.com");
+        var dispute = await SeedDisputeAsync(client.Id, expert.Id, DisputeStatus.OPEN);
+
+        var mockRealtime = new Mock<Aivora.Services.RealtimeService.IService>();
+        var service = new DisputeService(_dbContext, _mockNotificationService, Mock.Of<ILogger<DisputeService>>(), mockRealtime.Object);
+
+        await service.CloseDisputeAsync(client.Id, dispute.Id);
+
+        mockRealtime.Verify(r => r.SendDisputeUpdatedAsync(dispute.ProjectId, dispute.Id), Times.Once);
+    }
+
+    // ==================== "CANCELLED must be terminal" Tests ====================
+
+    [Fact]
+    public async Task OpenDispute_OnCancelledProject_ShouldThrowValidation()
+    {
+        var client = await SeedUserAsync(UserRole.CLIENT, "client@test.com");
+        var expert = await SeedUserAsync(UserRole.EXPERT, "expert@test.com");
+
+        var project = new Project { Id = Guid.NewGuid(), ClientId = client.Id, ExpertId = expert.Id, Status = ProjectStatus.CANCELLED, Title = "Cancelled Project" };
+        _dbContext.Projects.Add(project);
+        var milestone = new Milestone { Id = Guid.NewGuid(), ProjectId = project.Id, Title = "Test Milestone", Amount = 1000, Status = MilestoneStatus.RELEASED };
+        _dbContext.Milestones.Add(milestone);
+        var payment = new Payment { Id = Guid.NewGuid(), MilestoneId = milestone.Id, ProjectId = project.Id, PayerId = client.Id, PayeeId = expert.Id, Amount = 1000, Status = PaymentStatus.RELEASED };
+        _dbContext.Payments.Add(payment);
+        await _dbContext.SaveChangesAsync();
+
+        var request = new Aivora.Services.DisputeService.Request.OpenDisputeRequest { MilestoneId = milestone.Id, Reason = "Too late" };
+
+        var act = () => _disputeService.OpenDisputeAsync(client.Id, request);
+        var ex = await act.Should().ThrowAsync<ValidationException>();
+        ex.Which.Message.ToLower().Should().Contain("closed project");
+    }
+
+    [Fact]
+    public async Task ResolveDispute_OnCancelledProject_ShouldNotFlipProjectStatusAway()
+    {
+        // Arrange - dispute still OPEN/resolvable but project was cancelled out-of-band (e.g. via #202 cancel-disputed)
+        var admin = await SeedUserAsync(UserRole.ADMIN, "admin@test.com");
+        var client = await SeedUserAsync(UserRole.CLIENT, "client@test.com");
+        var expert = await SeedUserAsync(UserRole.EXPERT, "expert@test.com");
+        var dispute = await SeedDisputeAsync(client.Id, expert.Id, DisputeStatus.OPEN);
+
+        var project = await _dbContext.Projects.FindAsync(dispute.ProjectId);
+        project!.Status = ProjectStatus.CANCELLED;
+        await _dbContext.SaveChangesAsync();
+
+        var request = new Aivora.Services.DisputeService.Request.ResolveDisputeRequest { ResolutionNote = "Resolved after cancel" };
+        await _disputeService.ResolveDisputeAsync(admin.Id, dispute.Id, request);
+
+        var dbProject = await _dbContext.Projects.FindAsync(dispute.ProjectId);
+        dbProject!.Status.Should().Be(ProjectStatus.CANCELLED);
     }
 
     // ==================== Helpers ====================

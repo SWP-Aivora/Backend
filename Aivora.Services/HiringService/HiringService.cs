@@ -80,7 +80,7 @@ public class HiringService : IHiringService
                 jobId: proposal.JobId,
                 acceptedProposalId: proposal.Id,
                 serviceRequestId: null,
-                milestones: proposal.Milestones.Select(pm => (pm.Title, pm.Description, pm.Amount, pm.OrderIndex)));
+                milestones: proposal.Milestones.Select(pm => (pm.Title, pm.Description, pm.Amount, pm.OrderIndex, pm.DueDays)));
 
             _dbContext.Projects.Add(project);
             await _dbContext.SaveChangesAsync();
