@@ -188,7 +188,8 @@ public class Service : IService
                 Currency = m.Currency,
                 Status = m.Status,
                 OrderIndex = m.OrderIndex,
-                DueDate = m.DueDate
+                DueDate = m.DueDate,
+                DueDays = m.DueDate.HasValue ? m.DueDate.Value.DayNumber - DateOnly.FromDateTime(m.CreatedAt.UtcDateTime).DayNumber : null
             }).OrderBy(m => m.OrderIndex).ToList()
         };
     }

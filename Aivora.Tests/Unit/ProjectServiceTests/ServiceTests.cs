@@ -174,6 +174,59 @@ public class ServiceTests : IDisposable
         result.Id.Should().Be(projectId);
     }
 
+    [Fact]
+    public async Task GetProjectByIdAsync_MilestoneHasDueDate_DerivesDueDaysFromDueDateAndCreatedAt()
+    {
+        // Arrange
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        await SeedProjectAsync(clientId, expertId, projectId);
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        _dbContext.Milestones.Add(new Milestone
+        {
+            ProjectId = projectId,
+            Title = "Milestone 1",
+            Amount = 300,
+            Status = MilestoneStatus.CREATED,
+            DueDate = today.AddDays(10)
+        });
+        await _dbContext.SaveChangesAsync();
+
+        // Act
+        var result = await _service.GetProjectByIdAsync(clientId, projectId, UserRole.CLIENT);
+
+        // Assert
+        result.Milestones.Single().DueDays.Should().Be(10);
+    }
+
+    [Fact]
+    public async Task GetProjectByIdAsync_MilestoneDueDateNull_DueDaysNull()
+    {
+        // Arrange
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        await SeedProjectAsync(clientId, expertId, projectId);
+
+        _dbContext.Milestones.Add(new Milestone
+        {
+            ProjectId = projectId,
+            Title = "Milestone 1",
+            Amount = 300,
+            Status = MilestoneStatus.CREATED,
+            DueDate = null
+        });
+        await _dbContext.SaveChangesAsync();
+
+        // Act
+        var result = await _service.GetProjectByIdAsync(clientId, projectId, UserRole.CLIENT);
+
+        // Assert
+        result.Milestones.Single().DueDays.Should().BeNull();
+    }
+
     // ==================== CancelDisputedProjectAsync Tests (#202) ====================
 
     private async Task<(Project project, Dispute dispute)> SeedDisputedProjectAsync(Guid clientId, Guid expertId, DisputeStatus disputeStatus = DisputeStatus.OPEN)
