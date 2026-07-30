@@ -54,3 +54,7 @@ appsettings.Development.json
 # Python (CI scripts under .github/scripts)
 __pycache__/
 *.pyc
+
+# Local verify/test artifacts
+*.env.verify-backup
+docs/user-tester/
