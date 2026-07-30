@@ -422,10 +422,14 @@ GET /api/v1/jobs/{jobId}/recommendations
 
 ---
 
-# FLOW 2: Proposal & Project Creation
+# FLOW 2: Project Creation
+
+> **Mục tiêu:** Tạo Project qua 1 trong 2 con đường độc lập — Path A (Job → Proposal) hoặc Path B (Service → Request → Offer). Cả 2 đều tạo ra cùng 1 loại `Projects` row rồi join vào Flow 3.
+> **Actors:** Expert, Client.
+
+## FLOW 2 — PATH A: Proposal & Project Creation
 
 > **Mục tiêu:** Expert nộp proposal, Client chọn 1 expert, System tạo project.
-> **Actors:** Expert, Client.
 > **Status:** `Proposal: NULL → SUBMITTED → ACCEPTED / REJECTED / WITHDRAWN`, `Job: OPEN → IN_PROGRESS`, `Project: NULL → PENDING_PAYMENT`
 > **Tables:** `JobPosts`, `Proposals`, `ProposalMilestones`, `Projects`, `Milestones`, `Conversations`, `Messages`
 
@@ -532,7 +536,7 @@ PUT /api/v1/proposals/{proposalId}/accept
 
 **Rollback:** nếu bất kỳ bước nào fail → rollback toàn bộ.
 
-## Flow 2 — API Summary
+## Flow 2 Path A — API Summary
 
 | # | Method | Endpoint | Auth | Tables |
 |---|--------|----------|------|--------|
@@ -549,14 +553,248 @@ PUT /api/v1/proposals/{proposalId}/accept
 
 ---
 
+## FLOW 2 — PATH B: Service & Project Creation
+
+> **Mục tiêu:** Expert publish 1 service có sẵn packages, Client request 1 package, Expert gửi offer, Client accept offer → System tạo project. Không dùng `JobPosts`/`Proposals`.
+> **Status:** `Service: NULL → DRAFT → PUBLISHED`, `ServiceRequest: NULL → PENDING → ACCEPTED / DECLINED`, `ServiceOffer: NULL → PENDING → ACCEPTED`, `Project: NULL → PENDING_PAYMENT`
+> **Tables:** `Services` (`ServiceListing`), `ServicePackages`, `ServiceFaqs`, `ServiceRequests`, `ServiceOffers`, `ServiceOfferMilestones`, `Projects`, `Milestones`, `Conversations`
+
+### 2B.1. Tạo service (draft)
+
+```
+POST /api/v1/services
+```
+
+**Auth:** `ExpertPolicy`.
+
+**Request body (`CreateServiceRequest`):**
+```json
+{
+  "title": "AI Chatbot Development",
+  "description": "I build production-ready AI chatbots for e-commerce.",
+  "attachmentUrl": "https://res.cloudinary.com/.../portfolio.pdf",
+  "packages": [
+    { "tier": "BASIC", "title": "Basic", "description": "Simple FAQ bot", "price": 500, "deliveryDays": 7, "features": ["FAQ bot", "1 revision"] },
+    { "tier": "STANDARD", "title": "Standard", "description": "Bot with product recommendation", "price": 1200, "deliveryDays": 14, "features": ["FAQ bot", "Product recommendation", "3 revisions"] }
+  ],
+  "faqs": [
+    { "question": "How long does delivery take?", "answer": "7-30 days depending on the package." }
+  ]
+}
+```
+
+**Validation:** `title`, `description` bắt buộc. Ít nhất 1 package (`price > 0`, `deliveryDays` trong khoảng hợp lệ) và 1 FAQ.
+
+**Side effects:** Tạo `Services` (Status = `DRAFT`) + `ServicePackages` + `ServiceFaqs`.
+
+**Status:** `201 Created`, `400` (validation), `403` (Client gọi endpoint này).
+
+### 2B.2. Cập nhật service (partial update)
+
+```
+PUT /api/v1/services/{id}
+```
+
+**Auth:** `ExpertPolicy`, chủ service. Body giống `CreateServiceRequest` nhưng mọi field optional (`null` = không đổi). Gửi `packages`/`faqs` sẽ **thay toàn bộ** tập cũ bằng tập mới (không phải merge từng item).
+
+### 2B.3. Publish service
+
+```
+POST /api/v1/services/{id}/publish
+```
+
+**Auth:** `ExpertPolicy`, chủ service. **Validation:** phải có ít nhất 1 package và 1 FAQ.
+
+**Status transition:** `DRAFT → PUBLISHED`. **Side effects:** `PublishedAt = UTC now`.
+
+### 2B.4. Unpublish service
+
+```
+POST /api/v1/services/{id}/unpublish
+```
+
+**Auth:** `ExpertPolicy`, chủ service. **Status transition:** `PUBLISHED → DRAFT`.
+
+### 2B.5. Xem danh sách service đã publish (public)
+
+```
+GET /api/v1/services?pageIndex=1&pageSize=20&searchTerm=
+```
+
+**Auth:** không bắt buộc. Chỉ trả service `Status = PUBLISHED`.
+
+### 2B.6. Xem service của tôi (Expert)
+
+```
+GET /api/v1/services/mine
+```
+
+**Auth:** `ExpertPolicy`. Trả cả `DRAFT` và `PUBLISHED`.
+
+### 2B.7. Xem chi tiết service
+
+```
+GET /api/v1/services/{id}
+```
+
+**Auth:** không bắt buộc cho service `PUBLISHED`; chủ service xem được cả khi `DRAFT`.
+
+### 2B.8. Client gửi request cho 1 package
+
+```
+POST /api/v1/services/{id}/requests
+```
+
+**Auth:** `ClientPolicy`.
+
+**Request body (`CreateServiceRequestRequest`):**
+```json
+{ "packageId": "guid", "note": "Cần bot hỗ trợ tiếng Việt và tiếng Anh." }
+```
+
+**Preconditions:** `Service.Status = PUBLISHED`. Client không phải chủ service. Client chưa có request `PENDING` nào khác trên service này.
+
+**Side effects:** Tạo `ServiceRequests` (Status = `PENDING`), snapshot `PackageTitle`/`PackagePrice`/`PackageDeliveryDays` tại thời điểm request (edit package sau đó không ảnh hưởng request đã gửi).
+
+**Status:** `201 Created`, `400` (chưa publish / đã có request pending / tự request service của mình), `404` (package không thuộc service).
+
+### 2B.9. Expert xem requests của 1 service
+
+```
+GET /api/v1/services/{id}/requests
+```
+
+**Auth:** `ExpertPolicy`, chủ service.
+
+### 2B.10. Expert xem tất cả service requests của mình (mọi service)
+
+```
+GET /api/v1/experts/me/service-requests?status=
+```
+
+**Auth:** `ExpertPolicy`. Query optional `status` (`PENDING`/`ACCEPTED`/`DECLINED`).
+
+### 2B.11. Client xem service requests của mình
+
+```
+GET /api/v1/clients/me/service-requests?pageIndex=1&pageSize=20&status=
+```
+
+**Auth:** `ClientPolicy`. Có phân trang + search theo tên service/package.
+
+### 2B.12. Xem chi tiết 1 service request
+
+```
+GET /api/v1/service-requests/{id}
+```
+
+**Auth:** `ClientOrExpertPolicy` — chỉ Client gửi hoặc Expert sở hữu service mới xem được.
+
+### 2B.13. Expert accept service request
+
+```
+POST /api/v1/service-requests/{id}/accept
+```
+
+**Auth:** `ExpertPolicy`, chủ service. **Preconditions:** `Status = PENDING`.
+
+**Side effects:** `Status → ACCEPTED`. Tạo/mở `Conversations` giữa Client và Expert (`serviceRequestId` gắn kèm).
+
+### 2B.14. Expert decline service request
+
+```
+POST /api/v1/service-requests/{id}/decline
+```
+
+**Auth:** `ExpertPolicy`, chủ service. **Preconditions:** `Status = PENDING`. **Side effects:** `Status → DECLINED`.
+
+### 2B.15. Expert gửi offer
+
+```
+POST /api/v1/service-requests/{id}/offers
+```
+
+**Auth:** `ExpertPolicy`, chủ service.
+
+**Request body (`CreateServiceOfferRequest`):**
+```json
+{
+  "amount": 1200.00,
+  "milestones": [
+    { "title": "Prototype", "description": "Basic bot with FAQ", "amount": 500, "dueDays": 7, "acceptanceCriteria": "Bot trả lời đúng 10 câu FAQ mẫu", "orderIndex": 1 },
+    { "title": "Final delivery", "description": "Full integration", "amount": 700, "dueDays": 14, "acceptanceCriteria": "Bot hoạt động trên website thật", "orderIndex": 2 }
+  ]
+}
+```
+
+**Preconditions:** `ServiceRequest.Status = ACCEPTED`. `amount > 0`. Ít nhất 1 milestone, mỗi milestone `amount > 0` và `dueDays` hợp lệ.
+
+**Side effects:** Tạo `ServiceOffers` (Status = `PENDING`) + `ServiceOfferMilestones`.
+
+**Status:** `201 Created`, `400` (validation / request chưa accepted), `403` (không phải chủ service).
+
+### 2B.16. Client accept offer (atomic — bắt buộc transaction)
+
+```
+POST /api/v1/service-offers/{id}/accept
+```
+
+**Auth:** `ClientPolicy`, chính là Client đã gửi request gốc.
+
+**Preconditions:** `ServiceOffer.Status = PENDING`.
+
+**Transaction:**
+1. Validate offer `PENDING`, người gọi là chủ `ServiceRequest` gốc.
+2. `Offer.Status = ACCEPTED`.
+3. Tạo `Projects` (Status = `PENDING_PAYMENT`), `ServiceRequestId` gắn kèm, `JobId`/`AcceptedProposalId = null`.
+4. Tạo `Milestones` từ `ServiceOfferMilestones`.
+5. Commit.
+
+**Race condition guard:** partial unique index trên `Projects.ServiceRequestId` — nếu 2 accept chạy đồng thời trên cùng 1 service request, lần commit thứ 2 sẽ bắt lỗi `23505` và trả `400` ("This service request already has an accepted offer.") thay vì tạo project trùng.
+
+**Status:** `200`, `400` (offer không còn `PENDING` / request đã có project), `403` (không phải Client gốc), `404`.
+
+### 2B.17. Client xem offer của 1 service request
+
+```
+GET /api/v1/service-requests/{id}/offer
+```
+
+**Auth:** `ClientPolicy`, chủ request. Trả offer mới nhất (ưu tiên `ACCEPTED` nếu có, không thì offer mới nhất theo `CreatedAt`).
+
+## Flow 2 Path B — API Summary
+
+| # | Method | Endpoint | Auth | Tables |
+|---|--------|----------|------|--------|
+| 1 | POST | `/services` | Expert | `Services`, `ServicePackages`, `ServiceFaqs` |
+| 2 | PUT | `/services/{id}` | Expert | `Services`, `ServicePackages`, `ServiceFaqs` |
+| 3 | POST | `/services/{id}/publish` | Expert | `Services` |
+| 4 | POST | `/services/{id}/unpublish` | Expert | `Services` |
+| 5 | GET | `/services` | — | `Services` |
+| 6 | GET | `/services/mine` | Expert | `Services` |
+| 7 | GET | `/services/{id}` | — | `Services` |
+| 8 | POST | `/services/{id}/requests` | Client | `ServiceRequests` |
+| 9 | GET | `/services/{id}/requests` | Expert | `ServiceRequests` |
+| 10 | GET | `/experts/me/service-requests` | Expert | `ServiceRequests` |
+| 11 | GET | `/clients/me/service-requests` | Client | `ServiceRequests` |
+| 12 | GET | `/service-requests/{id}` | Client/Expert | `ServiceRequests` |
+| 13 | POST | `/service-requests/{id}/accept` | Expert | `ServiceRequests`, `Conversations` |
+| 14 | POST | `/service-requests/{id}/decline` | Expert | `ServiceRequests` |
+| 15 | POST | `/service-requests/{id}/offers` | Expert | `ServiceOffers`, `ServiceOfferMilestones` |
+| 16 | POST | `/service-offers/{id}/accept` | Client | `ServiceOffers`, `Projects`, `Milestones` |
+| 17 | GET | `/service-requests/{id}/offer` | Client | `ServiceOffers`, `ServiceOfferMilestones` |
+
+---
+
 # FLOW 3: Milestone, Escrow & Deliverable
 
 > **Mục tiêu:** Client & Expert xác nhận milestones, Client fund escrow, Expert nộp deliverable, Client review.
 > **Actors:** Client, Expert.
+> **⚠️ Mô hình tiền KHÔNG phải "hold rồi release".** Toàn bộ tiền đi qua `Treasury` (`Aivora.Services/Treasury/Treasury.cs`). Fund trả ngay 30% (`DepositRate`, default) thẳng Client → Expert; Approve trả nốt 70% trừ 10% commission platform (`CommissionRate`, default). Mọi `Payments` row tạo ra đều `Status = RELEASED` ngay lập tức — enum `HELD`/`FROZEN`/`PARTIALLY_RELEASED` tồn tại nhưng **không bao giờ được gán** trong pipeline hiện tại.
 > **Status:**
-> - `Project: CREATED → PENDING_PAYMENT → ACTIVE → IN_REVIEW → COMPLETED` (hoặc `DISPUTED`)
-> - `Milestone: CREATED → FUNDED → IN_PROGRESS → SUBMITTED → APPROVED → RELEASED` (revision: `SUBMITTED → REVISION_REQUESTED → SUBMITTED`, dispute: `SUBMITTED → DISPUTED`)
-> - `Payment: NULL → PENDING → HELD → RELEASED` (dispute: `HELD → FROZEN`)
+> - `Project: CREATED → PENDING_PAYMENT → ACTIVE → IN_REVIEW → COMPLETED` (hoặc `DISPUTED`) — completion hoàn toàn tự động qua `Treasury.SyncProjectStatusAsync`, không có action "hoàn thành project" thủ công.
+> - `Milestone: CREATED → IN_PROGRESS → SUBMITTED → RELEASED` (thực tế — enum có thêm `FUNDED`/`APPROVED`/`COMPLETED` nhưng không bao giờ được set; revision: `SUBMITTED → REVISION_REQUESTED → SUBMITTED`, dispute: `IN_PROGRESS/SUBMITTED → DISPUTED`)
+> - `Payment: NULL → RELEASED` (2 row/milestone: deposit lúc Fund, remaining lúc Approve — cả 2 đều tạo `RELEASED` ngay, không có giai đoạn `HELD`/`FROZEN` nào)
 > **Tables:** `Projects`, `Milestones`, `MilestoneSteps`, `Payments`, `Wallets`, `WalletTransactions`, `Deliverables`, `Disputes`, `DisputeEvidences`
 
 ## 3.1. Xem danh sách projects
@@ -651,6 +889,8 @@ PUT ~/api/v1/steps/{stepId}/status
 
 > Lưu ý route: các step endpoint không lồng theo `milestones/{id}/steps/{stepId}` mà đứng riêng ở `~/api/v1/steps/{id}` (trừ list/create/suggest/reorder vẫn ở dưới `milestones/{id}/steps`).
 
+> **3 step hệ thống tự sinh:** `"Created"` (lúc tạo milestone), `"Funded"` (lúc fund), `"Completed"` (lúc approve) — title reserved, Expert không tự tạo/sửa/xóa được (guard `IsSystemDefaultStep` trong `MilestoneService`). `GET .../steps` trả trộn chung các step này với step Expert tự tạo, chỉ phân biệt được qua `Title`. `POST .../steps/suggest` chỉ trả draft AI gợi ý, KHÔNG tự lưu DB — Expert phải tự `POST .../steps` từng cái nếu muốn dùng.
+
 ## 3.8. Ví (Wallet)
 
 ```
@@ -698,26 +938,31 @@ POST /api/v1/wallet/transfer/{expertId}
 ```
 **Auth:** `ClientPolicy`. Chuyển tiền trực tiếp Client → Expert, ngoài luồng escrow. Body: `{ amount, description? }`.
 
-## 3.9. Fund milestone (atomic — bắt buộc transaction)
+## 3.9. Fund milestone — trả deposit ngay (atomic — bắt buộc transaction)
 
 ```
 PUT /api/v1/milestones/{milestoneId}/fund
 ```
 
-**Auth:** `ClientPolicy`, chủ project.
+**Auth:** `ClientPolicy`, chủ project. Xử lý bởi `MilestoneService.FundMilestoneAsync` → forward toàn bộ sang `Treasury.PayDepositAsync`.
 
-**Preconditions:** `Milestone.Status = CREATED`. `Project.Status ∈ { PENDING_PAYMENT, ACTIVE }`. `Wallet.AvailableBalance ≥ Milestone.Amount`.
+**Preconditions:** `Milestone.Status = CREATED`. `Wallet.AvailableBalance ≥ depositAmount` (KHÔNG phải ≥ `Milestone.Amount` đầy đủ).
 
-**Transaction:**
-1. Kiểm tra số dư.
-2. `Wallet.AvailableBalance -= Amount`, `Wallet.HeldBalance += Amount`.
-3. Tạo `Payments` (Status = `HELD`).
-4. Tạo `WalletTransactions` (Type = `ESCROW_HOLD`, Direction = `DEBIT`).
-5. `Milestone.Status = FUNDED`.
-6. Nếu `Project.Status = PENDING_PAYMENT` → `ACTIVE`.
-7. Commit.
+**Transaction (`Treasury.PayDepositAsync`):**
+1. `depositAmount = Milestone.Amount × EscrowOptions.DepositRate` (default **30%**).
+2. Kiểm tra số dư ≥ `depositAmount`.
+3. `Milestone.Status = CREATED → IN_PROGRESS` (claim trước khi chuyển tiền — dùng làm optimistic-concurrency token, request fund trùng lặp/đồng thời sẽ thua và nhận lỗi `400` thay vì double-fund).
+4. `Client.Wallet.AvailableBalance -= depositAmount`.
+5. `Expert.Wallet.AvailableBalance += depositAmount`, `Expert.Wallet.TotalEarned += depositAmount` — **chuyển thẳng, không giữ ở platform**.
+6. Tạo `Payments` — **`Status = RELEASED` ngay lập tức**, không phải `HELD`.
+7. Tạo 2 `WalletTransactions` (Client: `PAYMENT_RELEASE`/`DEBIT`; Expert: `PAYMENT_RELEASE`/`CREDIT`), amount = `depositAmount`.
+8. Tự thêm `MilestoneStep` title `"Funded"` (status `COMPLETED`) nếu chưa có step title này.
+9. Nếu `Project.Status = PENDING_PAYMENT` → `ACTIVE`.
+10. Commit.
 
-**Lỗi:** `400` nếu số dư không đủ. `409` nếu milestone đã funded.
+**Lỗi:** `400` nếu số dư không đủ cho `depositAmount`, hoặc milestone không còn `CREATED` (race thua cũng rơi vào nhánh này, message giống lỗi tuần tự bình thường).
+
+**Response (`FundResultResponse`):** `{ milestone, payment: { id, projectId, milestoneId, payerId, payeeId, amount, currency, status, heldAt }, wallet: { availableBalance, heldBalance, currency } }` — `payment.status` thực tế luôn là `"RELEASED"` dù field response tên là `heldAt`.
 
 ## 3.10. Xem lịch sử payment
 
@@ -740,11 +985,11 @@ POST /api/v1/milestones/{milestoneId}/deliverables
 { "description": "Đã hoàn thành prototype chatbot với 15 intent", "fileUrl": "https://res.cloudinary.com/.../prototype.zip", "demoUrl": "https://chatbot-demo.example.com", "sourceCodeUrl": "https://github.com/expert/chatbot-prototype", "note": "Vui lòng test trên Chrome" }
 ```
 
-**Preconditions:** `Milestone.Status ∈ { FUNDED, IN_PROGRESS, REVISION_REQUESTED }`. `Project.Status = ACTIVE`. `Payment.Status = HELD`.
+**Preconditions:** `Milestone.Status ∈ { FUNDED, IN_PROGRESS, REVISION_REQUESTED }` (code check cả 3 giá trị, nhưng `FUNDED` thực tế không bao giờ xảy ra — Fund luôn set `IN_PROGRESS`, xem §3.9 — nên trong thực tế chỉ `IN_PROGRESS`/`REVISION_REQUESTED` khớp).
 
 **Validation:** phải có ít nhất 1 trong `description`, `fileUrl`, `demoUrl`, `sourceCodeUrl`, `note`.
 
-**Status transitions:** `Milestone → SUBMITTED`. `Deliverable → SUBMITTED`. `Project: ACTIVE → IN_REVIEW`.
+**Status transitions:** `Milestone → SUBMITTED` (kèm `SubmittedAt`). `Deliverable` tạo mới `Status = SUBMITTED` (`RevisionNumber` tăng dần mỗi lần nộp lại). `Project: ACTIVE → IN_REVIEW` (qua `Treasury.SyncProjectStatusAsync`).
 
 ## 3.12. Xem danh sách deliverable của milestone
 
@@ -754,27 +999,33 @@ GET /api/v1/milestones/{milestoneId}/deliverables
 
 **Auth:** tham gia project.
 
-## 3.13. Approve deliverable (atomic — bắt buộc transaction)
+## 3.13. Approve deliverable — trả nốt remaining, trừ commission (atomic — bắt buộc transaction)
 
 ```
 PUT /api/v1/milestones/{milestoneId}/approve
 ```
 
-**Auth:** `ClientPolicy`, chủ project.
+**Auth:** `ClientPolicy`, chủ project. Xử lý bởi `MilestoneService.ApproveMilestoneAsync` → forward toàn bộ sang `Treasury.PayRemainingAsync`.
 
-**Preconditions:** `Milestone.Status = SUBMITTED`. `Payment.Status = HELD`.
+**⚠️ `Deliverable.Status` KHÔNG đổi thành `APPROVED`.** Không có bất kỳ code path nào trong `Treasury`/`MilestoneService`/`DeliverableService` set `Deliverable.Status = APPROVED`. Deliverable mãi ở `SUBMITTED`, `ReviewedAt` mãi `null`. Muốn biết deliverable "đã duyệt" chưa, phải kiểm tra `Milestone.Status == RELEASED`.
 
-**Transaction:**
-1. Latest `Deliverable.Status = APPROVED`.
-2. `Milestone.Status = APPROVED`.
-3. `Payment.Status = RELEASED`.
-4. `Client.Wallet.HeldBalance -= Amount`. `Expert.Wallet.AvailableBalance += Amount`, `TotalEarned += Amount`.
-5. Tạo `WalletTransactions` (Client: `PAYMENT_RELEASE`/`DEBIT`; Expert: `PAYMENT_RELEASE`/`CREDIT`).
-6. `Milestone.Status = RELEASED`.
-7. Nếu tất cả milestones `RELEASED` → `Project.Status = COMPLETED`, `JobPosts.Status = COMPLETED` (emit `JobStatusUpdated`). Ngược lại → `Project.Status = ACTIVE`.
-8. Commit.
+**Preconditions:** `Milestone.Status = SUBMITTED`. Không có dispute `OPEN`/`UNDER_REVIEW` nào khác trên milestone. `Client.Wallet.AvailableBalance ≥ remainingAmount`.
 
-**Đây là điểm release payment duy nhất — không có endpoint "release payment" riêng.**
+**Transaction (`Treasury.PayRemainingAsync`):**
+1. `remainingAmount = Milestone.Amount × EscrowOptions.RemainingRate` (default **70%**).
+2. `commissionAmount = Milestone.Amount × CommissionOptions.Rate` (default **10% của TOÀN BỘ `Milestone.Amount`**, không phải của `remainingAmount`).
+3. `expertAmount = remainingAmount − commissionAmount`.
+4. `Milestone.Status = SUBMITTED → RELEASED` (claim trước khi chuyển tiền, cùng cơ chế concurrency token như Fund — bỏ qua hoàn toàn giá trị `APPROVED` trong enum).
+5. `Client.Wallet.AvailableBalance -= remainingAmount`.
+6. `Expert.Wallet.AvailableBalance += expertAmount`, `TotalEarned += expertAmount`.
+7. `Platform.Wallet.AvailableBalance += commissionAmount` (ví hệ thống `SystemConstants.SystemUserId`), `TotalEarned += commissionAmount`.
+8. Tạo `Payments` — **`Status = RELEASED` ngay** (row thứ 2 của milestone này, row đầu đã tạo lúc Fund).
+9. Tạo `WalletTransactions`: Client (`PAYMENT_RELEASE`/`DEBIT`, amount=`remainingAmount`), Expert (`PAYMENT_RELEASE`/`CREDIT`, amount=`expertAmount`), Platform (`PLATFORM_FEE`/`CREDIT`, amount=`commissionAmount`, chỉ ghi nếu > 0).
+10. Tự thêm `MilestoneStep` title `"Completed"` (status `COMPLETED`) nếu chưa có, đồng thời auto-complete mọi step PENDING/IN_PROGRESS/BLOCKED còn lại.
+11. `Treasury.SyncProjectStatusAsync`: nếu **mọi** milestone của project đều `RELEASED`/`REFUNDED` → `Project.Status = COMPLETED` (+ `JobPosts.Status = COMPLETED` nếu project có `JobId`, emit `JobStatusUpdated`). Ngược lại → `Project.Status = ACTIVE`.
+12. Commit.
+
+**Đây là điểm release payment duy nhất cho phần remaining — không có endpoint "release payment" riêng.** Deposit (30%) đã release riêng từ lúc Fund (§3.9) — approve không đụng lại khoản đó.
 
 ## 3.14. Request revision
 
@@ -784,7 +1035,7 @@ PUT /api/v1/milestones/{milestoneId}/request-revision
 
 **Auth:** `ClientPolicy`, chủ project. Body: `{ reason }` (string).
 
-**Status transitions:** `Deliverable/Milestone: SUBMITTED → REVISION_REQUESTED`. `Project: IN_REVIEW → ACTIVE`. `Payment: HELD` (không đổi).
+**Status transitions:** `Milestone: SUBMITTED → REVISION_REQUESTED`. `Project: IN_REVIEW → ACTIVE` (qua `Treasury.SyncProjectStatusAsync`). **`Deliverable.Status` không đổi** (mãi `SUBMITTED`). **Không có `Payments`/`Wallets` nào bị đụng** — deposit đã trả từ lúc fund vẫn nằm nguyên trong ví Expert, không có gì để "giữ".
 
 ## 3.15. Open dispute (atomic — bắt buộc transaction)
 
@@ -797,9 +1048,10 @@ POST /api/v1/milestones/{milestoneId}/dispute
 **Transaction:**
 1. Tạo `Disputes` (Status = `OPEN`).
 2. `Milestone.Status = DISPUTED`.
-3. `Payment.Status = FROZEN`.
-4. `Project.Status = DISPUTED`.
-5. Commit.
+3. `Project.Status = DISPUTED`.
+4. Commit.
+
+**Payment không đổi.** `PaymentStatus.FROZEN` tồn tại trong enum nhưng không code path nào gán — deposit đã trả (nếu có) vẫn RELEASED nguyên trong ví Expert suốt thời gian dispute mở.
 
 ## Flow 3 — API Summary
 
@@ -845,6 +1097,7 @@ POST /api/v1/milestones/{milestoneId}/dispute
 > **Tables:** `Projects`, `JobPosts`, `Milestones`, `Payments`, `Wallets`, `WalletTransactions`, `Reviews`, `Disputes`, `DisputeEvidences`
 
 > **Lưu ý:** Release payment, approve deliverable, request revision, open dispute đã liệt kê ở Flow 3. Flow 4 tập trung vào **dispute handling** và **review**.
+> **Refund/Split dead code:** `Treasury.RefundMilestoneAsync` và `SplitMilestoneFundsAsync` đã implement đầy đủ (clawback qua `CommissionOptions.MaxDebtLimit`, chia lại tiền) nhưng KHÔNG controller/service nào gọi tới — dispute resolve hiện tại không tự động refund hay split tiền, xem §4.8.
 
 ## 4.1. Mở dispute trực tiếp
 
@@ -894,7 +1147,7 @@ POST /api/v1/disputes/{disputeId}/evidence
 PUT /api/v1/disputes/{disputeId}/close
 ```
 
-**Auth:** bắt buộc. Chỉ `OpenedBy` mới được close. **Side effects:** `Disputes.Status = CLOSED`. **Validation:** dispute đã `RESOLVED`/`CLOSED` thì không close lại được.
+**Auth:** bắt buộc. Chỉ `OpenedBy` mới được close. **Side effects:** `Disputes.Status = CLOSED`. `Milestone` unlock về `IN_PROGRESS` (**luôn luôn**, bất kể deliverable đã từng `SUBMITTED` hay chưa — khác với Resolve ở §4.8 vốn unlock thông minh theo `SubmittedAt`; đây là inconsistency giữa 2 code path, chưa có ticket). `Project.Status → ACTIVE` nếu không còn milestone `DISPUTED` khác. **Validation:** dispute đã `RESOLVED`/`CLOSED` thì không close lại được.
 
 ## 4.6. Admin yêu cầu bổ sung bằng chứng
 
@@ -1154,23 +1407,25 @@ DISPUTED → ACTIVE / IN_REVIEW / COMPLETED / CANCELLED
 
 ## Milestone
 ```
-CREATED → FUNDED → IN_PROGRESS → SUBMITTED → APPROVED → RELEASED
-SUBMITTED → REVISION_REQUESTED → SUBMITTED
-SUBMITTED → DISPUTED → RELEASED / REFUNDED / REVISION_REQUESTED (follow-up action, not automatic)
+CREATED → IN_PROGRESS → SUBMITTED → RELEASED
+SUBMITTED → REVISION_REQUESTED → IN_PROGRESS → SUBMITTED
+SUBMITTED → DISPUTED → SUBMITTED / IN_PROGRESS (unlock, follow-up action, not automatic)
 ```
+> `FUNDED` và `APPROVED` tồn tại trong enum nhưng KHÔNG BAO GIỜ được gán trong pipeline hiện tại — Fund luôn set thẳng `IN_PROGRESS` (bỏ qua `FUNDED`), Approve luôn set thẳng `RELEASED` (bỏ qua `APPROVED`). `REFUNDED` chỉ đạt được qua `Treasury.RefundMilestoneAsync` — dead code, không controller nào gọi.
 
 ## Payment
 ```
-PENDING → HELD → RELEASED
-HELD → FROZEN → RELEASED / REFUNDED / PARTIALLY_RELEASED (via a follow-up milestone action, never as a side effect of dispute resolve)
+Mỗi milestone có tối đa 2 dòng Payments, cả 2 tạo với Status = RELEASED ngay lập tức:
+  - dòng 1: tạo lúc Fund (deposit = 30% Amount)
+  - dòng 2: tạo lúc Approve (remaining = 70% Amount − commission)
 ```
+> `PENDING`, `HELD`, `FROZEN`, `PARTIALLY_RELEASED` tồn tại trong enum nhưng KHÔNG code path nào gán — không có trạng thái "tiền đang giữ chờ" trong hệ thống thật. `REFUNDED` chỉ đạt được qua `Treasury.RefundMilestoneAsync` — dead code.
 
 ## Deliverable
 ```
-SUBMITTED → APPROVED
-SUBMITTED → REVISION_REQUESTED → SUBMITTED
-SUBMITTED → REJECTED
+(không có transition) — Deliverable tạo mới Status = SUBMITTED và KHÔNG BAO GIỜ đổi sau đó.
 ```
+> `APPROVED`/`REVISION_REQUESTED`/`REJECTED` tồn tại trong enum nhưng không code path nào gán; `ReviewedAt` mãi `null`. Nộp lại deliverable (sau request-revision) tạo **row mới** với `RevisionNumber` tăng dần, không update row cũ.
 
 ## Dispute
 ```
@@ -1191,6 +1446,21 @@ NEEDS_REVIEW → ESCALATED → APPROVED / REJECTED (by Admin)
 PENDING → APPROVED / REJECTED
 ```
 
+## Service (Flow 2 Path B)
+```
+DRAFT → PUBLISHED → DRAFT (unpublish)
+```
+
+## ServiceRequest (Flow 2 Path B)
+```
+PENDING → ACCEPTED / DECLINED
+```
+
+## ServiceOffer (Flow 2 Path B)
+```
+PENDING → ACCEPTED
+```
+
 ---
 
 # Atomic Transactions
@@ -1199,10 +1469,11 @@ PENDING → APPROVED / REJECTED
 
 | Endpoint | Flow | Reason |
 |----------|------|--------|
-| `PUT /proposals/{id}/accept` | Flow 2 | Accept proposal + reject siblings + create project + create milestones |
-| `PUT /milestones/{id}/fund` | Flow 3 | Update wallet + create payment + update milestone + update project |
-| `PUT /milestones/{id}/approve` | Flow 3 | Approve deliverable + release payment + update wallets + update milestone + update project + update job |
-| `POST /milestones/{id}/dispute` | Flow 3 | Create dispute + update milestone + freeze payment + update project |
+| `PUT /proposals/{id}/accept` | Flow 2 (Path A) | Accept proposal + reject siblings + create project + create milestones |
+| `POST /service-offers/{id}/accept` | Flow 2 (Path B) | Accept offer + create project + create milestones |
+| `PUT /milestones/{id}/fund` | Flow 3 | `Treasury.PayDepositAsync` — claim milestone status (concurrency token) + move deposit wallet-to-wallet + create payment RELEASED + wallet transactions + auto-add step "Funded" + update milestone (→ IN_PROGRESS) + update project |
+| `PUT /milestones/{id}/approve` | Flow 3 | `Treasury.PayRemainingAsync` — claim milestone status + move remaining wallet-to-wallet (trừ commission cho ví platform) + create payment RELEASED + wallet transactions + auto-add/complete step "Completed" + update milestone (→ RELEASED) + `SyncProjectStatusAsync` (+ update job nếu tất cả milestone settled) |
+| `POST /milestones/{id}/dispute` | Flow 3 | Create dispute + update milestone (→ DISPUTED) + update project (→ DISPUTED) — **không đụng Payment/Wallet** |
 | `PUT /disputes/{id}/resolve` | Flow 4 | Resolve dispute + unlock milestone + unlock project — single `SaveChangesAsync()`, no explicit `BeginTransaction`. Simpler than the others: never touches `Payments`/`Wallets`. |
 
 ---
@@ -1231,14 +1502,18 @@ PENDING → APPROVED / REJECTED
 | Rating = 0 or 6 | Should fail |
 | ReviewerId = RevieweeId | Should fail |
 | Duplicate review for same project/reviewer/reviewee | Should fail |
-| Client requests revision | Payment should stay `HELD` |
-| Client opens dispute | Payment should become `FROZEN`, project should become `DISPUTED` |
+| Client requests revision | No `Payments`/`Wallets` row is created or changed — deposit already released to Expert stays |
+| Client opens dispute | No `Payments`/`Wallets` row changes; `Milestone → DISPUTED`, `Project → DISPUTED` |
 | Non-admin resolves dispute | Should fail |
 | Resolve dispute with `resolutionType`/`splitPercentage` fields | Ignored — field no longer exists, only `resolutionNote` is read |
 | Non-owner Client accepts proposal | Should fail |
 | Expert submits proposal to non-OPEN job | Should fail |
-| Client funds milestone with insufficient balance | Should fail |
+| Client funds milestone with insufficient balance | Should fail — `AvailableBalance < depositAmount` |
+| Client approves milestone with insufficient balance for remaining | Should fail — `AvailableBalance < remainingAmount`, concurrency claim rolled back |
+| Fund milestone when `Milestone.Status != CREATED` | Should fail — `409 Conflict` or `ValidationException` |
+| Approve milestone when another milestone in the same project has an active dispute | Should fail |
 | Expert submits deliverable to project they do not own | Should fail |
+| Expert creates/edits/deletes a milestone step titled "Created"/"Funded"/"Completed" | Should fail — `IsSystemDefaultStep` guard blocks it |
 | Non-owner deletes another user's media | Should fail with `401` and a clear message |
 
 ---
