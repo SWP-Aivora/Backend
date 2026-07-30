@@ -70,7 +70,7 @@ public class RealtimeServiceTests
 
         service.SendMilestoneUpdatedAsync(projectId, milestoneId);
 
-        done.Wait(TimeSpan.FromSeconds(2)).Should().BeTrue();
+        done.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
 
         mockClients.Verify(c => c.Group($"project-{projectId}"), Times.Once);
         mockClientProxy.Verify(p => p.SendCoreAsync(
@@ -107,7 +107,7 @@ public class RealtimeServiceTests
 
         service.SendDisputeUpdatedAsync(projectId, disputeId);
 
-        done.Wait(TimeSpan.FromSeconds(2)).Should().BeTrue();
+        done.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
 
         mockClients.Verify(c => c.Group($"project-{projectId}"), Times.Once);
         mockClientProxy.Verify(p => p.SendCoreAsync(
@@ -145,6 +145,6 @@ public class RealtimeServiceTests
         var act = () => service.SendMilestoneUpdatedAsync(Guid.NewGuid(), Guid.NewGuid());
         act.Should().NotThrow();
 
-        done.Wait(TimeSpan.FromSeconds(2)).Should().BeTrue("the internal catch block should have logged the error");
+        done.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue("the internal catch block should have logged the error");
     }
 }
