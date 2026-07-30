@@ -288,15 +288,15 @@ public class DisputeServiceTests : IDisposable
         // Arrange
         var client = await SeedUserAsync(UserRole.CLIENT, "client@test.com");
         var expert = await SeedUserAsync(UserRole.EXPERT, "expert@test.com");
-        
+
         var dispute1 = await SeedDisputeAsync(client.Id, expert.Id, DisputeStatus.CLOSED);
-        
+
         var dispute2 = new Dispute { Id = Guid.NewGuid(), ProjectId = dispute1.ProjectId, MilestoneId = dispute1.MilestoneId, PaymentId = dispute1.PaymentId, OpenedBy = client.Id, AgainstUserId = expert.Id, Reason = "2", Status = DisputeStatus.CLOSED };
         _dbContext.Disputes.Add(dispute2);
-        
+
         var dispute3 = new Dispute { Id = Guid.NewGuid(), ProjectId = dispute1.ProjectId, MilestoneId = dispute1.MilestoneId, PaymentId = dispute1.PaymentId, OpenedBy = client.Id, AgainstUserId = expert.Id, Reason = "3", Status = DisputeStatus.CLOSED };
         _dbContext.Disputes.Add(dispute3);
-        
+
         var payment = await _dbContext.Payments.FindAsync(dispute1.PaymentId);
         payment!.Status = PaymentStatus.RELEASED;
         await _dbContext.SaveChangesAsync();
