@@ -148,17 +148,20 @@ public class Service : IService
         request.CategoriesContext = await GetCategoriesContextAsync(cancellationToken);
 
         var refinement = await _refinementProvider.RefineSuggestionAsync(current, request, cancellationToken);
-        Guid? mappedCategoryId = null;
 
-        if (refinement.ChangedFields.Count > 0)
+        // The AI's own claim of "what changed" isn't trustworthy (JSON shape/completeness
+        // varies run to run) — ApplyDraft diffs the parsed draft against the entity itself and
+        // only writes/reports fields that actually differ.
+        var mappedCategoryId = await ValidateAndNormalizeCategoryNameAsync(refinement.Suggestion.CategoryName, "refinement", cancellationToken);
+        var changedFields = ApplyDraft(suggestion, refinement.Suggestion, updateRiskWarnings: true, _exchangeRates.Value.ToAicoin);
+        if (mappedCategoryId.HasValue && mappedCategoryId.Value != suggestion.SuggestedCategoryId)
         {
-            mappedCategoryId = await ValidateAndNormalizeCategoryNameAsync(refinement.Suggestion.CategoryName, "refinement", cancellationToken);
+            suggestion.SuggestedCategoryId = mappedCategoryId;
+            changedFields.Add("categoryName");
+        }
 
-            ApplyDraft(suggestion, refinement.Suggestion, updateRiskWarnings: true, _exchangeRates.Value.ToAicoin);
-            if (mappedCategoryId != null)
-            {
-                suggestion.SuggestedCategoryId = mappedCategoryId;
-            }
+        if (changedFields.Count > 0)
+        {
             ValidateSuggestionShape(suggestion);
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
@@ -169,8 +172,27 @@ public class Service : IService
         {
             Suggestion = response,
             AIResponse = refinement.AIResponse,
-            ChangedFields = refinement.ChangedFields
+            ChangedFields = changedFields
         };
+    }
+
+    private static bool MilestonesEqual(List<Response.SuggestedMilestone> a, List<Response.SuggestedMilestone> b)
+    {
+        if (a.Count != b.Count) return false;
+
+        for (var i = 0; i < a.Count; i++)
+        {
+            if (a[i].Title != b[i].Title
+                || a[i].Description != b[i].Description
+                || a[i].Amount != b[i].Amount
+                || a[i].DueDays != b[i].DueDays
+                || a[i].AcceptanceCriteria != b[i].AcceptanceCriteria)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public async Task<Response.AcceptResultResponse> AcceptSuggestionAsync(Guid clientId, Guid suggestionId, Request.AcceptSuggestionRequest request, CancellationToken cancellationToken = default)
@@ -284,30 +306,143 @@ public class Service : IService
         return suggestion;
     }
 
-    private static void ApplyDraft(AIJobSuggestion suggestion, AIJobSuggestionDraft draft, bool updateRiskWarnings, IReadOnlyDictionary<string, decimal> ratesToAicoin)
+    /// <summary>
+    /// Diffs <paramref name="draft"/> against <paramref name="suggestion"/>'s current state,
+    /// writes only the fields that actually differ, and returns their names. Called both for a
+    /// brand-new suggestion (everything differs from the blank entity, so effectively an
+    /// unconditional write — the returned list is ignored there) and for a refinement (where the
+    /// caller gates SaveChangesAsync on the returned list being non-empty).
+    /// </summary>
+    private static List<string> ApplyDraft(AIJobSuggestion suggestion, AIJobSuggestionDraft draft, bool updateRiskWarnings, IReadOnlyDictionary<string, decimal> ratesToAicoin)
     {
-        var (currency, budgetMin, budgetMax, milestones) = CurrencyConverter.ConvertToAicoin(
-            draft.Currency, draft.SuggestedBudgetMin, draft.SuggestedBudgetMax, draft.SuggestedMilestones, ratesToAicoin);
+        var changed = new List<string>();
 
-        suggestion.SuggestedTitle = NormalizeRequiredLimited(draft.SuggestedTitle, "New Job from AI", 255);
-        suggestion.SuggestedDescription = draft.SuggestedDescription;
-        suggestion.SuggestedBusinessDomain = NormalizeLimited(draft.BusinessDomain, 255);
-        suggestion.SuggestedExpectedOutcome = NormalizeLimited(draft.ExpectedOutcome, 1000);
-        suggestion.SuggestedBudgetType = draft.BudgetType;
-        suggestion.Currency = currency;
-        suggestion.SuggestedBudgetMin = budgetMin;
-        suggestion.SuggestedBudgetMax = budgetMax;
-        suggestion.SuggestedTimelineDays = draft.SuggestedTimelineDays;
-        suggestion.SuggestedExperienceLevel = draft.ExperienceLevel;
-        suggestion.SuggestedSkillsJson = SerializeList(draft.SuggestedSkills);
-        suggestion.SuggestedMilestonesJson = SerializeList(NormalizeMilestones(milestones));
-        suggestion.ClarifyingQuestionsJson = SerializeList(draft.ClarifyingQuestions);
-        suggestion.ClarifyingAnswersJson = SerializeList(draft.ClarifyingAnswers);
+        // Hallucinated/unsupported currency code from the AI: treat as "no currency change
+        // requested" rather than throwing on an advisory-only chat message.
+        var requestedCurrency = draft.Currency;
+        if (!string.IsNullOrWhiteSpace(requestedCurrency)
+            && requestedCurrency != CurrencyConverter.BaseCurrency
+            && !ratesToAicoin.ContainsKey(requestedCurrency))
+        {
+            requestedCurrency = suggestion.Currency;
+        }
+
+        var (aicoinCurrency, aicoinBudgetMin, aicoinBudgetMax, aicoinMilestones) = CurrencyConverter.ConvertToAicoin(
+            requestedCurrency, draft.SuggestedBudgetMin, draft.SuggestedBudgetMax, draft.SuggestedMilestones, ratesToAicoin);
+
+        var title = NormalizeRequiredLimited(draft.SuggestedTitle, "New Job from AI", 255);
+        if (title != suggestion.SuggestedTitle)
+        {
+            suggestion.SuggestedTitle = title;
+            changed.Add("suggestedTitle");
+        }
+
+        if (draft.SuggestedDescription != suggestion.SuggestedDescription)
+        {
+            suggestion.SuggestedDescription = draft.SuggestedDescription;
+            changed.Add("suggestedDescription");
+        }
+
+        var businessDomain = NormalizeLimited(draft.BusinessDomain, 255);
+        if (businessDomain != suggestion.SuggestedBusinessDomain)
+        {
+            suggestion.SuggestedBusinessDomain = businessDomain;
+            changed.Add("businessDomain");
+        }
+
+        var expectedOutcome = NormalizeLimited(draft.ExpectedOutcome, 1000);
+        if (expectedOutcome != suggestion.SuggestedExpectedOutcome)
+        {
+            suggestion.SuggestedExpectedOutcome = expectedOutcome;
+            changed.Add("expectedOutcome");
+        }
+
+        if (draft.BudgetType != suggestion.SuggestedBudgetType)
+        {
+            suggestion.SuggestedBudgetType = draft.BudgetType;
+            changed.Add("budgetType");
+        }
+
+        if (aicoinCurrency != suggestion.Currency)
+        {
+            suggestion.Currency = aicoinCurrency;
+            changed.Add("currency");
+        }
+
+        if (aicoinBudgetMin != suggestion.SuggestedBudgetMin)
+        {
+            suggestion.SuggestedBudgetMin = aicoinBudgetMin;
+            changed.Add("suggestedBudgetMin");
+        }
+
+        if (aicoinBudgetMax != suggestion.SuggestedBudgetMax)
+        {
+            suggestion.SuggestedBudgetMax = aicoinBudgetMax;
+            changed.Add("suggestedBudgetMax");
+        }
+
+        if (draft.SuggestedTimelineDays != suggestion.SuggestedTimelineDays)
+        {
+            suggestion.SuggestedTimelineDays = draft.SuggestedTimelineDays;
+            changed.Add("suggestedTimelineDays");
+        }
+
+        if (draft.ExperienceLevel != suggestion.SuggestedExperienceLevel)
+        {
+            suggestion.SuggestedExperienceLevel = draft.ExperienceLevel;
+            changed.Add("experienceLevel");
+        }
+
+        // Empty list from the AI means "not mentioned", not "clear everything".
+        if (draft.SuggestedSkills.Count > 0)
+        {
+            var currentSkills = DeserializeList<string>(suggestion.SuggestedSkillsJson);
+            if (!draft.SuggestedSkills.SequenceEqual(currentSkills, StringComparer.Ordinal))
+            {
+                suggestion.SuggestedSkillsJson = SerializeList(draft.SuggestedSkills);
+                changed.Add("suggestedSkills");
+            }
+        }
+
+        if (aicoinMilestones.Count > 0)
+        {
+            var normalizedMilestones = NormalizeMilestones(aicoinMilestones);
+            var currentMilestones = DeserializeList<Response.SuggestedMilestone>(suggestion.SuggestedMilestonesJson);
+            if (!MilestonesEqual(normalizedMilestones, currentMilestones))
+            {
+                suggestion.SuggestedMilestonesJson = SerializeList(normalizedMilestones);
+                changed.Add("suggestedMilestones");
+            }
+        }
+
+        var currentQuestions = DeserializeList<string>(suggestion.ClarifyingQuestionsJson);
+        if (!draft.ClarifyingQuestions.SequenceEqual(currentQuestions, StringComparer.Ordinal))
+        {
+            suggestion.ClarifyingQuestionsJson = SerializeList(draft.ClarifyingQuestions);
+            changed.Add("clarifyingQuestions");
+        }
+
+        var currentAnswers = DeserializeList<string>(suggestion.ClarifyingAnswersJson);
+        if (!draft.ClarifyingAnswers.SequenceEqual(currentAnswers, StringComparer.Ordinal))
+        {
+            suggestion.ClarifyingAnswersJson = SerializeList(draft.ClarifyingAnswers);
+            changed.Add("clarifyingAnswers");
+        }
+
+        // Provenance, not user-facing data — always stamped, never part of the diff.
         suggestion.AIModel = draft.AIModel;
+
         if (updateRiskWarnings)
         {
-            suggestion.RiskWarningsJson = SerializeList(draft.RiskWarnings);
+            var currentRiskWarnings = DeserializeList<string>(suggestion.RiskWarningsJson);
+            if (!draft.RiskWarnings.SequenceEqual(currentRiskWarnings, StringComparer.Ordinal))
+            {
+                suggestion.RiskWarningsJson = SerializeList(draft.RiskWarnings);
+                changed.Add("riskWarnings");
+            }
         }
+
+        return changed;
     }
 
     private async Task<string> GetCategoriesContextAsync(CancellationToken cancellationToken)
