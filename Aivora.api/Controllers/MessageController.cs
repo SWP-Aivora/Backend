@@ -46,11 +46,24 @@ public class MessageController : ControllerBase
         return Ok(ApiResponseFactory.SuccessResponse(null, "Messages marked as read", HttpContext.TraceIdentifier));
     }
 
+    /// <summary>
+    /// Gets or creates a conversation with the given counterpart.
+    /// </summary>
+    /// <param name="expertId">The counterpart's user id: the expert when called by a client, the client when called by an expert.</param>
+    /// <param name="jobId">Optional job post to scope the conversation to. Required for an expert without a shared project.</param>
+    /// <param name="projectId">Optional shared project to scope the conversation to.</param>
+    /// <returns>The existing or newly created conversation. Expert callers need a non-rejected proposal on the job or a shared project, otherwise 403.</returns>
     [HttpPost("init")]
     public async Task<IActionResult> InitConversation([FromQuery] Guid expertId, [FromQuery] Guid? jobId, [FromQuery] Guid? projectId)
     {
-        var clientId = this.GetUserId();
-        var result = await _messageService.GetOrCreateConversationAsync(clientId, expertId, jobId, projectId);
+        // "expertId" is the counterpart's id: for a CLIENT caller it is the expert,
+        // for an EXPERT caller it is the client (param name kept for back-compat).
+        var userId = this.GetUserId();
+        var userRole = this.GetUserRole();
+
+        var result = userRole == Aivora.Repositories.Enums.UserRole.EXPERT
+            ? await _messageService.GetOrCreateConversationAsync(expertId, userId, jobId, projectId, expertInitiated: true)
+            : await _messageService.GetOrCreateConversationAsync(userId, expertId, jobId, projectId);
         return Ok(ApiResponseFactory.SuccessResponse(result, "Conversation initialized", HttpContext.TraceIdentifier));
     }
 

@@ -84,7 +84,7 @@ public class Flow1JobCreationAndRecommendationTests
         // ----------------------------------------------------
         // Act: Client creates job draft
         // ----------------------------------------------------
-        var jobService = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService());
+        var jobService = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService(), Mock.Of<Aivora.Services.NotificationService.IService>());
 
         var createJobReq = new Request.CreateJobRequest
         {
@@ -181,7 +181,7 @@ public class Flow1JobCreationAndRecommendationTests
         await dbContext.SaveChangesAsync();
 
         // Create initial DRAFT job
-        var jobService = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService());
+        var jobService = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService(), Mock.Of<Aivora.Services.NotificationService.IService>());
         var createJobReq = new Request.CreateJobRequest
         {
             Title = "Initial Title",
@@ -272,7 +272,7 @@ public class Flow1JobCreationAndRecommendationTests
         await dbContext.SaveChangesAsync();
 
         // Create initial DRAFT job
-        var jobService = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService());
+        var jobService = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService(), Mock.Of<Aivora.Services.NotificationService.IService>());
         var createJobReq = new Request.CreateJobRequest
         {
             Title = "Build AI Chatbot for Beauty Shop",
@@ -578,7 +578,7 @@ public class Flow1JobCreationAndRecommendationTests
         dbContext.JobPosts.Add(neverPublishedCancelledJob);
         await dbContext.SaveChangesAsync();
 
-        var jobService = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService());
+        var jobService = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService(), Mock.Of<Aivora.Services.NotificationService.IService>());
         var pageRequest = new Aivora.Services.Base.Request.PageRequest { PageIndex = 1, PageSize = 10 };
 
         // Act
@@ -600,7 +600,7 @@ public class Flow1JobCreationAndRecommendationTests
         dbContext.JobPosts.AddRange(openJob, inProgressJob);
         await dbContext.SaveChangesAsync();
 
-        var jobService = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService());
+        var jobService = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService(), Mock.Of<Aivora.Services.NotificationService.IService>());
         var pageRequest = new Aivora.Services.Base.Request.PageRequest { PageIndex = 1, PageSize = 10 };
 
         return (dbContext, jobService, pageRequest, openJob, inProgressJob);

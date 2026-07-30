@@ -545,7 +545,158 @@ public class MessageServiceTests
         // Assert
         await act.Should().NotThrowAsync();
     }
+
+    private async Task<(Guid clientId, Guid expertId, Guid jobId)> SeedClientExpertJob(AivoraDbContext dbContext)
+    {
+        var clientId = Guid.NewGuid();
+        var expertId = Guid.NewGuid();
+        var jobId = Guid.NewGuid();
+
+        dbContext.Users.AddRange(
+            new User { Id = clientId, FullName = "Client", Email = "c@t.com", PasswordHash = "x", Role = UserRole.CLIENT },
+            new User { Id = expertId, FullName = "Expert", Email = "e@t.com", PasswordHash = "x", Role = UserRole.EXPERT });
+        dbContext.JobPosts.Add(new JobPost { Id = jobId, ClientId = clientId, Title = "Job", Status = JobStatus.OPEN, OriginalDescription = "X", CategoryId = Guid.NewGuid() });
+        await dbContext.SaveChangesAsync();
+        return (clientId, expertId, jobId);
+    }
+
+    [Fact]
+    public async Task GetOrCreateConversationAsync_ExpertInitiatedWithActiveProposal_CreatesConversationWithCorrectRoles()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var (clientId, expertId, jobId) = await SeedClientExpertJob(dbContext);
+        dbContext.Proposals.Add(new Proposal { JobId = jobId, ExpertId = expertId, CoverLetter = "Hi", ProposedBudget = 100, Status = ProposalStatus.SUBMITTED });
+        await dbContext.SaveChangesAsync();
+
+        var service = new Service(dbContext);
+
+        // Act
+        var result = await service.GetOrCreateConversationAsync(clientId, expertId, jobId, expertInitiated: true);
+
+        // Assert
+        result.ClientId.Should().Be(clientId);
+        result.ExpertId.Should().Be(expertId);
+        var conv = await dbContext.Conversations.SingleAsync();
+        conv.ClientId.Should().Be(clientId);
+        conv.ExpertId.Should().Be(expertId);
+    }
+
+    [Fact]
+    public async Task GetOrCreateConversationAsync_ExpertInitiated_ReusesClientInitiatedConversation()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var (clientId, expertId, jobId) = await SeedClientExpertJob(dbContext);
+        dbContext.Proposals.Add(new Proposal { JobId = jobId, ExpertId = expertId, CoverLetter = "Hi", ProposedBudget = 100, Status = ProposalStatus.SHORTLISTED });
+        await dbContext.SaveChangesAsync();
+
+        var service = new Service(dbContext);
+        var first = await service.GetOrCreateConversationAsync(clientId, expertId, jobId);
+
+        // Act
+        var second = await service.GetOrCreateConversationAsync(clientId, expertId, jobId, expertInitiated: true);
+
+        // Assert
+        second.Id.Should().Be(first.Id);
+        (await dbContext.Conversations.CountAsync()).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task GetOrCreateConversationAsync_ExpertInitiatedWithoutProposal_ThrowsForbiddenException()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var (clientId, expertId, jobId) = await SeedClientExpertJob(dbContext);
+        var service = new Service(dbContext);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ForbiddenException>(() =>
+            service.GetOrCreateConversationAsync(clientId, expertId, jobId, expertInitiated: true));
+    }
+
+    [Fact]
+    public async Task GetOrCreateConversationAsync_ExpertInitiatedWithRejectedProposal_ThrowsForbiddenException()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var (clientId, expertId, jobId) = await SeedClientExpertJob(dbContext);
+        dbContext.Proposals.Add(new Proposal { JobId = jobId, ExpertId = expertId, CoverLetter = "Hi", ProposedBudget = 100, Status = ProposalStatus.REJECTED });
+        await dbContext.SaveChangesAsync();
+
+        var service = new Service(dbContext);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ForbiddenException>(() =>
+            service.GetOrCreateConversationAsync(clientId, expertId, jobId, expertInitiated: true));
+    }
+
+    [Fact]
+    public async Task GetOrCreateConversationAsync_ExpertInitiatedWithoutJobOrProject_ThrowsForbiddenException()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var (clientId, expertId, _) = await SeedClientExpertJob(dbContext);
+        var service = new Service(dbContext);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ForbiddenException>(() =>
+            service.GetOrCreateConversationAsync(clientId, expertId, expertInitiated: true));
+    }
+
+    [Fact]
+    public async Task GetOrCreateConversationAsync_ExpertInitiatedWithSharedProject_Succeeds()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var (clientId, expertId, _) = await SeedClientExpertJob(dbContext);
+        var projectId = Guid.NewGuid();
+        dbContext.Projects.Add(new Project { Id = projectId, ClientId = clientId, ExpertId = expertId, Title = "P", Status = ProjectStatus.ACTIVE });
+        await dbContext.SaveChangesAsync();
+
+        var service = new Service(dbContext);
+
+        // Act
+        var result = await service.GetOrCreateConversationAsync(clientId, expertId, projectId: projectId, expertInitiated: true);
+
+        // Assert
+        result.ClientId.Should().Be(clientId);
+        result.ExpertId.Should().Be(expertId);
+    }
+
+    [Fact]
+    public async Task GetOrCreateConversationAsync_ClientInitiated_NoGuardApplied()
+    {
+        // Arrange: client can still open a conversation with any expert (unchanged behavior)
+        var dbContext = GetDbContext();
+        var (clientId, expertId, _) = await SeedClientExpertJob(dbContext);
+        var service = new Service(dbContext);
+
+        // Act
+        var result = await service.GetOrCreateConversationAsync(clientId, expertId);
+
+        // Assert
+        result.ClientId.Should().Be(clientId);
+        result.ExpertId.Should().Be(expertId);
+    }
+
+    [Fact]
+    public async Task GetOrCreateConversationAsync_ExpertInitiatedRejectedProposalButConversationExists_ReturnsExisting()
+    {
+        // Arrange: guard applies only to creating NEW conversations — an existing one stays reachable
+        var dbContext = GetDbContext();
+        var (clientId, expertId, jobId) = await SeedClientExpertJob(dbContext);
+        dbContext.Proposals.Add(new Proposal { JobId = jobId, ExpertId = expertId, CoverLetter = "Hi", ProposedBudget = 100, Status = ProposalStatus.REJECTED });
+        var existing = new Conversation { Id = Guid.NewGuid(), ClientId = clientId, ExpertId = expertId, JobId = jobId };
+        dbContext.Conversations.Add(existing);
+        await dbContext.SaveChangesAsync();
+
+        var service = new Service(dbContext);
+
+        // Act
+        var result = await service.GetOrCreateConversationAsync(clientId, expertId, jobId, expertInitiated: true);
+
+        // Assert
+        result.Id.Should().Be(existing.Id);
+    }
 }
-
-
-

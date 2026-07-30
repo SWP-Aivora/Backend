@@ -47,6 +47,22 @@ public class Service : IService
             throw new ValidationException("At least one evidence field (FileUrl, DemoUrl, SourceCodeUrl, Note) must be provided.");
         }
 
+        var hasUnfinishedPredecessor = await _dbContext.Milestones.AnyAsync(m =>
+            m.ProjectId == milestone.ProjectId &&
+            m.OrderIndex < milestone.OrderIndex &&
+            m.Status != MilestoneStatus.APPROVED &&
+            m.Status != MilestoneStatus.COMPLETED &&
+            m.Status != MilestoneStatus.RELEASED &&
+            m.Status != MilestoneStatus.REFUNDED);
+        if (hasUnfinishedPredecessor)
+            throw new ValidationException("Previous milestones must be completed before submitting a deliverable for this milestone.");
+
+        ValidateLength(request.Description, 2000, "Description");
+        ValidateLength(request.Note, 1000, "Note");
+        ValidateUrl(request.FileUrl, "FileUrl");
+        ValidateUrl(request.DemoUrl, "DemoUrl");
+        ValidateUrl(request.SourceCodeUrl, "SourceCodeUrl");
+
         var latestRevision = await _dbContext.Deliverables
             .Where(d => d.MilestoneId == milestoneId)
             .OrderByDescending(d => d.RevisionNumber)
@@ -122,6 +138,22 @@ public class Service : IService
             .ToListAsync();
 
         return deliverables.Select(MapToResponse).ToList();
+    }
+
+    // Same signature as MilestoneService.ValidateLength — keep them in sync.
+    private static void ValidateLength(string? value, int maxLength, string fieldName)
+    {
+        if (value != null && value.Length > maxLength)
+            throw new ValidationException($"{fieldName} must not exceed {maxLength} characters.");
+    }
+
+    private static void ValidateUrl(string? value, string fieldName)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return;
+        ValidateLength(value, 2048, fieldName);
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) ||
+            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+            throw new ValidationException($"{fieldName} must be a valid http(s) URL.");
     }
 
     private static Response.DeliverableResponse MapToResponse(Deliverable d)

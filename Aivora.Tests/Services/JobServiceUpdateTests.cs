@@ -35,7 +35,7 @@ public class JobServiceUpdateTests
         var dbContext = GetDbContext();
         var (_, _, clientId) = SetupClient(dbContext);
 
-        var service = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService());
+        var service = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService(), Mock.Of<Aivora.Services.NotificationService.IService>());
         var categoryId = Guid.NewGuid();
 
         var job = new JobPost
@@ -79,7 +79,7 @@ public class JobServiceUpdateTests
         var dbContext = GetDbContext();
         var (_, _, clientId) = SetupClient(dbContext);
 
-        var service = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService());
+        var service = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService(), Mock.Of<Aivora.Services.NotificationService.IService>());
 
         var job = new JobPost
         {
@@ -110,7 +110,7 @@ public class JobServiceUpdateTests
     {
         var dbContext = GetDbContext();
         var (_, _, clientId) = SetupClient(dbContext);
-        var service = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService());
+        var service = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService(), Mock.Of<Aivora.Services.NotificationService.IService>());
 
         var job = new JobPost
         {
@@ -141,7 +141,7 @@ public class JobServiceUpdateTests
     {
         var dbContext = GetDbContext();
         var (_, _, clientId) = SetupClient(dbContext);
-        var service = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService());
+        var service = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService(), Mock.Of<Aivora.Services.NotificationService.IService>());
 
         var skillA = Guid.NewGuid();
         var skillB = Guid.NewGuid();
@@ -181,7 +181,7 @@ public class JobServiceUpdateTests
     {
         var dbContext = GetDbContext();
         var (_, _, clientId) = SetupClient(dbContext);
-        var service = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService());
+        var service = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService(), Mock.Of<Aivora.Services.NotificationService.IService>());
 
         var skillA = Guid.NewGuid();
         var skillB = Guid.NewGuid();
@@ -213,7 +213,7 @@ public class JobServiceUpdateTests
     public async Task UpdateJobAsync_NotOwner_ThrowsNotFoundException()
     {
         var dbContext = GetDbContext();
-        var service = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService());
+        var service = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService(), Mock.Of<Aivora.Services.NotificationService.IService>());
 
         var job = new JobPost
         {
@@ -243,7 +243,7 @@ public class JobServiceUpdateTests
         await dbContext.SaveChangesAsync();
 
         var mockRealtime = new Mock<Aivora.Services.RealtimeService.IService>();
-        var service = new Service(dbContext, mockRealtime.Object);
+        var service = new Service(dbContext, mockRealtime.Object, Mock.Of<Aivora.Services.NotificationService.IService>());
 
         await service.PublishJobAsync(client.Id, job.Id);
 
@@ -254,7 +254,7 @@ public class JobServiceUpdateTests
     public async Task CancelJobAsync_NotOwner_ThrowsNotFoundException()
     {
         var dbContext = GetDbContext();
-        var service = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService());
+        var service = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService(), Mock.Of<Aivora.Services.NotificationService.IService>());
 
         var job = new JobPost
         {
@@ -303,7 +303,7 @@ public class JobServiceUpdateTests
         dbContext.JobInvites.Add(invite);
         await dbContext.SaveChangesAsync();
 
-        var service = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService());
+        var service = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService(), Mock.Of<Aivora.Services.NotificationService.IService>());
         await service.CancelJobAsync(clientId, job.Id, "No longer needed");
 
         var dbInvite = await dbContext.JobInvites.FindAsync(invite.Id);
@@ -324,7 +324,7 @@ public class JobServiceUpdateTests
         );
         await dbContext.SaveChangesAsync();
 
-        var service = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService());
+        var service = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService(), Mock.Of<Aivora.Services.NotificationService.IService>());
 
         var result = await service.GetMyJobsAsync(null, new Aivora.Services.Base.Request.PageRequest { PageIndex = 1, PageSize = 10 });
 
@@ -344,11 +344,87 @@ public class JobServiceUpdateTests
         );
         await dbContext.SaveChangesAsync();
 
-        var service = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService());
+        var service = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService(), Mock.Of<Aivora.Services.NotificationService.IService>());
 
         var result = await service.GetMyJobsAsync(null, new Aivora.Services.Base.Request.PageRequest { PageIndex = 1, PageSize = 10 }, JobStatus.DRAFT);
 
         result.Items.Should().ContainSingle();
         result.Items[0].Title.Should().Be("Draft Job");
+    }
+
+    [Fact]
+    public async Task UpdateJobAsync_OpenJobWithActiveProposals_NotifiesOnlyNonRejectedExperts()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var (_, _, clientId) = SetupClient(dbContext);
+        var submittedExpertId = Guid.NewGuid();
+        var rejectedExpertId = Guid.NewGuid();
+        var withdrawnExpertId = Guid.NewGuid();
+
+        var job = new JobPost { ClientId = clientId, Title = "Job", Status = JobStatus.OPEN, OriginalDescription = "X", CategoryId = Guid.NewGuid() };
+        dbContext.JobPosts.Add(job);
+        await dbContext.SaveChangesAsync();
+
+        dbContext.Proposals.AddRange(
+            new Proposal { JobId = job.Id, ExpertId = submittedExpertId, CoverLetter = "a", ProposedBudget = 1, Status = ProposalStatus.SUBMITTED },
+            new Proposal { JobId = job.Id, ExpertId = rejectedExpertId, CoverLetter = "b", ProposedBudget = 1, Status = ProposalStatus.REJECTED },
+            new Proposal { JobId = job.Id, ExpertId = withdrawnExpertId, CoverLetter = "c", ProposedBudget = 1, Status = ProposalStatus.WITHDRAWN });
+        await dbContext.SaveChangesAsync();
+
+        var notificationMock = new Mock<Aivora.Services.NotificationService.IService>();
+        var service = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService(), notificationMock.Object);
+
+        // Act
+        await service.UpdateJobAsync(clientId, job.Id, new Request.UpdateJobRequest { Title = "Job v2" });
+
+        // Assert
+        notificationMock.Verify(n => n.SendNotificationAsync(submittedExpertId, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Once);
+        notificationMock.Verify(n => n.SendNotificationAsync(rejectedExpertId, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+        notificationMock.Verify(n => n.SendNotificationAsync(withdrawnExpertId, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateJobAsync_DraftJob_DoesNotNotify()
+    {
+        // Arrange
+        var dbContext = GetDbContext();
+        var (_, _, clientId) = SetupClient(dbContext);
+        var job = new JobPost { ClientId = clientId, Title = "Job", Status = JobStatus.DRAFT, OriginalDescription = "X", CategoryId = Guid.NewGuid() };
+        dbContext.JobPosts.Add(job);
+        await dbContext.SaveChangesAsync();
+
+        var notificationMock = new Mock<Aivora.Services.NotificationService.IService>();
+        var service = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService(), notificationMock.Object);
+
+        // Act
+        await service.UpdateJobAsync(clientId, job.Id, new Request.UpdateJobRequest { Title = "Job v2" });
+
+        // Assert
+        notificationMock.Verify(n => n.SendNotificationAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateJobAsync_NoActualChanges_DoesNotNotify()
+    {
+        // Arrange: empty request body changes nothing
+        var dbContext = GetDbContext();
+        var (_, _, clientId) = SetupClient(dbContext);
+        var job = new JobPost { ClientId = clientId, Title = "Job", Status = JobStatus.OPEN, OriginalDescription = "X", CategoryId = Guid.NewGuid() };
+        dbContext.JobPosts.Add(job);
+        await dbContext.SaveChangesAsync();
+
+        dbContext.Proposals.Add(new Proposal { JobId = job.Id, ExpertId = Guid.NewGuid(), CoverLetter = "a", ProposedBudget = 1, Status = ProposalStatus.SUBMITTED });
+        await dbContext.SaveChangesAsync();
+        dbContext.ChangeTracker.Clear();
+
+        var notificationMock = new Mock<Aivora.Services.NotificationService.IService>();
+        var service = new Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService(), notificationMock.Object);
+
+        // Act
+        await service.UpdateJobAsync(clientId, job.Id, new Request.UpdateJobRequest());
+
+        // Assert
+        notificationMock.Verify(n => n.SendNotificationAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
     }
 }

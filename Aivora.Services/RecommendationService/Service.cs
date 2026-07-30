@@ -147,7 +147,7 @@ public class Service : IService
                 continue;
             }
 
-            result.Explanation = ranked.Reasoning;
+            result.Explanation = TruncateExplanation(ranked.Reasoning);
             result.AiRank = rank++;
             recommendations.Add(result);
         }
@@ -217,7 +217,11 @@ public class Service : IService
             OverdueRate = score.OverdueRate,
             OverduePenalty = score.OverduePenalty,
             TotalScore = score.TotalScore,
-            Explanation = score.Explanation
+            Explanation = TruncateExplanation(score.Explanation)
         };
     }
+
+    // RecommendationResult.Explanation is varchar(2000) — guard every assignment path.
+    private static string? TruncateExplanation(string? value) =>
+        value is { Length: > 2000 } ? value[..2000] : value;
 }

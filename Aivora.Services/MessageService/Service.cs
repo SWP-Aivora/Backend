@@ -15,7 +15,7 @@ public class Service : IService
         _dbContext = dbContext;
     }
 
-    public async Task<Response.ConversationResponse> GetOrCreateConversationAsync(Guid clientId, Guid expertId, Guid? jobId = null, Guid? projectId = null, Guid? serviceRequestId = null)
+    public async Task<Response.ConversationResponse> GetOrCreateConversationAsync(Guid clientId, Guid expertId, Guid? jobId = null, Guid? projectId = null, Guid? serviceRequestId = null, bool expertInitiated = false)
     {
         var conversation = await _dbContext.Conversations
             .Include(c => c.Client)
@@ -24,6 +24,27 @@ public class Service : IService
 
         if (conversation == null)
         {
+            if (expertInitiated)
+            {
+                // An expert may only open a NEW conversation with a client they have a real
+                // relationship with: a live proposal on the client's job, or a shared project.
+                // An already-existing conversation stays reachable regardless.
+                var allowed =
+                    (jobId != null && await _dbContext.Proposals.AnyAsync(p =>
+                        p.JobId == jobId &&
+                        p.ExpertId == expertId &&
+                        p.Job.ClientId == clientId &&
+                        p.Status != ProposalStatus.REJECTED &&
+                        p.Status != ProposalStatus.WITHDRAWN)) ||
+                    (projectId != null && await _dbContext.Projects.AnyAsync(p =>
+                        p.Id == projectId &&
+                        p.ExpertId == expertId &&
+                        p.ClientId == clientId));
+
+                if (!allowed)
+                    throw new ForbiddenException("You can only start a conversation with a client you have an active proposal or project with.");
+            }
+
             conversation = new Conversation
             {
                 ClientId = clientId,
@@ -40,7 +61,8 @@ public class Service : IService
             conversation.Expert = await _dbContext.Users.FindAsync(expertId);
         }
 
-        return await MapToConversationResponse(conversation, clientId, isUnreadApplicable: true); // Client is never admin
+        var currentUserId = expertInitiated ? expertId : clientId;
+        return await MapToConversationResponse(conversation, currentUserId, isUnreadApplicable: true); // Caller is never admin
     }
 
     public async Task<Base.Response.PageResult<Response.ConversationResponse>> GetUserConversationsAsync(Guid userId, Base.Request.PageRequest pageRequest)
