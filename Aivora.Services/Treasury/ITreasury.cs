@@ -45,6 +45,11 @@ public interface ITreasury
     Task<TreasuryResult> SplitMilestoneFundsAsync(Guid milestoneId, decimal releaseToExpertAmount, decimal refundToClientAmount, string reason);
 
     /// <summary>
+    /// Settle escrow for all active/submitted milestones when a project is completed.
+    /// </summary>
+    Task SettleProjectEscrowAsync(Guid clientId, Guid projectId);
+
+    /// <summary>
     /// Đồng bộ trạng thái Project dựa trên trạng thái các Milestone.
     /// Giải quyết bug 'hanging project' bằng cách tính cả Milestone đã REFUNDED.
     /// </summary>

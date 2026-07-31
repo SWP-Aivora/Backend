@@ -9,13 +9,15 @@ namespace Aivora.Services.ProjectService;
 
 public class Service : IService
 {
-    private readonly AivoraDbContext _dbContext;
+        private readonly AivoraDbContext _dbContext;
     private readonly RealtimeService.IService _realtimeService;
+    private readonly Treasury.ITreasury _treasury;
 
-    public Service(AivoraDbContext dbContext, RealtimeService.IService realtimeService)
+    public Service(AivoraDbContext dbContext, RealtimeService.IService realtimeService, Treasury.ITreasury treasury)
     {
         _dbContext = dbContext;
         _realtimeService = realtimeService;
+        _treasury = treasury;
     }
 
     public async Task<Response.ProjectResponse> GetProjectByIdAsync(Guid userId, Guid projectId, UserRole userRole)
@@ -158,7 +160,7 @@ public class Service : IService
         }
     }
 
-    public async Task<Response.ProjectResponse> CompleteProjectAsync(Guid userId, Guid projectId)
+        public async Task<Response.ProjectResponse> CompleteProjectAsync(Guid userId, Guid projectId)
     {
         var project = await _dbContext.Projects
             .FirstOrDefaultAsync(p => p.Id == projectId && p.ClientId == userId);
@@ -166,11 +168,15 @@ public class Service : IService
         if (project == null) throw new NotFoundException("Project not found or access denied.");
         if (project.Status != ProjectStatus.ACTIVE) throw new ValidationException("Only active projects can be completed.");
 
-        project.Status = ProjectStatus.COMPLETED;
-        project.CompletedAt = DateTimeOffset.UtcNow;
+        // Settlement logic via Treasury (handles escrow and milestone sync)
+        await _treasury.SettleProjectEscrowAsync(userId, projectId);
 
-        await _dbContext.SaveChangesAsync();
-        return MapToResponse(project);
+        // Fetch project again as its status may have been updated by Treasury
+        var updatedProject = await _dbContext.Projects
+            .Include(p => p.Milestones)
+            .FirstOrDefaultAsync(p => p.Id == projectId);
+            
+        return MapToResponse(updatedProject!);
     }
 
     private static Response.ProjectResponse MapToResponse(Project p)
@@ -209,3 +215,5 @@ public class Service : IService
         };
     }
 }
+
+
