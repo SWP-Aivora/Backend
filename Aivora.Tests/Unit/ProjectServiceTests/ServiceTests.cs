@@ -6,6 +6,7 @@ using Aivora.Services.ProjectService;
 using Aivora.Tests.Helpers;
 using Microsoft.EntityFrameworkCore;
 using FluentAssertions;
+using Moq;
 using Xunit;
 
 namespace Aivora.Tests.Unit.ProjectServiceTests;
@@ -23,7 +24,8 @@ public class ServiceTests : IDisposable
             .Options;
         _dbContext = new AivoraDbContext(options);
 
-        _service = new Service(_dbContext, new Aivora.Services.RealtimeService.NullRealtimeService());
+        var treasuryMock = new Mock<Aivora.Services.Treasury.ITreasury>();
+        _service = new Service(_dbContext, new Aivora.Services.RealtimeService.NullRealtimeService(), treasuryMock.Object);
     }
 
     public void Dispose()
@@ -335,3 +337,4 @@ public class ServiceTests : IDisposable
         dbProject!.Status.Should().Be(ProjectStatus.DISPUTED);
     }
 }
+
