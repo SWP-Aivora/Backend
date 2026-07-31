@@ -158,6 +158,22 @@ public class Service : IService
         }
     }
 
+    public async Task<Response.ProjectResponse> CompleteProjectAsync(Guid userId, Guid projectId)
+    {
+        var project = await _dbContext.Projects
+            .Include(p => p.Milestones)
+            .FirstOrDefaultAsync(p => p.Id == projectId && p.ClientId == userId);
+
+        if (project == null) throw new NotFoundException("Project not found or access denied.");
+        if (project.Status == ProjectStatus.CANCELLED) throw new ValidationException("Cannot complete a cancelled project.");
+
+        project.Status = ProjectStatus.COMPLETED;
+        project.CompletedAt = DateTimeOffset.UtcNow;
+
+        await _dbContext.SaveChangesAsync();
+        return MapToResponse(project);
+    }
+
     private static Response.ProjectResponse MapToResponse(Project p)
     {
         return new Response.ProjectResponse
