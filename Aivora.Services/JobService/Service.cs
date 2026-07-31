@@ -191,20 +191,14 @@ public class Service : IService
 
             foreach (var expertId in expertIds)
             {
-                try
-                {
-                    await _notificationService.SendNotificationAsync(
-                        expertId,
-                        "Job post updated",
-                        $"The job \"{job.Title}\" you submitted a proposal for has been updated by the client. Please review the changes.",
-                        "PROPOSAL",
-                        $"/jobs/{jobId}"
-                    );
-                }
-                catch
-                {
-                    // Notification failure should not block the main business flow
-                }
+                // Fire-and-forget so a large proposal list cannot slow down the update response.
+                _notificationService.SendInBackground(
+                    expertId,
+                    "Job post updated",
+                    $"The job \"{job.Title}\" you submitted a proposal for has been updated by the client. Please review the changes.",
+                    "PROPOSAL",
+                    $"/jobs/{jobId}"
+                );
             }
         }
 

@@ -379,9 +379,9 @@ public class JobServiceUpdateTests
         await service.UpdateJobAsync(clientId, job.Id, new Request.UpdateJobRequest { Title = "Job v2" });
 
         // Assert
-        notificationMock.Verify(n => n.SendNotificationAsync(submittedExpertId, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Once);
-        notificationMock.Verify(n => n.SendNotificationAsync(rejectedExpertId, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
-        notificationMock.Verify(n => n.SendNotificationAsync(withdrawnExpertId, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+        notificationMock.Verify(n => n.SendInBackground(submittedExpertId, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Once);
+        notificationMock.Verify(n => n.SendInBackground(rejectedExpertId, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+        notificationMock.Verify(n => n.SendInBackground(withdrawnExpertId, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
     }
 
     [Fact]
@@ -401,7 +401,7 @@ public class JobServiceUpdateTests
         await service.UpdateJobAsync(clientId, job.Id, new Request.UpdateJobRequest { Title = "Job v2" });
 
         // Assert
-        notificationMock.Verify(n => n.SendNotificationAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+        notificationMock.Verify(n => n.SendInBackground(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
     }
 
     [Fact]
@@ -425,6 +425,6 @@ public class JobServiceUpdateTests
         await service.UpdateJobAsync(clientId, job.Id, new Request.UpdateJobRequest());
 
         // Assert
-        notificationMock.Verify(n => n.SendNotificationAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+        notificationMock.Verify(n => n.SendInBackground(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
     }
 }
