@@ -9,7 +9,7 @@ namespace Aivora.Services.ProjectService;
 
 public class Service : IService
 {
-        private readonly AivoraDbContext _dbContext;
+    private readonly AivoraDbContext _dbContext;
     private readonly RealtimeService.IService _realtimeService;
     private readonly Treasury.ITreasury _treasury;
 
@@ -160,23 +160,19 @@ public class Service : IService
         }
     }
 
-        public async Task<Response.ProjectResponse> CompleteProjectAsync(Guid userId, Guid projectId)
+    public async Task<Response.ProjectResponse> CompleteProjectAsync(Guid userId, Guid projectId)
     {
         var project = await _dbContext.Projects
+            .Include(p => p.Milestones)
+                .ThenInclude(m => m.Steps)
             .FirstOrDefaultAsync(p => p.Id == projectId && p.ClientId == userId);
 
         if (project == null) throw new NotFoundException("Project not found or access denied.");
-        if (project.Status != ProjectStatus.ACTIVE) throw new ValidationException("Only active projects can be completed.");
 
         // Settlement logic via Treasury (handles escrow and milestone sync)
-        await _treasury.SettleProjectEscrowAsync(userId, projectId);
+        var updatedProject = await _treasury.SettleProjectEscrowAsync(project);
 
-        // Fetch project again as its status may have been updated by Treasury
-        var updatedProject = await _dbContext.Projects
-            .Include(p => p.Milestones)
-            .FirstOrDefaultAsync(p => p.Id == projectId);
-            
-        return MapToResponse(updatedProject!);
+        return MapToResponse(updatedProject);
     }
 
     private static Response.ProjectResponse MapToResponse(Project p)
@@ -215,5 +211,6 @@ public class Service : IService
         };
     }
 }
+
 
 

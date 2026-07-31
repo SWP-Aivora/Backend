@@ -576,33 +576,31 @@ public class Treasury : ITreasury
         }
     }
 
-        public async Task SettleProjectEscrowAsync(Guid clientId, Guid projectId)
+    public async Task<Project> SettleProjectEscrowAsync(Project project)
     {
-        var project = await _dbContext.Projects
-            .Include(p => p.Milestones)
-                .ThenInclude(m => m.Steps)
-            .FirstOrDefaultAsync(p => p.Id == projectId && p.ClientId == clientId);
+        var clientId = project.ClientId;
+        var projectId = project.Id;
 
-        if (project == null) throw new NotFoundException("Project not found or access denied.");
         if (project.Status != ProjectStatus.ACTIVE) throw new ValidationException("Only active projects can be settled.");
 
         var hasActiveDispute = await _dbContext.Disputes
             .AnyAsync(d => project.Milestones.Select(m => m.Id).Contains(d.MilestoneId) &&
                           (d.Status == DisputeStatus.OPEN || d.Status == DisputeStatus.UNDER_REVIEW));
-        
+
         if (hasActiveDispute)
             throw new ValidationException("Cannot settle project with active disputes.");
 
-                        var milestonesToSettle = project.Milestones
+        var milestonesToSettle = project.Milestones
             .Where(m => m.Status == MilestoneStatus.IN_PROGRESS || m.Status == MilestoneStatus.SUBMITTED || m.Status == MilestoneStatus.FUNDED)
             .ToList();
 
-        if (!milestonesToSettle.Any()) 
+        if (!milestonesToSettle.Any())
         {
-            await SyncProjectStatusAsync(projectId);
-            return;
+            await SyncProjectStateAsync(project);
+            return project;
         }
 
+        var notifications = new List<Action>();
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
@@ -617,7 +615,7 @@ public class Treasury : ITreasury
                 var commissionAmount = _commissionCalculator.CalculateCommission(milestone.Amount);
                 var expertAmount = remainingAmount - commissionAmount;
 
-                if (clientWallet.AvailableBalance < remainingAmount) 
+                if (clientWallet.AvailableBalance < remainingAmount)
                     throw new ValidationException($"Insufficient balance to settle milestone {milestone.Id}.");
 
                 milestone.Status = MilestoneStatus.RELEASED;
@@ -692,22 +690,28 @@ public class Treasury : ITreasury
                 }
 
                 CompleteRemainingSteps(milestone.Steps, DateTimeOffset.UtcNow);
-                
-                _notificationService.SendInBackground(
+
+                notifications.Add(() => _notificationService.SendInBackground(
                     project.ExpertId,
                     "Project Completed & Milestone Paid",
                     $"The client has completed the project and milestone \"{milestone.Title}\" has been released to your wallet.",
                     "PROJECT",
                     $"/projects/{projectId}/milestones/{milestone.Id}"
-                );
-                
+                ));
+
                 _logger.LogInformation("✅ Settlement: Remaining funds released for Milestone {MilestoneId} upon Project completion", milestone.Id);
             }
 
-            await _dbContext.SaveChangesAsync();
-            await SyncProjectStatusAsync(projectId);
+            await SyncProjectStateAsync(project);
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
+
+            foreach (var notify in notifications)
+            {
+                notify();
+            }
+
+            return project;
         }
         catch (Exception ex)
         {
@@ -822,6 +826,7 @@ public class Treasury : ITreasury
         }
     }
 }
+
 
 
 

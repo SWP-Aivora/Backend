@@ -47,7 +47,7 @@ public interface ITreasury
     /// <summary>
     /// Settle escrow for all active/submitted milestones when a project is completed.
     /// </summary>
-    Task SettleProjectEscrowAsync(Guid clientId, Guid projectId);
+    Task<Project> SettleProjectEscrowAsync(Project project);
 
     /// <summary>
     /// Đồng bộ trạng thái Project dựa trên trạng thái các Milestone.
@@ -55,3 +55,4 @@ public interface ITreasury
     /// </summary>
     Task SyncProjectStatusAsync(Guid projectId);
 }
+
