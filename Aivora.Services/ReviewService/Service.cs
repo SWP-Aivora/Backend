@@ -24,8 +24,8 @@ public class Service : IService
         var project = await _dbContext.Projects.FindAsync(request.ProjectId);
         if (project == null) throw new NotFoundException("Project not found.");
 
-        if (project.Status != ProjectStatus.COMPLETED)
-            throw new ValidationException("Reviews can only be given for completed projects.");
+        if (project.Status != ProjectStatus.COMPLETED && project.Status != ProjectStatus.CANCELLED)
+            throw new ValidationException("Reviews can only be given for completed or cancelled projects.");
 
         if (project.ClientId != reviewerId && project.ExpertId != reviewerId)
             throw new ForbiddenException("You are not authorized to review this project.");
