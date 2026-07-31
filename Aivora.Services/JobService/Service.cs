@@ -12,11 +12,13 @@ public class Service : IService
 {
     private readonly AivoraDbContext _dbContext;
     private readonly RealtimeService.IService _realtimeService;
+    private readonly NotificationService.IService _notificationService;
 
-    public Service(AivoraDbContext dbContext, RealtimeService.IService realtimeService)
+    public Service(AivoraDbContext dbContext, RealtimeService.IService realtimeService, NotificationService.IService notificationService)
     {
         _dbContext = dbContext;
         _realtimeService = realtimeService;
+        _notificationService = notificationService;
     }
 
     public async Task<Response.JobResponse> GetJobByIdAsync(Guid id)
@@ -174,7 +176,31 @@ public class Service : IService
             await _dbContext.JobPostMilestones.AddRangeAsync(newMilestones);
         }
 
+        var hasChanges = _dbContext.ChangeTracker.HasChanges();
         await _dbContext.SaveChangesAsync();
+
+        if (hasChanges && job.Status == JobStatus.OPEN)
+        {
+            var expertIds = await _dbContext.Proposals
+                .Where(p => p.JobId == jobId &&
+                            p.Status != ProposalStatus.REJECTED &&
+                            p.Status != ProposalStatus.WITHDRAWN)
+                .Select(p => p.ExpertId)
+                .Distinct()
+                .ToListAsync();
+
+            foreach (var expertId in expertIds)
+            {
+                // Fire-and-forget so a large proposal list cannot slow down the update response.
+                _notificationService.SendInBackground(
+                    expertId,
+                    "Job post updated",
+                    $"The job \"{job.Title}\" you submitted a proposal for has been updated by the client. Please review the changes.",
+                    "PROPOSAL",
+                    $"/jobs/{jobId}"
+                );
+            }
+        }
 
         return await GetJobByIdAsync(job.Id);
     }

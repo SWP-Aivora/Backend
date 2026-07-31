@@ -1349,7 +1349,7 @@ PUT /api/v1/admin/expert-verifications/{id}/review
 
 | # | Method | Endpoint | Auth | Tables |
 |---|--------|----------|------|--------|
-| 1 | POST | `/conversations/init` | Any | `Conversations` |
+| 1 | POST | `/conversations/init` | Any | `Conversations` — `expertId` là id đối phương (Client gọi → expert; Expert gọi → client). Expert cần proposal chưa bị reject/withdraw trên `jobId`, hoặc `projectId` chung với client — nếu không → 403 |
 | 2 | GET | `/conversations/{id}/messages` | Participant | `Messages` |
 | 3 | POST | `/conversations/{id}/read` | Participant | `Messages` |
 | 4 | POST/GET | `/conversations/admin` | Admin | `Conversations` |

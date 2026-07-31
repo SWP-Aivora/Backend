@@ -63,7 +63,7 @@ public class E2EBusinessFlowTests
         // ----------------------------------------------------
         // 1. Client Create Job — Khang
         // ----------------------------------------------------
-        var jobService = new Aivora.Services.JobService.Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService());
+        var jobService = new Aivora.Services.JobService.Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService(), Mock.Of<Aivora.Services.NotificationService.IService>());
 
         var createJobReq = new Aivora.Services.JobService.Request.CreateJobRequest
         {
@@ -274,7 +274,7 @@ public class E2EBusinessFlowTests
         await dbContext.SaveChangesAsync();
 
         // Mocks for AI Service
-        var jobService = new Aivora.Services.JobService.Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService());
+        var jobService = new Aivora.Services.JobService.Service(dbContext, new Aivora.Services.RealtimeService.NullRealtimeService(), Mock.Of<Aivora.Services.NotificationService.IService>());
         var suggestionProviderMock = new Mock<Aivora.Services.AIJobAssistantService.IAIJobSuggestionProvider>();
         var refinementProviderMock = new Mock<Aivora.Services.AIJobAssistantService.IAIJobRefinementProvider>();
         var serviceDescriptionProviderMock = new Mock<Aivora.Services.AIJobAssistantService.IAIServiceDescriptionProvider>();
