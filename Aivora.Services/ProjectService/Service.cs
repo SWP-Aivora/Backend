@@ -161,11 +161,10 @@ public class Service : IService
     public async Task<Response.ProjectResponse> CompleteProjectAsync(Guid userId, Guid projectId)
     {
         var project = await _dbContext.Projects
-            .Include(p => p.Milestones)
             .FirstOrDefaultAsync(p => p.Id == projectId && p.ClientId == userId);
 
         if (project == null) throw new NotFoundException("Project not found or access denied.");
-        if (project.Status == ProjectStatus.CANCELLED) throw new ValidationException("Cannot complete a cancelled project.");
+        if (project.Status != ProjectStatus.ACTIVE) throw new ValidationException("Only active projects can be completed.");
 
         project.Status = ProjectStatus.COMPLETED;
         project.CompletedAt = DateTimeOffset.UtcNow;
