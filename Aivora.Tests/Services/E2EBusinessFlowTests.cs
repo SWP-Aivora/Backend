@@ -448,7 +448,7 @@ public class E2EBusinessFlowTests
         };
         Func<Task> earlyReview = async () => await reviewService.CreateReviewAsync(clientId, earlyReviewReq);
         await earlyReview.Should().ThrowAsync<ValidationException>()
-            .WithMessage("Reviews can only be given for completed projects.");
+            .WithMessage("Reviews can only be given for completed or cancelled projects.");
 
         // Mark project completed to unlock review-related negative checks
         project.Status = ProjectStatus.COMPLETED;

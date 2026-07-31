@@ -11,11 +11,13 @@ public class Service : IService
 {
     private readonly AivoraDbContext _dbContext;
     private readonly RealtimeService.IService _realtimeService;
+    private readonly Treasury.ITreasury _treasury;
 
-    public Service(AivoraDbContext dbContext, RealtimeService.IService realtimeService)
+    public Service(AivoraDbContext dbContext, RealtimeService.IService realtimeService, Treasury.ITreasury treasury)
     {
         _dbContext = dbContext;
         _realtimeService = realtimeService;
+        _treasury = treasury;
     }
 
     public async Task<Response.ProjectResponse> GetProjectByIdAsync(Guid userId, Guid projectId, UserRole userRole)
@@ -158,6 +160,23 @@ public class Service : IService
         }
     }
 
+    public async Task<Response.ProjectResponse> CompleteProjectAsync(Guid userId, Guid projectId)
+    {
+        var project = await _dbContext.Projects
+            .Include(p => p.Milestones)
+                .ThenInclude(m => m.Steps)
+            .FirstOrDefaultAsync(p => p.Id == projectId && p.ClientId == userId);
+
+        if (project == null) throw new NotFoundException("Project not found or access denied.");
+
+        // Settlement logic via Treasury (handles escrow and milestone sync)
+        var updatedProject = await _treasury.SettleProjectEscrowAsync(project);
+
+        if (updatedProject == null) throw new NotFoundException("Project not found after settlement.");
+
+        return MapToResponse(updatedProject);
+    }
+
     private static Response.ProjectResponse MapToResponse(Project p)
     {
         return new Response.ProjectResponse
@@ -194,3 +213,6 @@ public class Service : IService
         };
     }
 }
+
+
+

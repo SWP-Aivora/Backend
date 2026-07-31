@@ -318,7 +318,7 @@ public class Treasury : ITreasury
             // Data is already loaded with .Include(m => m.Steps) inside GetMilestoneWithProjectAsync
             CompleteRemainingSteps(milestone.Steps, DateTimeOffset.UtcNow);
 
-            await SyncProjectStatusAsync(milestone.ProjectId);
+            await SyncProjectStateAsync(milestone.Project);
 
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
@@ -434,7 +434,8 @@ public class Treasury : ITreasury
             }
 
             // Milestone.Status was already claimed as REFUNDED above, before any money moved.
-            await SyncProjectStatusAsync(milestone.ProjectId);
+            await SyncProjectStateAsync(milestone.Project);
+            await _dbContext.SaveChangesAsync();
 
             await transaction.CommitAsync();
 
@@ -554,7 +555,7 @@ public class Treasury : ITreasury
             // Data is already loaded with .Include(m => m.Steps) inside GetMilestoneWithProjectAsync
             CompleteRemainingSteps(milestone.Steps, DateTimeOffset.UtcNow);
 
-            await SyncProjectStatusAsync(milestone.ProjectId);
+            await SyncProjectStateAsync(milestone.Project);
 
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
@@ -576,6 +577,151 @@ public class Treasury : ITreasury
         }
     }
 
+    public async Task<Project> SettleProjectEscrowAsync(Project project)
+    {
+        var clientId = project.ClientId;
+        var projectId = project.Id;
+
+        if (project.Status != ProjectStatus.ACTIVE) throw new ValidationException("Only active projects can be settled.");
+
+        var hasActiveDispute = await _dbContext.Disputes
+            .AnyAsync(d => project.Milestones.Select(m => m.Id).Contains(d.MilestoneId) &&
+                          (d.Status == DisputeStatus.OPEN || d.Status == DisputeStatus.UNDER_REVIEW));
+
+        if (hasActiveDispute)
+            throw new ValidationException("Cannot settle project with active disputes.");
+
+        var milestonesToSettle = project.Milestones
+            .Where(m => m.Status == MilestoneStatus.IN_PROGRESS || m.Status == MilestoneStatus.SUBMITTED || m.Status == MilestoneStatus.FUNDED)
+            .ToList();
+
+        if (!milestonesToSettle.Any())
+        {
+            await SyncProjectStateAsync(project);
+            await _dbContext.SaveChangesAsync();
+            return project;
+        }
+
+        var notifications = new List<Action>();
+        using var transaction = await _dbContext.Database.BeginTransactionAsync();
+        try
+        {
+            var wallets = await GetWalletsForUpdateAsync(clientId, project.ExpertId, SystemConstants.SystemUserId);
+            var clientWallet = wallets.First(w => w.UserId == clientId);
+            var expertWallet = wallets.First(w => w.UserId == project.ExpertId);
+            var platformWallet = wallets.First(w => w.UserId == SystemConstants.SystemUserId);
+
+            foreach (var milestone in milestonesToSettle)
+            {
+                var remainingAmount = milestone.Amount * _escrow.RemainingRate;
+                var commissionAmount = _commissionCalculator.CalculateCommission(milestone.Amount);
+                var expertAmount = remainingAmount - commissionAmount;
+
+                if (clientWallet.AvailableBalance < remainingAmount)
+                    throw new ValidationException($"Insufficient balance to settle milestone {milestone.Id}.");
+
+                milestone.Status = MilestoneStatus.RELEASED;
+                milestone.ApprovedAt = DateTimeOffset.UtcNow;
+                milestone.PaidAt = DateTimeOffset.UtcNow;
+
+                var clientBalanceBefore = clientWallet.AvailableBalance;
+                var expertBalanceBefore = expertWallet.AvailableBalance;
+                var platformBalanceBefore = platformWallet.AvailableBalance;
+
+                if (!clientWallet.CanDebit(remainingAmount, out var debitError))
+                    throw new ValidationException(debitError!);
+
+                clientWallet.Debit(remainingAmount);
+                expertWallet.Credit(expertAmount);
+                platformWallet.Credit(commissionAmount);
+                expertWallet.TotalEarned += expertAmount;
+
+                var payment = new Payment
+                {
+                    MilestoneId = milestone.Id,
+                    ProjectId = milestone.ProjectId,
+                    PayerId = clientId,
+                    PayeeId = project.ExpertId,
+                    Amount = remainingAmount,
+                    Currency = clientWallet.Currency,
+                    Status = PaymentStatus.RELEASED,
+                    ReleasedAt = DateTimeOffset.UtcNow
+                };
+                _dbContext.Payments.Add(payment);
+
+                _dbContext.WalletTransactions.Add(new WalletTransaction
+                {
+                    WalletId = clientWallet.Id,
+                    UserId = clientId,
+                    Amount = remainingAmount,
+                    Type = WalletTransactionType.PAYMENT_RELEASE,
+                    Direction = TransactionDirection.DEBIT,
+                    Description = $"Paid {_escrow.RemainingRate * 100:0}% remaining for milestone: {milestone.Title}",
+                    BalanceBefore = clientBalanceBefore,
+                    BalanceAfter = clientWallet.AvailableBalance,
+                    PaymentId = payment.Id
+                });
+
+                _dbContext.WalletTransactions.Add(new WalletTransaction
+                {
+                    WalletId = expertWallet.Id,
+                    UserId = expertWallet.UserId,
+                    Amount = expertAmount,
+                    Type = WalletTransactionType.PAYMENT_RELEASE,
+                    Direction = TransactionDirection.CREDIT,
+                    Description = $"Received remaining payment (after fee) for milestone: {milestone.Title}",
+                    BalanceBefore = expertBalanceBefore,
+                    BalanceAfter = expertWallet.AvailableBalance,
+                    PaymentId = payment.Id
+                });
+
+                if (commissionAmount > 0)
+                {
+                    _dbContext.WalletTransactions.Add(new WalletTransaction
+                    {
+                        WalletId = platformWallet.Id,
+                        UserId = platformWallet.UserId,
+                        Amount = commissionAmount,
+                        Type = WalletTransactionType.PLATFORM_FEE,
+                        Direction = TransactionDirection.CREDIT,
+                        Description = $"{_commissionCalculator.Rate * 100:0}% Platform fee for milestone: {milestone.Title}",
+                        BalanceBefore = platformBalanceBefore,
+                        BalanceAfter = platformWallet.AvailableBalance,
+                        PaymentId = payment.Id
+                    });
+                }
+
+                CompleteRemainingSteps(milestone.Steps, DateTimeOffset.UtcNow);
+
+                notifications.Add(() => _notificationService.SendInBackground(
+                    project.ExpertId,
+                    "Project Completed & Milestone Paid",
+                    $"The client has completed the project and milestone \"{milestone.Title}\" has been released to your wallet.",
+                    "PROJECT",
+                    $"/projects/{projectId}/milestones/{milestone.Id}"
+                ));
+
+                _logger.LogInformation("✅ Settlement: Remaining funds released for Milestone {MilestoneId} upon Project completion", milestone.Id);
+            }
+
+            await SyncProjectStateAsync(project);
+            await _dbContext.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            foreach (var notify in notifications)
+            {
+                notify();
+            }
+
+            return project;
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            _logger.LogError(ex, "❌ Failed to settle escrow for project {ProjectId}", projectId);
+            throw;
+        }
+    }
     public async Task SyncProjectStatusAsync(Guid projectId)
     {
         var project = await _dbContext.Projects
@@ -589,6 +735,7 @@ public class Treasury : ITreasury
         }
 
         await SyncProjectStateAsync(project);
+        await _dbContext.SaveChangesAsync();
     }
 
     private async Task SyncProjectStateAsync(Project project)
@@ -633,7 +780,6 @@ public class Treasury : ITreasury
         {
             project.Status = ProjectStatus.ACTIVE;
         }
-        await _dbContext.SaveChangesAsync();
     }
     private async Task<Milestone> GetMilestoneWithProjectAsync(Guid milestoneId)
     {
@@ -682,3 +828,7 @@ public class Treasury : ITreasury
         }
     }
 }
+
+
+
+
