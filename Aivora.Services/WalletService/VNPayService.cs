@@ -56,7 +56,6 @@ public class VNPayService : IVNPayService
         var hashSecret = _configuration["VNPay:HashSecret"];
         var baseUrl = _configuration["VNPay:BaseUrl"];
         var returnUrl = _configuration["VNPay:ReturnUrl"];
-        var ipnUrl = _configuration["VNPay:IpnUrl"];
 
         var txnRef = $"{userId:N}_{DateTimeOffset.UtcNow:yyyyMMddHHmmssfff}";
         var vnTime = DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(7));
@@ -77,12 +76,6 @@ public class VNPayService : IVNPayService
             { "vnp_ReturnUrl", returnUrl },
             { "vnp_TxnRef", txnRef }
         };
-
-        // Only include IpnUrl if configured; VNPAY sandbox may reject custom IpnUrl
-        if (!string.IsNullOrEmpty(ipnUrl))
-        {
-            vnpParams["vnp_IpnUrl"] = ipnUrl;
-        }
 
         var signData = new StringBuilder();
         foreach (var kvp in vnpParams)
