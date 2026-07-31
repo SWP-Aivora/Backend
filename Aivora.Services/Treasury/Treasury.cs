@@ -318,7 +318,7 @@ public class Treasury : ITreasury
             // Data is already loaded with .Include(m => m.Steps) inside GetMilestoneWithProjectAsync
             CompleteRemainingSteps(milestone.Steps, DateTimeOffset.UtcNow);
 
-            await SyncProjectStatusAsync(milestone.ProjectId);
+            await SyncProjectStateAsync(milestone.Project);
 
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
@@ -434,7 +434,8 @@ public class Treasury : ITreasury
             }
 
             // Milestone.Status was already claimed as REFUNDED above, before any money moved.
-            await SyncProjectStatusAsync(milestone.ProjectId);
+            await SyncProjectStateAsync(milestone.Project);
+            await _dbContext.SaveChangesAsync();
 
             await transaction.CommitAsync();
 
@@ -554,7 +555,7 @@ public class Treasury : ITreasury
             // Data is already loaded with .Include(m => m.Steps) inside GetMilestoneWithProjectAsync
             CompleteRemainingSteps(milestone.Steps, DateTimeOffset.UtcNow);
 
-            await SyncProjectStatusAsync(milestone.ProjectId);
+            await SyncProjectStateAsync(milestone.Project);
 
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
@@ -597,6 +598,7 @@ public class Treasury : ITreasury
         if (!milestonesToSettle.Any())
         {
             await SyncProjectStateAsync(project);
+            await _dbContext.SaveChangesAsync();
             return project;
         }
 
@@ -733,6 +735,7 @@ public class Treasury : ITreasury
         }
 
         await SyncProjectStateAsync(project);
+        await _dbContext.SaveChangesAsync();
     }
 
     private async Task SyncProjectStateAsync(Project project)
@@ -777,7 +780,6 @@ public class Treasury : ITreasury
         {
             project.Status = ProjectStatus.ACTIVE;
         }
-        await _dbContext.SaveChangesAsync();
     }
     private async Task<Milestone> GetMilestoneWithProjectAsync(Guid milestoneId)
     {

@@ -172,6 +172,8 @@ public class Service : IService
         // Settlement logic via Treasury (handles escrow and milestone sync)
         var updatedProject = await _treasury.SettleProjectEscrowAsync(project);
 
+        if (updatedProject == null) throw new NotFoundException("Project not found after settlement.");
+
         return MapToResponse(updatedProject);
     }
 
